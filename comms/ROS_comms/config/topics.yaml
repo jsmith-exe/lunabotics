@@ -1,0 +1,5 @@
+topics:
+  /status: std_msgs/String
+  /temperature:
+    type: std_msgs/Float32
+    qos: sensor

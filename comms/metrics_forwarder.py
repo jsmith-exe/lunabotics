@@ -116,7 +116,7 @@ def stream():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=8888)
+    ap.add_argument("--port", type=int, default=9999)
     ap.add_argument("--host", default="0.0.0.0")
     args = ap.parse_args()
     app.run(host=args.host, port=args.port, threaded=True, use_reloader=False)
