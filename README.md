@@ -1,9 +1,9 @@
 # Autonomous Robotics Platform – Software Architecture
 
-This repository contains the software stack for an autonomous robotics platform built around:
+This repository contains the software stack for the QPL autonomous robotics platform built around:
 
 - A **Microcontroller (C++)** for low-level hardware control  
-- A **Jetson Nano (Python + ROS)** for high-level autonomy and perception  
+- A **Jetson Nano (Python + ROS2)** for high-level autonomy and perception  
 - A **Base Station Laptop (Python)** for telemetry, visualisation, and manual control
 
 The diagram below (stored in `Media/initial_software_system_diagram.png`) shows the overall data and control flow:
@@ -21,15 +21,15 @@ The system is organised into three main blocks:
    - Drives motors and actuators
    - Sends/receives data over **UART** to the Jetson Nano
 
-2. **Jetson Nano – Python / ROS**
-   - Runs ROS nodes for sensing, state estimation, and control
+2. **Jetson Nano – Python / ROS2**
+   - Runs ROS2 nodes for sensing, state estimation, and control
    - Hosts the **main control algorithm**
    - Interfaces with cameras and LiDAR (including SLAM)
    - Bridges between microcontroller and base station (UART + Wi-Fi)
 
 3. **Base Station Laptop – Python**
    - Provides telemetry viewer and logging
-   - Handles input from **Xbox controller** and **keyboard**
+   - Handles input from **Xbox controller** and **Keyboard**
    - Communicates with Jetson over **Wi-Fi**, with optional **USB** serial link for testing
 
 ---
@@ -72,14 +72,14 @@ The microcontroller is responsible for all low-level, time-critical I/O.
 
 ## 3. Jetson Nano (Python + ROS)
 
-The Jetson is the “brain” of the system, running ROS and the main control logic.
+The Jetson is the “brain” of the system, running ROS2 and the main control logic.
 
-### 3.1 Core ROS Components
+### 3.1 Core ROS2 Components
 
-- **ROS Nodes**  
-  The individual ROS processes used for perception, control, and communication.
+- **ROS2 Nodes**  
+  The individual ROS2 processes used for perception, control, and communication.
 
-- **ROS Node Listener**  
+- **ROS2 Node Listener**  
   Subscribes to topics populated from the **Data Parser** (incoming UART data) and other sensors.
 
 - **Main Control Algorithm**  
@@ -88,13 +88,13 @@ The Jetson is the “brain” of the system, running ROS and the main control lo
   - path following / navigation
   - generation of motor and actuator commands
 
-- **ROS Node Publisher**  
+- **ROS2 Node Publisher**  
   Publishes control commands that are fed back into the **Serial Driver Code** for transmission to the microcontroller.
 
 ### 3.2 Sensor Drivers
 
 - **Stereo Camera Driver Code → Stereo Camera**  
-  Provides stereo images and depth information into ROS topics.
+  Provides stereo images and depth information into ROS2 topics.
 
 - **Mono Camera Driver Code → Mono Camera 1 / Mono Camera 2**  
   Provides additional monocular vision streams for tasks such as object detection or tracking.
@@ -105,7 +105,7 @@ The Jetson is the “brain” of the system, running ROS and the main control lo
 ### 3.3 Serial & Networking
 
 - **Data Parser**  
-  Converts raw UART packets from the microcontroller into ROS-friendly messages (and vice versa).
+  Converts raw UART packets from the microcontroller into ROS2-friendly messages (and vice versa).
 
 - **Serial Driver Code**  
   Manages the UART link to the microcontroller.
