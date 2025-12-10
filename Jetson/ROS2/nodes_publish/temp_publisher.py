@@ -2,8 +2,7 @@
 
 import random
 from std_msgs.msg import Float32
-from base_publisher import BasePublisher
-
+from Jetson.ROS2.base.base_publisher import BasePublisher
 
 class TemperaturePublisher(BasePublisher):
     def __init__(self) -> None:
