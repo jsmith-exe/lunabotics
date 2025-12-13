@@ -1,3 +1,8 @@
+"""
+May be useful for using a controller with macOS (or Linux)
+"""
+
+
 # import hid
 #
 # # for device in hid.enumerate():
