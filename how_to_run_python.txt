@@ -1,0 +1,8 @@
+The Rule.
+
+- If you use relative imports (from . / from ..) you must run with -m.
+- Don't mix "run as a file path" with relative imports.
+
+From your home directory,
+cd ~
+python3 -m lunaboptics/file.py
