@@ -1,159 +1,161 @@
 # Autonomous Robotics Platform – Software Architecture
 
-This repository contains the software stack for the QPL autonomous robotics platform built around:
+This repository contains the software stack for the **QPL autonomous robotics platform**, designed around a clear separation of low-level control, high-level autonomy, and operator interaction.
 
-- A **Microcontroller (C++)** for low-level hardware control  
-- A **Jetson Nano (Python + ROS2)** for high-level autonomy and perception  
-- A **Base Station Laptop (Python)** for telemetry, visualisation, and manual control
+The system is built on three main compute layers:
 
-The diagram below (stored in `Media/initial_software_system_diagram.png`) shows the overall data and control flow:
+- **Microcontroller (C++)** – real-time, low-level hardware control  
+- **Jetson Nano (Python + ROS2)** – perception, autonomy, and control  
+- **Base Station Laptop (Python)** – telemetry, visualisation, and manual control  
 
-![System Architecture](Media/initial_software_system_diagram.png)
+The diagram below (stored in `Media/software_system_diagram_revB.png`) illustrates the complete data and control flow across the system:
+
+![System Architecture](Media/software_system_diagram_revB.png)
 
 ---
 
-## 1. High-Level Overview
+## 1. System Overview
 
-The system is organised into three main blocks:
+The architecture follows a **hierarchical robotics design**:
 
-1. **Microcontroller – C++**
-   - Talks directly to encoders, IMU, and actuator sensors
-   - Drives motors and actuators
-   - Sends/receives data over **UART** to the Jetson Nano
+1. **Microcontroller layer** handles time-critical I/O and actuator control.  
+2. **Jetson Nano layer** performs sensor fusion, autonomy, and ROS2-based coordination.  
+3. **Base Station layer** provides monitoring, logging, and human-in-the-loop control.
 
-2. **Jetson Nano – Python / ROS2**
-   - Runs ROS2 nodes for sensing, state estimation, and control
-   - Hosts the **main control algorithm**
-   - Interfaces with cameras and LiDAR (including SLAM)
-   - Bridges between microcontroller and base station (UART + Wi-Fi)
-
-3. **Base Station Laptop – Python**
-   - Provides telemetry viewer and logging
-   - Handles input from **Xbox controller** and **Keyboard**
-   - Communicates with Jetson over **Wi-Fi**, with optional **USB** serial link for testing
+Each layer communicates using clearly defined interfaces (UART, ROS2 topics, and network links), allowing components to be developed and tested independently.
 
 ---
 
 ## 2. Microcontroller (C++)
 
-The microcontroller is responsible for all low-level, time-critical I/O.
+The microcontroller is responsible for all **hard real-time tasks** and direct hardware interaction.
 
-### 2.1 Inputs
+### 2.1 Sensor Inputs
 
-- **Encoder Raw Values**  
-  Read by the **Encoder Driver Code** to measure wheel/shaft position and velocity.
+- **Encoders**  
+  Raw encoder signals are read by the *Encoder Driver Code* to compute wheel/shaft position and velocity.
 
-- **IMU Raw Values**  
-  Read by the **IMU Driver Code** to obtain orientation and acceleration data.
+- **IMU**  
+  The *IMU Driver Code* acquires inertial data such as orientation, angular velocity, and acceleration.
 
-- **Actuator’s Sensor Raw Values**  
-  Read by the **Actuator Sensors Driver Code** to monitor actuator positions, limits, or feedback sensors.
+- **Actuator Sensors**  
+  The *Actuator Sensors Driver Code* monitors feedback from actuators (position, limits, or load feedback).
 
-### 2.2 Processing
+### 2.2 Internal Processing
 
 - **Data Parser**  
-  Collects and formats data from all sensor drivers.  
-  Prepares packets for transmission to the Jetson Nano over UART and decodes incoming commands.
+  Aggregates all sensor data into structured packets.  
+  Handles encoding and decoding of commands and telemetry exchanged with the Jetson Nano.
 
-### 2.3 Outputs
+### 2.3 Actuation Outputs
 
 - **Motor Driver Code → Motors**  
-  Receives control commands (e.g. velocity, torque) and converts them into low-level motor signals (PWM, direction, etc.).
+  Converts high-level commands into low-level motor signals (PWM, direction, enable, etc.).
 
 - **Actuator Driver Code → Actuator Motors**  
-  Drives additional actuators (e.g. steering, arm mechanisms, grippers) based on commands from the Jetson.
+  Controls additional actuators such as steering, mechanisms, or end-effectors.
 
 ### 2.4 Communication
 
-- **UART Link to Jetson Nano**  
-  All sensor data and actuator/motor commands are exchanged via a serial protocol over UART.
+- **UART ↔ Jetson Nano**  
+  A bidirectional serial link used to:
+  - transmit sensor data upstream  
+  - receive motor and actuator commands downstream  
 
 ---
 
-## 3. Jetson Nano (Python + ROS)
+## 3. Jetson Nano (Python + ROS2)
 
-The Jetson is the “brain” of the system, running ROS2 and the main control logic.
+The Jetson Nano acts as the **central compute node** and runs the ROS2 ecosystem.
 
-### 3.1 Core ROS2 Components
+### 3.1 Core ROS2 Architecture
 
-- **ROS2 Nodes**  
-  The individual ROS2 processes used for perception, control, and communication.
+- **ROS2 Nodes & Topics**  
+  Modular ROS2 nodes encapsulate sensing, control, and communication functionality.
 
-- **ROS2 Node Listener**  
-  Subscribes to topics populated from the **Data Parser** (incoming UART data) and other sensors.
+- **ROS2 Topic Subscribers**  
+  Consume:
+  - parsed UART data from the microcontroller  
+  - sensor data from cameras and LiDAR  
 
 - **Main Control Algorithm**  
-  Implements the high-level behaviour:
-  - state estimation and fusion
-  - path following / navigation
-  - generation of motor and actuator commands
+  Implements the robot’s high-level behaviour, including:
+  - state estimation and sensor fusion  
+  - navigation and path following  
+  - generation of motor and actuator setpoints  
 
-- **ROS2 Node Publisher**  
-  Publishes control commands that are fed back into the **Serial Driver Code** for transmission to the microcontroller.
+- **ROS2 Topic Publishers**  
+  Publish control commands that are forwarded to the microcontroller via the serial interface.
 
-### 3.2 Sensor Drivers
+### 3.2 Perception & Sensors
 
-- **Stereo Camera Driver Code → Stereo Camera**  
-  Provides stereo images and depth information into ROS2 topics.
+- **Stereo Camera Driver**  
+  Produces stereo image streams and depth information for perception tasks.
 
-- **Mono Camera Driver Code → Mono Camera 1 / Mono Camera 2**  
-  Provides additional monocular vision streams for tasks such as object detection or tracking.
+- **Mono Camera Drivers (Camera 1 & 2)**  
+  Provide additional vision inputs for object detection, tracking, or redundancy.
 
-- **LIDAR Driver Code (SLAM) → LIDAR**  
-  Handles LiDAR data acquisition and feeds SLAM modules for mapping and localisation.
+- **LiDAR Driver (SLAM)**  
+  Acquires LiDAR scans and feeds SLAM modules for mapping and localisation.
 
 ### 3.3 Serial & Networking
 
-- **Data Parser**  
-  Converts raw UART packets from the microcontroller into ROS2-friendly messages (and vice versa).
-
-- **Serial Driver Code**  
-  Manages the UART link to the microcontroller.
+- **Serial Driver + Data Parser**  
+  Translates between UART packets and ROS2 messages.
 
 - **Wi-Fi (TP-Link Network)**  
-  Connects the Jetson to the base station laptop for telemetry and remote control.
+  Primary communication channel between the Jetson and the base station for telemetry and control.
 
-- **USB (Testing)**  
-  Optional direct serial link to the base station for development and debugging.
+- **Ethernet (Development / Testing)**  
+  Optional wired link used for debugging, testing, and high-bandwidth development tasks.
 
 ---
 
 ## 4. Base Station Laptop (Python)
 
-The base station is used for operator interaction, monitoring, and debugging.
+The base station provides **human-in-the-loop interaction** and system visibility.
 
-### 4.1 Communication & Parsing
+### 4.1 Telemetry & Communication
 
-- **Serial Driver Code**  
-  Handles USB serial communication during testing/development.
-
-- **Data Parser**  
-  Decodes data streams from the Jetson (via Wi-Fi or USB) into usable telemetry and status information.
-
-### 4.2 Operator Interfaces
+- **ROS2 Topic Subscriber**  
+  Receives telemetry streams from the Jetson Nano.
 
 - **Local Host Telemetry Viewer**  
-  A local GUI or web-based dashboard that shows:
-  - live sensor data  
-  - system status and alerts  
+  Displays:
+  - live sensor values  
+  - robot state and diagnostics  
   - control outputs  
-  - possibly SLAM maps and camera feeds (depending on implementation)
+  - (optionally) SLAM maps and camera feeds  
+
+### 4.2 Operator Input
 
 - **Controller Driver Code → Xbox Controller**  
-  Reads input from an Xbox controller and converts it into command messages (e.g. velocity, steering, mode switching).
+  Converts gamepad inputs into command messages (velocity, steering, mode selection).
 
 - **Keyboard Driver Code → Keyboard**  
-  Allows manual control and shortcuts directly from the keyboard (e.g. arming, stopping, or sending test commands).
+  Enables manual overrides, shortcuts, and emergency commands.
+
+- **ROS2 Topic Publisher**  
+  Publishes operator commands to the Jetson over the network.
 
 ---
 
 ## 5. Communication Summary
 
-| Link                     | Direction                  | Purpose                                    |
-|--------------------------|---------------------------|--------------------------------------------|
-| **UART**                 | Microcontroller ↔ Jetson  | Sensor data and motor/actuator commands    |
-| **Wi-Fi (TP-Link)**      | Jetson ↔ Base Station     | Telemetry, remote control, monitoring      |
-| **USB (Testing)**        | Jetson ↔ Base Station     | Debugging, development serial connection   |
-| **Gamepad / Keyboard**   | Base Station → Jetson     | Manual control commands                    |
+| Link | Direction | Purpose |
+|-----|----------|---------|
+| **UART** | Microcontroller ↔ Jetson | Sensor data and actuator commands |
+| **Wi-Fi (TP-Link)** | Jetson ↔ Base Station | Telemetry, control, monitoring |
+| **Ethernet** | Jetson ↔ Base Station | Development and debugging |
+| **Gamepad / Keyboard** | Base Station → Jetson | Manual operator commands |
 
 ---
+
+## 6. Design Philosophy
+
+- **Layered architecture** separates real-time control from high-level autonomy  
+- **ROS2 modularity** enables scalable development and testing  
+- **Clear interfaces** (UART, topics, network links) reduce coupling  
+- **Human-in-the-loop support** ensures safe testing and operation  
+
+This structure allows the platform to scale from manual tele-operation to fully autonomous operation with minimal architectural changes.
