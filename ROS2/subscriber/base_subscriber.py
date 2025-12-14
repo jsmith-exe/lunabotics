@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Type
 from rclpy.qos import QoSProfile
 
-from ...base_node import BaseNode
+from ..base_node import BaseNode
 
 
 class BaseSubscriber(BaseNode):
