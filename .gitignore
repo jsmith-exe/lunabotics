@@ -1,0 +1,87 @@
+# ======================
+# Python
+# ======================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+.venv/
+venv/
+ENV/
+env/
+
+# ======================
+# ROS / colcon
+# ======================
+build/
+install/
+log/
+*.db3
+
+# ======================
+# VS Code
+# ======================
+.vscode/
+*.code-workspace
+
+# ======================
+# Linux / Jetson
+# ======================
+*~
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ======================
+# Logs & temp files
+# ======================
+*.log
+logs/
+tmp/
+temp/
+
+# ======================
+# Environment / secrets
+# ======================
+.env
+.env.*
+*.pem
+*.key
+
+# ======================
+# Python packaging
+# ======================
+dist/
+wheelhouse/
+pip-wheel-metadata/
+
+# ======================
+# CMake
+# ======================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# ======================
+# Jetson / CUDA (if you add later)
+# ======================
+*.nvvp
+*.ptx
+*.cubin
+
+# ======================
+# ROS bags & data
+# ======================
+*.bag
+*.bag.active
+*.bag.metadata.yaml
+
+# ======================
+# Misc
+# ======================
+.idea/
