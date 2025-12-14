@@ -1,5 +1,7 @@
+# python3 -m lunabotics.ROS2.subscriber.temp_subscriber
+
 from std_msgs.msg import Float32
-from ..base.base_subscriber import BaseSubscriber
+from .base_subscriber import BaseSubscriber
 import threading
 from typing import Optional, Tuple
 

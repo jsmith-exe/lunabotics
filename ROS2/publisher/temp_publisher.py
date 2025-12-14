@@ -1,8 +1,8 @@
-# temp_publisher.py
-tag = "lunabotics"
+# python3 -m lunabotics.ROS2.publisher.temp_publisher
+
 import random
 from std_msgs.msg import Float32
-from ..base.base_publisher import BasePublisher
+from .base_publisher import BasePublisher
 
 
 class TemperaturePublisher(BasePublisher):
