@@ -1,0 +1,8 @@
+The following commands demonstraite how to subscribe to a ROS2 topic via the terminal window.
+
+
+List all available topics,
+ros2 topic list
+
+Listen to a specific topic,
+ros2 topic echo /topic_name
