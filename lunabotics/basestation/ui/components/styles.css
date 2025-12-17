@@ -1,0 +1,7 @@
+.test_panel {{
+    background-color: red;
+}}
+
+.info_cell_panel {{
+    background-color: {QTMATERIAL_SECONDARYLIGHTCOLOR};
+}}
