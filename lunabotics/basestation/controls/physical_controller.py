@@ -24,7 +24,7 @@ def make_on_button_pressed(button):
 
 class PhysicalControllerHandler:
     def __init__(self):
-        self.closed = True
+        self.stopped = True
         self.controller = None
         controller = pydualsense()
         try:
@@ -32,7 +32,7 @@ class PhysicalControllerHandler:
         except Exception as err:
             self.onFailToConnect(err)
             return
-        self.closed = False
+        self.stopped = False
 
         controller.circle_pressed += make_on_button_pressed(Con.CIRCLE)
         controller.square_pressed += make_on_button_pressed(Con.SQUARE)
@@ -46,17 +46,13 @@ class PhysicalControllerHandler:
     def onFailToConnect(self, err):
         print(f'Exception raised when attempting to connect to controller: {err}')
 
-    def close(self):
-        if self.closed: return
-        self.closed = True
+    def stop(self):
+        if self.stopped: return
+        self.stopped = True
         self.controller.close()
         print('Controller closed')
-
-    def __del__(self):
-        if self.closed: return
-        self.close()
 
 if __name__ == '__main__':
     controllerHandler = PhysicalControllerHandler()
     input()
-    controllerHandler.close()
+    controllerHandler.stop()
