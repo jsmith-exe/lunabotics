@@ -2,13 +2,13 @@
 Handles setup of a physical controller.
 Currently only supports dualsense, may not work on macOS.
 Helpful documentation:
-https://flok.github.io/pydualsense/ds_main.html
+- pydualsense docs: https://flok.github.io/pydualsense/ds_main.html
 """
 
 from pydualsense import pydualsense
 from lunabotics.basestation.controls.control_maps import default_controller_control_map, Con
 
-control_map = default_controller_control_map # To replace with state
+control_map = default_controller_control_map # Todo replace with state
 
 def make_on_button_pressed(button):
     if button not in control_map:
