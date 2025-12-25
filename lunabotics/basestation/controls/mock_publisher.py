@@ -20,6 +20,7 @@ class TurtleRover:
         for command in Commands:
             self.command_state[command] = False
 
+        # Set up update look
         def check_commands():
             self.process_state()
             self.screen.ontimer(check_commands, 16)  # ~60 FPS
@@ -49,11 +50,13 @@ def mock_publish(command: str, *args):
     rover = TurtleRover.instance
     if rover is None:
         return
+
     if command == Commands.STOP_SIGNAL:
         command_to_stop = args[0]
         rover.update_command_state(command_to_stop, False)
-    else:
-        rover.update_command_state(command, True)
+        return
+
+    rover.update_command_state(command, True)
 
 if __name__ == "__main__":
     DesktopController(mock_publish)
