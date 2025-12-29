@@ -27,3 +27,10 @@ class ControllerInputs:
     DPAD_DOWN = 'dpad_down'
     DPAD_RIGHT = 'dpad_right'
     DPAD_LEFT = 'dpad_left'
+
+    LEFT_JOYSTICK_X = 'left_joystick_x'
+    LEFT_JOYSTICK_Y = 'left_joystick_y'
+    RIGHT_JOYSTICK_X = 'right_joystick_x'
+    RIGHT_JOYSTICK_Y = 'right_joystick_y'
+    L2_ANALOGUE_STICK = 'l1'
+    R2_ANALOGUE_STICK = 'l2'

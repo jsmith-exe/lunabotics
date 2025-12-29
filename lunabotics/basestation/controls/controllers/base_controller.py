@@ -3,10 +3,11 @@ from collections.abc import Callable
 from lunabotics.basestation.controls.constants import Commands, ControllerInputs
 from lunabotics.basestation.controls.controllers.base_station_state import BaseStationState
 
+MINIMUM_ANALOGUE_CHANGE = 0.05 # Changes in analogue values must be at least this much to be sent
 
 class BaseController:
     """
-    Base controller for handling shared implementations of button and analogue inputs.
+    Base class controller for handling shared implementations of button and analogue inputs.
     """
     def __init__(self, publish_function: Callable, state: BaseStationState):
         """
@@ -15,6 +16,7 @@ class BaseController:
         """
         self.publish_function = publish_function
         self.state = state
+        self.previous_analogue_values = dict()
 
     def handle_button(self, button: str | ControllerInputs, pressed: bool, control_map: dict) -> None:
         """
@@ -33,3 +35,20 @@ class BaseController:
         else:
             # On release, send a STOP signal for that command.
             self.publish_function(Commands.STOP_SIGNAL, command)
+
+    def handle_analogue_input(self, input_: str | ControllerInputs, normalised_value: float, control_map: dict) -> None:
+        """
+        Sends the command associated with the control map with the value of the analogue input (e.g., mouse or joystick).
+        :param input_: the triggered input.
+        :param normalised_value: a value from -1 to 1 that represents the value from the analogue input.
+        :param control_map: the control map to use.
+        """
+        command = control_map.get(input_)
+        prev_value = self.previous_analogue_values.get(input_)
+        if (command is None or
+            # Ignore insignificant inputs if there was a previous value and there is a non-zero value from the input.
+            (prev_value is not None and abs(normalised_value - prev_value) < MINIMUM_ANALOGUE_CHANGE)):
+            return
+
+        self.previous_analogue_values[input_] = normalised_value
+        self.publish_function(command, normalised_value)
