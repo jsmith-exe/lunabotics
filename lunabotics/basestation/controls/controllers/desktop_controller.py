@@ -6,13 +6,13 @@ Helpful documentation:
 
 from pynput import keyboard, mouse
 
-from lunabotics.basestation.controls.control_maps import default_desktop_control_map, Commands
+from lunabotics.basestation.controls.controllers.base_controller import BaseController
+from lunabotics.basestation.controls.controllers.base_station_state import BaseStationState
 
-control_map = default_desktop_control_map # Todo replace with state
-
-class DesktopController:
-    def __init__(self, publish_function):
-        self.publish_function = publish_function
+class DesktopController(BaseController):
+    """ Translates keyboard and mouse inputs to commands. """
+    def __init__(self, publish_function, state):
+        super().__init__(publish_function, state)
         self.key_states = dict()
 
         # Setup listeners
@@ -35,25 +35,19 @@ class DesktopController:
         :param key_object: a key object from pynput.
         :param pressed: whether the key event is a press (True) or release (False).
         """
+        control_map = self.state.desktop_control_map
+
         # Some keys use 'char' (a, b), others use 'name' (shift, ctrl).
         # Get the appropriate attribute as a generalised name.
         key_name = getattr(key_object, 'char', None) or getattr(key_object, 'name', None)
-        if key_name not in control_map:
-            # print(f'Invalid key: {key_object}')
+
+        if (key_name not in control_map
+            # Avoid duplicate state changes; these can occur if a key is held down.
+            or self.key_states.get(key_name) == pressed):
             return
 
-        # Avoid duplicate state changes; these can occur if a key is held down.
-        if self.key_states.get(key_name) == pressed:
-            return  # No state change
-
-        # Update state
         self.key_states[key_name] = pressed
-        command = control_map.get(key_name)
-        if pressed:
-            self.publish_function(command)
-        else:
-            # On release, send a STOP signal for that command.
-            self.publish_function(Commands.STOP_SIGNAL, command)
+        self.handle_button(key_name, pressed, control_map)
 
     def on_mouse_move(self, x, y):
         pass
@@ -66,6 +60,6 @@ class DesktopController:
 
 
 if __name__ == '__main__':
-    DesktopController(print)
+    DesktopController(print, BaseStationState())
     from time import sleep
     sleep(1000)

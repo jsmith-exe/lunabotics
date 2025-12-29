@@ -4,16 +4,18 @@ Currently only supports dualsense, may not work on macOS.
 Helpful documentation:
 - pydualsense docs: https://flok.github.io/pydualsense/ds_main.html
 """
+from collections.abc import Callable
 
 from pydualsense import pydualsense
 
-from lunabotics.basestation.controls.constants import Commands
-from lunabotics.basestation.controls.control_maps import default_controller_control_map, Con
+from lunabotics.basestation.controls.control_maps import Con
+from lunabotics.basestation.controls.controllers.base_controller import BaseController
+from lunabotics.basestation.controls.controllers.base_station_state import BaseStationState
 
-control_map = default_controller_control_map # Todo replace with state
-
-class PhysicalControllerHandler:
-    def __init__(self, publish_function):
+class PhysicalControllerHandler(BaseController):
+    """ Translates controller inputs to commands. """
+    def __init__(self, publish_function, state: BaseStationState):
+        super().__init__(publish_function, state)
         self.publish_function = publish_function
         self.stopped = True
         self.controller = None
@@ -30,6 +32,7 @@ class PhysicalControllerHandler:
         self.add_event_listeners()
 
     def add_event_listeners(self):
+        """ Assigns event listeners for handling inputs. """
         controller = self.controller
         controller.circle_pressed += self.make_on_button_pressed(Con.CIRCLE)
         controller.square_pressed += self.make_on_button_pressed(Con.SQUARE)
@@ -43,22 +46,17 @@ class PhysicalControllerHandler:
         controller.dpad_right += self.make_on_button_pressed(Con.DPAD_RIGHT)
         controller.dpad_left += self.make_on_button_pressed(Con.DPAD_LEFT)
 
-    def make_on_button_pressed(self, button):
-        if button not in control_map:
-            print(f'Invalid button: {button}')
-            return lambda *_: None # Take any arguments, return None
-
+    def make_on_button_pressed(self, button: Con | str) -> Callable:
+        """
+        Creates a method for handling the button passed.
+        :param button: the button to handle.
+        :return: a function that will be called; must take a boolean parameter.
+        """
         def on_button_pressed(pressed):
-            command = control_map.get(button)
-            if pressed:
-                self.publish_function(command)
-            else:
-                # On release, send a STOP signal for that command.
-                self.publish_function(Commands.STOP_SIGNAL, command)
-
+            self.handle_button(button, pressed, self.state.controller_control_map)
         return on_button_pressed
 
-    def onFailToConnect(self, err):
+    def onFailToConnect(self, err: Exception):
         print(f'Exception raised when attempting to connect to controller: {err}')
 
     def stop(self):
@@ -68,6 +66,9 @@ class PhysicalControllerHandler:
         print('Controller closed')
 
 if __name__ == '__main__':
-    controllerHandler = PhysicalControllerHandler(print)
-    input()
+    controllerHandler = PhysicalControllerHandler(print, BaseStationState())
+    try:
+        input()
+    except KeyboardInterrupt:
+        pass
     controllerHandler.stop()

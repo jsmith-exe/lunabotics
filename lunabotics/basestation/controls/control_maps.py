@@ -1,10 +1,9 @@
-from lunabotics.basestation.controls.constants import ControllerOptions, ControlMode, Commands
+from lunabotics.basestation.controls.constants import ControllerInputs, ControlMode, Commands
 
-Con = ControllerOptions
+Con = ControllerInputs
 
 default_controller_control_map = {
     'mode': ControlMode.STANDARD,
-
     Con.DPAD_UP: Commands.FORWARD,
     Con.DPAD_DOWN: Commands.REVERSE,
     Con.DPAD_RIGHT: Commands.RIGHT,

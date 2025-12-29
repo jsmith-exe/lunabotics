@@ -1,14 +1,16 @@
 import turtle
 
 from lunabotics.basestation.controls.constants import Commands
-from lunabotics.basestation.controls.desktop_controller import DesktopController
-from lunabotics.basestation.controls.physical_controller import PhysicalControllerHandler
+from lunabotics.basestation.controls.controllers.base_station_state import BaseStationState
+from lunabotics.basestation.controls.controllers.desktop_controller import DesktopController
+from lunabotics.basestation.controls.controllers.physical_controller import PhysicalControllerHandler
 
 
 class TurtleRover:
     instance = None
 
     def __init__(self):
+        """ Opens a turtle window for testing inputs. """
         self.turtle = turtle.Turtle()
         self.screen = turtle.Screen()
         self.turtle.speed(1)
@@ -32,6 +34,7 @@ class TurtleRover:
             pass
 
     def process_state(self):
+        """ Given the stored state, applies movement to the turtle. """
         speed = 5
         if self.command_state[Commands.FORWARD]:
             self.turtle.forward(speed)
@@ -45,9 +48,15 @@ class TurtleRover:
         self.screen.update()
 
     def update_command_state(self, command: str, state: bool):
+        """ Updates some state of the command. """
         self.command_state[command] = state
 
 def mock_publish(command: str, *args):
+    """
+    A mock publish method that can be used to move the turtle, based on the controllers.
+    :param command: an initial command.
+    :param args: arbitrary list of arguments.
+    """
     rover = TurtleRover.instance
     if rover is None:
         return
@@ -60,7 +69,8 @@ def mock_publish(command: str, *args):
     rover.update_command_state(command, True)
 
 if __name__ == "__main__":
-    DesktopController(mock_publish)
-    physical_controller = PhysicalControllerHandler(mock_publish)
+    state = BaseStationState()
+    DesktopController(mock_publish, state)
+    physical_controller = PhysicalControllerHandler(mock_publish, state)
     TurtleRover()
     physical_controller.stop()

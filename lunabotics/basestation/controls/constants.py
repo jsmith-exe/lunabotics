@@ -14,7 +14,7 @@ class Commands(Enum):
     REVERSE = 'MVB'
     STOP_SIGNAL = 'STP'
 
-class ControllerOptions:
+class ControllerInputs:
     """ Controller inputs for defining control maps. """
     CIRCLE = 'circle'
     SQUARE = 'square'
