@@ -3,14 +3,12 @@ from lunabotics.basestation.controls.constants import ControllerOptions, Control
 Con = ControllerOptions
 
 default_controller_control_map = {
-    'mode': ControlMode.TEST,
+    'mode': ControlMode.STANDARD,
 
-    # Con.CIRCLE: Commands.ROUND,
-    # Con.SQUARE: Commands.FOUR_CORNERS,
-    # Con.TRIANGLE: Commands.THREE_CORNERS,
-    # Con.CROSS: Commands.X,
-    # Con.OPTION: Commands.CHANGE_MODE,
-    # Con.SHARE: Commands.BROADCAST,
+    Con.DPAD_UP: Commands.FORWARD,
+    Con.DPAD_DOWN: Commands.REVERSE,
+    Con.DPAD_RIGHT: Commands.RIGHT,
+    Con.DPAD_LEFT: Commands.LEFT,
 }
 
 default_desktop_control_map = {

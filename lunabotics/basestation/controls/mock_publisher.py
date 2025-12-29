@@ -2,6 +2,7 @@ import turtle
 
 from lunabotics.basestation.controls.constants import Commands
 from lunabotics.basestation.controls.desktop_controller import DesktopController
+from lunabotics.basestation.controls.physical_controller import PhysicalControllerHandler
 
 
 class TurtleRover:
@@ -60,4 +61,6 @@ def mock_publish(command: str, *args):
 
 if __name__ == "__main__":
     DesktopController(mock_publish)
+    physical_controller = PhysicalControllerHandler(mock_publish)
     TurtleRover()
+    physical_controller.stop()

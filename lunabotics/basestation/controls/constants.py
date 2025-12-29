@@ -15,10 +15,15 @@ class Commands(Enum):
     STOP_SIGNAL = 'STP'
 
 class ControllerOptions:
-    """ Overridable options for the controller that allow rebinding to different commands. """
+    """ Controller inputs for defining control maps. """
     CIRCLE = 'circle'
     SQUARE = 'square'
     TRIANGLE = 'triangle'
     CROSS = 'cross'
     OPTION = 'option'
     SHARE = 'share'
+
+    DPAD_UP = 'dpad_up'
+    DPAD_DOWN = 'dpad_down'
+    DPAD_RIGHT = 'dpad_right'
+    DPAD_LEFT = 'dpad_left'
