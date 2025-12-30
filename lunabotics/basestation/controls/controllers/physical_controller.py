@@ -53,8 +53,18 @@ class PhysicalControllerHandler(BaseController):
         controller.dpad_left += self.make_button_listener(Con.DPAD_LEFT)
 
         controller.left_joystick_changed += self.make_joystick_listener(Con.LEFT_JOYSTICK_X, Con.LEFT_JOYSTICK_Y)
+        controller.right_joystick_changed += self.make_joystick_listener(Con.RIGHT_JOYSTICK_X, Con.RIGHT_JOYSTICK_Y)
+        controller.l3_changed += self.make_button_listener(Con.LEFT_JOYSTICK_BUTTON)
+        controller.r3_changed += self.make_button_listener(Con.RIGHT_JOYSTICK_BUTTON)
 
+        controller.l1_changed += self.make_button_listener(Con.L1_BUTTON)
+        controller.r1_changed += self.make_button_listener(Con.R1_BUTTON)
         controller.l2_value_changed += self.make_analogue_input_listener(Con.L2_ANALOGUE_STICK)
+        controller.r2_value_changed += self.make_analogue_input_listener(Con.R2_ANALOGUE_STICK)
+
+        controller.ps_pressed += self.make_button_listener(Con.PS_BUTTON)
+        controller.microphone_pressed += self.make_button_listener(Con.MIC_BUTTON)
+        controller.touch_pressed += self.make_button_listener(Con.TOUCHPAD_BUTTON)
 
     def make_button_listener(self, button: Con | str) -> Callable:
         """

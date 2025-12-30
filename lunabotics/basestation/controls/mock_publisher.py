@@ -23,7 +23,7 @@ class TurtleRover:
         for command in Commands:
             self.command_state[command] = False
 
-        # Set up update look
+        # Set up update loop
         def check_commands():
             self.process_state()
             self.screen.ontimer(check_commands, 16)  # ~60 FPS
