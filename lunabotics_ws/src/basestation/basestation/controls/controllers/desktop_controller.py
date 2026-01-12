@@ -6,8 +6,8 @@ Helpful documentation:
 
 from pynput import keyboard, mouse
 
-from lunabotics.basestation.controls.controllers.base_controller import BaseController
-from lunabotics.basestation.controls.controllers.base_station_state import BaseStationState
+from lunabotics_ws.src.basestation.basestation.controls.controllers.base_controller import BaseController
+from lunabotics_ws.src.basestation.basestation.controls.controllers.base_station_state import BaseStationState
 
 class DesktopController(BaseController):
     """ Translates keyboard and mouse inputs to commands. """

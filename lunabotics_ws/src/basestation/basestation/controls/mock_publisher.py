@@ -1,9 +1,9 @@
 import turtle
 
-from lunabotics.basestation.controls.constants import Commands
-from lunabotics.basestation.controls.controllers.base_station_state import BaseStationState
-from lunabotics.basestation.controls.controllers.desktop_controller import DesktopController
-from lunabotics.basestation.controls.controllers.physical_controller import PhysicalControllerHandler
+from lunabotics_ws.src.basestation.basestation.controls.constants import Commands
+from lunabotics_ws.src.basestation.basestation.controls.controllers.base_station_state import BaseStationState
+from lunabotics_ws.src.basestation.basestation.controls.controllers.desktop_controller import DesktopController
+from lunabotics_ws.src.basestation.basestation.controls.controllers.physical_controller import PhysicalControllerHandler
 
 
 class TurtleRover:
