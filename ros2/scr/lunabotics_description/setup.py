@@ -14,7 +14,7 @@ setup(
     ("share/lunabotics_description", ["package.xml"]),
     (os.path.join("share", "lunabotics_description", "urdf"), glob("urdf/*")),
     (os.path.join("share", "lunabotics_description", "launch"), glob("launch/*")),
-    (os.path.join("share", "lunabotics_description", "rviz"), glob("rviz/*")),  # ✅ THIS
+    (os.path.join("share", "lunabotics_description", "rviz"), glob("rviz/*")), 
     ],
     install_requires=['setuptools'],
     zip_safe=True,
