@@ -25,9 +25,9 @@ setup(
     entry_points={
   'console_scripts': [
     'temp_pub = lunabotics_sensors.temp_publisher:main',
-    'temp_sub = lunabotics_sensors.temp_subscriber.py',
+    'temp_sub = lunabotics_sensors.temp_subscriber:main',
     'camera_pub = lunabotics_sensors.camera_publisher:main',
-    'camera_sub = lunabotics_sensors.camera_subscriber.py',
+    'camera_sub = lunabotics_sensors.camera_subscriber:main',
         ],
     },
 )
