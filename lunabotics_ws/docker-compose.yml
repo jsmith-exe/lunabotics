@@ -1,0 +1,4 @@
+services: # docker run -p 5000:5000 rover/controller:v1
+  app:
+    ports:
+      - "5000:5000"

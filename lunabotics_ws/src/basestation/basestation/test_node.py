@@ -1,10 +1,8 @@
-# In basestation/basestation/test.py
 import rclpy
 from rclpy.node import Node
 
 def main(args=None):
     rclpy.init(args=args)
-    # Your test code here
     node = Node('test_node')
     node.get_logger().info('Test node started!')
 

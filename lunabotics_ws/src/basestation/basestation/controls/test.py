@@ -1,3 +1,6 @@
+"""
+A simple turtle graphics simulation to test controller inputs without a physical rover.
+"""
 import turtle
 
 from lunabotics_ws.src.basestation.basestation.controls.constants import Commands
