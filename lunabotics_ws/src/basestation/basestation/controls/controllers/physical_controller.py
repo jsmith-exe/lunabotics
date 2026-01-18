@@ -8,9 +8,9 @@ from collections.abc import Callable
 
 from pydualsense import pydualsense
 
-from lunabotics_ws.src.basestation.basestation.controls.control_maps import Con
-from lunabotics_ws.src.basestation.basestation.controls.controllers.base_controller import BaseController
-from lunabotics_ws.src.basestation.basestation.controls.controllers.base_station_state import BaseStationState
+from ..control_maps import Con
+from .base_controller import BaseController
+from .base_station_state import BaseStationState
 
 JOYSTICK_DEAD_ZONE = 0.1
 

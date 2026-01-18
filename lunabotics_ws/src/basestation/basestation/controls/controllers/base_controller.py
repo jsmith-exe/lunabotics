@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
-from lunabotics_ws.src.basestation.basestation.controls.constants import Commands, ControllerInputs
-from lunabotics_ws.src.basestation.basestation.controls.controllers.base_station_state import BaseStationState
+from ..constants import Commands, ControllerInputs
+from .base_station_state import BaseStationState
 
 MINIMUM_ANALOGUE_CHANGE = 0.05 # Changes in analogue values must be at least this much to be sent
 

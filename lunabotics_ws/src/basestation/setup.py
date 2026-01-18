@@ -8,7 +8,7 @@ setup(
     zip_safe=True,
     entry_points={
         'console_scripts': [
-            'test = basestation.test:main',
+            'pub = basestation.nodes.controls_publisher:main',
             # Add other node entry points here
         ],
     },

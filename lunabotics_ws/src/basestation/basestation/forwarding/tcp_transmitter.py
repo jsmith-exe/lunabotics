@@ -1,5 +1,4 @@
 import socket
-from collections.abc import Callable
 
 class TCPTransmitter:
     def __init__(self, host='localhost', port=5000):
@@ -29,5 +28,5 @@ if __name__ == '__main__':
     while True:
         msg = input('> ')
         if not msg: break
-        print(transmitter.send_message(msg, True))
+        print(transmitter.send_message(msg, False))
     transmitter.close()

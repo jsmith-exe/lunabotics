@@ -3,10 +3,10 @@ A simple turtle graphics simulation to test controller inputs without a physical
 """
 import turtle
 
-from lunabotics_ws.src.basestation.basestation.controls.constants import Commands
-from lunabotics_ws.src.basestation.basestation.controls.controllers.base_station_state import BaseStationState
-from lunabotics_ws.src.basestation.basestation.controls.controllers.desktop_controller import DesktopController
-from lunabotics_ws.src.basestation.basestation.controls.controllers.physical_controller import PhysicalControllerHandler
+from .constants import Commands
+from .controllers.base_station_state import BaseStationState
+from .controllers.desktop_controller import DesktopController
+from .controllers.physical_controller import PhysicalControllerHandler
 
 
 class TurtleRover:
@@ -74,6 +74,7 @@ def mock_publish(command: str, *args):
 
     if thrust is not None: rover.thrust = thrust
     if turning_thrust is not None: rover.turning_thrust = turning_thrust
+
 
 def get_index(args, index, default):
     try:

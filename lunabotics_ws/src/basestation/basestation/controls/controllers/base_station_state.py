@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from lunabotics_ws.src.basestation.basestation.controls.control_maps import default_desktop_control_map, default_controller_control_map
+from ..control_maps import default_desktop_control_map, default_controller_control_map
 
 
 @dataclass
