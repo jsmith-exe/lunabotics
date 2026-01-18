@@ -1,13 +1,16 @@
 import socket
 from collections.abc import Callable
 
-def handle_data(received_data: bytes, receiver) -> None:
+STOP_SIGNAL = '__CLOSE__'
+ACKNOWLEDGE_SIGNAL = '__ACK__'
+MAX_BYTES_TO_READ = 4096
+
+def handle_data(received_data: str, receiver) -> None:
     """
     Handle data sent from the transmitter
     :param received_data: the data sent by the transmitter.
     :param receiver: a receiver instance.
     """
-    received_data = received_data.decode('utf-8')
     print(f"Received: {received_data}")
 
     # Send response back
@@ -35,14 +38,28 @@ class TCPReceiver:
         """
         self.connection, self.client_address = self.server.accept()
         print(f"Listening to {self.client_address}")
+        try:
+            self._listen_loop()
+        except Exception as e:
+            print(f"Exception: {e}")
+        self.close()
+
+    def _listen_loop(self):
         while True:
-            try:
-                data = self.connection.recv(4096) # Bytes to consume
-                self.data_handler(data, self)
-            except Exception as e:
-                print(f"Exception: {e}")
-                self.close()
-                return
+            data = self.connection.recv(MAX_BYTES_TO_READ).decode('utf-8')
+            if data == STOP_SIGNAL:
+                print("Stop signal received.")
+                self.send_to_client(ACKNOWLEDGE_SIGNAL)
+                break
+
+            self.data_handler(data, self)
+
+    def start_listening_forever(self) -> None:
+        """
+        Continuously wait for connections from transmitters, even after one ends.
+        """
+        while True:
+            self.start_listening()
 
     def send_to_client(self, data: str) -> bool:
         """
@@ -54,15 +71,14 @@ class TCPReceiver:
         return True
 
     def close(self):
-        self.connection.close()
+        if self.connection:
+            self.connection.close()
         self.connection = None
         self.client_address = None
 
 if __name__ == '__main__':
-    node = TCPReceiver()
-    while True:
-        try:
-            node.start_listening()
-        except KeyboardInterrupt:
-            node.close()
-            break
+    receiver = TCPReceiver()
+    try:
+        receiver.start_listening_forever()
+    except KeyboardInterrupt:
+        receiver.close()

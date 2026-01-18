@@ -13,17 +13,16 @@ class ControlsPublisher(Node):
         self.publisher_ = self.create_publisher(String, 'topic', 10)
 
         self.tcp_receiver = TCPReceiver(self.handle_data)
-        self.tcp_receiver_thread = Thread(target=self.tcp_receiver.start_listening, daemon=True)
+        self.tcp_receiver_thread = Thread(target=self.tcp_receiver.start_listening_forever, daemon=True)
         self.tcp_receiver_thread.start()
         self.get_logger().info('TCP Receiver thread started')
 
-    def handle_data(self, received_data: bytes, receiver) -> None:
+    def handle_data(self, received_data: str, receiver) -> None:
         """
         Handle data sent from the transmitter
         :param received_data: the data sent by the transmitter.
         :param receiver: the receiver instance.
         """
-        received_data = received_data.decode('utf-8')
         msg = String()
         msg.data = received_data
         self.get_logger().info(f'Publishing: {msg.data}')
