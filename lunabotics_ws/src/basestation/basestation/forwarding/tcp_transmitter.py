@@ -6,9 +6,9 @@ MAX_BYTES_TO_READ = 4096
 class TCPTransmitter:
     def __init__(self, host='localhost', port=5000):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # AF_INET = IPv4, SOCK_STREAM = TCP
-        print(f'Connecting to {host}:port')
+        print(f'Connecting to {host}:{port}')
         self.client.connect((host, port))
-        print(f'Connected to {host}:port')
+        print(f'Connected to {host}:{port}')
 
     def send_message(self, message: str, handle_response: bool) -> str | None:
         """
@@ -28,7 +28,7 @@ class TCPTransmitter:
         self.client.close()
 
 if __name__ == '__main__':
-    transmitter = TCPTransmitter()
+    transmitter = TCPTransmitter('127.0.0.1')
     try:
         while True:
             msg = input('> ')

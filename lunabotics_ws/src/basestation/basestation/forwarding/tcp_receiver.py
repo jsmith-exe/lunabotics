@@ -23,6 +23,7 @@ class TCPReceiver:
         :param host: the host IP to bind to.
         :param port: the port to bind to.
         """
+        print('Starting TCP Receiver...')
         self.data_handler = data_handler
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # AF_INET = IPv4, SOCK_STREAM = TCP
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Allows immediate reuse of the port after the program stops
