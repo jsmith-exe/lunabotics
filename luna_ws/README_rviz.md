@@ -11,7 +11,7 @@ If you follow this exactly, it will work.
 
 ```
 lunabotics/
-├── ros2/                     ← ROS 2 WORKSPACE ROOT (IMPORTANT)
+├── luna_ws/                     ← ROS 2 WORKSPACE ROOT (IMPORTANT)
 │   ├── src/                  ← ALL ROS PACKAGES LIVE HERE
 │   │   ├── lunabotics_description/
 │   │   │   ├── urdf/          ← Robot model (URDF / Xacro)
@@ -36,18 +36,40 @@ lunabotics/
 ```
 
 ### 🔴 Golden Rules
-- **All ROS packages must live inside `ros2/src/`**
-- **All ROS commands are run from `ros2/`, NOT from `src/`**
+- **All ROS packages must live inside `luna_ws/src/`**
+- **All ROS commands are run from `luna_ws/`, NOT from `src/`**
 - Never edit `build/`, `install/`, or `log/`
 
 ---
 
-## 2️⃣ One-Time Setup (Per Machine)
+## 2️⃣ Building the ROS 2 Workspace (VERY IMPORTANT)
+
+### Always build from here:
+```bash
+cd ~/lunabotics/luna_ws
+```
+
+### Build:
+```bash
+colcon build --symlink-install
+```
+
+### Source:
+```bash
+source install/setup.bash
+```
+
+⚠️ If you forget to source, ROS will say **“package not found”**.
+
+---
+
+## 3️⃣ One-Time Setup (Per Machine)
 
 ### Install required ROS tools
 ```bash
 sudo apt update
 sudo apt install ros-humble-teleop-twist-keyboard
+sudo apt install ros-humble-robot-state-publisher
 ```
 
 ### 🔧 Automatically Loading the ROS 2 Environment (Recommended)
@@ -65,7 +87,7 @@ nano ~/.bashrc
 
 Add this line **at the very bottom**:
 ```bash
-source ~/lunabotics/ros2/setup.bash
+source ~/lunabotics/luna_ws/install/setup.bash
 ```
 
 Save, exit, then reload:
@@ -83,48 +105,7 @@ You should see `humble` and Lunabotics packages.
 
 ---
 
-## 3️⃣ Building the ROS 2 Workspace (VERY IMPORTANT)
-
-### Always build from here:
-```bash
-cd ~/lunabotics/ros2
-```
-
-### Build:
-```bash
-colcon build --symlink-install
-```
-
-### Source:
-```bash
-source install/setup.bash
-```
-
-⚠️ If you forget to source, ROS will say **“package not found”**.
-
----
-
-## 4️⃣ Running Individual Nodes (`ros2 run`)
-
-### Command format
-```bash
-ros2 run <package_name> <executable_name>
-```
-
-### Examples
-Temperature publisher:
-```bash
-ros2 run lunabotics_sensors temp_pub
-```
-
-Camera publisher:
-```bash
-ros2 run lunabotics_sensors camera_pub
-```
-
----
-
-## 5️⃣ Launching the Rover in RViz (Recommended)
+## 4️⃣ Launching the Rover in RViz
 
 ### What launch files do
 Launch files:
@@ -147,7 +128,7 @@ This will:
 
 ---
 
-## 6️⃣ Driving the Rover (Keyboard Control)
+## 5️⃣ Driving the Rover (Keyboard Control)
 
 Once the rover is launched, open **a new terminal** and run:
 
@@ -166,6 +147,26 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd
 - Click inside the terminal before pressing keys
 - Keep this terminal open while driving
 - The rover will only move while the drive simulator is running
+
+---
+
+## 6️⃣ Running Individual Nodes (`ros2 run`)
+
+### Command format
+```bash
+ros2 run <package_name> <executable_name>
+```
+
+### Examples
+Camera publisher:
+```bash
+ros2 run lunabotics_sensors camera_pub
+```
+
+Temperature publisher:
+```bash
+ros2 run lunabotics_sensors temp_pub
+```
 
 ---
 
@@ -215,7 +216,7 @@ ros2 topic info /cmd_vel
 
 Every time you change code:
 ```bash
-cd ~/lunabotics/ros2
+cd ~/lunabotics/luna_ws
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -230,19 +231,10 @@ ros2 launch lunabotics_description view_rover.launch.py
 ## 🔟 Mental Model (Remember This)
 
 - **URDF** → what the robot looks like
-- **TF** → where the robot is
+- **TF (Transform)** → where the robot is
 - **cmd_vel** → how the robot is commanded
 - **diffdrive_sim** → converts commands into motion
 - **RViz** → visualisation only (no physics)
 - **Launch files** → one-command setup for the team
 
 ---
-
-### Final checklist if something breaks
-1. Are you in `ros2/`?
-2. Did you build?
-3. Did you source?
-4. Is RViz Fixed Frame correct?
-5. Is `diffdrive_sim` running?
-
-That fixes 95% of issues.
