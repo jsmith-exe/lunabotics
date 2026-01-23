@@ -1,5 +1,3 @@
-# python3 -m lunabotics.ROS2.publisher.camera_publisher
-
 import numpy as np
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
@@ -13,7 +11,7 @@ class CameraPublisher(BasePublisher):
         super().__init__(
             node_name="camera_pub",
             msg_type=Image,
-            topic_name="camera/image",
+            topic_name="/camera/image",
             publish_rate_hz=10.0,
         )
 
@@ -23,5 +21,9 @@ class CameraPublisher(BasePublisher):
         return self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
 
 
-if __name__ == "__main__":
+def main() -> None:
     CameraPublisher.run()
+
+
+if __name__ == "__main__":
+    main()
