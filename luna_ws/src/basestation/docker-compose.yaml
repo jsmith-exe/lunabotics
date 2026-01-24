@@ -1,0 +1,8 @@
+services:
+  controller:
+    build:
+      context: ../../ # Path to workspace
+      dockerfile: src/basestation/Dockerfile
+    image: rover/controller:v1
+    ports:
+      - "5000:5000"
