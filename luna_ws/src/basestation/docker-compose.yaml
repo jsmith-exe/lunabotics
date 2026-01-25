@@ -1,8 +1,26 @@
 services:
   controller:
     build:
-      context: ../../ # Path to workspace
+      context: ../../
       dockerfile: src/basestation/Dockerfile
     image: rover/controller:v1
     ports:
       - "5000:5000"
+    networks:
+      - ros_network
+    environment:
+      - ROS_DOMAIN_ID=0
+
+  test_subscriber:
+    build:
+      context: ../../
+      dockerfile: src/basestation/basestation/nodes/sub_test/Dockerfile
+    image: rover/subscriber:v1
+    networks:
+      - ros_network
+    environment:
+      - ROS_DOMAIN_ID=0
+
+networks:
+  ros_network:
+    driver: bridge
