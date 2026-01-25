@@ -1,10 +1,12 @@
+from threading import Thread
+import json
+
 import rclpy
 from rclpy.node import Node
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, Vector3
 
 from basestation.forwarding.tcp_receiver import TCPReceiver
-from threading import Thread
 
 
 class ControlsPublisher(Node):
@@ -23,11 +25,29 @@ class ControlsPublisher(Node):
         :param received_data: the data sent by the transmitter.
         :param receiver: the receiver instance.
         """
-        self.get_logger().info(f'Received: {received_data}')
-        # twist = Twist()
-        # twist.linear.x = float(received_data)
-        # self.get_logger().info(f'Publishing: {twist.data}')
-        # self.publisher_.publish(twist)
+        try:
+            self.get_logger().info(f'Received: {received_data}')
+            target_state = json.loads(received_data)
+
+            twist = self.twist_from_target_state_dict(target_state)
+            self.get_logger().info(f'Publishing: {twist}')
+            self.publisher_.publish(twist)
+        except Exception as e:
+            self.get_logger().error(f'Error handling data: {e}')
+
+    def twist_from_target_state_dict(self, dict_: dict):
+        """
+        Convert a dictionary representation of a Twist message into an actual Twist message.
+        :param dict_: a dict object with 'linear' and 'angular' keys, each containing a dict with 'x', 'y', 'z' keys,
+        each with a numeric value.
+        :return:
+        """
+        linear = dict_['linear']
+        angular = dict_['angular']
+        return Twist(
+            linear=Vector3(x=float(linear['x']), y=float(linear['y']), z=float(linear['z'])),
+            angular=Vector3(x=float(angular['x']), y=float(angular['y']), z=float(angular['z']))
+        )
 
     def destroy_node(self):
         super().destroy_node()
