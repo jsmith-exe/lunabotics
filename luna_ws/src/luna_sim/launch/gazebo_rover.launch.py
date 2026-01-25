@@ -5,7 +5,8 @@ from launch.substitutions import Command
 from launch_ros.parameter_descriptions import ParameterValue
 import os
 
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
@@ -13,7 +14,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
 
-    package_name = "lunabotics_description"
+    package_name = "luna_sim"
 
     rsp = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
@@ -27,6 +28,22 @@ def generate_launch_description():
     )
     )
 
+    gzserver = ExecuteProcess(
+        cmd=[
+            "gzserver",
+            "--verbose",
+            os.path.join(get_package_share_directory("gazebo_ros"), "worlds", "empty.world"),
+            "-s", "libgazebo_ros_init.so",
+            "-s", "libgazebo_ros_factory.so",
+        ],
+        output="screen"
+    )
+
+    gzclient = ExecuteProcess(
+        cmd=["gzclient"],
+        output="screen"
+    )
+
     # Run the spawner node from the gazebo_ros package. The entity name doesn't really matter if you only have a single robot.
     spawn_entity = Node(package='gazebo_ros', executable='spawn_entity.py',
                         arguments=['-topic', '/robot_description',
@@ -36,9 +53,7 @@ def generate_launch_description():
     return LaunchDescription([
         # Publishes TF base_link -> wheels etc. from robot_description + /joint_states
         rsp,
-        
         gazebo,
-
-        spawn_entity
+        TimerAction(period=5.0, actions=[spawn_entity]),
     ])
 

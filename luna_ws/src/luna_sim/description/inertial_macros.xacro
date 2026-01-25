@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="inertial_macros">
+
+  <!--
+    Standard inertial calculations
+    https://en.wikipedia.org/wiki/List_of_moments_of_inertia
+
+    Notes:
+    - Inertias are expressed about the link frame.
+    - We keep the original macro names for compatibility.
+  -->
+
+  <!-- Sphere inertia -->
+  <xacro:macro name="inertial_sphere" params="mass radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}" />
+      <inertia
+        ixx="${(2.0/5.0) * mass * (radius*radius)}" ixy="0.0" ixz="0.0"
+        iyy="${(2.0/5.0) * mass * (radius*radius)}" iyz="0.0"
+        izz="${(2.0/5.0) * mass * (radius*radius)}" />
+    </inertial>
+  </xacro:macro>
+
+  <!-- Box inertia (about link frame axes) -->
+  <xacro:macro name="inertial_box" params="mass x y z *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}" />
+      <inertia
+        ixx="${(1.0/12.0) * mass * (y*y + z*z)}" ixy="0.0" ixz="0.0"
+        iyy="${(1.0/12.0) * mass * (x*x + z*z)}" iyz="0.0"
+        izz="${(1.0/12.0) * mass * (x*x + y*y)}" />
+    </inertial>
+  </xacro:macro>
+
+  <!-- Cylinder inertia (assumes cylinder axis aligned with link Z axis) -->
+  <xacro:macro name="inertial_cylinder" params="mass length radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}" />
+      <inertia
+        ixx="${(1.0/12.0) * mass * (3*radius*radius + length*length)}" ixy="0.0" ixz="0.0"
+        iyy="${(1.0/12.0) * mass * (3*radius*radius + length*length)}" iyz="0.0"
+        izz="${(1.0/2.0) * mass * (radius*radius)}" />
+    </inertial>
+  </xacro:macro>
+
+  <!--
+    Cylinder inertia with axis along link Y.
+    Useful if you decide to align your wheel link frame such that the wheel axle is Y.
+    This just permutes principal moments so the "axis" moment sits on Iyy.
+  -->
+  <xacro:macro name="inertial_cylinder_y" params="mass length radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}" />
+      <!-- For a cylinder, inertia about its axis is (1/2) m r^2.
+           If axis is Y, then Iyy is the axial inertia. -->
+      <inertia
+        ixx="${(1.0/12.0) * mass * (3*radius*radius + length*length)}" ixy="0.0" ixz="0.0"
+        iyy="${(1.0/2.0) * mass * (radius*radius)}" iyz="0.0"
+        izz="${(1.0/12.0) * mass * (3*radius*radius + length*length)}" />
+    </inertial>
+  </xacro:macro>
+
+</robot>

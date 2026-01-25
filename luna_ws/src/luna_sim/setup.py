@@ -3,18 +3,18 @@ import os
 from glob import glob
 
 
-package_name = 'lunabotics_description'
+package_name = 'luna_sim'
 
 setup(
     name=package_name,
     version='0.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
-    ("share/ament_index/resource_index/packages", ["resource/lunabotics_description"]),
-    ("share/lunabotics_description", ["package.xml"]),
-    (os.path.join("share", "lunabotics_description", "urdf"), glob("urdf/*")),
-    (os.path.join("share", "lunabotics_description", "launch"), glob("launch/*")),
-    (os.path.join("share", "lunabotics_description", "rviz"), glob("rviz/*")), 
+    ("share/ament_index/resource_index/packages", ["resource/luna_sim"]),
+    ("share/luna_sim", ["package.xml"]),
+    (os.path.join("share", "luna_sim", "description"), glob("description/*")),
+    (os.path.join("share", "luna_sim", "launch"), glob("launch/*")),
+    (os.path.join("share", "luna_sim", "rviz"), glob("rviz/*")), 
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -12,9 +12,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
 def generate_launch_description():
-    pkg = get_package_share_directory("lunabotics_description")
+    pkg = get_package_share_directory("luna_sim")
 
-    xacro_path = os.path.join(pkg, "urdf", "lunabotics.urdf.xacro")
+    xacro_path = os.path.join(pkg, "description", "rover.urdf.xacro")
     rviz_path = os.path.join(pkg, "rviz", "rover.rviz")
 
     robot_description = ParameterValue(
