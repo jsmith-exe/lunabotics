@@ -5,6 +5,11 @@ from launch.substitutions import Command
 from launch_ros.parameter_descriptions import ParameterValue
 import os
 
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+
+
+
 
 def generate_launch_description():
     pkg = get_package_share_directory("lunabotics_description")
@@ -17,17 +22,21 @@ def generate_launch_description():
         value_type=str
     )
 
-    return LaunchDescription([
-        # Publishes TF base_link -> wheels etc. from robot_description + /joint_states
-        Node(
-            package="robot_state_publisher",
-            executable="robot_state_publisher",
-            name="robot_state_publisher",
-            parameters=[{"robot_description": robot_description}],
+    # RViz (loads your config)
+    rviz = Node(
+            package="rviz2",
+            executable="rviz2",
+            name="rviz2",
+            arguments=["-d", rviz_path],
             output="screen",
         ),
 
-        # Diff-drive sim: subscribes /cmd_vel, publishes /odom, /joint_states, TF odom->base_link
+    return LaunchDescription([
+        rviz,
+    ])
+
+
+'''# Diff-drive sim: subscribes /cmd_vel, publishes /odom, /joint_states, TF odom->base_link
         Node(
             package="lunabotics_control",
             executable="diffdrive_sim",
@@ -35,14 +44,4 @@ def generate_launch_description():
             output="screen",
             # If you made cmd_vel relative ("cmd_vel"), you can remap like this:
             # remappings=[("cmd_vel", "/cmd_vel")],
-        ),
-
-        # RViz (loads your config)
-        Node(
-            package="rviz2",
-            executable="rviz2",
-            name="rviz2",
-            arguments=["-d", rviz_path],
-            output="screen",
-        ),
-    ])
+        ),'''
