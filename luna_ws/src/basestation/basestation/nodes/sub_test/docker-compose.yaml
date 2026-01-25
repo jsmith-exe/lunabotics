@@ -1,0 +1,6 @@
+services:
+  controller:
+    build:
+      context: ../../../../../ # Path to workspace
+      dockerfile: src/basestation/basestation/nodes/sub_test/Dockerfile
+    image: rover/controller_sub_test:v1

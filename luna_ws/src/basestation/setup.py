@@ -9,7 +9,7 @@ setup(
     entry_points={
         'console_scripts': [
             'pub = basestation.nodes.controls_publisher:main',
-            # Add other node entry points here
+            'sub_test = basestation.nodes.sub_test.controls_subscriber_test:main',
         ],
     },
 )
