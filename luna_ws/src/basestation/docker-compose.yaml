@@ -3,24 +3,25 @@ services:
     build:
       context: ../../
       dockerfile: src/basestation/Dockerfile
+      network: host
     image: rover/controller:v1
+    environment:
+      - ROS_DOMAIN_ID=0
     ports:
       - "5000:5000"
-    networks:
-      - ros_network
-    environment:
-      - ROS_DOMAIN_ID=0
+#    networks:
+#      - ros_network
 
-  test_subscriber:
-    build:
-      context: ../../
-      dockerfile: src/basestation/basestation/nodes/sub_test/Dockerfile
-    image: rover/subscriber:v1
-    networks:
-      - ros_network
-    environment:
-      - ROS_DOMAIN_ID=0
-
-networks:
-  ros_network:
-    driver: bridge
+#  test_subscriber:
+#    build:
+#      context: ../../
+#      dockerfile: src/basestation/basestation/nodes/sub_test/Dockerfile
+#    image: rover/subscriber:v1
+#    networks:
+#      - ros_network
+#    environment:
+#      - ROS_DOMAIN_ID=0
+#
+#networks:
+#  ros_network:
+#    driver: bridge
