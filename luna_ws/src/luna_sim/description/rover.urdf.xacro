@@ -4,5 +4,7 @@
     <xacro:include filename="rover_core.xacro" />
 
     <xacro:include filename="gazebo_control.xacro" />
+
+    <xacro:include filename="depth_camera.xacro" />
     
 </robot>
