@@ -6,7 +6,7 @@ import turtle
 from .constants import TwistOptions
 from .controllers.base_station_state import BaseStationState
 from .controllers.desktop_controller import DesktopController
-from .controllers.physical_controller import PhysicalControllerHandler
+from .controllers.physical_controller import PhysicalController
 
 
 class TurtleRover:
@@ -43,7 +43,7 @@ class TurtleRover:
         self.turtle.right(self.turning_thrust * turning_speed)
         self.screen.update()
 
-def mock_publish(topic_name, twist_option, throttle: float):
+def mock_publish(topic_name: str, twist_option, throttle: float):
     """
     A mock publish method that can be used to move the turtle, based on the controllers.
     :param topic_name: the name of the topic to publish to.
@@ -68,6 +68,6 @@ def get_index(args, index, default):
 if __name__ == "__main__":
     state = BaseStationState()
     DesktopController(mock_publish, state)
-    physical_controller = PhysicalControllerHandler(mock_publish, state)
+    physical_controller = PhysicalController(mock_publish, state)
     TurtleRover()
     physical_controller.stop()

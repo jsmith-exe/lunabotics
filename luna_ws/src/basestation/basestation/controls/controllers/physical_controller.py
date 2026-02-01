@@ -18,7 +18,7 @@ ANALOGUE_STICK_RAW_MAX = 255
 JOYSTICK_NEGATIVE_MAX = 128
 JOYSTICK_POSITIVE_MAX = 127
 
-class PhysicalControllerHandler(BaseController):
+class PhysicalController(BaseController):
     """ Translates controller inputs to commands. """
     def __init__(self, publish_function, state: BaseStationState):
         super().__init__(publish_function, state)
@@ -112,7 +112,7 @@ class PhysicalControllerHandler(BaseController):
         print('Controller closed')
 
 if __name__ == '__main__':
-    controllerHandler = PhysicalControllerHandler(print, BaseStationState())
+    controllerHandler = PhysicalController(print, BaseStationState())
     try:
         input()
     except KeyboardInterrupt:
