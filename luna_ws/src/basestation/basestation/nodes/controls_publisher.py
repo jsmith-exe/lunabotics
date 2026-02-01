@@ -11,7 +11,7 @@ from basestation.controls.constants import NAV_TOPIC
 
 class ControlsPublisher(Node):
     def __init__(self):
-        super().__init__('controls_publisher')
+        super().__init__('nav_teleop_publisher')
         self.publisher_ = self.create_publisher(Twist, NAV_TOPIC, 10)
 
         self.tcp_receiver = TCPReceiver(self.handle_data, log=self.get_logger().info)

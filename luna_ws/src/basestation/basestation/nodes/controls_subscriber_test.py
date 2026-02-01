@@ -8,8 +8,8 @@ from basestation.controls.constants import NAV_TOPIC
 class ControlsSubscriber(Node):
 
     def __init__(self):
-        super().__init__('controls_subscriber')
-        self.get_logger().info('Controls subscriber test node started')
+        super().__init__('nav_teleop_subscriber_test')
+        self.get_logger().info(f'Controls subscriber test node started: {NAV_TOPIC}')
         self.subscription = self.create_subscription(
             Twist,
             NAV_TOPIC,
