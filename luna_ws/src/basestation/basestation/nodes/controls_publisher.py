@@ -27,10 +27,10 @@ class ControlsPublisher(Node):
         """
         try:
             self.get_logger().info(f'Received: {received_data}')
-            target_state = json.loads(received_data)
+            split_data = received_data.split(';')
+            target_state = json.loads(split_data[len(split_data) - 2]) # second last item is the most recent json data
 
             twist = self.twist_from_target_state_dict(target_state)
-            self.get_logger().info(f'Publishing: {twist}')
             self.publisher_.publish(twist)
         except Exception as e:
             self.get_logger().error(f'Error handling data: {e}')

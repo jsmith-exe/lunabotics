@@ -21,7 +21,7 @@ def publish_function(topic_name: str, twist_option: TwistOptions, throttle: floa
     """
     twist_type, twist_dimension = twist_option.value.split('_')
     twist_state[twist_type][twist_dimension] = throttle
-    transmitter.send_message(json.dumps(twist_state), False)
+    transmitter.send_message(json.dumps(twist_state) + ';', False)
 
 def get_index(args, index, default):
     try:
