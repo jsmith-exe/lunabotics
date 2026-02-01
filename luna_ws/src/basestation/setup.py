@@ -9,7 +9,7 @@ setup(
     entry_points={
         'console_scripts': [
             'nav_pub = basestation.nodes.controls_publisher:main',
-            'nav_sub = basestation.nodes.sub_test.controls_subscriber_test:main',
+            'nav_sub = basestation.nodes.controls_subscriber_test:main',
         ],
     },
 )
