@@ -1,5 +1,0 @@
-services:
-  controller:
-    build:
-      context: ../../../../../ # Path to workspace
-    image: rover/controller_sub_test:v1
