@@ -11,7 +11,7 @@ class Command:
     twist_option: TwistOptions
     scale: float = field(default=1) # Multiplier for the input value; helpful for handling left and right on the same axis.
 
-default_controller_control_map = {
+default_control_map = {
     'mode': ControlMode.STANDARD,
     Con.DPAD_UP: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
     Con.DPAD_DOWN: Command(NAV_TOPIC, TwistOptions.LINEAR_X, -1),
@@ -25,10 +25,7 @@ default_controller_control_map = {
 
     Con.L2_ANALOGUE_STICK: Command(NAV_TOPIC, TwistOptions.ANGULAR_X, -1),
     Con.R2_ANALOGUE_STICK: Command(NAV_TOPIC, TwistOptions.ANGULAR_X),
-}
 
-default_desktop_control_map = {
-    'mode': ControlMode.STANDARD,
     'w': Command(NAV_TOPIC, TwistOptions.LINEAR_X),
     'a': Command(NAV_TOPIC, TwistOptions.ANGULAR_X, -1),
     's': Command(NAV_TOPIC, TwistOptions.LINEAR_X, -1),

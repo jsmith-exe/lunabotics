@@ -73,13 +73,13 @@ class PhysicalController(BaseController):
         :return: a function that will be called; must take a boolean parameter.
         """
         def on_button_pressed(pressed):
-            self.handle_button(button, pressed, self.state.controller_control_map)
+            self.handle_button(button, pressed, self.state.control_map)
         return on_button_pressed
 
     def make_analogue_input_listener(self, analogue_stick: Con | str) -> Callable:
         """ Similar to make_button_listener """
         def on_input_changed(value):
-            self.handle_analogue_input(analogue_stick, value / ANALOGUE_STICK_RAW_MAX, self.state.controller_control_map)
+            self.handle_analogue_input(analogue_stick, value / ANALOGUE_STICK_RAW_MAX, self.state.control_map)
         return on_input_changed
 
     def make_joystick_listener(self, joystick_x: Con | str, joystick_y: Con | str):
@@ -92,7 +92,7 @@ class PhysicalController(BaseController):
             joystick_value = normalise(joystick_value)
             if abs(joystick_value) < JOYSTICK_DEAD_ZONE:
                 joystick_value = 0
-            self.handle_analogue_input(joystick, joystick_value, self.state.controller_control_map)
+            self.handle_analogue_input(joystick, joystick_value, self.state.control_map)
 
         def normalise(joystick_value: int):
             """ Converts joystick values from [-128, 127] to [-1, 1] """

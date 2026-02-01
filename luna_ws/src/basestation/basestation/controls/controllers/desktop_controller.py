@@ -35,7 +35,7 @@ class DesktopController(BaseController):
         :param key_object: a key object from pynput.
         :param pressed: whether the key event is a press (True) or release (False).
         """
-        control_map = self.state.desktop_control_map
+        control_map = self.state.control_map
 
         # Some keys use 'char' (a, b), others use 'name' (shift, ctrl).
         # Get the appropriate attribute as a generalised name.
