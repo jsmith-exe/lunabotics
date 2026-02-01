@@ -8,8 +8,8 @@ setup(
     zip_safe=True,
     entry_points={
         'console_scripts': [
-            'pub = basestation.nodes.controls_publisher:main',
-            'sub_test = basestation.nodes.sub_test.controls_subscriber_test:main',
+            'nav_pub = basestation.nodes.controls_publisher:main',
+            'nav_sub = basestation.nodes.sub_test.controls_subscriber_test:main',
         ],
     },
 )

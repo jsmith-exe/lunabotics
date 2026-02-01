@@ -7,14 +7,14 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, Vector3
 
 from basestation.forwarding.tcp_receiver import TCPReceiver
-
+from basestation.controls.constants import NAV_TOPIC
 
 class ControlsPublisher(Node):
     def __init__(self):
         super().__init__('controls_publisher')
-        self.publisher_ = self.create_publisher(Twist, '/cmd_test', 10)
+        self.publisher_ = self.create_publisher(Twist, NAV_TOPIC, 10)
 
-        self.tcp_receiver = TCPReceiver(self.handle_data)
+        self.tcp_receiver = TCPReceiver(self.handle_data, log=self.get_logger().info)
         self.tcp_receiver_thread = Thread(target=self.tcp_receiver.start_listening_forever, daemon=True)
         self.tcp_receiver_thread.start()
         self.get_logger().info('TCP Receiver thread started')

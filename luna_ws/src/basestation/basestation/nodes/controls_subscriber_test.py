@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import Twist
+from basestation.controls.constants import NAV_TOPIC
 
 
 class ControlsSubscriber(Node):
@@ -11,7 +12,7 @@ class ControlsSubscriber(Node):
         self.get_logger().info('Controls subscriber test node started')
         self.subscription = self.create_subscription(
             Twist,
-            '/cmd_test',
+            NAV_TOPIC,
             self.listener_callback,
             10
         )
