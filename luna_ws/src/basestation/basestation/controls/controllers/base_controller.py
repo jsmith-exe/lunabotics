@@ -1,7 +1,8 @@
 from collections.abc import Callable
 
-from ..constants import Commands, ControllerInputs
+from ..constants import ControllerInputs
 from .base_station_state import BaseStationState
+from ..control_maps import Command
 
 MINIMUM_ANALOGUE_CHANGE = 0.05 # Changes in analogue values must be at least this much to be sent
 
@@ -26,24 +27,24 @@ class BaseController:
         :param pressed: if the button was pressed (true) or released (false).
         :param control_map: the control map to use.
         """
-        command = control_map.get(button)
+        command: Command = control_map.get(button)
         if command is None:
             return
 
         if pressed:
-            self.publish_function(command)
+            self.publish_function(command.topic_name, command.twist_option, 1 * command.scale)
         else:
             # On release, send a STOP signal for that command.
-            self.publish_function(Commands.STOP_SIGNAL, command)
+            self.publish_function(command.topic_name, command.twist_option, 0)
 
     def handle_analogue_input(self, input_: str | ControllerInputs, normalised_value: float, control_map: dict) -> None:
         """
         Sends the command associated with the control map with the value of the analogue input (e.g., mouse or joystick).
         :param input_: the triggered input.
-        :param normalised_value: a value from -1 to 1 that represents the value from the analogue input.
+        :param normalised_value: a value from -1 to 1 from the analogue input.
         :param control_map: the control map to use.
         """
-        command = control_map.get(input_)
+        command: Command = control_map.get(input_)
         prev_value = self.previous_analogue_values.get(input_)
         if (command is None or
             # Ignore insignificant inputs if there was a previous value and there is a non-zero value from the input.
@@ -51,4 +52,4 @@ class BaseController:
             return
 
         self.previous_analogue_values[input_] = normalised_value
-        self.publish_function(command, normalised_value)
+        self.publish_function(command.topic_name, command.twist_option, normalised_value * command.scale)

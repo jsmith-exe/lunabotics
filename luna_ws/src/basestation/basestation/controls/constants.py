@@ -6,14 +6,14 @@ class ControlMode(Enum):
     TEST = 'test'
     STANDARD = 'standard'
 
-class Commands(Enum):
+class TwistOptions(Enum):
     """ Commands that can be sent to the robot. """
-    FORWARD = 'MVF'
-    RIGHT = 'MVR'
-    LEFT = 'MVL'
-    REVERSE = 'MVB'
-    STOP_SIGNAL = 'STP'
-    TEST = 'TST'
+    LINEAR_X = 'linear_x'
+    LINEAR_Y = 'linear_y'
+    LINEAR_Z = 'linear_z'
+    ANGULAR_X = 'angular_x'
+    ANGULAR_Y = 'angular_y'
+    ANGULAR_Z = 'angular_z'
 
 class ControllerInputs:
     """ Controller inputs for defining control maps. """
@@ -44,3 +44,5 @@ class ControllerInputs:
     PS_BUTTON = 'ps_button'
     MIC_BUTTON = 'microphone_button'
     TOUCHPAD_BUTTON = 'touchpad_button'
+
+NAV_TOPIC = '/teleop_nav'

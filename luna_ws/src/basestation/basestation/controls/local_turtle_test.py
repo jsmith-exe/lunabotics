@@ -3,7 +3,7 @@ A simple turtle graphics simulation to test controller inputs without a physical
 """
 import turtle
 
-from .constants import Commands
+from .constants import TwistOptions
 from .controllers.base_station_state import BaseStationState
 from .controllers.desktop_controller import DesktopController
 from .controllers.physical_controller import PhysicalControllerHandler
@@ -43,38 +43,21 @@ class TurtleRover:
         self.turtle.right(self.turning_thrust * turning_speed)
         self.screen.update()
 
-def mock_publish(command: str, *args):
+def mock_publish(topic_name, twist_option, throttle: float):
     """
     A mock publish method that can be used to move the turtle, based on the controllers.
-    :param command: an initial command.
-    :param args: arbitrary list of arguments.
+    :param topic_name: the name of the topic to publish to.
+    :param twist_option: the twist option to modify.
+    :param throttle: the throttle to set the twist option.
     """
-    print(args)
+    print(topic_name, twist_option, throttle)
     rover = TurtleRover.instance
     if rover is None:
         return
-
-    default = 1
-
-    thrust = None
-    turning_thrust = None
-    match command:
-        case Commands.FORWARD:
-            thrust = get_index(args, 0, default)
-        case Commands.REVERSE:
-            thrust = -get_index(args, 0, default)
-        case Commands.LEFT:
-            turning_thrust = -get_index(args, 0, default)
-        case Commands.RIGHT:
-            turning_thrust = get_index(args, 0, default)
-        case Commands.STOP_SIGNAL:
-            command = args[0]
-            if command == Commands.FORWARD or command == Commands.REVERSE: thrust = 0
-            else: turning_thrust = 0
-
-    if thrust is not None: rover.thrust = thrust
-    if turning_thrust is not None: rover.turning_thrust = turning_thrust
-
+    if twist_option == TwistOptions.LINEAR_X:
+        rover.thrust = throttle
+    elif twist_option == TwistOptions.ANGULAR_X:
+        rover.turning_thrust = throttle
 
 def get_index(args, index, default):
     try:

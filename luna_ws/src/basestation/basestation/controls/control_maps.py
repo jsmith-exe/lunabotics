@@ -1,43 +1,36 @@
-from .constants import ControllerInputs, ControlMode, Commands
+from dataclasses import dataclass, field
+
+from .constants import ControllerInputs, ControlMode, TwistOptions, NAV_TOPIC
 
 Con = ControllerInputs
 
+@dataclass
+class Command:
+    """ TODO DOCUMENT """
+    topic_name: str
+    twist_option: TwistOptions
+    scale: float = field(default=1) # Multiplier for the input value; helpful for handling left and right on the same axis.
+
 default_controller_control_map = {
     'mode': ControlMode.STANDARD,
+    Con.DPAD_UP: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
+    Con.DPAD_DOWN: Command(NAV_TOPIC, TwistOptions.LINEAR_X, -1),
+    Con.DPAD_RIGHT: Command(NAV_TOPIC, TwistOptions.ANGULAR_X),
+    Con.DPAD_LEFT: Command(NAV_TOPIC, TwistOptions.ANGULAR_X, -1),
 
-    Con.TRIANGLE: Commands.TEST,
-    Con.CROSS: Commands.TEST,
-    Con.SQUARE: Commands.TEST,
-    Con.CIRCLE: Commands.TEST,
-    Con.OPTION: Commands.TEST,
-    Con.SHARE: Commands.TEST,
+    Con.LEFT_JOYSTICK_X: Command(NAV_TOPIC, TwistOptions.ANGULAR_X),
+    Con.LEFT_JOYSTICK_Y: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
+    Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, TwistOptions.ANGULAR_X),
+    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
 
-    Con.DPAD_UP: Commands.FORWARD,
-    Con.DPAD_DOWN: Commands.REVERSE,
-    Con.DPAD_RIGHT: Commands.RIGHT,
-    Con.DPAD_LEFT: Commands.LEFT,
-
-    Con.LEFT_JOYSTICK_BUTTON: Commands.TEST,
-    Con.LEFT_JOYSTICK_X: Commands.RIGHT,
-    Con.LEFT_JOYSTICK_Y: Commands.FORWARD,
-    Con.RIGHT_JOYSTICK_BUTTON: Commands.TEST,
-    Con.RIGHT_JOYSTICK_X: Commands.RIGHT,
-    Con.RIGHT_JOYSTICK_Y: Commands.FORWARD,
-
-    Con.L1_BUTTON: Commands.TEST,
-    Con.R1_BUTTON: Commands.TEST,
-    Con.L2_ANALOGUE_STICK: Commands.LEFT,
-    Con.R2_ANALOGUE_STICK: Commands.RIGHT,
-
-    Con.PS_BUTTON: Commands.TEST,
-    Con.MIC_BUTTON: Commands.TEST,
-    Con.TOUCHPAD_BUTTON: Commands.TEST,
+    Con.L2_ANALOGUE_STICK: Command(NAV_TOPIC, TwistOptions.ANGULAR_X, -1),
+    Con.R2_ANALOGUE_STICK: Command(NAV_TOPIC, TwistOptions.ANGULAR_X),
 }
 
 default_desktop_control_map = {
     'mode': ControlMode.STANDARD,
-    'w': Commands.FORWARD,
-    'a': Commands.LEFT,
-    's': Commands.REVERSE,
-    'd': Commands.RIGHT,
+    'w': Command(NAV_TOPIC, TwistOptions.LINEAR_X),
+    'a': Command(NAV_TOPIC, TwistOptions.ANGULAR_X, -1),
+    's': Command(NAV_TOPIC, TwistOptions.LINEAR_X, -1),
+    'd': Command(NAV_TOPIC, TwistOptions.ANGULAR_X),
 }
