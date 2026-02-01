@@ -24,8 +24,14 @@ class TCPTransmitter:
         return None
 
     def close(self):
-        self.send_message(STOP_SIGNAL, True) # Wait for acknowledgement to prevent closing before stop signal is sent
-        self.client.close()
+        try:
+            self.send_message(STOP_SIGNAL, True) # Wait for acknowledgement to prevent closing before stop signal is sent
+            self.client.close()
+        except Exception as e:
+            # The error '[WinError 10053] An established connection was aborted by the software in your host machine'
+            # can be ignored here, as it just means the server closed the connection before we could.
+            if 'WinError 10053' in str(e): return
+            print(f'Exception while closing TCPTransmitter: {e}')
 
 if __name__ == '__main__':
     transmitter = TCPTransmitter('127.0.0.1')
