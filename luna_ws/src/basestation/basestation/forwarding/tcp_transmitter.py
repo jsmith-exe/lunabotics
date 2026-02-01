@@ -16,7 +16,11 @@ class TCPTransmitter:
         :param handle_response: whether to wait for and return a response; this will be decoded to a string.
         :return: the decoded string response, if a response handler is given.
         """
-        self.client.sendall(message.encode('utf-8'))
+        try:
+            self.client.sendall(message.encode('utf-8'))
+        except ConnectionAbortedError:
+            print('Connection aborted while trying to send message.')
+            return None
 
         if handle_response:
             response = self.client.recv(MAX_BYTES_TO_READ).decode('utf-8')

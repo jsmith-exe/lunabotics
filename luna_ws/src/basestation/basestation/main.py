@@ -34,7 +34,9 @@ state = BaseStationState()
 transmitter = TCPTransmitter()
 desktop_controller = DesktopController(publish_function, state)
 physical_controller = PhysicalController(publish_function, state)
-
-input("Press enter to exit...")
+try:
+    input("Press enter to exit...")
+except KeyboardInterrupt:
+    pass
 transmitter.close()
 physical_controller.stop()
