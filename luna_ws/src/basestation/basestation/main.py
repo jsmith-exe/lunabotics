@@ -6,11 +6,7 @@ from controls.controllers.base_station_state import BaseStationState
 from forwarding.tcp_transmitter import TCPTransmitter
 from controls.constants import TwistOptions
 
-# TODO move to State object
-twist_state = {
-    'linear': { 'x': 0.0, 'y': 0.0, 'z': 0.0 },
-    'angular': { 'x': 0.0, 'y': 0.0, 'z': 0.0 }
-}
+state = BaseStationState()
 
 def publish_function(topic_name: str, twist_option: TwistOptions, throttle: float):
     """
@@ -20,17 +16,9 @@ def publish_function(topic_name: str, twist_option: TwistOptions, throttle: floa
     :param throttle: the throttle to set the twist option.
     """
     twist_type, twist_dimension = twist_option.value.split('_')
-    twist_state[twist_type][twist_dimension] = throttle
-    transmitter.send_message(json.dumps(twist_state) + ';', False)
+    state.nav_state[twist_type][twist_dimension] = throttle
+    transmitter.send_message(json.dumps(state.nav_state) + ';', False)
 
-def get_index(args, index, default):
-    try:
-        return args[index]
-    except IndexError:
-        return default
-
-
-state = BaseStationState()
 transmitter = TCPTransmitter()
 desktop_controller = DesktopController(publish_function, state)
 physical_controller = PhysicalController(publish_function, state)

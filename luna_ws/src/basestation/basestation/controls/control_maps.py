@@ -6,10 +6,14 @@ Con = ControllerInputs
 
 @dataclass
 class Command:
-    """ TODO DOCUMENT """
+    """ Contains sufficient data to represent a change to a twist message.
+    :param topic_name: the name of the topic to publish to.
+    :param twist_option: the twist option to modify.
+    :param scale: multiplier for the input value; helpful for handling left and right on the same axis.
+    """
     topic_name: str
     twist_option: TwistOptions
-    scale: float = field(default=1) # Multiplier for the input value; helpful for handling left and right on the same axis.
+    scale: float = field(default=1)
 
 default_control_map = {
     'mode': ControlMode.STANDARD,
