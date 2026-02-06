@@ -1,0 +1,55 @@
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    ros2_control + Gazebo
+
+    This replaces the old gazebo_ros_diff_drive + gazebo_ros_joint_state_publisher plugins.
+    Gazebo will expose the wheel joints through ros2_control, and we'll run:
+      - joint_state_broadcaster  (publishes /joint_states)
+      - diff_drive_controller    (subscribes to /cmd_vel, publishes /odom + TF)
+  -->
+
+  <!-- 1) ros2_control hardware definition (GazeboSystem) -->
+    <!-- ros2_control + Gazebo -->
+  <ros2_control name="GazeboSystem" type="system">
+    <hardware>
+      <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+    </hardware>
+
+    <joint name="front_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="front_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="rear_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="rear_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <!-- Gazebo plugin that hosts controller_manager -->
+  <gazebo>
+    <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+      <parameters>$(find luna_sim)/config/gazebo_ros2_control.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+
+
+
+</robot>

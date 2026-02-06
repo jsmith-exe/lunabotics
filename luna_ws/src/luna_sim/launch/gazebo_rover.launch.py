@@ -8,7 +8,9 @@ import os
 from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.actions import ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from ament_index_python.packages import get_package_share_directory
 
+from launch.actions import ExecuteProcess
 
 
 
@@ -31,12 +33,23 @@ def generate_launch_description():
 
     gazebo = IncludeLaunchDescription(
     PythonLaunchDescriptionSource(
-        os.path.join(get_package_share_directory("gazebo_ros"), "launch", "gazebo.launch.py")
-    ), launch_arguments={
-            "world": world_path,
-            "verbose": "true",
-        }.items()
+        os.path.join(
+            get_package_share_directory("gazebo_ros"),
+            "launch",
+            "gazebo.launch.py",
+        )
+    ),
+    launch_arguments={"verbose": "true"}.items(),
     )
+
+    pkg_share = get_package_share_directory("luna_sim")
+    xacro_file = os.path.join(pkg_share, "description", "rover.urdf.xacro")
+
+    generate_urdf = ExecuteProcess(
+        cmd=["bash", "-c", f"xacro {xacro_file} > /tmp/rover.urdf"],
+        output="screen",
+    )
+
 
     gzserver = ExecuteProcess(
         cmd=[
@@ -55,15 +68,52 @@ def generate_launch_description():
     )
 
     # Run the spawner node from the gazebo_ros package. The entity name doesn't really matter if you only have a single robot.
-    spawn_entity = Node(package='gazebo_ros', executable='spawn_entity.py',
-                        arguments=['-topic', '/robot_description',
-                                   '-entity', 'rover'],
-                        output='screen')
+    spawn_entity = Node(
+    package="gazebo_ros",
+    executable="spawn_entity.py",
+    arguments=["-file", "/tmp/rover.urdf", "-entity", "rover"],
+    output="screen",
+    )
+
+
+
+    controllers_yaml = os.path.join(
+        get_package_share_directory("luna_sim"),
+        "config",
+        "ros2_control_controllers.yaml",
+    )
+
+
+    joint_state_broadcaster_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "joint_state_broadcaster",
+            "--controller-manager", "/controller_manager",
+            "--param-file", controllers_yaml,
+        ],
+        output="screen",
+    )
+
+    diff_drive_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[
+            "diff_drive_controller",
+            "--controller-manager", "/controller_manager",
+            "--param-file", controllers_yaml,
+        ],
+        output="screen",
+    )
 
     return LaunchDescription([
-        # Publishes TF base_link -> wheels etc. from robot_description + /joint_states
         rsp,
         gazebo,
-        TimerAction(period=5.0, actions=[spawn_entity]),
+
+        generate_urdf,
+
+        TimerAction(period=6.0, actions=[spawn_entity]),
+        TimerAction(period=12.0, actions=[joint_state_broadcaster_spawner]),
+        TimerAction(period=13.0, actions=[diff_drive_spawner]),
     ])
 
