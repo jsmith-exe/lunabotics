@@ -54,6 +54,10 @@ python .\basestation\main.py
    3. Private network
    4. Turn off 'Windows Defender Firewall'
 Turn it back on when finished.
+5. The publisher can be tested by running the nav_sub:
+```commandline
+ros2 run basestation nav_sub
+```
 
 ---
 #### Docker documentation
