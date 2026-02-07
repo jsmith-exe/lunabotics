@@ -14,7 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join("share", "luna_sim", "description"), glob("description/*")),
     (os.path.join("share", "luna_rviz", "launch"), glob("launch/*")),
-    (os.path.join("share", "luna_sim", "rviz"), glob("rviz/*")), 
+    (os.path.join("share", "luna_rviz", "rviz"), glob("rviz/*")), 
     ],
     install_requires=['setuptools'],
     zip_safe=True,

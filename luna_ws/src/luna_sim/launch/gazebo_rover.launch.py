@@ -16,6 +16,13 @@ def generate_launch_description():
 
     package_name = "luna_sim"
 
+    # Path to your saved Gazebo world
+    world_path = os.path.join(
+        get_package_share_directory(package_name),
+        "worlds",
+        "cones.world"
+    )
+
     rsp = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory(package_name),'launch','rsp.launch.py'
@@ -25,7 +32,10 @@ def generate_launch_description():
     gazebo = IncludeLaunchDescription(
     PythonLaunchDescriptionSource(
         os.path.join(get_package_share_directory("gazebo_ros"), "launch", "gazebo.launch.py")
-    )
+    ), launch_arguments={
+            "world": world_path,
+            "verbose": "true",
+        }.items()
     )
 
     gzserver = ExecuteProcess(

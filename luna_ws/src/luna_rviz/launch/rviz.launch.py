@@ -7,15 +7,15 @@ import os
 
 
 def generate_launch_description():
-    pkg = get_package_share_directory("luna_sim")
+    pkg = get_package_share_directory("luna_rviz")
 
-    xacro_path = os.path.join(pkg, "description", "rover.urdf.xacro")
+    #xacro_path = os.path.join(pkg, "description", "rover.urdf.xacro")
     rviz_path = os.path.join(pkg, "rviz", "rover.rviz")
 
-    robot_description = ParameterValue(
+    '''robot_description = ParameterValue(
         Command(["xacro", " ", xacro_path]),
         value_type=str
-    )
+    )'''
 
     # RViz (loads your config)
     rviz = Node(
