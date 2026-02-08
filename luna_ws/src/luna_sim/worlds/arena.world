@@ -1,0 +1,544 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="lunabotics_uk_arena">
+    
+    <!-- Physics settings for lunar-like simulation -->
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <gravity>0 0 -9.81</gravity> <!-- Earth gravity, change to -1.62 for lunar -->
+    </physics>
+
+    <!-- Lighting -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Arena Floor (sand surface) -->
+    <model name="arena_floor">
+      <static>true</static>
+      <link name="floor_link">
+        <collision name="floor_collision">
+          <geometry>
+            <box>
+              <size>7.9 4.4 0.215</size> <!-- 21.5cm depth -->
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.8</mu>
+                <mu2>0.8</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="floor_visual">
+          <geometry>
+            <box>
+              <size>7.9 4.4 0.215</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.65 0.5 1</ambient>
+            <diffuse>0.7 0.65 0.5 1</diffuse>
+          </material>
+        </visual>
+        <pose>0 0 -0.1075 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Arena Walls -->
+    <!-- North Wall -->
+    <model name="wall_north">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>7.9 0.1 0.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>7.9 0.1 0.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>0 2.25 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- South Wall -->
+    <model name="wall_south">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>7.9 0.1 0.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>7.9 0.1 0.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>0 -2.25 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- East Wall -->
+    <model name="wall_east">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.1 4.4 0.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 4.4 0.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>3.95 0 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- West Wall -->
+    <model name="wall_west">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.1 4.4 0.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.1 4.4 0.5</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>-3.95 0 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Excavation Zone (deeper sand area) -->
+    <model name="excavation_zone">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>2.5 4.4 0.515</size> <!-- 51.5cm depth -->
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.8</mu>
+                <mu2>0.8</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>2.5 4.4 0.515</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.55 0.45 1</ambient>
+            <diffuse>0.6 0.55 0.45 1</diffuse>
+          </material>
+        </visual>
+        <pose>2.7 0 -0.2575 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Boulder Obstacles (example positions - randomize as needed) -->
+    <model name="boulder_1">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.175</radius> <!-- ~35cm diameter -->
+            </sphere>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.175</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+        <pose>-1.0 0.5 0.175 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="boulder_2">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.15</radius> <!-- ~30cm diameter -->
+            </sphere>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.15</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <pose>0.5 -0.8 0.15 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="boulder_3">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.20</radius> <!-- ~40cm diameter -->
+            </sphere>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.20</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.45 0.45 0.45 1</ambient>
+            <diffuse>0.45 0.45 0.45 1</diffuse>
+          </material>
+        </visual>
+        <pose>-0.5 1.2 0.20 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="boulder_4">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.18</radius> <!-- ~36cm diameter -->
+            </sphere>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.18</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.48 0.48 0.48 1</ambient>
+            <diffuse>0.48 0.48 0.48 1</diffuse>
+          </material>
+        </visual>
+        <pose>0.2 0.3 0.18 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="boulder_5">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.16</radius> <!-- ~32cm diameter -->
+            </sphere>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.16</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.42 0.42 0.42 1</ambient>
+            <diffuse>0.42 0.42 0.42 1</diffuse>
+          </material>
+        </visual>
+        <pose>-0.8 -1.0 0.16 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Crater Obstacles (depressions in the sand) -->
+    <!-- Crater 1 - Medium size -->
+    <model name="crater_1">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius> <!-- 50cm diameter -->
+              <length>0.20</length> <!-- 20cm depth -->
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.20</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.3 0.28 0.25 1</ambient>
+            <diffuse>0.3 0.28 0.25 1</diffuse>
+          </material>
+        </visual>
+        <pose>0.2 -1.5 -0.10 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Crater 2 - Large size -->
+    <model name="crater_2">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.20</radius> <!-- 40cm diameter -->
+              <length>0.25</length> <!-- 25cm depth -->
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.20</radius>
+              <length>0.25</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.28 0.26 0.23 1</ambient>
+            <diffuse>0.28 0.26 0.23 1</diffuse>
+          </material>
+        </visual>
+        <pose>-1.5 -0.5 -0.125 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Crater 3 - Small size -->
+    <model name="crater_3">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.15</radius> <!-- 30cm diameter -->
+              <length>0.15</length> <!-- 15cm depth -->
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.15</radius>
+              <length>0.15</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.32 0.30 0.27 1</ambient>
+            <diffuse>0.32 0.30 0.27 1</diffuse>
+          </material>
+        </visual>
+        <pose>0.8 1.0 -0.075 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Crater 4 - Medium-Large size -->
+    <model name="crater_4">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.22</radius> <!-- 44cm diameter -->
+              <length>0.22</length> <!-- 22cm depth -->
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.22</radius>
+              <length>0.22</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.29 0.27 0.24 1</ambient>
+            <diffuse>0.29 0.27 0.24 1</diffuse>
+          </material>
+        </visual>
+        <pose>-0.3 0.8 -0.11 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Crater 5 - Wide and shallow -->
+    <model name="crater_5">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius> <!-- 50cm diameter -->
+              <length>0.18</length> <!-- 18cm depth -->
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.18</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.31 0.29 0.26 1</ambient>
+            <diffuse>0.31 0.29 0.26 1</diffuse>
+          </material>
+        </visual>
+        <pose>1.2 -0.3 -0.09 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Crater 6 - Deep and narrow -->
+    <model name="crater_6">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius> <!-- 36cm diameter -->
+              <length>0.30</length> <!-- 30cm depth -->
+            </cylinder>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.18</radius>
+              <length>0.30</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.27 0.25 0.22 1</ambient>
+            <diffuse>0.27 0.25 0.22 1</diffuse>
+          </material>
+        </visual>
+        <pose>-1.2 1.5 -0.15 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Zone Markers (visual only) -->
+    <!-- Starting Zone -->
+    <model name="starting_zone_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.5 4.4 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.3</ambient>
+            <diffuse>0 1 0 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>-3.2 0 0.005 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Construction Zone Target Area -->
+    <model name="construction_target_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.5 0.9 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.3</ambient>
+            <diffuse>1 0 0 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>-3.2 0 0.01 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Camera view (optional - for visualization) -->
+    <gui fullscreen='0'>
+      <camera name='user_camera'>
+        <pose>-5 -5 5 0 0.5 0.8</pose>
+        <view_controller>orbit</view_controller>
+      </camera>
+    </gui>
+
+  </world>
+</sdf>
