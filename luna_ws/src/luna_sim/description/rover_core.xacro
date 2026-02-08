@@ -1,0 +1,137 @@
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="basic_rover">
+
+  <xacro:include filename="inertial_macros.xacro"/>
+
+  <!-- Materials -->
+  <material name="gray"><color rgba="0.6 0.6 0.6 1.0"/></material>
+  <material name="black"><color rgba="0.05 0.05 0.05 1.0"/></material>
+  <material name="red"><color rgba="0.8 0.1 0.1 1.0"/></material>
+  <material name="blue"><color rgba="0.2 0.2 1.0 1.0"/></material>
+
+  <!-- Dimensions (easy to tweak) -->
+  <xacro:property name="base_x" value="0.50"/>
+  <xacro:property name="base_y" value="0.30"/>
+  <xacro:property name="base_z" value="0.18"/>
+  <xacro:property name="base_z_origin" value="0.12"/>
+
+  <xacro:property name="wheel_r" value="0.06"/>
+  <xacro:property name="wheel_w" value="0.03"/>
+
+  <!-- Wheel placement (relative to base_link origin) -->
+  <xacro:property name="wheel_x_front" value="0.18"/>
+  <xacro:property name="wheel_x_rear"  value="-0.18"/>
+  <xacro:property name="wheel_y" value="${base_y/2 + wheel_w/2}"/>
+
+  <!-- Put wheel centers slightly below base collision bottom (base bottom is z=0.0) -->
+  <xacro:property name="wheel_z" value="0.02"/>
+
+  <!-- BASE LINK (chassis) -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${base_z_origin}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_x} ${base_y} ${base_z}"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 ${base_z_origin}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_x} ${base_y} ${base_z}"/>
+      </geometry>
+    </collision>
+
+    <!-- Use your macro for inertia -->
+    <xacro:inertial_box mass="10.0" x="${base_x}" y="${base_y}" z="${base_z}">
+      <origin xyz="0 0 ${base_z/2}" rpy="0 0 0"/>
+    </xacro:inertial_box>
+  </link>
+
+  <gazebo reference="base_link">
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <!-- Helper macro for a wheel -->
+  <xacro:macro name="wheel_link" params="name">
+    <link name="${name}">
+      <visual>
+        <!-- Rotate cylinder so it spins about Y (axle along Y) -->
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_r}" length="${wheel_w}"/>
+        </geometry>
+        <material name="red"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_r}" length="${wheel_w}"/>
+        </geometry>
+      </collision>
+
+      <xacro:inertial_cylinder mass="0.5" length="${wheel_w}" radius="${wheel_r}">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+      </xacro:inertial_cylinder>
+    </link>
+
+    <gazebo reference="${name}">
+      <material>Gazebo/Red</material>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Create 4 wheels -->
+  <xacro:wheel_link name="front_left_wheel"/>
+  <xacro:wheel_link name="front_right_wheel"/>
+  <xacro:wheel_link name="rear_left_wheel"/>
+  <xacro:wheel_link name="rear_right_wheel"/>
+
+  <!-- Joints -->
+  <!-- NOTE: Axis set to Y so wheel rotates correctly with the visual rotation above -->
+  <joint name="front_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_left_wheel"/>
+    <origin xyz="${wheel_x_front} ${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <joint name="front_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="front_right_wheel"/>
+    <origin xyz="${wheel_x_front} -${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <joint name="rear_left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_left_wheel"/>
+    <origin xyz="${wheel_x_rear} ${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <joint name="rear_right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="rear_right_wheel"/>
+    <origin xyz="${wheel_x_rear} -${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <!-- Make REAR wheels (passive) very low friction so they don't fight the driven front wheels -->
+  <gazebo reference="rear_left_wheel">
+    <mu1 value="0.0001"/>
+    <mu2 value="0.0001"/>
+    <slip1 value="1.0"/>
+    <slip2 value="1.0"/>
+  </gazebo>
+
+  <gazebo reference="rear_right_wheel">
+    <mu1 value="0.0001"/>
+    <mu2 value="0.0001"/>
+    <slip1 value="1.0"/>
+    <slip2 value="1.0"/>
+  </gazebo>
+
+
+</robot>
