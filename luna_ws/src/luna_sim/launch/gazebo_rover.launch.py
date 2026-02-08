@@ -31,15 +31,17 @@ def generate_launch_description():
                 )]), launch_arguments={'use_sim_time': 'true'}.items()
     )
 
+    gazebo_params_file = os.path.join(get_package_share_directory(package_name), "config", "gazebo_params.yaml")
+
     gazebo = IncludeLaunchDescription(
     PythonLaunchDescriptionSource(
         os.path.join(
             get_package_share_directory("gazebo_ros"),
             "launch",
             "gazebo.launch.py",
-        )
-    ),
-    launch_arguments={"verbose": "true"}.items(),
+            )
+        ),
+        launch_arguments={'extra_gazebo_args': '--ros-args --params-file' + gazebo_params_file}.items(),
     )
 
     pkg_share = get_package_share_directory("luna_sim")
@@ -50,7 +52,6 @@ def generate_launch_description():
         output="screen",
     )
 
-
     # Run the spawner node from the gazebo_ros package. The entity name doesn't really matter if you only have a single robot.
     spawn_entity = Node(
         package="gazebo_ros",
@@ -58,9 +59,6 @@ def generate_launch_description():
         arguments=["-topic", "robot_description", "-entity", "rover"],
         output="screen",
     )
-
-
-
 
     controllers_yaml = os.path.join(
         get_package_share_directory("luna_sim"),
@@ -91,11 +89,8 @@ def generate_launch_description():
     return LaunchDescription([
         rsp,
         gazebo,
-
         generate_urdf,
-
         spawn_entity,
-        
         diff_drive_spawner,
         joint_broad_spawner,
         cmd_vel_relay,
