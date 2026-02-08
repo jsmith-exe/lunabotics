@@ -106,6 +106,13 @@ def generate_launch_description():
         output="screen",
     )
 
+    cmd_vel_relay = Node(
+        package="topic_tools",
+        executable="relay",
+        arguments=["/cmd_vel", "/diff_drive_controller/cmd_vel_unstamped"],
+        output="screen",
+    )
+
     return LaunchDescription([
         rsp,
         gazebo,
@@ -115,5 +122,6 @@ def generate_launch_description():
         TimerAction(period=6.0, actions=[spawn_entity]),
         TimerAction(period=12.0, actions=[joint_state_broadcaster_spawner]),
         TimerAction(period=13.0, actions=[diff_drive_spawner]),
+        cmd_vel_relay,
     ])
 
