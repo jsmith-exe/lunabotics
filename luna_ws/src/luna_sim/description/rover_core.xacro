@@ -15,7 +15,7 @@
   <xacro:property name="base_z" value="0.18"/>
   <xacro:property name="base_z_origin" value="0.12"/>
 
-  <xacro:property name="wheel_r" value="0.06"/>
+  <xacro:property name="wheel_r" value="0.10"/>
   <xacro:property name="wheel_w" value="0.03"/>
 
   <!-- Wheel placement (relative to base_link origin) -->
