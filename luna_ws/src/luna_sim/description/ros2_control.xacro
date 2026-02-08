@@ -18,25 +18,37 @@
     </hardware>
 
     <joint name="front_left_wheel_joint">
-      <command_interface name="velocity"/>
+      <command_interface name="velocity">
+          <param name="min_velocity">-10</param>
+          <param name="max_velocity">10</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
 
     <joint name="front_right_wheel_joint">
-      <command_interface name="velocity"/>
+      <command_interface name="velocity">
+          <param name="min_velocity">-10</param>
+          <param name="max_velocity">10</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
 
     <joint name="rear_left_wheel_joint">
-      <command_interface name="velocity"/>
+      <command_interface name="velocity">
+            <param name="min_velocity">-10</param>
+            <param name="max_velocity">10</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
 
     <joint name="rear_right_wheel_joint">
-      <command_interface name="velocity"/>
+      <command_interface name="velocity">
+            <param name="min_velocity">-10</param>
+            <param name="max_velocity">10</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
@@ -44,8 +56,8 @@
 
   <!-- Gazebo plugin that hosts controller_manager -->
   <gazebo>
-    <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
-      <parameters>$(find luna_sim)/config/gazebo_ros2_control.yaml</parameters>
+    <plugin  name="gazebo_ros2_control "  filename="libgazebo_ros2_control.so">
+      <parameters>$(find luna_sim)/config/my_controllers.yaml</parameters>
     </plugin>
   </gazebo>
 

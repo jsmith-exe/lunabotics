@@ -51,67 +51,42 @@ def generate_launch_description():
     )
 
 
-    gzserver = ExecuteProcess(
-        cmd=[
-            "gzserver",
-            "--verbose",
-            os.path.join(get_package_share_directory("gazebo_ros"), "worlds", "empty.world"),
-            "-s", "libgazebo_ros_init.so",
-            "-s", "libgazebo_ros_factory.so",
-        ],
-        output="screen"
-    )
-
-    gzclient = ExecuteProcess(
-        cmd=["gzclient"],
-        output="screen"
-    )
-
     # Run the spawner node from the gazebo_ros package. The entity name doesn't really matter if you only have a single robot.
     spawn_entity = Node(
-    package="gazebo_ros",
-    executable="spawn_entity.py",
-    arguments=["-file", "/tmp/rover.urdf", "-entity", "rover"],
-    output="screen",
+        package="gazebo_ros",
+        executable="spawn_entity.py",
+        arguments=["-topic", "robot_description", "-entity", "rover"],
+        output="screen",
     )
+
 
 
 
     controllers_yaml = os.path.join(
         get_package_share_directory("luna_sim"),
         "config",
-        "ros2_control_controllers.yaml",
-    )
-
-
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=[
-            "joint_state_broadcaster",
-            "--controller-manager", "/controller_manager",
-            "--param-file", controllers_yaml,
-        ],
-        output="screen",
+        "my_controllers.yaml",
     )
 
     diff_drive_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=[
-            "diff_drive_controller",
-            "--controller-manager", "/controller_manager",
-            "--param-file", controllers_yaml,
-        ],
-        output="screen",
+        arguments=["diff_cont"],
+    )
+
+    joint_broad_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["joint_broad"],
     )
 
     cmd_vel_relay = Node(
         package="topic_tools",
         executable="relay",
-        arguments=["/cmd_vel", "/diff_drive_controller/cmd_vel_unstamped"],
+        arguments=["/cmd_vel", "/diff_cont/cmd_vel_unstamped"],
         output="screen",
     )
+
 
     return LaunchDescription([
         rsp,
@@ -119,9 +94,11 @@ def generate_launch_description():
 
         generate_urdf,
 
-        TimerAction(period=6.0, actions=[spawn_entity]),
-        TimerAction(period=12.0, actions=[joint_state_broadcaster_spawner]),
-        TimerAction(period=13.0, actions=[diff_drive_spawner]),
+        spawn_entity,
+        
+        diff_drive_spawner,
+        joint_broad_spawner,
         cmd_vel_relay,
+        
     ])
 
