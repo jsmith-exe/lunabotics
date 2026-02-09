@@ -212,19 +212,18 @@ Visualization Manager:
       Name: PointCloud2
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.009999999776482582
-      Style: Flat Squares
+      Size (Pixels): 1
+      Size (m): 0.005
+      Style: Points
       Topic:
-        Depth: 5
+        Depth: 1
         Durability Policy: Volatile
         Filter size: 10
         History Policy: Keep Last
-        Reliability Policy: Reliable
+        Reliability Policy: Best Effort
         Value: /depth_camera/points
       Use Fixed Frame: true
-      Use rainbow: true
-      Value: true
+      Use rainbow: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -294,7 +293,6 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1892
   Hide Left Dock: false
   Hide Right Dock: true
   Image:
@@ -308,6 +306,5 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: true
-  Width: 3840
   X: 0
   Y: 1134
