@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="imu_sensor" params="parent_link">
+
+    <!-- Small link to mount IMU -->
+    <link name="imu_link">
+      <inertial>
+        <mass value="0.01"/>
+        <inertia ixx="1e-6" iyy="1e-6" izz="1e-6"
+                 ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+
+    <joint name="imu_joint" type="fixed">
+      <parent link="${parent_link}"/>
+      <child link="imu_link"/>
+      <!-- Position on robot (tweak if needed) -->
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
+    </joint>
+
+    <gazebo reference="imu_link">
+      <sensor name="imu_sensor" type="imu">
+        <always_on>true</always_on>
+        <update_rate>50</update_rate>
+        <visualize>false</visualize>
+
+        <imu>
+          <angular_velocity>
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.0002</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.0002</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.0002</stddev>
+              </noise>
+            </z>
+          </angular_velocity>
+        </imu>
+
+        <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+          <ros>
+            <remapping>~/out:=/imu/data</remapping>
+          </ros>
+          <frame_name>imu_link</frame_name>
+        </plugin>
+
+      </sensor>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>
