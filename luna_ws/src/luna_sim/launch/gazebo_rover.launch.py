@@ -34,14 +34,14 @@ def generate_launch_description():
     gazebo_params_file = os.path.join(get_package_share_directory(package_name), "config", "gazebo_params.yaml")
 
     gazebo = IncludeLaunchDescription(
-    PythonLaunchDescriptionSource(
-        os.path.join(
-            get_package_share_directory("gazebo_ros"),
-            "launch",
-            "gazebo.launch.py",
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory("gazebo_ros"),
+                "launch",
+                "gazebo.launch.py",
             )
         ),
-        launch_arguments={'extra_gazebo_args': '--ros-args --params-file' + gazebo_params_file}.items(),
+        launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file' + gazebo_params_file}.items(),
     )
 
     pkg_share = get_package_share_directory("luna_sim")
