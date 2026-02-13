@@ -13,6 +13,7 @@ class ControlsPublisher(Node):
     def __init__(self):
         super().__init__('nav_teleop_publisher')
         self.publisher_ = self.create_publisher(Twist, NAV_TOPIC, 10)
+        self.get_logger().info(f'Publishing to {NAV_TOPIC}')
 
         self.tcp_receiver = TCPReceiver(self.handle_data, log=self.get_logger().info)
         self.tcp_receiver_thread = Thread(target=self.tcp_receiver.start_listening_forever, daemon=True)
