@@ -37,7 +37,7 @@
 
     <sensor name="lidar_3d" type="gpu_ray">
       <always_on>true</always_on>
-      <visualize>true</visualize>
+      <visualize>false</visualize>
       <update_rate>10</update_rate>
 
       <ray>
