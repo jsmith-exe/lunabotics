@@ -17,3 +17,5 @@ alias luna_kb="ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -
 # Make scripts executable
 chmod +x "$LUNA_PROJECT"/process/install_packages.sh
 chmod +x "$LUNA_PROJECT"/process/build.sh
+
+source "$LUNA_PROJECT"/luna_ws/install/setup.bash
