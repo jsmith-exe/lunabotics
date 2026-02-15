@@ -8,6 +8,9 @@
 
     <xacro:include filename="lidar.xacro" />
 
+    <xacro:include filename="back_camera.xacro" />
+
+    
     <xacro:include filename="imu.xacro"/>
 
     <xacro:imu_sensor parent_link="base_link"/>
