@@ -1,0 +1,106 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- IMX219 Camera Module 120 FOV - Back Camera -->
+  <!-- This camera simulates the IMX219 sensor with wide angle lens -->
+  
+  <!-- Mount camera to rover -->
+  <joint name="back_camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="back_camera_link"/>
+    <!-- Position: back-center-top of rover, facing backward -->
+    <origin xyz="-0.25 0 0.18" rpy="0 0 ${pi}"/>
+  </joint>
+
+  <!-- Camera link (physical body) -->
+  <link name="back_camera_link">
+    <visual>
+      <geometry>
+        <!-- IMX219 module is roughly 25mm x 24mm x 9mm -->
+        <box size="0.025 0.024 0.009"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+
+    <collision>
+      <geometry>
+        <box size="0.025 0.024 0.009"/>
+      </geometry>
+    </collision>
+
+    <!-- Light inertia for small camera module -->
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.003"/>  <!-- ~3 grams -->
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <!-- Optical frame (REP-103/REP-105 convention) -->
+  <!-- This transforms from camera_link to optical frame: -->
+  <!-- X-right, Y-down, Z-forward (optical convention) -->
+  <joint name="back_camera_optical_joint" type="fixed">
+    <parent link="back_camera_link"/>
+    <child link="back_camera_link_optical"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <link name="back_camera_link_optical"/>
+
+  <!-- Gazebo camera sensor plugin -->
+  <gazebo reference="back_camera_link">
+    <material>Gazebo/Blue</material>
+
+    <sensor name="back_camera" type="camera">
+      <always_on>true</always_on>
+      <visualize>true</visualize>
+      <update_rate>30</update_rate>  <!-- IMX219 can do up to 30 fps at full resolution -->
+
+      <camera>
+        <!-- 120 degrees horizontal FOV = 2.094 radians -->
+        <horizontal_fov>2.0944</horizontal_fov>
+        
+        <image>
+          <!-- IMX219 native resolution is 3280x2464, but using common operational resolution -->
+          <format>R8G8B8</format>
+          <width>1920</width>   <!-- 1080p resolution (common for robotics) -->
+          <height>1080</height>
+        </image>
+        
+        <clip>
+          <near>0.02</near>  <!-- 2cm minimum distance -->
+          <far>300</far>     <!-- 300m maximum distance (effectively infinite for this camera) -->
+        </clip>
+        
+        <!-- Noise model for more realistic simulation -->
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>  <!-- Small amount of noise -->
+        </noise>
+      </camera>
+
+      <plugin name="back_camera_controller" filename="libgazebo_ros_camera.so">
+        <!-- Frame name for TF and CameraInfo -->
+        <frame_name>back_camera_link_optical</frame_name>
+        
+        <!-- ROS 2 remapping -->
+        <ros>
+          <namespace>/</namespace>
+          <remapping>image_raw:=back_camera/image_raw</remapping>
+          <remapping>camera_info:=back_camera/camera_info</remapping>
+        </ros>
+        
+        <!-- Distortion parameters (can be adjusted for lens characteristics) -->
+        <distortion_k1>0.0</distortion_k1>
+        <distortion_k2>0.0</distortion_k2>
+        <distortion_k3>0.0</distortion_k3>
+        <distortion_t1>0.0</distortion_t1>
+        <distortion_t2>0.0</distortion_t2>
+        
+        <!-- CameraInfo manager settings -->
+        <hack_baseline>0.0</hack_baseline>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+</robot>
