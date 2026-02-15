@@ -158,4 +158,5 @@ The base station provides **human-in-the-loop interaction** and system visibilit
 - **Clear interfaces** (UART, topics, network links) reduce coupling  
 - **Human-in-the-loop support** ensures safe testing and operation  
 
+
 This structure allows the platform to scale from manual tele-operation to fully autonomous operation with minimal architectural changes.
