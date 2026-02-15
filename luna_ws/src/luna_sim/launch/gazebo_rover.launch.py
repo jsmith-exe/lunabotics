@@ -41,10 +41,7 @@ def generate_launch_description():
                 "gazebo.launch.py",
             )
         ),
-        launch_arguments={
-            "world": world_path,
-            "extra_gazebo_args": "--ros-args --params-file " + gazebo_params_file,
-        }.items(),
+        launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file' + gazebo_params_file}.items(),
     )
 
 

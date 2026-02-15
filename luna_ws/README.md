@@ -7,7 +7,7 @@ If you follow this exactly, it will work.
 
 ---
 
-## 1️⃣ Repository Structure (What Lives Where)
+## 1. Repository Structure (What Lives Where)
 
 ```
 lunabotics/
@@ -35,14 +35,14 @@ lunabotics/
 └── README.md              
 ```
 
-### 🔴 Golden Rules
+### Golden Rules
 - **All ROS packages must live inside `luna_ws/src/`**
 - **All ROS commands are run from `luna_ws/`, NOT from `src/`**
 - Never edit `build/`, `install/`, or `log/`
 
 ---
 
-## 2️⃣ Building the ROS 2 Workspace (VERY IMPORTANT)
+## 2. Building the ROS 2 Workspace (VERY IMPORTANT)
 
 ### Always build from here:
 ```bash
@@ -59,11 +59,11 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-⚠️ If you forget to source, ROS will say **“package not found”**.
+If you forget to source, ROS will say **“package not found”**.
 
 ---
 
-## 3️⃣ One-Time Setup (Per Machine)
+## 3. One-Time Setup (Per Machine)
 
 ### Install required ROS tools
 ```bash
@@ -72,7 +72,7 @@ sudo apt install ros-humble-teleop-twist-keyboard
 sudo apt install ros-humble-robot-state-publisher
 ```
 
-### 🔧 Automatically Loading the ROS 2 Environment (Recommended)
+### Automatically Loading the ROS 2 Environment (Recommended)
 
 To avoid manually sourcing ROS every time a new terminal is opened, each team member should add one line to their local `.bashrc` file.
 
@@ -80,7 +80,7 @@ This will automatically load:
 - ROS 2 Humble
 - the Lunabotics ROS 2 workspace overlay
 
-### ✅ How to set this up
+### How to set this up
 ```bash
 nano ~/.bashrc
 ```
@@ -95,7 +95,7 @@ Save, exit, then reload:
 source ~/.bashrc
 ```
 
-### ✅ Verify setup
+### Verify setup
 ```bash
 echo $ROS_DISTRO
 ros2 pkg list | grep lunabotics
@@ -105,32 +105,36 @@ You should see `humble` and Lunabotics packages.
 
 ---
 
-## 4️⃣ Launching the Rover in RViz
-
-### What launch files do
-Launch files:
-- Start `robot_state_publisher`
-- Start the differential-drive simulator
-- Load the robot URDF
-- Open RViz with a **pre-configured view**
+## 4. Launching the Rover Sim in Gazebo
 
 ### Launch the rover
 ```bash
-ros2 launch lunabotics_description view_rover.launch.py
+ros2 launch luna_sim gazebo_rover.launch.py
+```
+
+This will:
+- Open Gazebo
+- Spawn the rover model
+- Enable TF and all sensors on the rover
+
+---
+
+## 5. Launching RViz
+
+```bash
+ros2 launch luna_rviz rviz.launch.py
 ```
 
 This will:
 - Open RViz
 - Spawn the rover model
-- Enable TF, odometry, and wheel animation
-
-⚠️ **Do not open RViz manually** unless debugging.
+- Allow the user to view all important topics about the rover
 
 ---
 
-## 5️⃣ Driving the Rover (Keyboard Control)
+## 6. Driving the Rover (Telop Keyboard Control)
 
-Once the rover is launched, open **a new terminal** and run:
+Once the rover is launched in Gazebo, open **a new terminal** and run:
 
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd_vel
@@ -150,69 +154,18 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd
 
 ---
 
-## 6️⃣ Running Individual Nodes (`ros2 run`)
+## 7. ros2 Interaction
 
-### Command format
+List all available topics,
 ```bash
-ros2 run <package_name> <executable_name>
+ros2 topic list
 ```
-
-### Examples
-Camera publisher:
+Listen to a specific topic,
 ```bash
-ros2 run lunabotics_sensors camera_pub
+ros2 topic echo /topic_name
 ```
 
-Temperature publisher:
-```bash
-ros2 run lunabotics_sensors temp_pub
-```
-
----
-
-## 7️⃣ RViz Configuration Notes
-
-- RViz config files live in:
-  ```
-  lunabotics_description/rviz/
-  ```
-- They are automatically loaded by launch files
-
-### Fixed Frame
-Recommended:
-```
-Fixed Frame = map
-```
-
-If visuals disappear, check this first.
-
----
-
-## 8️⃣ Common Problems & Fixes
-
-### ❌ “Package not found”
-```bash
-source install/setup.bash
-```
-
-### ❌ RViz opens but shows nothing
-- Fixed Frame is wrong (`map` or `base_link`)
-- RViz opened manually instead of via launch
-- Workspace not rebuilt after changes
-
-### ❌ Keyboard does nothing
-- `diffdrive_sim` is not running
-- Teleop terminal not focused
-- Wrong `/cmd_vel` topic
-
-Check:
-```bash
-ros2 topic info /cmd_vel
-```
-
----
-
-## 9️⃣ Development Workflow (TL;DR)
+## 8. Development Workflow (TL;DR) / Rebuild Workspace (ws)
 
 Every time you change code:
 ```bash
@@ -221,20 +174,37 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-Then run:
+## 9. How to Run Python Files
+
+- If you use relative imports (from . / from ..) you must run with -m.
+- Don't mix "run as a file path" with relative imports.
+
+From your home directory,
 ```bash
-ros2 launch lunabotics_description view_rover.launch.py
+cd ~/
+python3 -m lunabotics
 ```
 
----
+## 10. ros2 Multi Machine Communication Config
 
-## 🔟 Mental Model (Remember This)
+On Laptop:
 
-- **URDF** → what the robot looks like
-- **TF (Transform)** → where the robot is
-- **cmd_vel** → how the robot is commanded
-- **diffdrive_sim** → converts commands into motion
-- **RViz** → visualisation only (no physics)
-- **Launch files** → one-command setup for the team
+```bash
+echo 'export ROS_DOMAIN_ID=42' >> ~/.bashrc
+echo 'export ROS_LOCALHOST_ONLY=0' >> ~/.bashrc
+source ~/.bashrc
 
----
+echo $ROS_DOMAIN_ID
+echo $ROS_LOCALHOST_ONLY
+```
+
+On Remote Jetson/Pi:
+```bash
+echo 'export ROS_DOMAIN_ID=42' >> ~/.bashrc
+echo 'export ROS_LOCALHOST_ONLY=0' >> ~/.bashrc
+source ~/.bashrc
+
+echo $ROS_DOMAIN_ID
+echo $ROS_LOCALHOST_ONLY
+```
+

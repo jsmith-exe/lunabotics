@@ -1,3 +1,0 @@
-cd ~/lunabotics/ros2
-colcon build --symlink-install
-source install/setup.bash
