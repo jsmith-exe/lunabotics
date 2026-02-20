@@ -270,458 +270,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <model name='boulder_1'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <sphere>
-              <radius>0.175</radius>
-            </sphere>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <sphere>
-              <radius>0.175</radius>
-            </sphere>
-          </geometry>
-          <material>
-            <ambient>0.5 0.5 0.5 1</ambient>
-            <diffuse>0.5 0.5 0.5 1</diffuse>
-          </material>
-        </visual>
-        <pose>-1 0.5 0.175 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='boulder_2'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <sphere>
-              <radius>0.15</radius>
-            </sphere>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <sphere>
-              <radius>0.15</radius>
-            </sphere>
-          </geometry>
-          <material>
-            <ambient>0.4 0.4 0.4 1</ambient>
-            <diffuse>0.4 0.4 0.4 1</diffuse>
-          </material>
-        </visual>
-        <pose>0.5 -0.8 0.15 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='boulder_3'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <sphere>
-              <radius>0.2</radius>
-            </sphere>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <sphere>
-              <radius>0.2</radius>
-            </sphere>
-          </geometry>
-          <material>
-            <ambient>0.45 0.45 0.45 1</ambient>
-            <diffuse>0.45 0.45 0.45 1</diffuse>
-          </material>
-        </visual>
-        <pose>-0.5 1.2 0.2 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='boulder_4'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <sphere>
-              <radius>0.18</radius>
-            </sphere>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <sphere>
-              <radius>0.18</radius>
-            </sphere>
-          </geometry>
-          <material>
-            <ambient>0.48 0.48 0.48 1</ambient>
-            <diffuse>0.48 0.48 0.48 1</diffuse>
-          </material>
-        </visual>
-        <pose>0.2 0.3 0.18 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='boulder_5'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <sphere>
-              <radius>0.16</radius>
-            </sphere>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <sphere>
-              <radius>0.16</radius>
-            </sphere>
-          </geometry>
-          <material>
-            <ambient>0.42 0.42 0.42 1</ambient>
-            <diffuse>0.42 0.42 0.42 1</diffuse>
-          </material>
-        </visual>
-        <pose>-0.8 -1 0.16 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='crater_1'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <cylinder>
-              <radius>0.25</radius>
-              <length>0.2</length>
-            </cylinder>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <cylinder>
-              <radius>0.25</radius>
-              <length>0.2</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <ambient>0.3 0.28 0.25 1</ambient>
-            <diffuse>0.3 0.28 0.25 1</diffuse>
-          </material>
-        </visual>
-        <pose>0.2 -1.5 -0.1 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='crater_2'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <cylinder>
-              <radius>0.2</radius>
-              <length>0.25</length>
-            </cylinder>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <cylinder>
-              <radius>0.2</radius>
-              <length>0.25</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <ambient>0.28 0.26 0.23 1</ambient>
-            <diffuse>0.28 0.26 0.23 1</diffuse>
-          </material>
-        </visual>
-        <pose>-1.5 -0.5 -0.125 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='crater_3'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <cylinder>
-              <radius>0.15</radius>
-              <length>0.15</length>
-            </cylinder>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <cylinder>
-              <radius>0.15</radius>
-              <length>0.15</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <ambient>0.32 0.3 0.27 1</ambient>
-            <diffuse>0.32 0.3 0.27 1</diffuse>
-          </material>
-        </visual>
-        <pose>0.8 1 -0.075 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='crater_4'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <cylinder>
-              <radius>0.22</radius>
-              <length>0.22</length>
-            </cylinder>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <cylinder>
-              <radius>0.22</radius>
-              <length>0.22</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <ambient>0.29 0.27 0.24 1</ambient>
-            <diffuse>0.29 0.27 0.24 1</diffuse>
-          </material>
-        </visual>
-        <pose>-0.3 0.8 -0.11 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='crater_5'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <cylinder>
-              <radius>0.25</radius>
-              <length>0.18</length>
-            </cylinder>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <cylinder>
-              <radius>0.25</radius>
-              <length>0.18</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <ambient>0.31 0.29 0.26 1</ambient>
-            <diffuse>0.31 0.29 0.26 1</diffuse>
-          </material>
-        </visual>
-        <pose>1.2 -0.3 -0.09 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
-    <model name='crater_6'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <cylinder>
-              <radius>0.18</radius>
-              <length>0.3</length>
-            </cylinder>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='visual'>
-          <geometry>
-            <cylinder>
-              <radius>0.18</radius>
-              <length>0.3</length>
-            </cylinder>
-          </geometry>
-          <material>
-            <ambient>0.27 0.25 0.22 1</ambient>
-            <diffuse>0.27 0.25 0.22 1</diffuse>
-          </material>
-        </visual>
-        <pose>-1.2 1.5 -0.15 0 -0 0</pose>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
     <model name='starting_zone_marker'>
       <static>1</static>
       <link name='link'>
@@ -1525,38 +1073,48 @@
       <pose>2.33561 0.798644 0 0 -0 0</pose>
     </model>
     <state world_name='lunabotics_uk_arena'>
-      <sim_time>50 774000000</sim_time>
-      <real_time>55 404655675</real_time>
-      <wall_time>1771200693 475930501</wall_time>
-      <iterations>50774</iterations>
+      <sim_time>108 877000000</sim_time>
+      <real_time>74 68450629</real_time>
+      <wall_time>1771601723 792087949</wall_time>
+      <iterations>58103</iterations>
       <model name='Construction Cone'>
-        <pose>-2.22009 1.12474 -5e-06 -4e-06 -5e-06 0</pose>
+        <pose>-2.22009 1.12474 -1e-05 0 1e-06 0</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>-2.22009 1.12474 -5e-06 -4e-06 -5e-06 0</pose>
+          <pose>-2.22009 1.12474 -1e-05 0 1e-06 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 -9.8 0 -0 0</acceleration>
           <wrench>0 0 -9.8 0 -0 0</wrench>
         </link>
       </model>
       <model name='Construction Cone_0'>
-        <pose>2.86272 -0.906788 -9e-06 3e-06 2e-06 0</pose>
+        <pose>2.86272 -0.906788 -9e-06 2e-06 -2e-06 -0</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>2.86272 -0.906788 -9e-06 3e-06 2e-06 0</pose>
+          <pose>2.86272 -0.906788 -9e-06 2e-06 -2e-06 -0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 -9.8 0 -0 0</acceleration>
           <wrench>0 0 -9.8 0 -0 0</wrench>
         </link>
       </model>
       <model name='Construction Cone_1'>
-        <pose>2.33561 0.798644 -9e-06 -1e-06 1e-06 0</pose>
+        <pose>2.33561 0.798644 0 1e-06 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>2.33561 0.798644 -9e-06 -1e-06 1e-06 0</pose>
+          <pose>2.33561 0.798644 0 1e-06 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 -9.8 0 -0 0</acceleration>
-          <wrench>0 0 -9.8 0 -0 0</wrench>
+          <acceleration>1e-06 1e-06 3.87365 3.00239 1.50951 -2e-06</acceleration>
+          <wrench>1e-06 1e-06 3.87365 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='Construction Cone_2'>
+        <pose>-1.02452 -0.90669 -1e-06 -2e-06 -2e-06 0</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose>-1.02452 -0.90669 -1e-06 -2e-06 -2e-06 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>-0 -0 -0.692153 1.74628 -0.851333 3.14159</acceleration>
+          <wrench>-0 -0 -0.692153 0 -0 0</wrench>
         </link>
       </model>
       <model name='arena_floor'>
@@ -1569,121 +1127,11 @@
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
-      <model name='boulder_1'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>-1 0.5 0.175 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='boulder_2'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0.5 -0.8 0.15 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='boulder_3'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>-0.5 1.2 0.2 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='boulder_4'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0.2 0.3 0.18 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='boulder_5'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>-0.8 -1 0.16 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
       <model name='construction_target_marker'>
         <pose>0 0 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='link'>
           <pose>-3.2 0 0.01 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='crater_1'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0.2 -1.5 -0.1 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='crater_2'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>-1.5 -0.5 -0.125 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='crater_3'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0.8 1 -0.075 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='crater_4'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>-0.3 0.8 -0.11 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='crater_5'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>1.2 -0.3 -0.09 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='crater_6'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>-1.2 1.5 -0.15 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -1700,37 +1148,37 @@
         </link>
       </model>
       <model name='rover'>
-        <pose>-0.015844 -0.07445 0.079997 -2.3e-05 -2e-06 -0.000201</pose>
+        <pose>-0.020979 -0.092745 0.080001 3e-06 -2e-06 0.004453</pose>
         <scale>1 1 1</scale>
         <link name='base_link'>
-          <pose>-0.015844 -0.07445 0.079997 -2.3e-05 -2e-06 -0.000201</pose>
-          <velocity>-3e-05 -0.001937 -0.00368 -0.026425 -0.000551 0.003517</velocity>
-          <acceleration>-0.000473 -0.00131 -9.79093 0.005926 0.009924 -0.001023</acceleration>
-          <wrench>-0.004807 -0.013318 -99.5052 0 -0 0</wrench>
+          <pose>-0.020979 -0.092745 0.080001 3e-06 -2e-06 0.004453</pose>
+          <velocity>-2.8e-05 -0.001911 0.006111 -0.026402 -0.000692 0.002871</velocity>
+          <acceleration>-0.053411 2.77306 9.45754 -2.26466 1.56921 -0.485378</acceleration>
+          <wrench>-0.542816 28.1826 96.117 0 -0 0</wrench>
         </link>
         <link name='front_left_wheel'>
-          <pose>0.164189 0.090512 0.099994 -0.000101 0.0656 -0.000205</pose>
-          <velocity>-0.000604 -0.00018 -0.007984 -0.007038 -0.000565 0.002771</velocity>
-          <acceleration>0.015424 0.595187 -9.83537 0.548606 -0.00402 -1.36515</acceleration>
-          <wrench>0.007712 0.297594 -4.91769 0 -0 0</wrench>
+          <pose>0.158285 0.073052 0.100002 -9.2e-05 0.018867 0.004452</pose>
+          <velocity>-0.000493 -0.000224 0.001519 0.00224 -0.005111 0.002406</velocity>
+          <acceleration>-1.18454 -1.29695 -4.51572 1.12827 -0.511394 -0.41214</acceleration>
+          <wrench>-0.59227 -0.648473 -2.25786 0 -0 0</wrench>
         </link>
         <link name='front_right_wheel'>
-          <pose>0.164122 -0.239483 0.100002 5.8e-05 0.364528 -0.000194</pose>
-          <velocity>0.000538 -0.001342 0.000728 -0.04572 -0.000557 0.00699</velocity>
-          <acceleration>-0.003565 -0.566922 -9.84574 -0.339755 0.004467 0.720192</acceleration>
-          <wrench>-0.001783 -0.283461 -4.92287 0 -0 0</wrench>
+          <pose>0.159754 -0.256939 0.100001 0.000103 0.108015 0.004459</pose>
+          <velocity>0.000405 -0.000494 0.010891 0.003973 0.004075 0.000742</velocity>
+          <acceleration>1.71609 -1.55857 24.8798 -0.507557 0.272434 -2.73499</acceleration>
+          <wrench>0.858046 -0.779287 12.4399 0 -0 0</wrench>
         </link>
         <link name='rear_left_wheel'>
-          <pose>-0.195811 0.090587 0.099993 -2.5e-05 0.281049 -0.000208</pose>
-          <velocity>-0.000617 -0.00204 -0.008215 -0.026086 -0.000561 0.003432</velocity>
-          <acceleration>0.0031 0.000787 -9.86336 0.353493 0.000123 -0.136955</acceleration>
-          <wrench>0.00155 0.000393 -4.93168 0 -0 0</wrench>
+          <pose>-0.201712 0.071452 0.100001 2e-06 0.056227 0.004453</pose>
+          <velocity>-0.000497 -0.001907 0.001545 -0.026118 0.003415 0.00274</velocity>
+          <acceleration>-1.17954 -5.16504 -5.76076 0.852266 -0.388089 -1.37064</acceleration>
+          <wrench>-0.589771 -2.58252 -2.88038 0 -0 0</wrench>
         </link>
         <link name='rear_right_wheel'>
-          <pose>-0.195878 -0.239413 0.100001 -2.5e-05 0.284651 -0.000208</pose>
-          <velocity>0.000536 -0.002044 0.00053 -0.026104 -0.000561 0.003444</velocity>
-          <acceleration>-0.005346 -0.002415 -9.83993 0.333018 0.000132 -0.122263</acceleration>
-          <wrench>-0.002673 -0.001208 -4.91996 0 -0 0</wrench>
+          <pose>-0.200242 -0.258545 0.1 2e-06 0.06391 0.004453</pose>
+          <velocity>0.000417 -0.001903 0.010541 -0.017271 0.003956 0.00239</velocity>
+          <acceleration>1.73787 -5.15288 23.2582 -2.88776 0.153508 -1.66643</acceleration>
+          <wrench>0.868937 -2.57644 11.6291 0 -0 0</wrench>
         </link>
       </model>
       <model name='starting_zone_marker'>
@@ -1787,5 +1235,54 @@
         <pose>0 0 10 0 -0 0</pose>
       </light>
     </state>
+    <model name='Construction Cone_2'>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <mesh>
+              <scale>10 10 10</scale>
+              <uri>model://construction_cone/meshes/construction_cone.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <mesh>
+              <scale>10 10 10</scale>
+              <uri>model://construction_cone/meshes/construction_cone.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+          <mass>1</mass>
+        </inertial>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <pose>-1.02452 -0.90669 0 0 -0 0</pose>
+    </model>
   </world>
 </sdf>
