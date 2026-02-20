@@ -42,105 +42,47 @@ lunabotics/
 
 ---
 
-## 2. Building the ROS 2 Workspace (VERY IMPORTANT)
-
-### Always build from here:
+## 2. Setup
+Ensure your ~/.bashrc file contains the following, replacing the value of `LUNA_PROJECT`
+with the path to your local copy of the repo:
 ```bash
-cd ~/lunabotics/luna_ws
+export LUNA_PROJECT="/mnt/c/Users/caleb/Documents/Projects/lunabotics"
+source /opt/ros/humble/setup.bash
+source "$LUNA_PROJECT"/luna_ws/install/setup.bash
+source "$LUNA_PROJECT"/process/startup.sh
 ```
-
-### Build:
-```bash
-colcon build --symlink-install
-```
-
-### Source:
-```bash
-source install/setup.bash
-```
-
-If you forget to source, ROS will say **“package not found”**.
-
----
-
-## 3. One-Time Setup (Per Machine)
-
-### Install required ROS tools
-```bash
-sudo apt update
-sudo apt install ros-humble-teleop-twist-keyboard
-sudo apt install ros-humble-robot-state-publisher
-```
-
-### Automatically Loading the ROS 2 Environment (Recommended)
-
-To avoid manually sourcing ROS every time a new terminal is opened, each team member should add one line to their local `.bashrc` file.
-
-This will automatically load:
-- ROS 2 Humble
-- the Lunabotics ROS 2 workspace overlay
-
-### How to set this up
-```bash
-nano ~/.bashrc
-```
-
-Add this line **at the very bottom**:
-```bash
-source ~/lunabotics/luna_ws/install/setup.bash
-```
-
-Save, exit, then reload:
-```bash
-source ~/.bashrc
-```
+> **Explanation:**
+>
+> The first line sets the environment variable `LUNA_PROJECT` for use in the rest of the commands and in helper commands.
+> Second line sources ROS 2 Humble, third line installs any previously built version of lunabotics.
+> The fourth line sets up shortcut scripts for building and running parts of the project.
 
 ### Verify setup
+If you've built before:
 ```bash
-echo $ROS_DISTRO
-ros2 pkg list | grep lunabotics
+ros2 run basestation nav_pub
 ```
+- This should run a simple publisher; you should see some logs indicating that it's publishing messages. 
+Ctrl+C to stop it. This means 1) ROS is sourced and 2) the workspace is sourced.
 
-You should see `humble` and Lunabotics packages.
+If you haven't built before, run ```luna_build```.
 
----
-
-## 4. Launching the Rover Sim in Gazebo
-
-### Launch the rover
+You'll now able to use a number of commands to build and run parts of the project, such as:
 ```bash
-ros2 launch luna_sim gazebo_rover.launch.py
+luna_packages # Run to ensure all packages are installed
+luna_build # Build the ROS workspace
+luna_sim_rviz # or luna_rviz_sim, order doesn't matter; this runs RViz (visualisation) with Gazebo (simulation)
+luna_kb # See next section
 ```
+>**Important!**
+>- After any code changes in ROS packages, run ```luna_build```.
+>- If you rely on any new package, add it to the **process/install_packages.sh**
 
-This will:
-- Open Gazebo
-- Spawn the rover model
-- Enable TF and all sensors on the rover
+## 3. Driving the rover via luna_kb
+```luna_kb``` runs a keyboard teleoperation node; this was not made by us and is for testing only.
+A more user-friendly node will be accessible soon.
 
----
-
-## 5. Launching RViz
-
-```bash
-ros2 launch luna_rviz rviz.launch.py
-```
-
-This will:
-- Open RViz
-- Spawn the rover model
-- Allow the user to view all important topics about the rover
-
----
-
-## 6. Driving the Rover (Telop Keyboard Control)
-
-Once the rover is launched in Gazebo, open **a new terminal** and run:
-
-```bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd_vel
-```
-
-### Keyboard controls (default)
+**Default controls**
 - `i` → forward
 - `k` → stop
 - `j` / `l` → rotate left / right
@@ -150,11 +92,10 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd
 📌 **Important**
 - Click inside the terminal before pressing keys
 - Keep this terminal open while driving
-- The rover will only move while the drive simulator is running
 
 ---
 
-## 7. ros2 Interaction
+## 4. Helpful ROS commands
 
 List all available topics,
 ```bash
@@ -165,27 +106,27 @@ Listen to a specific topic,
 ros2 topic echo /topic_name
 ```
 
-## 8. Development Workflow (TL;DR) / Rebuild Workspace (ws)
-
-Every time you change code:
+Test node communication (if you're having trouble with node communication)
 ```bash
-cd ~/lunabotics/luna_ws
-colcon build --symlink-install
-source install/setup.bash
+# On some terminal, set up for receiving
+ros2 multicast receive
+# On another terminal, send multicast message
+ros2 multicast send
 ```
 
-## 9. How to Run Python Files
+
+## 5. How to Run Python Files
 
 - If you use relative imports (from . / from ..) you must run with -m.
 - Don't mix "run as a file path" with relative imports.
 
 From your home directory,
 ```bash
-cd ~/
+cd $LUNA_PROJECT/../
 python3 -m lunabotics
 ```
 
-## 10. ros2 Multi Machine Communication Config
+## 6. ros2 Multi Machine Communication Config
 
 On Laptop:
 
