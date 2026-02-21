@@ -1,54 +1,33 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
-from launch.substitutions import Command
-from launch_ros.parameter_descriptions import ParameterValue
-import os
-
-from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.actions import ExecuteProcess
+from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
+import os
 
-from launch.actions import ExecuteProcess
-
-
+WORLD = "arena.world"
 
 def generate_launch_description():
-
-    package_name = "luna_sim"
-
-    # Path to your saved Gazebo world
-    world_path = os.path.join(
-        get_package_share_directory(package_name),
-        "worlds",
-        "arena.world"
-    )
+    sim_package_path = get_package_share_directory("luna_sim")
+    world_path = os.path.join(sim_package_path, "worlds", WORLD)
+    gazebo_params_path = os.path.join(sim_package_path, "config", "gazebo_params.yaml")
+    rsp_launch_path = os.path.join(sim_package_path, 'launch', 'rsp.launch.py')
+    gazebo_launch_path = os.path.join(get_package_share_directory("gazebo_ros"), "launch", "gazebo.launch.py")
+    rover_xacro_path = os.path.join(sim_package_path, "description", "rover.urdf.xacro")
 
     rsp = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory(package_name),'launch','rsp.launch.py'
-                )]), launch_arguments={'use_sim_time': 'true'}.items()
+        PythonLaunchDescriptionSource(rsp_launch_path),
+        launch_arguments={'use_sim_time': 'true'}.items()
     )
-
-    gazebo_params_file = os.path.join(get_package_share_directory(package_name), "config", "gazebo_params.yaml")
 
     gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("gazebo_ros"),
-                "launch",
-                "gazebo.launch.py",
-            )
-        ),
-        launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file' + gazebo_params_file}.items(),
+        PythonLaunchDescriptionSource(gazebo_launch_path),
+        launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file' + gazebo_params_path}.items(),
     )
 
-    pkg_share = get_package_share_directory("luna_sim")
-    xacro_file = os.path.join(pkg_share, "description", "rover.urdf.xacro")
-
     generate_urdf = ExecuteProcess(
-        cmd=["bash", "-c", f"xacro {xacro_file} > /tmp/rover.urdf"],
+        cmd=["bash", "-c", f"xacro {rover_xacro_path} > /tmp/rover.urdf"],
         output="screen",
     )
 
@@ -58,12 +37,6 @@ def generate_launch_description():
         executable="spawn_entity.py",
         arguments=["-topic", "robot_description", "-entity", "rover"],
         output="screen",
-    )
-
-    controllers_yaml = os.path.join(
-        get_package_share_directory("luna_sim"),
-        "config",
-        "my_controllers.yaml",
     )
 
     diff_drive_spawner = Node(
@@ -94,6 +67,5 @@ def generate_launch_description():
         diff_drive_spawner,
         joint_broad_spawner,
         cmd_vel_relay,
-        
     ])
 
