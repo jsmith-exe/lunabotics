@@ -12,7 +12,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
 
-    package_name = "luna_sim"
+    package_name = "qpl_rover"
 
     # Path to your saved Gazebo world
     world_path = os.path.join(
@@ -24,21 +24,18 @@ def generate_launch_description():
     rsp = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory(package_name),'launch','rsp.launch.py'
-                )]), launch_arguments={'use_sim_time': 'true'}.items()
+                )]), launch_arguments={'use_sim_time': 'true', 'use_ros2_control': 'true'}.items()
     )
 
     gazebo_params_file = os.path.join(get_package_share_directory(package_name), "config", "gazebo_params.yaml")
 
+
+    # Include the Gazebo launch file, provided by the gazebo_ros package
     gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("gazebo_ros"),
-                "launch",
-                "gazebo.launch.py",
-            )
-        ),
-        launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file' + gazebo_params_file}.items(),
-    )
+                PythonLaunchDescriptionSource([os.path.join(
+                    get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
+                    launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file ' + gazebo_params_file}.items()
+             )
 
 
     # Run the spawner node from the gazebo_ros package. The entity name doesn't really matter if you only have a single robot.
@@ -47,12 +44,6 @@ def generate_launch_description():
         executable="spawn_entity.py",
         arguments=["-topic", "robot_description", "-entity", "rover"],
         output="screen",
-    )
-
-    controllers_yaml = os.path.join(
-        get_package_share_directory("luna_sim"),
-        "config",
-        "my_controllers.yaml",
     )
 
     diff_drive_spawner = Node(

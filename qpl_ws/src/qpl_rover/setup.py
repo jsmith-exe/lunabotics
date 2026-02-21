@@ -3,20 +3,20 @@ import os
 from glob import glob
 
 
-package_name = 'luna_sim'
+package_name = 'qpl_rover'
 
 setup(
     name=package_name,
     version='0.0.0',
     packages=find_packages(exclude=['test']),
     data_files=[
-    ("share/ament_index/resource_index/packages", ["resource/luna_sim"]),
-    ("share/luna_sim", ["package.xml"]),
-    (os.path.join("share", "luna_sim", "description"), glob("description/*")),
-    (os.path.join("share", "luna_sim", "launch"), glob("launch/*")),
-    (os.path.join('share', 'luna_sim', 'worlds'), glob('worlds/*')),
-    (os.path.join('share', 'luna_sim', 'config'), glob('config/*')),
-    (os.path.join("share", "luna_sim", "rviz"), glob("rviz/*")), 
+    ("share/ament_index/resource_index/packages", ["resource/qpl_rover"]),
+    ("share/qpl_rover", ["package.xml"]),
+    (os.path.join("share",  package_name, "description"), glob("description/*")),
+    (os.path.join("share", package_name, "launch"), glob("launch/*")),
+    (os.path.join('share', package_name, 'worlds'), glob('worlds/*')),
+    (os.path.join('share', package_name, 'config'), glob('config/*')),
+    (os.path.join("share", package_name, "rviz"), glob("rviz/*")), 
     ],
     install_requires=['setuptools'],
     zip_safe=True,

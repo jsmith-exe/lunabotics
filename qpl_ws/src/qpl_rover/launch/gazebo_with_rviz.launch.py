@@ -6,7 +6,7 @@ import os
 
 
 def generate_launch_description():
-    gazebo_launchfile_path = os.path.join(get_package_share_directory('luna_sim'), 'launch', 'gazebo_rover.launch.py')
+    gazebo_launchfile_path = os.path.join(get_package_share_directory('qpl_rover'), 'launch', 'launch_sim.launch.py')
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(gazebo_launchfile_path)
     )

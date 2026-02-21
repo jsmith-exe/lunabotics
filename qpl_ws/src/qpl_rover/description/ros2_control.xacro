@@ -57,7 +57,7 @@
   <!-- Gazebo plugin that hosts controller_manager -->
   <gazebo>
     <plugin  name="gazebo_ros2_control "  filename="libgazebo_ros2_control.so">
-      <parameters>$(find luna_sim)/config/my_controllers.yaml</parameters>
+      <parameters>$(find qpl_rover)/config/my_controllers.yaml</parameters>
     </plugin>
   </gazebo>
 
