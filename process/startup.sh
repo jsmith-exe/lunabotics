@@ -4,8 +4,9 @@ ros2 daemon start
 
 # Environment variables
 # Disable hardware acceleration (causes issues with rviz on some machines)
-export LIBGL_ALWAYS_SOFTWARE=1
-export GALLIUM_DRIVER=llvmpipe
+## Disbale if you want to use GPU
+#export LIBGL_ALWAYS_SOFTWARE=1
+#export GALLIUM_DRIVER=llvmpipe
 
 # Shortcuts
 alias qpl_build='${QPL_PROJECT}/process/build.sh'

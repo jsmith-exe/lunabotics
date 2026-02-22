@@ -76,11 +76,11 @@
 
       <!-- skid-steer turning: reduce lateral friction -->
       <mu1>1.0</mu1>
-      <mu2>0.1</mu2>
+      <mu2>0.05</mu2>
 
       <!-- optional: allow lateral slip -->
       <slip1>0.0</slip1>
-      <slip2>0.0</slip2>
+      <slip2>0.2</slip2>
     </gazebo>
   </xacro:macro>
 
