@@ -27,6 +27,15 @@ def generate_launch_description():
                 )]), launch_arguments={'use_sim_time': 'true', 'use_ros2_control': 'true'}.items()
     )
 
+    twist_mux_params = os.path.join(get_package_share_directory(package_name),'config','twist_mux.yaml')
+    twist_mux = Node(
+            package="twist_mux",
+            executable="twist_mux",
+            parameters=[twist_mux_params, {'use_sim_time': True}],
+            remappings=[('/cmd_vel_out','/diff_cont/cmd_vel_unstamped')]
+        )
+    
+
     gazebo_params_file = os.path.join(get_package_share_directory(package_name), "config", "gazebo_params.yaml")
 
 
@@ -58,43 +67,21 @@ def generate_launch_description():
         arguments=["joint_broad"],
     )
 
-    cmd_vel_relay = Node(
-        package="topic_tools",
-        executable="relay",
-        arguments=["/cmd_vel", "/diff_cont/cmd_vel_unstamped"],
-        output="screen",
-    )
-
-    slam_params = os.path.join(
-        get_package_share_directory(package_name),
-        "config",
-        "mapper_params_online_async.yaml"
-    )
-
-    slam_toolbox_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory('slam_toolbox'),
-                'launch',
-                'online_async_launch.py'
-            )
-        ),
-        launch_arguments={
-            'params_file': slam_params,
-            'use_sim_time': 'true'
-        }.items()
-    )
-
+    # cmd_vel_relay = Node(
+    #     package="topic_tools",
+    #     executable="relay",
+    #     arguments=["/cmd_vel", "/diff_cont/cmd_vel_unstamped"],
+    #     output="screen",
+    # )
 
 
     return LaunchDescription([
         rsp,
+        twist_mux,
         gazebo,
         spawn_entity,
         diff_drive_spawner,
         joint_broad_spawner,
-        cmd_vel_relay,
-        slam_toolbox_launch,
-        
+
     ])
 
