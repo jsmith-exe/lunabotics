@@ -12,8 +12,10 @@ ros2 daemon start
 alias qpl_build='${QPL_PROJECT}/process/build.sh'
 alias qpl_packages='${QPL_PROJECT}/process/install_packages.sh'
 alias qpl_sim="ros2 launch qpl_rover launch_sim.launch.py"
-alias qpl_rviz="x"
+alias qpl_rviz="ros2 launch qpl_rover rviz.launch.py"
 alias qpl_kb="ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd_vel"
+alias qpl_slam="ros2 launch qpl_rover online_async_launch.py"
+alias nav2="ros2 launch nav2_bringup navigation_launch.py use_sim_time:=true"
 
 # Make scripts executable
 chmod +x "$QPL_PROJECT"/process/install_packages.sh

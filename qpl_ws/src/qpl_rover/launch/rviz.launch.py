@@ -9,7 +9,7 @@ import os
 def generate_launch_description():
     pkg = get_package_share_directory("qpl_rover")
 
-    rviz_config = os.path.join(pkg, "config", "default.rviz")
+    rviz_config = os.path.join(pkg, "config", "cost_map.rviz")
 
     # RViz (loads your config)
     rviz = Node(
