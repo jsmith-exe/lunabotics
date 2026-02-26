@@ -10,7 +10,7 @@ from launch_ros.actions import Node
 import xacro
 
 
-def _clean_robot_description(xacro_path: str) -> str:
+def clean_robot_description(xacro_path: str) -> str:
     # Generate URDF XML string
     doc = xacro.process_file(xacro_path)
     xml = doc.toxml()
@@ -33,10 +33,9 @@ def _clean_robot_description(xacro_path: str) -> str:
 def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
 
-    pkg_share = get_package_share_directory("luna_sim")
-    xacro_file = os.path.join(pkg_share, "description", "rover.urdf.xacro")
-
-    robot_description = _clean_robot_description(xacro_file)
+    sim_pkg_path = get_package_share_directory("luna_sim")
+    rover_xacro_path = os.path.join(sim_pkg_path, "description", "rover.urdf.xacro")
+    robot_description = clean_robot_description(rover_xacro_path)
 
     node_robot_state_publisher = Node(
         package="robot_state_publisher",
