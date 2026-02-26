@@ -12,7 +12,7 @@ export GALLIUM_DRIVER=llvmpipe
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=42
 export ROS_LOCALHOST_ONLY=0
-export CYCLONEDDS_URI=file:///home/js/cyclonedds.xml
+export CYCLONEDDS_URI=file://${QPL_PROJECT}/cyclonedds.xml
 
 # Shortcuts
 alias qpl_build='${QPL_PROJECT}/process/build.sh'
