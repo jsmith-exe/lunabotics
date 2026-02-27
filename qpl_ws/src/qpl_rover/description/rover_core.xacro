@@ -76,7 +76,7 @@
 
       <!-- skid-steer turning: reduce lateral friction -->
       <mu1>1.0</mu1>
-      <mu2>0.075</mu2>
+      <mu2>0.07</mu2>
 
       <!-- optional: allow lateral slip -->
       <slip1>0.0</slip1>
