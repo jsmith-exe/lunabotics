@@ -33,7 +33,7 @@
       <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
     </collision>
     <xacro:inertial_box mass="10.0" x="${base_x}" y="${base_y}" z="${base_z}">
-      <origin xyz="0 0 ${base_z/2}" rpy="0 0 0"/>
+      <origin xyz="0 0 ${base_z_origin}" rpy="0 0 0"/>
     </xacro:inertial_box>
   </link>
 
@@ -75,8 +75,8 @@
       <fdir1>1 0 0</fdir1>
 
       <!-- skid-steer turning: reduce lateral friction -->
-      <mu1>1.0</mu1>
-      <mu2>0.07</mu2>
+      <mu1>1.2</mu1>
+      <mu2>0.05</mu2>
 
       <!-- optional: allow lateral slip -->
       <slip1>0.0</slip1>
