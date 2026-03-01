@@ -18,4 +18,5 @@ sudo apt -y install gazebo \
   ros-humble-twist-mux \
   ros-humble-diff-drive-controller \
   ros-humble-joint-trajectory-controller \
-  ros-humble-effort-controllers
+  ros-humble-effort-controllers \
+  ros-humble-image-transport-plugins

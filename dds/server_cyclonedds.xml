@@ -1,0 +1,19 @@
+<CycloneDDS>
+    <Domain>
+        <General>
+            <Interfaces>
+                <NetworkInterface name="tailscale0" priority="default" multicast="false"/>
+            </Interfaces>
+        </General>
+        <Discovery>
+            <Peers>
+                <Peer address="127.0.0.1"/>
+            </Peers>
+            <ParticipantIndex>auto</ParticipantIndex>
+            <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
+        </Discovery>
+        <Internal>
+            <SocketReceiveBufferSize min="10MB"/>
+        </Internal>
+    </Domain>
+</CycloneDDS>
