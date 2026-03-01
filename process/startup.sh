@@ -13,8 +13,6 @@ ros2 daemon start
 # ===== ROS2 NETWORK SETTINGS =====
 export ROS_DOMAIN_ID=42
 export ROS_LOCALHOST_ONLY=0
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export CYCLONEDDS_URI=file://${QPL_PROJECT}/dds/cyclonedds.xml
 
 # Shortcuts
 alias qpl_build='${QPL_PROJECT}/process/build.sh'
