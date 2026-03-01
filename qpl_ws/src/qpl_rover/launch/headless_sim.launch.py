@@ -79,12 +79,24 @@ def generate_launch_description():
     # )
     
 
+    ekf_node = TimerAction(
+        period=2.0,
+        actions=[Node(
+            package="robot_localization",
+            executable="ekf_node",
+            name="ekf_filter_node",
+            output="screen",
+            parameters=[os.path.join(package_name, "config", "imu_params.yaml")]
+        )]
+    )
 
     return LaunchDescription([
         rsp,
+        ekf_node,
         twist_mux,
         gazebo,
         spawn_entity,
         diff_drive_spawner,
         joint_broad_spawner,
+        
     ])
