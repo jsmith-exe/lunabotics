@@ -68,15 +68,23 @@ def generate_launch_description():
         arguments=["joint_broad"],
     )
 
+    ekf_params = os.path.join(
+        get_package_share_directory(package_name),
+        "config",
+        "imu_params.yaml",
+    )
+
     ekf_node = TimerAction(
         period=2.0,
-        actions=[Node(
-            package="robot_localization",
-            executable="ekf_node",
-            name="ekf_filter_node",
-            output="screen",
-            parameters=[os.path.join(package_name, "config", "imu_params.yaml")]
-        )]
+        actions=[
+            Node(
+                package="robot_localization",
+                executable="ekf_node",
+                name="ekf_filter_node",
+                output="screen",
+                parameters=[ekf_params, {"use_sim_time": True}],
+            )
+        ],
     )
 
     return LaunchDescription([

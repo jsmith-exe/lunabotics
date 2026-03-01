@@ -14,7 +14,7 @@ diff_cont:
   ros__parameters:
 
     publish_rate: 50.0
-    base_frame_id: base_link
+    base_frame_id: base_footprint
     publish_tf: false
 
     left_wheel_names:  ["front_left_wheel_joint", "rear_left_wheel_joint"]
@@ -25,20 +25,20 @@ diff_cont:
 
     use_stamped_vel: false
 
-    # odom_frame_id: odom
-    # enable_odom_tf: true
+    odom_frame_id: odom
+    enable_odom_tf: true
 
-    # linear:
-    #   x:
-    #     has_velocity_limits: true
-    #     max_velocity: 1.0
-    #     has_acceleration_limits: true
-    #     max_acceleration: 2.0
-    # angular:
-    #   z:
-    #     has_velocity_limits: true
-    #     max_velocity: 2.0
-    #     has_acceleration_limits: true
-    #     max_acceleration: 4.0
+    linear:
+      x:
+        has_velocity_limits: true
+        max_velocity: 1.0
+        has_acceleration_limits: true
+        max_acceleration: 2.0
+    angular:
+      z:
+        has_velocity_limits: true
+        max_velocity: 1.0
+        has_acceleration_limits: true
+        max_acceleration: 2.0
 
     

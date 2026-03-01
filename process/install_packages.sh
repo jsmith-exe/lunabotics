@@ -19,4 +19,5 @@ sudo apt -y install gazebo \
   ros-humble-diff-drive-controller \
   ros-humble-joint-trajectory-controller \
   ros-humble-effort-controllers \
-  ros-humble-image-transport-plugins
+  ros-humble-image-transport-plugins \
+  ros-humble-robot-localization
