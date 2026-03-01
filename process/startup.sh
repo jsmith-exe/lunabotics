@@ -14,12 +14,7 @@ ros2 daemon start
 export ROS_DOMAIN_ID=42
 export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-
-if [ -n "$GZ_SERVER" ]; then
-  export CYCLONEDDS_URI=file://${QPL_PROJECT}/dds/server_cyclonedds.xml
-else
-  export CYCLONEDDS_URI=file://${QPL_PROJECT}/dds/cyclonedds.xml
-fi
+export CYCLONEDDS_URI=file://${QPL_PROJECT}/dds/cyclonedds.xml
 
 # Shortcuts
 alias qpl_build='${QPL_PROJECT}/process/build.sh'
