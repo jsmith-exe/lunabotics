@@ -1,0 +1,17 @@
+digraph G {
+"base_link" -> "front_left_wheel"[label=" Broadcaster: default_authority\nAverage rate: 30.213\nBuffer length: 4.7\nMost recent transform: 73.26\nOldest transform: 68.56\n"];
+"base_footprint" -> "base_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"base_link" -> "front_right_wheel"[label=" Broadcaster: default_authority\nAverage rate: 30.213\nBuffer length: 4.7\nMost recent transform: 73.26\nOldest transform: 68.56\n"];
+"base_link" -> "rear_left_wheel"[label=" Broadcaster: default_authority\nAverage rate: 30.213\nBuffer length: 4.7\nMost recent transform: 73.26\nOldest transform: 68.56\n"];
+"base_link" -> "rear_right_wheel"[label=" Broadcaster: default_authority\nAverage rate: 30.213\nBuffer length: 4.7\nMost recent transform: 73.26\nOldest transform: 68.56\n"];
+"base_link" -> "back_camera_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"back_camera_link" -> "back_camera_link_optical"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"odom" -> "base_footprint"[label=" Broadcaster: default_authority\nAverage rate: 57.853\nBuffer length: 3.82\nMost recent transform: 73.26\nOldest transform: 69.44\n"];
+"base_link" -> "camera_link"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"camera_link" -> "camera_link_optical"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"base_link" -> "laser_frame"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1772385755.1323104"[ shape=plaintext ] ;
+}->"odom";
+}
