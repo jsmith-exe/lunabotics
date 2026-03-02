@@ -11,51 +11,33 @@ If you follow this exactly, it will work.
 
 ```
 lunabotics/
-├── luna_ws/                     ← ROS 2 WORKSPACE ROOT (IMPORTANT)
-│   ├── src/                  ← ALL ROS PACKAGES LIVE HERE
-│   │   ├── lunabotics_description/
-│   │   │   ├── urdf/          ← Robot model (URDF / Xacro)
-│   │   │   ├── rviz/          ← Saved RViz configuration files (.rviz)
-│   │   │   ├── launch/        ← Launch files (RViz + robot)
-│   │   │   └── setup.py
-│   │   │
-│   │   ├── lunabotics_control/
-│   │   │   └── diffdrive_sim.py   ← Differential-drive simulator (cmd_vel → odom/TF/joints)
-│   │   │
-│   │   └── lunabotics_sensors/
-│   │       └── lunabotics_sensors/
-│   │           └── Publishers / subscribers (temperature, camera, markers)
-│   │   
-│   ├── build/                ← Auto-generated (DO NOT TOUCH)
-│   ├── install/              ← Auto-generated (DO NOT TOUCH)
-│   └── log/                  ← Auto-generated (DO NOT TOUCH)
+├── qpl_ws/ ← ROS 2 WORKSPACE ROOT (IMPORTANT)
+│   └── src/ ← ALL ROS PACKAGES LIVE HERE
+│       └── qpl_rover/ ← Package Name 
+|           ├── config ← config/parameter files 
+|           ├── description ← Rover description, includes rover appearance, rover sensors, sensor pipeline (ros2_control)
+|           ├── launch ← Launch files for the rover
+|           ├── maps ← Slam maps 
+|           └── worlds ← Gazebo worlds  
 │
-├── Jetson/               ← Non-ROS files
 ├── Media/
 └── README.md              
 ```
 
-### Golden Rules
-- **All ROS packages must live inside `luna_ws/src/`**
-- **All ROS commands are run from `luna_ws/`, NOT from `src/`**
+- **All ROS packages must live inside `qpl_ws/src/`**
 - Never edit `build/`, `install/`, or `log/`
 
 ---
 
 ## 2. Setup
-Ensure your ~/.bashrc file contains the following, replacing the value of `LUNA_PROJECT`
+Ensure your ~/.bashrc file contains the following, replacing the value of `QPL_PROJECT`
 with the path to your local copy of the repo:
 ```bash
-export LUNA_PROJECT="/mnt/c/Users/caleb/Documents/Projects/lunabotics"
-source /opt/ros/humble/setup.bash
-source "$LUNA_PROJECT"/luna_ws/install/setup.bash
-source "$LUNA_PROJECT"/process/startup.sh
+# ---------- Lunabotics ----------
+export QPL_PROJECT="$HOME/lunabotics"
+source "$QPL_PROJECT"/process/startup.sh
+# --------------------------------
 ```
-> **Explanation:**
->
-> The first line sets the environment variable `LUNA_PROJECT` for use in the rest of the commands and in helper commands.
-> Second line sources ROS 2 Humble, third line installs any previously built version of lunabotics.
-> The fourth line sets up shortcut scripts for building and running parts of the project.
 
 ### Verify setup
 If you've built before:
@@ -65,21 +47,23 @@ ros2 run basestation nav_pub
 - This should run a simple publisher; you should see some logs indicating that it's publishing messages. 
 Ctrl+C to stop it. This means 1) ROS is sourced and 2) the workspace is sourced.
 
-If you haven't built before, run ```luna_build```.
+If you haven't built before, run ```qpl_build```.
 
 You'll now able to use a number of commands to build and run parts of the project, such as:
 ```bash
-luna_packages # Run to ensure all packages are installed
-luna_build # Build the ROS workspace
-luna_sim_rviz # or luna_rviz_sim, order doesn't matter; this runs RViz (visualisation) with Gazebo (simulation)
+qpl_packages # Run to ensure all packages are installed
+qpl_build # Build the ROS workspace
+qpl_sim # This runs Gazebo (simulation) with GUI and processes using GPU
+qpl_headless # This runs Gazebo (simulation) with no GUI and processes using CPU
+qpl_rviz # This runs RViz with preset settings
 luna_kb # See next section
 ```
 >**Important!**
->- After any code changes in ROS packages, run ```luna_build```.
+>- After any code changes in ROS packages, run ```qpl_build```.
 >- If you rely on any new package, add it to the **process/install_packages.sh**
 
 ## 3. Driving the rover via luna_kb
-```luna_kb``` runs a keyboard teleoperation node; this was not made by us and is for testing only.
+```qpl_kb``` runs a keyboard teleoperation node; this was not made by us and is for testing only.
 A more user-friendly node will be accessible soon.
 
 **Default controls**
@@ -95,7 +79,22 @@ A more user-friendly node will be accessible soon.
 
 ---
 
-## 4. Helpful ROS commands
+## 4. Working with SLAM
+Launch SLAM (Mapping)
+```bash
+qpl_slam
+```
+This starts the SLAM system (*Simulateous Localisation and Mapping*).
+The rover uses 2D LiDAR data to build a 2D map of the environment while estimating its own position inside that map.
+### SLAM Visualisation
+
+<p align="center"> <img src="Media/slam.gif" width="700"> </p> 
+
+To launch Nav2
+bash nav2
+and explain what each are very breifly, also leave a section where i can add a git of slam and a gif of nav2
+
+## 5. Helpful ROS commands
 
 List all available topics,
 ```bash
@@ -115,7 +114,7 @@ ros2 multicast send
 ```
 
 
-## 5. How to Run Python Files
+## 6. How to Run Python Files
 
 - If you use relative imports (from . / from ..) you must run with -m.
 - Don't mix "run as a file path" with relative imports.
@@ -124,28 +123,5 @@ From your home directory,
 ```bash
 cd $LUNA_PROJECT/../
 python3 -m lunabotics
-```
-
-## 6. ros2 Multi Machine Communication Config
-
-On Laptop:
-
-```bash
-echo 'export ROS_DOMAIN_ID=42' >> ~/.bashrc
-echo 'export ROS_LOCALHOST_ONLY=0' >> ~/.bashrc
-source ~/.bashrc
-
-echo $ROS_DOMAIN_ID
-echo $ROS_LOCALHOST_ONLY
-```
-
-On Remote Jetson/Pi:
-```bash
-echo 'export ROS_DOMAIN_ID=42' >> ~/.bashrc
-echo 'export ROS_LOCALHOST_ONLY=0' >> ~/.bashrc
-source ~/.bashrc
-
-echo $ROS_DOMAIN_ID
-echo $ROS_LOCALHOST_ONLY
 ```
 
