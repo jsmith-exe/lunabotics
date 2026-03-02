@@ -80,19 +80,30 @@ A more user-friendly node will be accessible soon.
 ---
 
 ## 4. Working with SLAM
-Launch SLAM (Mapping)
+## Launch SLAM (Mapping)
 ```bash
 qpl_slam
 ```
-This starts the SLAM system (*Simulateous Localisation and Mapping*).
+This node starts the SLAM system (*Simulateous Localisation and Mapping*).
 The rover uses 2D LiDAR data to build a 2D map of the environment while estimating its own position inside that map.
 ### SLAM Visualisation
+<p align="left">
+  <img src="../Media/slam.gif" alt="SLAM Demo" width="800">
+</p>
 
-<p align="center"> <img src="Media/slam.gif" width="700"> </p> 
+---
 
-To launch Nav2
-bash nav2
-and explain what each are very breifly, also leave a section where i can add a git of slam and a gif of nav2
+
+## Launch Navigation (Nav2)
+```bash 
+nav2
+```
+This node starts ROS2 Navigation Stack (Nav2).
+The rover uses the previously built map to plan paths and autonomously drive to goal positions that you click in RViz.
+## Nav2 Visualisation
+<p align="left">
+  <img src="../Media/nav2.gif" alt="Nav2 Demo" width="800">
+</p>
 
 ## 5. Helpful ROS commands
 
