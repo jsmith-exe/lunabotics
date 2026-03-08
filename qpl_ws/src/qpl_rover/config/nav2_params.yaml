@@ -9,6 +9,7 @@ bt_navigator:
     enable_groot_monitoring: false
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
+      - nav2_compute_path_through_poses_action_bt_node
       - nav2_follow_path_action_bt_node
       - nav2_back_up_action_bt_node
       - nav2_spin_action_bt_node
@@ -117,11 +118,12 @@ local_costmap:
       global_frame: odom
       robot_base_frame: base_footprint
       rolling_window: true
-      width: 6.0
-      height: 6.0
+      width: 6
+      height: 6
       resolution: 0.05
       robot_radius: 0.30
       transform_tolerance: 0.5
+      always_send_full_costmap: true
       plugins: ["obstacle_layer", "inflation_layer"]
 
       obstacle_layer:
@@ -142,8 +144,6 @@ local_costmap:
         cost_scaling_factor: 3.0
         inflation_radius: 0.45
 
-      always_send_full_costmap: true
-
   local_costmap_client:
     ros__parameters:
       use_sim_time: true
@@ -160,11 +160,14 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_footprint
-      rolling_window: false
+      rolling_window: true
+      width: 30
+      height: 30
       resolution: 0.05
       robot_radius: 0.30
       track_unknown_space: true
       transform_tolerance: 0.5
+      always_send_full_costmap: true
       plugins: ["obstacle_layer", "inflation_layer"]
 
       obstacle_layer:
@@ -185,8 +188,6 @@ global_costmap:
         cost_scaling_factor: 3.0
         inflation_radius: 0.55
 
-      always_send_full_costmap: true
-
   global_costmap_client:
     ros__parameters:
       use_sim_time: true
@@ -202,7 +203,7 @@ planner_server:
     planner_plugins: ["GridBased"]
 
     GridBased:
-      plugin: "nav2_navfn_planner::NavfnPlanner"
+      plugin: "nav2_navfn_planner/NavfnPlanner"
       tolerance: 0.5
       use_astar: false
       allow_unknown: true
@@ -219,11 +220,11 @@ behavior_server:
     cycle_frequency: 10.0
     behavior_plugins: ["spin", "backup", "wait"]
     spin:
-      plugin: "nav2_behaviors::Spin"
+      plugin: "nav2_behaviors/Spin"
     backup:
-      plugin: "nav2_behaviors::BackUp"
+      plugin: "nav2_behaviors/BackUp"
     wait:
-      plugin: "nav2_behaviors::Wait"
+      plugin: "nav2_behaviors/Wait"
     global_frame: map
     robot_base_frame: base_footprint
     transform_tolerance: 0.5
