@@ -38,7 +38,8 @@ alias qpl_build='${QPL_PROJECT}/process/build.sh'
 alias qpl_packages='${QPL_PROJECT}/process/install_packages.sh'
 alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=cmd_vel_teleop'
 alias qpl_slam='ros2 launch qpl_rover online_async_launch.py'
-alias nav2='ros2 launch nav2_bringup navigation_launch.py use_sim_time:=true'
+alias qpl_cloud_to_scan='ros2 launch qpl_rover point_cloud_to_scan.launch.py'
+alias qpl_nav2='ros2 launch qpl_rover navigation_launch.py'
 
 # Use functions (not aliases) for anything that needs env switching
 qpl_headless() {
