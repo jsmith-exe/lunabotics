@@ -1,12 +1,10 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <!-- Mount lidar to rover -->
   <joint name="lidar_joint" type="fixed">
-    <parent link="base_link"/>
+    <parent link="base_footprint"/>
     <child link="lidar_link"/>
-    <!-- top-center position: adjust as needed -->
-    <origin xyz="0 0 0.3" rpy="0 0 0"/>
+    <origin xyz="0 0 0.30" rpy="0 0 0"/>
   </joint>
 
   <link name="lidar_link">
@@ -23,7 +21,6 @@
       </geometry>
     </collision>
 
-    <!-- small inertia so Gazebo is happy -->
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="0.125"/>
@@ -31,7 +28,6 @@
     </inertial>
   </link>
 
-  <!-- Gazebo 3D lidar sensor -->
   <gazebo reference="lidar_link">
     <material>Gazebo/Black</material>
 
@@ -42,26 +38,27 @@
 
       <ray>
         <scan>
-          <!-- Horizontal scanning (360 degrees) -->
           <horizontal>
             <samples>360</samples>
             <resolution>1.0</resolution>
             <min_angle>-3.14159</min_angle>
             <max_angle>3.14159</max_angle>
           </horizontal>
-          <!-- Vertical scanning (adds 3D capability) -->
+
           <vertical>
             <samples>16</samples>
             <resolution>1.0</resolution>
-            <min_angle>-0.2617</min_angle>  <!-- -15 degrees -->
-            <max_angle>0.2617</max_angle>   <!-- +15 degrees -->
+            <min_angle>-0.2617</min_angle>
+            <max_angle>0.2617</max_angle>
           </vertical>
         </scan>
+
         <range>
           <min>0.15</min>
           <max>20.0</max>
           <resolution>0.01</resolution>
         </range>
+
         <noise>
           <type>gaussian</type>
           <mean>0.0</mean>
@@ -70,12 +67,9 @@
       </ray>
 
       <plugin name="lidar_3d_controller" filename="libgazebo_ros_ray_sensor.so">
-        <!-- frame published in PointCloud2 header -->
         <frame_name>lidar_link</frame_name>
-
-        <!-- topic name for PointCloud2 messages -->
         <output_type>sensor_msgs/PointCloud2</output_type>
-        <topic_name>points</topic_name>
+        <topic_name>/points</topic_name>
       </plugin>
     </sensor>
   </gazebo>
