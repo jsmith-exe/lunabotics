@@ -45,4 +45,4 @@ class ControllerInputs:
     MIC_BUTTON = 'microphone_button'
     TOUCHPAD_BUTTON = 'touchpad_button'
 
-NAV_TOPIC = '/cmd_vel'
+NAV_TOPIC = '/cmd_vel_teleop'
