@@ -15,6 +15,10 @@ fi
 export ROS_DOMAIN_ID=42
 export ROS_LOCALHOST_ONLY=0
 
+# TODO make toggle for this
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI=file://${QPL_PROJECT}/dds/cyclonedds.xml
+
 # -------------------- Render mode helpers --------------------
 qpl_use_software_render() {
   export LIBGL_ALWAYS_SOFTWARE=1
