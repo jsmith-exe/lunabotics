@@ -15,6 +15,24 @@ fi
 export ROS_DOMAIN_ID=42
 export ROS_LOCALHOST_ONLY=0
 
+use_server_sim() {
+  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+  export CYCLONEDDS_URI=file://"${QPL_PROJECT}"/dds/cyclonedds.xml
+  echo "Configured to use server sim. Type 'use_local_sim' to use local simulation."
+}
+
+use_local_sim() {
+  unset RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+  unset CYCLONEDDS_URI=file://"${QPL_PROJECT}"/dds/cyclonedds.xml
+  echo "Configured to use local sim. Type 'use_server_sim' to use server simulation."
+}
+
+if [ -n "$USE_SERVER_SIM" ]; then
+  use_server_sim
+else
+  use_local_sim
+fi
+
 # -------------------- Render mode helpers --------------------
 qpl_use_software_render() {
   export LIBGL_ALWAYS_SOFTWARE=1
@@ -22,10 +40,18 @@ qpl_use_software_render() {
 }
 
 qpl_use_gpu_render() {
+  if [ -n "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    return
+  fi
   # Unset software-render overrides so GL can use your GPU stack again
   unset LIBGL_ALWAYS_SOFTWARE
   unset GALLIUM_DRIVER
 }
+
+if [ "${LIBGL_ALWAYS_SOFTWARE}" == "true" ]; then
+  echo "Note: LIBGL_ALWAYS_SOFTWARE set to true, only software rendering will be used."
+  qpl_use_software_render
+fi
 
 # Optional: if you ever want to quickly check what mode you're in
 qpl_render_status() {
