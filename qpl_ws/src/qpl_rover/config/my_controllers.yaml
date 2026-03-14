@@ -2,7 +2,6 @@
 controller_manager:
   ros__parameters:
     update_rate: 50
-    use_sim_time: true
 
     diff_cont:
       type: diff_drive_controller/DiffDriveController 
