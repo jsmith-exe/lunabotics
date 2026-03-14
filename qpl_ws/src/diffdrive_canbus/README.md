@@ -1,0 +1,1 @@
+This is the the hardware interface between a four wheeled differential drive system to a Controller Area Network (CAN) Bus.
