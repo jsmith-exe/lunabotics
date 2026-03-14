@@ -4,14 +4,23 @@
   <xacro:unless value="$(arg sim_mode)">
       <ros2_control name="RealRover" type="system">
           <hardware>
-              <plugin>diffdrive_canbus/DiffDriveArduinoHardware</plugin>
-              <param name="left_wheel_name">left_wheel_joint</param>
-              <param name="right_wheel_name">right_wheel_joint</param>
-              <param name="loop_rate">30</param>
-              <param name="device">/dev/ttyUSB0</param>
-              <param name="baud_rate">57600</param>
-              <param name="timeout">1000</param>
-              <param name="enc_counts_per_rev">3436</param>
+              <plugin>diffdrive_canbus/DiffDriveCANBusHardware</plugin>
+              <param name="front_left_wheel_name">front_left_wheel_joint</param>
+              <param name="front_right_wheel_name">front_right_wheel_joint</param>
+              <param name="rear_left_wheel_name">rear_left_wheel_joint</param>
+              <param name="rear_right_wheel_name">rear_right_wheel_joint</param>
+
+              <param name="serial_device">/dev/ttyUSB0</param>
+              <param name="serial_baud_rate">2000000</param>
+              <param name="can_baud_rate">500000</param>
+              <param name="timeout_ms">100</param>
+
+              <param name="front_left_can_id">1</param>
+              <param name="front_right_can_id">2</param>
+              <param name="rear_left_can_id">3</param>
+              <param name="rear_right_can_id">4</param>
+
+              <param name="enc_counts_per_rev">2048</param>
           </hardware>
       <joint name="front_left_wheel_joint">
         <command_interface name="velocity">
