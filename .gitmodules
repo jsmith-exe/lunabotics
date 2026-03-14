@@ -1,0 +1,3 @@
+[submodule "qpl_ws/src/diffdrive_canbus"]
+	path = qpl_ws/src/diffdrive_canbus
+	url = git@github.com:jsmith-exe/diffdrive_canbus.git
