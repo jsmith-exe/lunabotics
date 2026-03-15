@@ -1,0 +1,9 @@
+apriltag_node:
+  ros__parameters:
+    image_transport: raw
+    family: 36h11
+    size: 0.2
+    max_hamming: 0
+    z_up: true
+    queue_size: 10
+    sync_slop: 0.05

@@ -22,6 +22,8 @@ sudo apt -y install ros-humble-xacro \
   ros-humble-image-transport-plugins \
   ros-humble-robot-localization \
   ros-humble-pointcloud-to-laserscan \
+  ros-humble-apriltag-ros \
+  ros-humble-image-pipeline \
   gazebo \
   ros-humble-gazebo-ros-pkgs \
 

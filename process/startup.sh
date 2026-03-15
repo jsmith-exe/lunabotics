@@ -128,3 +128,5 @@ source "$QPL_PROJECT/qpl_ws/install/setup.bash"
 
 # -------------------- Other scripts --------------------
 source "$QPL_PROJECT/process/networking_limits.sh"
+
+export GAZEBO_MODEL_PATH=$QPL_PROJECT/qpl_ws/src/qpl_rover/worlds:$GAZEBO_MODEL_PATH
