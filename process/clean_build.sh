@@ -8,5 +8,6 @@ cd "$QPL_PROJECT/qpl_ws" || {
   exit 1
 }
 
+rm -rf build/ install/ log/
 colcon build --symlink-install
 source install/setup.bash
