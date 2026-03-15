@@ -40,6 +40,10 @@ qpl_use_software_render() {
 }
 
 qpl_use_gpu_render() {
+  if [ -n "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    return
+  fi
+  # Unset software-render overrides so GL can use your GPU stack again
   unset LIBGL_ALWAYS_SOFTWARE
   unset GALLIUM_DRIVER
 }
