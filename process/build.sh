@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-source /opt/ros/humble/setup.bash
+
 
 cd "$QPL_PROJECT/qpl_ws" || {
   echo "Could not find qpl_ws. Check QPL_PROJECT is set correctly."
@@ -9,4 +9,5 @@ cd "$QPL_PROJECT/qpl_ws" || {
 }
 
 colcon build --symlink-install
+source /opt/ros/humble/setup.bash
 source install/setup.bash

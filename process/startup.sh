@@ -1,5 +1,5 @@
 #!/bin/bash
-
+source /opt/ros/humble/setup.bash
 # -------------------- ROS daemon --------------------
 # The ROS daemon sometimes doesn't start on WSL.
 ros2 daemon start >/dev/null 2>&1 || true
