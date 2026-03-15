@@ -115,3 +115,5 @@ chmod +x "$QPL_PROJECT/process/clean_build.sh" 2>/dev/null || true
 
 # -------------------- Source workspace --------------------
 source "$QPL_PROJECT/qpl_ws/install/setup.bash"
+
+export GAZEBO_MODEL_PATH=$QPL_PROJECT/qpl_ws/src/qpl_rover/worlds:$GAZEBO_MODEL_PATH

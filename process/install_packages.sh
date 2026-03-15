@@ -23,6 +23,8 @@ sudo apt -y install gazebo \
   ros-humble-effort-controllers \
   ros-humble-image-transport-plugins \
   ros-humble-robot-localization
+  ros-humble-apriltag-ros
+  ros-humble-image-pipeline
 
 sudo apt -y install mesa-utils
 
