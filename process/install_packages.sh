@@ -25,4 +25,6 @@ sudo apt -y install gazebo \
   ros-humble-robot-localization
 
 sudo apt -y install mesa-utils
+
+sudo apt -y install libserial-dev
   
