@@ -22,5 +22,10 @@ sudo apt -y install gazebo \
   ros-humble-joint-trajectory-controller \
   ros-humble-effort-controllers \
   ros-humble-image-transport-plugins \
-  ros-humble-robot-localization
+  ros-humble-robot-localization \
+  ros-humble-pointcloud-to-laserscan
+
+sudo apt -y install mesa-utils
+
+sudo apt -y install libserial-dev
   
