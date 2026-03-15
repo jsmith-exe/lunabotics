@@ -94,7 +94,7 @@ qpl_rviz() {
   echo "[qpl_headless] LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE}  GALLIUM_DRIVER=${GALLIUM_DRIVER}"
   glxinfo -B 2>/dev/null | grep -i "OpenGL renderer" || true
 
-  ros2 launch qpl_rover rviz.launch.py "$@"
+  ros2 launch basestation rviz.launch.py "$@"
 }
 
 # -------------------- Make scripts executable --------------------

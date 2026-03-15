@@ -10,11 +10,6 @@
                 <Peer address="100.89.72.39"/> <!-- Server tailscale address -->
                 <Peer address="127.0.0.1"/> <!-- localhost -->
             </Peers>
-            <ParticipantIndex>auto</ParticipantIndex>
-            <MaxAutoParticipantIndex>50</MaxAutoParticipantIndex>
         </Discovery>
-        <Internal>
-            <SocketReceiveBufferSize min="10MB"/>
-        </Internal>
     </Domain>
 </CycloneDDS>
