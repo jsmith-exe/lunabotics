@@ -90,3 +90,5 @@ Makefile
 ros2/build/
 ros2/install/
 ros2/log/
+
+.use_server_sim

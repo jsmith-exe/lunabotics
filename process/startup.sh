@@ -15,19 +15,23 @@ fi
 export ROS_DOMAIN_ID=42
 export ROS_LOCALHOST_ONLY=0
 
+useServerFlagFilePath="${QPL_PROJECT}/.use_server_sim"
+
 use_server_sim() {
   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
   export CYCLONEDDS_URI=file://"${QPL_PROJECT}"/dds/cyclonedds.xml
+  touch "$useServerFlagFilePath"
   echo "Configured to use server sim. Type 'use_local_sim' to use local simulation."
 }
 
 use_local_sim() {
   unset RMW_IMPLEMENTATION
   unset CYCLONEDDS_URI
+  rm -f "$useServerFlagFilePath"
   echo "Configured to use local sim. Type 'use_server_sim' to use server simulation."
 }
 
-if [ -n "$USE_SERVER_SIM" ]; then
+if [ -f "$useServerFlagFilePath" ]; then
   use_server_sim
 else
   use_local_sim
@@ -40,6 +44,10 @@ qpl_use_software_render() {
 }
 
 qpl_use_gpu_render() {
+  if [ -n "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    return
+  fi
+  # Unset software-render overrides so GL can use your GPU stack again
   unset LIBGL_ALWAYS_SOFTWARE
   unset GALLIUM_DRIVER
 }
@@ -106,7 +114,7 @@ qpl_rviz() {
 
   qpl_print_renderer
 
-  ros2 launch qpl_rover rviz.launch.py "$@"
+  ros2 launch basestation rviz.launch.py "$@"
 }
 
 # -------------------- Make scripts executable --------------------
