@@ -15,19 +15,23 @@ fi
 export ROS_DOMAIN_ID=42
 export ROS_LOCALHOST_ONLY=0
 
+useServerFlagFilePath="${QPL_PROJECT}/.use_server_sim"
+
 use_server_sim() {
   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
   export CYCLONEDDS_URI=file://"${QPL_PROJECT}"/dds/cyclonedds.xml
+  touch "$useServerFlagFilePath"
   echo "Configured to use server sim. Type 'use_local_sim' to use local simulation."
 }
 
 use_local_sim() {
   unset RMW_IMPLEMENTATION
   unset CYCLONEDDS_URI
+  rm -f "$useServerFlagFilePath"
   echo "Configured to use local sim. Type 'use_server_sim' to use server simulation."
 }
 
-if [ -n "$USE_SERVER_SIM" ]; then
+if [ -f "$useServerFlagFilePath" ]; then
   use_server_sim
 else
   use_local_sim
