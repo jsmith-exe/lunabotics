@@ -12,7 +12,7 @@
 
     <xacro:include filename="depth_camera.xacro" />
 
-    <xacro:include filename="lidar_2d.xacro" />
+    <xacro:include filename="lidar_2d_SIM_ONLY.xacro" />
 
     <xacro:include filename="back_camera.xacro" />
 
