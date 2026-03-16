@@ -136,3 +136,9 @@ cd $LUNA_PROJECT/../
 python3 -m lunabotics
 ```
 
+## 7. Remote simulation
+Jamie has a server running the simulation. This has two advantages: it reduces the load on our
+local machines, and is slightly more accurate to the real rover in terms of communication structure.
+1. Install Tailscale from https://tailscale.com/download; this is a VPN so that you can treat the server as a local device.
+2. Ask Jamie for access to his Tailscale network and the username and password; once connected, you will be able to SSH in.
+3. On Windows, you can view Tailscale in the system tray; click Network devices > Jamie Smith > server to copy the server IP.
