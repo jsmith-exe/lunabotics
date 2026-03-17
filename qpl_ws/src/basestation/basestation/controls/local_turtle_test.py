@@ -3,7 +3,7 @@ A simple turtle graphics simulation to test controller inputs without a physical
 """
 import turtle
 
-from .constants import TwistOptions
+from ..constants import TwistOptions
 from .controllers.base_station_state import BaseStationState
 from .controllers.desktop_controller import DesktopController
 from .controllers.physical_controller import PhysicalController

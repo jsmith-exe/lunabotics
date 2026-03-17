@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from ..constants import ControllerInputs
+from ...constants import ControllerInputs
 from .base_station_state import BaseStationState
 from ..control_maps import Command
 

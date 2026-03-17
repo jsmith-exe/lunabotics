@@ -1,14 +1,11 @@
 import json
 from time import sleep
 
-from controls.controllers.desktop_controller import DesktopController
-from controls.controllers.physical_controller import PhysicalController
-from controls.controllers.base_station_state import BaseStationState
-from forwarding.tcp_transmitter import TCPTransmitter
-from controls.constants import TwistOptions
-
-# Main script config:
-INVERT_BACKWARDS_STEERING = True
+from .controls.controllers.desktop_controller import DesktopController
+from .controls.controllers.physical_controller import PhysicalController
+from .controls.controllers.base_station_state import BaseStationState
+from .forwarding.tcp_transmitter import TCPTransmitter
+from .constants import TwistOptions, INVERT_BACKWARDS_STEERING
 
 state = BaseStationState()
 

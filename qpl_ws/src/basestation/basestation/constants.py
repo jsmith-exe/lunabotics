@@ -47,3 +47,4 @@ class ControllerInputs:
 
 NAV_TOPIC = '/cmd_vel_teleop'
 PUBLISHER_UPDATE_RATE = 2
+INVERT_BACKWARDS_STEERING = True

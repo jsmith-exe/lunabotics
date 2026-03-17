@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from .constants import ControllerInputs, ControlMode, TwistOptions, NAV_TOPIC
+from ..constants import ControllerInputs, ControlMode, TwistOptions, NAV_TOPIC
 
 Con = ControllerInputs
 

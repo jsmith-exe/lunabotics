@@ -19,7 +19,14 @@ The core source code is in basestation (luna_ws/src/basestation/basestation). Th
 - **nodes**: contains ROS nodes that the basestation uses.
 - **main.py**: Runs on the native OS to gather input and send it to the ROS publisher.
 
-## How to use
+## Setup
+> Note: you can just run the following in powershell:
+> ```powershell
+> .\setup_controller.ps1
+> ```
+> In the ```lunabotics\qpl_ws\src\basestation``` directory.
+> This is untested.
+
 The following assumes you know how to build and install ROS packages.
 A Python environment is needed, ideally Python 3.10. The following instructions assume a Windows OS, but the commands should be adaptable.
 1. If you don't have it installed, install Python 3.10. I would use uv:
@@ -33,6 +40,13 @@ python3.10 -m venv venv
 venv\Scripts\activate
 uv pip install -r .\requirements.txt
 ```
+
+## Running the controller
+> Note: you can just run the following in powershell:
+> ```powershell
+> .\run_controller.ps1
+> ```
+> In either the ```lunabotics``` directory or ```lunabotics\qpl_ws\src\basestation```.
 
 To run:
 1. Ensure you've activated your environment. You might see a (venv) prefix
@@ -48,7 +62,7 @@ ros2 run basestation nav_pub
 ```commandline
 python .\basestation\main.py
 ```
-4. On Windows, you will likely need to turn off your local network firewall.
+4. On Windows, you may need to turn off your local network firewall.
    1. Search and open 'Windows Security'
    2. Firewall and network protection
    3. Private network
