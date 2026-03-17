@@ -81,6 +81,7 @@ alias qpl_slam='ros2 launch qpl_rover online_async_launch.py'
 alias qpl_cloud_to_scan='ros2 launch qpl_rover point_cloud_to_scan.launch.py'
 alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
 alias qpl_rover='ros2 launch qpl_rover launch_rover.launch.py'
+alias qpl_controller_fwd='ros2 run basestation nav_pub'
 
 # Use functions (not aliases) for anything that needs env switching
 qpl_headless() {
