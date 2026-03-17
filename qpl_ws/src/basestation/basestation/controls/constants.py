@@ -46,3 +46,4 @@ class ControllerInputs:
     TOUCHPAD_BUTTON = 'touchpad_button'
 
 NAV_TOPIC = '/cmd_vel_teleop'
+PUBLISHER_UPDATE_RATE = 2

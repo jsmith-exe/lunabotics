@@ -7,11 +7,14 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, Vector3
 
 from basestation.forwarding.tcp_receiver import TCPReceiver
-from basestation.controls.constants import NAV_TOPIC
+from basestation.controls.constants import NAV_TOPIC, PUBLISHER_UPDATE_RATE
 
 class ControlsPublisher(Node):
     def __init__(self):
         super().__init__('nav_teleop_publisher')
+
+        self.current_twist = None
+
         self.publisher_ = self.create_publisher(Twist, NAV_TOPIC, 10)
         self.get_logger().info(f'Publishing to {NAV_TOPIC}')
 
@@ -19,6 +22,8 @@ class ControlsPublisher(Node):
         self.tcp_receiver_thread = Thread(target=self.tcp_receiver.start_listening_forever, daemon=True)
         self.tcp_receiver_thread.start()
         self.get_logger().info('TCP Receiver thread started')
+
+        self.timer = self.create_timer(1 / PUBLISHER_UPDATE_RATE, self.republish_twist)
 
     def handle_data(self, received_data: str, receiver) -> None:
         """
@@ -32,6 +37,7 @@ class ControlsPublisher(Node):
             target_state = json.loads(split_data[len(split_data) - 2]) # second last item is the most recent json data
 
             twist = self.twist_from_target_state_dict(target_state)
+            self.current_twist = twist
             self.publisher_.publish(twist)
         except Exception as e:
             self.get_logger().error(f'Error handling data: {e}')
@@ -49,6 +55,11 @@ class ControlsPublisher(Node):
             linear=Vector3(x=float(linear['x']), y=float(linear['y']), z=float(linear['z'])),
             angular=Vector3(x=float(angular['x']), y=float(angular['y']), z=float(angular['z']))
         )
+
+    def republish_twist(self):
+        if self.current_twist is None:
+            return
+        self.publisher_.publish(self.current_twist)
 
     def destroy_node(self):
         super().destroy_node()
