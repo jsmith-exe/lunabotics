@@ -1,4 +1,5 @@
 import json
+from time import sleep
 
 from controls.controllers.desktop_controller import DesktopController
 from controls.controllers.physical_controller import PhysicalController
@@ -19,7 +20,16 @@ def publish_function(topic_name: str, twist_option: TwistOptions, throttle: floa
     state.nav_state[twist_type][twist_dimension] = throttle
     transmitter.send_message(json.dumps(state.nav_state) + ';', False)
 
-transmitter = TCPTransmitter()
+# Establish connection to the receiver
+connected = False
+while not connected:
+    try:
+        transmitter = TCPTransmitter()
+        connected = True
+    except ConnectionRefusedError:
+        print("Connection refused, retrying in 3s...")
+        sleep(3)
+
 desktop_controller = DesktopController(publish_function, state)
 physical_controller = PhysicalController(publish_function, state)
 try:
