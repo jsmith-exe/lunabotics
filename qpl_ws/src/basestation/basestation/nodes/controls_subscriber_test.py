@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 
 from geometry_msgs.msg import Twist
-from basestation.controls.constants import NAV_TOPIC
+from basestation.constants import NAV_TOPIC
 
 
 class ControlsSubscriber(Node):

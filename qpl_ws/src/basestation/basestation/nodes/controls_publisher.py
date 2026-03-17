@@ -7,7 +7,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, Vector3
 
 from basestation.forwarding.tcp_receiver import TCPReceiver
-from basestation.controls.constants import NAV_TOPIC, PUBLISHER_UPDATE_RATE
+from basestation.constants import NAV_TOPIC, PUBLISHER_UPDATE_RATE
 
 class ControlsPublisher(Node):
     def __init__(self):
