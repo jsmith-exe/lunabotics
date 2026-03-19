@@ -23,7 +23,11 @@ sudo apt -y install gazebo \
   ros-humble-effort-controllers \
   ros-humble-image-transport-plugins \
   ros-humble-robot-localization \
-  ros-humble-pointcloud-to-laserscan
+  ros-humble-pointcloud-to-laserscan \
+  ros-humble-camera-info-manager \
+  ros-humble-v4l2-camera \
+  v4l-utils \
+  ros-humble-rtabmap-ros
 
 sudo apt -y install mesa-utils
 
