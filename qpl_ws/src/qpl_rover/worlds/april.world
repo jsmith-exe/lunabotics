@@ -132,10 +132,10 @@
       <geometry>
         <box><size>0.2 0.2 0.01</size></box>
       </geometry>
-      <material>
+<material>
   <script>
-    <uri>file:///home/aron/lunabotics/qpl_ws/src/qpl_rover/worlds/apriltag_model/materials/scripts/apriltag.material</uri>
-    <uri>file:///home/aron/lunabotics/qpl_ws/src/qpl_rover/worlds/apriltag_model/materials/textures/</uri>
+    <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
+    <uri>model://apriltag_model/materials/textures/</uri>
     <name>AprilTag/tag0</name>
   </script>
 </material>
