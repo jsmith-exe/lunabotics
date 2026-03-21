@@ -125,3 +125,6 @@ chmod +x "$QPL_PROJECT/process/clean_build.sh" 2>/dev/null || true
 
 # -------------------- Source workspace --------------------
 source "$QPL_PROJECT/qpl_ws/install/setup.bash"
+
+# -------------------- Other scripts --------------------
+source "$QPL_PROJECT/process/networking_limits.sh"
