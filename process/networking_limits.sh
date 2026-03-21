@@ -7,7 +7,9 @@
 # https://excess.org/speedometer/
 # Another good option is nload
 
-export DEFAULT_LIMITED_INTERFACE="tailscale0"
+if [[ -z "$DEFAULT_LIMITED_INTERFACE" ]]; then
+  export DEFAULT_LIMITED_INTERFACE="tailscale0"
+fi
 
 alias qpl_speedometer="speedometer -s -l -m 625000 -r tailscale0 -t tailscale0"
 
