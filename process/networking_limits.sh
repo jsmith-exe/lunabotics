@@ -3,7 +3,13 @@
 # wondershaper is required; install it with these instructions:
 # https://github.com/magnific0/wondershaper?tab=readme-ov-file#system-installation-optional
 
+# Also creates a shortcut for speedometer, which can be downloaded here:
+# https://excess.org/speedometer/
+# Another good option is nload
+
 export DEFAULT_LIMITED_INTERFACE="tailscale0"
+
+alias qpl_speedometer="speedometer -s -l -m 625000 -r tailscale0 -t tailscale0"
 
 qpl_net_limit_clear() {
   local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
