@@ -2,9 +2,7 @@
 # If you get an error to do with 'Unable to locate package', it may be due to Windows-style newlines
 sudo apt update
 
-sudo apt -y install gazebo \
-  ros-humble-gazebo-ros-pkgs \
-  ros-humble-xacro \
+sudo apt -y install ros-humble-xacro \
   ros-humble-topic-tools \
   python3-colcon-common-extensions \
   ros-humble-ros2-control \
@@ -23,7 +21,9 @@ sudo apt -y install gazebo \
   ros-humble-effort-controllers \
   ros-humble-image-transport-plugins \
   ros-humble-robot-localization \
-  ros-humble-pointcloud-to-laserscan
+  ros-humble-pointcloud-to-laserscan \
+  gazebo \
+  ros-humble-gazebo-ros-pkgs \
 
 sudo apt -y install mesa-utils
 
