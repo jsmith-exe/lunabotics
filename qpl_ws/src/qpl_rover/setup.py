@@ -32,6 +32,8 @@ setup(
         ],
     },
     entry_points={
-        'console_scripts': [],
+        'console_scripts': [
+            'apriltag_pose_2d = qpl_rover.nodes.apriltag_pose_2d:main',
+        ],
     },
 )
