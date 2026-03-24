@@ -7,7 +7,7 @@ If you follow this exactly, it will work.
 
 ---
 
-## 1. Repository Structure (What Lives Where)
+## Repository Structure (What Lives Where)
 
 ```
 lunabotics/
@@ -29,7 +29,7 @@ lunabotics/
 
 ---
 
-## 2. Setup
+## Setup
 Ensure your ~/.bashrc file contains the following, replacing the value of `QPL_PROJECT`
 with the path to your local copy of the repo:
 ```bash
@@ -62,7 +62,8 @@ luna_kb # See next section
 >- After any code changes in ROS packages, run ```qpl_build```.
 >- If you rely on any new package, add it to the **process/install_packages.sh**
 
-## 3. Driving the rover via luna_kb
+---
+## Driving the rover via luna_kb
 ```qpl_kb``` runs a keyboard teleoperation node; this was not made by us and is for testing only.
 A more user-friendly node will be accessible soon.
 
@@ -78,9 +79,7 @@ A more user-friendly node will be accessible soon.
 - Keep this terminal open while driving
 
 ---
-
-## 4. Working with SLAM
-## Launch SLAM (Mapping)
+## Working with SLAM
 ```bash
 qpl_slam
 ```
@@ -91,21 +90,20 @@ The rover uses 2D LiDAR data to build a 2D map of the environment while estimati
   <img src="../Media/slam.gif" alt="SLAM Demo" width="800">
 </p>
 
----
-
-
 ## Launch Navigation (Nav2)
 ```bash 
 nav2
 ```
 This node starts ROS2 Navigation Stack (Nav2).
 The rover uses the previously built map to plan paths and autonomously drive to goal positions that you click in RViz.
-## Nav2 Visualisation
+
+**Nav2 Visualisation**
 <p align="left">
   <img src="../Media/nav2.gif" alt="Nav2 Demo" width="800">
 </p>
 
-## 5. Helpful ROS commands
+---
+## Helpful ROS commands
 
 List all available topics,
 ```bash
@@ -124,8 +122,8 @@ ros2 multicast receive
 ros2 multicast send
 ```
 
-
-## 6. How to Run Python Files
+---
+## How to Run Python Files
 
 - If you use relative imports (from . / from ..) you must run with -m.
 - Don't mix "run as a file path" with relative imports.
@@ -136,7 +134,8 @@ cd $LUNA_PROJECT/../
 python3 -m lunabotics
 ```
 
-## 7. Remote simulation
+---
+## Remote simulation
 Jamie has a server running the simulation. This has two advantages: it reduces the load on our
 local machines, and is slightly more accurate to the real rover in terms of communication structure.
 1. Install Tailscale from https://tailscale.com/download; this is a VPN so that you can treat the server as a local device.
