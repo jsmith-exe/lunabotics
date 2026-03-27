@@ -21,6 +21,7 @@
               <param name="rear_right_can_id">4</param>
 
               <param name="enc_counts_per_rev">2048</param>
+              <param name="loopback_mode">true</param>
           </hardware>
       <joint name="front_left_wheel_joint">
         <command_interface name="velocity">
