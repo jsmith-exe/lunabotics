@@ -22,7 +22,7 @@ def generate_launch_description():
     world_path = os.path.join(
         get_package_share_directory(package_name),
         "worlds",
-        "april.world"
+        "arena_april.world"
     )
 
     rsp = IncludeLaunchDescription(
@@ -53,7 +53,12 @@ def generate_launch_description():
             Node(
                 package="gazebo_ros",
                 executable="spawn_entity.py",
-                arguments=["-topic", "robot_description", "-entity", "rover"],
+                arguments=[
+                    "-topic", "robot_description",
+                    "-entity", "rover",
+                    "-x", "1.0", # set to 0 (default) if not using april_arena.world
+                    "-y", "1.0", # set to 0 (default) if not using april_arena.world
+                    "-z", "0.2"], # set to 0 (default) if not using april_arena.world
                 output="screen",
             )
         ],
