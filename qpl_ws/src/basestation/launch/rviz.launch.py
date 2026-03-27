@@ -10,12 +10,12 @@ def generate_launch_description():
 
     rviz_config = os.path.join(basestation_pkg_path, "rviz", f"{config_name}.rviz")
 
-    # RViz (loads your config)
     rviz = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         arguments=["-d", rviz_config],
+        parameters=[{"use_sim_time": True}],
         output="screen",
     )
 

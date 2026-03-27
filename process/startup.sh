@@ -82,6 +82,16 @@ alias qpl_cloud_to_scan='ros2 launch qpl_rover point_cloud_to_scan.launch.py'
 alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
 alias qpl_rover='ros2 launch qpl_rover launch_rover.launch.py'
 alias qpl_controller_fwd='ros2 run basestation nav_pub'
+alias vslam='ros2 launch rtabmap_launch rtabmap.launch.py \
+  rgb_topic:=/depth_camera/image_raw \
+  depth_topic:=/depth_camera/depth/image_raw \
+  camera_info_topic:=/depth_camera/depth/camera_info \
+  frame_id:=camera_link \
+  odom_topic:=/odometry/filtered \
+  visual_odometry:=true \
+  approx_sync:=true \
+  use_sim_time:=true \
+  rtabmap_args:="--delete_db_on_start"'
 
 # Use functions (not aliases) for anything that needs env switching
 qpl_headless() {
