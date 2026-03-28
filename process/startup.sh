@@ -83,6 +83,17 @@ alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
 alias qpl_rover='ros2 launch qpl_rover launch_rover.launch.py'
 alias qpl_controller_fwd='ros2 run basestation nav_pub'
 
+qpl_list_processes() {
+  local colors=(31 32 33 34 35 36)
+  local n_colors=${#colors[@]}
+  local i=0
+
+  pgrep -af ros | while read -r line; do
+    echo -e "\033[${colors[$((i % "$n_colors"))]}m${line}\033[0m"
+    (( i++ ))
+  done
+}
+
 # Use functions (not aliases) for anything that needs env switching
 qpl_headless() {
   qpl_use_software_render
