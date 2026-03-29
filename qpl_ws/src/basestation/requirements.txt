@@ -1,2 +1,0 @@
-pynput==1.8.1
-pydualsense==0.7.5
