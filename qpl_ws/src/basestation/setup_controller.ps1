@@ -1,5 +1,6 @@
 # Install UV
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+$env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
 
 # Install Python 3.10 (for consistency)
 uv python install 3.10
