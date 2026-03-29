@@ -92,6 +92,7 @@ alias vslam='ros2 launch rtabmap_launch rtabmap.launch.py \
   approx_sync:=true \
   use_sim_time:=true \
   rtabmap_args:="--delete_db_on_start"'
+alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 
 # Use functions (not aliases) for anything that needs env switching
 qpl_headless() {
@@ -135,3 +136,6 @@ chmod +x "$QPL_PROJECT/process/clean_build.sh" 2>/dev/null || true
 
 # -------------------- Source workspace --------------------
 source "$QPL_PROJECT/qpl_ws/install/setup.bash"
+
+# -------------------- Other scripts --------------------
+source "$QPL_PROJECT/process/networking_limits.sh"

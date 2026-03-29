@@ -79,6 +79,11 @@ hardware_interface::CallbackReturn DiffDriveCANBusHardware::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
+  // Optional parameter — defaults to false if not present
+  const auto loopback_it = info_.hardware_parameters.find("loopback_mode");
+  loopback_mode_ = (loopback_it != info_.hardware_parameters.end() &&
+                    loopback_it->second == "true");
+
   wheel_fl_.setup(cfg_.front_left_wheel_name, cfg_.enc_counts_per_rev);
   wheel_fr_.setup(cfg_.front_right_wheel_name, cfg_.enc_counts_per_rev);
   wheel_rl_.setup(cfg_.rear_left_wheel_name, cfg_.enc_counts_per_rev);
@@ -195,6 +200,11 @@ hardware_interface::CallbackReturn DiffDriveCANBusHardware::on_configure(
   auto logger = rclcpp::get_logger("DiffDriveCANBusHardware");
   RCLCPP_INFO(logger, "Configuring hardware interface...");
 
+  if (loopback_mode_)
+  {
+    RCLCPP_WARN(logger, "LOOPBACK MODE ENABLED — no real motor controllers required.");
+  }
+
   try
   {
     if (comms_.connected())
@@ -204,7 +214,9 @@ hardware_interface::CallbackReturn DiffDriveCANBusHardware::on_configure(
 
     comms_.connect(cfg_.serial_device, cfg_.serial_baud_rate, cfg_.timeout_ms);
 
-    if (!comms_.configure_adapter(cfg_.can_baud_rate))
+    const CANMode can_mode = loopback_mode_ ? CANMode::LOOPBACK : CANMode::NORMAL;
+
+    if (!comms_.configure_adapter(cfg_.can_baud_rate, false, 0, 0, can_mode))
     {
       RCLCPP_ERROR(logger, "Failed to configure CAN adapter.");
       return hardware_interface::CallbackReturn::ERROR;
@@ -247,15 +259,15 @@ hardware_interface::CallbackReturn DiffDriveCANBusHardware::on_activate(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  wheel_fl_.cmd = 0.0;
-  wheel_fr_.cmd = 0.0;
-  wheel_rl_.cmd = 0.0;
-  wheel_rr_.cmd = 0.0;
+  wheel_fl_.cmd = 0.0;  wheel_fl_.vel = 0.0;
+  wheel_fr_.cmd = 0.0;  wheel_fr_.vel = 0.0;
+  wheel_rl_.cmd = 0.0;  wheel_rl_.vel = 0.0;
+  wheel_rr_.cmd = 0.0;  wheel_rr_.vel = 0.0;
 
-  wheel_fl_.vel = 0.0;
-  wheel_fr_.vel = 0.0;
-  wheel_rl_.vel = 0.0;
-  wheel_rr_.vel = 0.0;
+  last_cmd_fl_ = 0;
+  last_cmd_fr_ = 0;
+  last_cmd_rl_ = 0;
+  last_cmd_rr_ = 0;
 
   RCLCPP_INFO(logger, "Hardware interface activated.");
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -288,6 +300,35 @@ hardware_interface::return_type DiffDriveCANBusHardware::read(
     return hardware_interface::return_type::ERROR;
   }
 
+  const double dt = period.seconds();
+
+  if (loopback_mode_)
+  {
+    // In loopback mode we skip RTR requests entirely.
+    // The last written command counts are integrated directly into the
+    // simulated encoder position, giving the controllers plausible feedback.
+    auto simulate_wheel = [&](Wheel & wheel, int last_cmd)
+    {
+      wheel.enc += last_cmd;
+      const double previous_pos = wheel.pos;
+      wheel.pos = wheel.calc_enc_angle();
+
+      if (dt > 0.0) {
+        wheel.vel = (wheel.pos - previous_pos) / dt;
+      } else {
+        wheel.vel = 0.0;
+      }
+    };
+
+    simulate_wheel(wheel_fl_, last_cmd_fl_);
+    simulate_wheel(wheel_fr_, last_cmd_fr_);
+    simulate_wheel(wheel_rl_, last_cmd_rl_);
+    simulate_wheel(wheel_rr_, last_cmd_rr_);
+
+    return hardware_interface::return_type::OK;
+  }
+
+  // Normal mode — read real encoder values via RTR frames
   auto update_wheel_from_encoder = [&](Wheel & wheel, int can_id) -> bool
   {
     int enc = 0;
@@ -300,31 +341,19 @@ hardware_interface::return_type DiffDriveCANBusHardware::read(
     wheel.enc = enc;
     wheel.pos = wheel.calc_enc_angle();
 
-    const double dt = period.seconds();
-    if (dt > 0.0)
-    {
+    if (dt > 0.0) {
       wheel.vel = (wheel.pos - previous_pos) / dt;
-    }
-    else
-    {
+    } else {
       wheel.vel = 0.0;
     }
 
     return true;
   };
 
-  if (!update_wheel_from_encoder(wheel_fl_, cfg_.front_left_can_id)) {
-    return hardware_interface::return_type::ERROR;
-  }
-  if (!update_wheel_from_encoder(wheel_fr_, cfg_.front_right_can_id)) {
-    return hardware_interface::return_type::ERROR;
-  }
-  if (!update_wheel_from_encoder(wheel_rl_, cfg_.rear_left_can_id)) {
-    return hardware_interface::return_type::ERROR;
-  }
-  if (!update_wheel_from_encoder(wheel_rr_, cfg_.rear_right_can_id)) {
-    return hardware_interface::return_type::ERROR;
-  }
+  if (!update_wheel_from_encoder(wheel_fl_, cfg_.front_left_can_id))  { return hardware_interface::return_type::ERROR; }
+  if (!update_wheel_from_encoder(wheel_fr_, cfg_.front_right_can_id)) { return hardware_interface::return_type::ERROR; }
+  if (!update_wheel_from_encoder(wheel_rl_, cfg_.rear_left_can_id))   { return hardware_interface::return_type::ERROR; }
+  if (!update_wheel_from_encoder(wheel_rr_, cfg_.rear_right_can_id))  { return hardware_interface::return_type::ERROR; }
 
   return hardware_interface::return_type::OK;
 }
@@ -339,33 +368,21 @@ hardware_interface::return_type DiffDriveCANBusHardware::write(
 
   auto rad_s_to_counts_per_cycle = [](const Wheel & wheel, double cmd_rad_s) -> int
   {
-    if (wheel.rads_per_count <= 0.0)
-    {
-      return 0;
-    }
-
-    // This is a placeholder scaling.
-    // Replace with your actual motor-controller command units if needed.
+    if (wheel.rads_per_count <= 0.0) { return 0; }
+    // Placeholder scaling — replace with actual motor-controller command units.
     return static_cast<int>(std::round(cmd_rad_s / wheel.rads_per_count));
   };
 
-  const int fl_cmd = rad_s_to_counts_per_cycle(wheel_fl_, wheel_fl_.cmd);
-  const int fr_cmd = rad_s_to_counts_per_cycle(wheel_fr_, wheel_fr_.cmd);
-  const int rl_cmd = rad_s_to_counts_per_cycle(wheel_rl_, wheel_rl_.cmd);
-  const int rr_cmd = rad_s_to_counts_per_cycle(wheel_rr_, wheel_rr_.cmd);
+  // Store last commands so loopback read() can integrate them as simulated encoder feedback
+  last_cmd_fl_ = rad_s_to_counts_per_cycle(wheel_fl_, wheel_fl_.cmd);
+  last_cmd_fr_ = rad_s_to_counts_per_cycle(wheel_fr_, wheel_fr_.cmd);
+  last_cmd_rl_ = rad_s_to_counts_per_cycle(wheel_rl_, wheel_rl_.cmd);
+  last_cmd_rr_ = rad_s_to_counts_per_cycle(wheel_rr_, wheel_rr_.cmd);
 
-  if (!comms_.write_motor_command(cfg_.front_left_can_id, fl_cmd)) {
-    return hardware_interface::return_type::ERROR;
-  }
-  if (!comms_.write_motor_command(cfg_.front_right_can_id, fr_cmd)) {
-    return hardware_interface::return_type::ERROR;
-  }
-  if (!comms_.write_motor_command(cfg_.rear_left_can_id, rl_cmd)) {
-    return hardware_interface::return_type::ERROR;
-  }
-  if (!comms_.write_motor_command(cfg_.rear_right_can_id, rr_cmd)) {
-    return hardware_interface::return_type::ERROR;
-  }
+  if (!comms_.write_motor_command(cfg_.front_left_can_id,  last_cmd_fl_)) { return hardware_interface::return_type::ERROR; }
+  if (!comms_.write_motor_command(cfg_.front_right_can_id, last_cmd_fr_)) { return hardware_interface::return_type::ERROR; }
+  if (!comms_.write_motor_command(cfg_.rear_left_can_id,   last_cmd_rl_)) { return hardware_interface::return_type::ERROR; }
+  if (!comms_.write_motor_command(cfg_.rear_right_can_id,  last_cmd_rr_)) { return hardware_interface::return_type::ERROR; }
 
   return hardware_interface::return_type::OK;
 }

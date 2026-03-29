@@ -105,6 +105,15 @@ private:
   Wheel wheel_fr_;
   Wheel wheel_rl_;
   Wheel wheel_rr_;
+
+  // Loopback / simulation mode — set via URDF param "loopback_mode" = "true"
+  bool loopback_mode_ = false;
+
+  // Last computed command counts, used in loopback read() to simulate encoder feedback
+  int last_cmd_fl_ = 0;
+  int last_cmd_fr_ = 0;
+  int last_cmd_rl_ = 0;
+  int last_cmd_rr_ = 0;
 };
 
 }  // namespace diffdrive_canbus
