@@ -25,7 +25,7 @@ diff_cont:
     use_stamped_vel: false
 
     odom_frame_id: odom
-    enable_odom_tf: true
+    enable_odom_tf: false
 
     linear:
       x:

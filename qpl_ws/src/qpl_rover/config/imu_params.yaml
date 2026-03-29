@@ -7,24 +7,40 @@ ekf_filter_node:
     two_d_mode: true
 
     map_frame: map
-    world_frame: odom
     odom_frame: odom
-    base_link_frame: base_footprint   
+    base_link_frame: base_footprint
+    world_frame: odom          # local fusion only (no GPS/map), odom→base_footprint
 
+    # --- IMU ---
+    # Fuse: orientation (r,p,y) + angular velocity (r,p,y)
+    # Do NOT fuse linear acceleration — it's noisy and two_d_mode makes it redundant
     imu0: /imu/data
     imu0_config: [false, false, false,
-                  true,  true,  true,
+                  true,  true,  true,   # ← roll, pitch ON — yaw OFF (magnetometer)
                   false, false, false,
-                  true,  true,  true,
-                  false, false, false]
+                  true,  true,  true,    # ← angular velocity ON
+                  false, false, false]   # ← linear accel OFF (still too noisy)
 
     imu0_differential: false
-    imu0_relative: false            
+    imu0_relative: false
     imu0_remove_gravitational_acceleration: true
 
+    # Row 1 — Position        x,      y,      z
+    # Row 2 — Orientation     roll,   pitch,  yaw
+    # Row 3 — Velocity        vx,     vy,     vz
+    # Row 4 — Angular vel     vroll,  vpitch, vyaw
+    # Row 5 — Linear accel    ax,     ay,     az
+
+    # --- Wheel odometry ---
+    # Fuse: x, y position + yaw + vx + vyaw
+    # Do NOT fuse vy (lateral velocity) — skid-steer has no real lateral odom,
+    # fusing it fights the IMU and causes drift.
     odom0: /diff_cont/odom
     odom0_config: [ true,  true,  false,
                     false, false, true,
-                    true,  true,  false,
+                    true,  false, false,
                     false, false, true,
                     false, false, false ]
+
+    odom0_differential: false
+    odom0_relative: false
