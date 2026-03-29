@@ -12,7 +12,7 @@
   <xacro:property name="base_y" value="0.30"/>
   <xacro:property name="base_z" value="0.18"/>
 
-  <xacro:property name="wheel_r" value="0.08"/>
+  <xacro:property name="wheel_r" value="0.10"/>
   <!-- base_link is located above the ground by wheel radius + half the base height -->
   <xacro:property name="base_z_origin" value="${wheel_r + base_z/2}"/>
 
@@ -84,7 +84,7 @@
 
       <!-- skid-steer turning: reduce lateral friction -->
       <mu1>1.4</mu1>
-      <mu2>0.1</mu2>
+      <mu2>0.2</mu2>
 
       <!-- optional: allow lateral slip -->
       <slip1>0.0</slip1>

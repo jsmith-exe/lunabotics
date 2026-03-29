@@ -10,6 +10,8 @@
         <xacro:include filename="ros2_control.xacro" />
     </xacro:if>
 
+    <xacro:include filename="imu.xacro" />
+
     <xacro:include filename="depth_camera.xacro" />
 
     <xacro:include filename="back_camera.xacro" />
