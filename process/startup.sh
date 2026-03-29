@@ -94,6 +94,22 @@ alias vslam='ros2 launch rtabmap_launch rtabmap.launch.py \
   rtabmap_args:="--delete_db_on_start"'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 
+# For WSL: a path that can be used in PowerShell to run controller scripts without worrying about WSL path translation
+ps_lunabotics_path=$(wslpath -w "$QPL_PROJECT")
+qpl_wsl_run_controller() {
+  powershell.exe -Command "
+      cd $ps_lunabotics_path;
+      .\run_controller.ps1;
+  "
+}
+
+qpl_wsl_setup_controller() {
+  powershell.exe -Command "
+      cd $ps_lunabotics_path\qpl_ws\src\basestation;
+      .\setup_controller.ps1;
+  "
+}
+
 # Use functions (not aliases) for anything that needs env switching
 qpl_headless() {
   qpl_use_software_render
