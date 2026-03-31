@@ -22,15 +22,15 @@ class AprilTagPose2D(Node):
     def timer_callback(self):
         try:
             transform = self.tf_buffer.lookup_transform(
-                'tag36h11:0',        # origin (AprilTag)
-                'base_footprint',   # robot
+                'tag36h11:0',   # target (tag)
+                'base_footprint',       # source (robot)
                 rclpy.time.Time(),
                 timeout = Duration(seconds=0.5)
             )
 
             # --- Translation ---
             x = transform.transform.translation.x
-            y = transform.transform.translation.z  # <-- YOUR swapped axis
+            y = transform.transform.translation.y
 
             # --- Rotation ---
             q = transform.transform.rotation
@@ -38,7 +38,7 @@ class AprilTagPose2D(Node):
 
             roll, pitch, yaw = tf_transformations.euler_from_quaternion(quaternion)
 
-            theta = pitch  # <-- YOUR "yaw" for now
+            theta = yaw
 
             # --- Publish ---
             pose = Pose2D()
