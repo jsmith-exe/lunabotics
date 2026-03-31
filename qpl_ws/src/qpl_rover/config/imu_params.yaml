@@ -16,10 +16,10 @@ ekf_filter_node:
     # Do NOT fuse linear acceleration — it's noisy and two_d_mode makes it redundant
     imu0: /imu/data
     imu0_config: [false, false, false,
-                  true,  true,  true,   # ← roll, pitch ON — yaw OFF (magnetometer)
+                  false,  false,  true,   # ← roll, pitch ON — yaw OFF (magnetometer)
                   false, false, false,
                   true,  true,  true,    # ← angular velocity ON
-                  false, false, false]   # ← linear accel OFF (still too noisy)
+                  true, true, true]   # ← linear accel OFF (still too noisy)
 
     imu0_differential: false
     imu0_relative: false
@@ -42,5 +42,5 @@ ekf_filter_node:
                     false, false, true,
                     false, false, false ]
 
-    odom0_differential: false
+    odom0_differential: true
     odom0_relative: false
