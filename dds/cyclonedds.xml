@@ -3,6 +3,7 @@
         <General>
             <Interfaces>
                 <NetworkInterface name="tailscale0" priority="default" multicast="false"/>
+                <NetworkInterface name="lo" priority="default" multicast="false"/>
             </Interfaces>
         </General>
         <Discovery>
@@ -10,6 +11,7 @@
                 <Peer address="100.89.72.39"/> <!-- Server tailscale address -->
                 <Peer address="127.0.0.1"/> <!-- localhost -->
             </Peers>
+            <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
         </Discovery>
     </Domain>
 </CycloneDDS>
