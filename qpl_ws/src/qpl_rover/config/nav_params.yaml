@@ -159,8 +159,8 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: true
-      update_frequency: 5.0
-      publish_frequency: 2.0
+      update_frequency: 5.0      # ← was 3.0, faster to catch new obstacles
+      publish_frequency: 2.0     # ← was 1.0, more frequent RViz updates
       global_frame: map
       robot_base_frame: base_footprint
       rolling_window: true
@@ -171,21 +171,19 @@ global_costmap:
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
-
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+    
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]  # ← add static_layer
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: true
         enabled: true
-        map_topic: /rtabmap/map
+        map_topic: /rtabmap/map          # ← RTAB-Map's occupancy grid
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        # Global costmap uses map frame — rtabmap/cloud_obstacles is correct here
-        # since the global costmap's global_frame is already map.
-        observation_sources: rtabmap_obstacles
+        observation_sources: rtabmap_obstacles   # ← was "scan"
 
         rtabmap_obstacles:
           topic: /rtabmap/cloud_obstacles
@@ -289,18 +287,18 @@ lifecycle_manager_navigation:
 rtabmap:
   ros__parameters:
     use_sim_time: true
-
+    
     # Depth cloud filtering — prevents phantom obstacle lines
-    cloud_max_depth: 3.8          # don't process points beyond 3.8m
+    cloud_max_depth: 3.8          # don't process points beyond 3m
     cloud_min_depth: 0.3          # ignore points too close (noise)
     cloud_voxel_size: 0.05        # downsample for performance
-
+    
     # Grid map settings
     Grid/MaxObstacleHeight: 2.0
     Grid/MinClusterSize: 10       # ignore small floating clusters
     Grid/RangeMax: 3.0            # matches cloud_max_depth
     Grid/RangeMin: 0.3
-
+    
     # Obstacle cloud cleanup
     Grid/FootprintLength: 0.6     # robot size for self-filtering
     Grid/FootprintWidth: 0.6
