@@ -93,6 +93,7 @@ alias vslam='ros2 launch rtabmap_launch rtabmap.launch.py \
   approx_sync:=true \
   use_sim_time:=true \
   rtabmap_args:="--delete_db_on_start"'
+alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 
 # Use functions (not aliases) for anything that needs env switching

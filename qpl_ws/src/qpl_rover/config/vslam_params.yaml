@@ -1,0 +1,75 @@
+rtabmap:
+  ros__parameters:
+    use_sim_time: true
+
+    # ---------------------------------------------------------------------------
+    # Frames
+    # ---------------------------------------------------------------------------
+    frame_id: base_footprint
+    odom_frame_id: odom
+    map_frame_id: map
+
+    # ---------------------------------------------------------------------------
+    # Input sync
+    # ---------------------------------------------------------------------------
+    approx_sync: true
+    approx_sync_max_interval: 0.1   # relaxed from 0.05 — allows more frame matches
+    queue_size: 5                   # drop old frames rather than building a backlog
+
+    # ---------------------------------------------------------------------------
+    # Odometry — we supply external odometry, don't compute it inside rtabmap
+    # ---------------------------------------------------------------------------
+    subscribe_odom_info: false
+    visual_odometry: false          # ekf_filter_node provides /odometry/filtered
+
+    # ---------------------------------------------------------------------------
+    # Depth cloud filtering
+    # ---------------------------------------------------------------------------
+    cloud_max_depth: 3.8            # metres; discard points beyond this
+    cloud_min_depth: 0.3            # metres; discard points too close (noise)
+    cloud_voxel_size: 0.05          # metres; downsample for performance
+
+    # ---------------------------------------------------------------------------
+    # Occupancy grid
+    # ---------------------------------------------------------------------------
+    Grid/MaxObstacleHeight: 2.0
+    Grid/MinClusterSize: 10         # discard small floating clusters
+    Grid/RangeMax: 3.0              # should match cloud_max_depth
+    Grid/RangeMin: 0.3              # should match cloud_min_depth
+    Grid/FootprintLength: 0.6       # robot footprint for self-filtering (metres)
+    Grid/FootprintWidth: 0.6
+    Grid/FootprintHeight: 0.8
+
+    # ---------------------------------------------------------------------------
+    # Loop closure / mapping
+    # ---------------------------------------------------------------------------
+    Mem/IncrementalMemory: true     # SLAM mode (set false for localisation only)
+    Mem/InitWMWithAllNodes: false
+    Mem/STMSize: 10                 # limit short-term memory to reduce CPU load
+    RGBD/AngularUpdate: 0.05        # radians; only update map when robot moves
+    RGBD/LinearUpdate: 0.05         # metres
+    RGBD/OptimizeFromGraphEnd: false
+
+    # ---------------------------------------------------------------------------
+    # Performance — reduce processing load to keep map->odom TF fresh
+    # ---------------------------------------------------------------------------
+    # Halve image resolution before feature extraction — biggest single win
+    Rtabmap/ImageDecimation: 2
+
+    # Only attempt loop closure once per second instead of every frame
+    Rtabmap/DetectionRate: 1.0
+
+    # Reduce feature count — default is ~1000, 400 is plenty for indoor/sim SLAM
+    Vis/MaxFeatures: 400
+    Vis/MinInliers: 10
+
+    # Re-publish map->odom TF at a fixed rate independent of keyframe processing.
+    # This keeps nav2 happy even when rtabmap is busy between keyframes.
+    tf_delay: 0.05                  # seconds; publishes TF at ~20 Hz
+    tf_tolerance: 0.1               # seconds; tolerance on the published TF stamp
+
+    # ---------------------------------------------------------------------------
+    # Published topics
+    # ---------------------------------------------------------------------------
+    publish_tf: true                # publishes map -> odom TF
+    gen_scan: false                 # set true if you want a fake /scan from depth
