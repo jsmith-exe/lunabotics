@@ -129,18 +129,24 @@ local_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        observation_sources: rtabmap_obstacles
-        # scan:
-        #   topic: /scan
-        #   data_type: "LaserScan"
-        #   clearing: true
-        #   marking: true
-        #   obstacle_max_range: 10.0
-        #   raytrace_max_range: 12.0
-        #   max_obstacle_height: 2.0
+        # Using raw depth camera point clouds instead of /rtabmap/cloud_obstacles.
+        # These are in the camera's own frame (connected to base_footprint via URDF),
+        # so the sensor origin transform never depends on the map->odom TF being available.
+        observation_sources: depth_front depth_rear
 
-        rtabmap_obstacles:
-          topic: /rtabmap/cloud_obstacles
+        depth_front:
+          topic: /depth_camera_front/points
+          data_type: "PointCloud2"
+          clearing: true
+          marking: true
+          obstacle_max_range: 3.0
+          raytrace_max_range: 3.5
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.05
+          obstacle_range: 3.0
+
+        depth_rear:
+          topic: /depth_camera_rear/points
           data_type: "PointCloud2"
           clearing: true
           marking: true
@@ -167,8 +173,8 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: true
-      update_frequency: 5.0      # ← was 3.0, faster to catch new obstacles
-      publish_frequency: 2.0     # ← was 1.0, more frequent RViz updates
+      update_frequency: 5.0
+      publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_footprint
       rolling_window: true
@@ -179,19 +185,21 @@ global_costmap:
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
-    
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]  # ← add static_layer
+
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: true
         enabled: true
-        map_topic: /rtabmap/map          # ← RTAB-Map's occupancy grid
+        map_topic: /rtabmap/map
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        observation_sources: rtabmap_obstacles   # ← was "scan"
+        # Global costmap uses map frame — rtabmap/cloud_obstacles is correct here
+        # since the global costmap's global_frame is already map.
+        observation_sources: rtabmap_obstacles
 
         rtabmap_obstacles:
           topic: /rtabmap/cloud_obstacles
@@ -295,18 +303,18 @@ lifecycle_manager_navigation:
 rtabmap:
   ros__parameters:
     use_sim_time: true
-    
+
     # Depth cloud filtering — prevents phantom obstacle lines
-    cloud_max_depth: 3.8          # don't process points beyond 3m
+    cloud_max_depth: 3.8          # don't process points beyond 3.8m
     cloud_min_depth: 0.3          # ignore points too close (noise)
     cloud_voxel_size: 0.05        # downsample for performance
-    
+
     # Grid map settings
     Grid/MaxObstacleHeight: 2.0
     Grid/MinClusterSize: 10       # ignore small floating clusters
     Grid/RangeMax: 3.0            # matches cloud_max_depth
     Grid/RangeMin: 0.3
-    
+
     # Obstacle cloud cleanup
     Grid/FootprintLength: 0.6     # robot size for self-filtering
     Grid/FootprintWidth: 0.6
