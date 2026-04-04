@@ -13,63 +13,60 @@ rtabmap:
     # Input sync
     # ---------------------------------------------------------------------------
     approx_sync: true
-    approx_sync_max_interval: 0.1   # relaxed from 0.05 — allows more frame matches
-    queue_size: 5                   # drop old frames rather than building a backlog
+    approx_sync_max_interval: 0.03   # tighter sync; reduces depth/odom mismatch
+    queue_size: 5                    # drop old frames rather than building a backlog
 
     # ---------------------------------------------------------------------------
     # Odometry — we supply external odometry, don't compute it inside rtabmap
     # ---------------------------------------------------------------------------
     subscribe_odom_info: false
-    visual_odometry: false          # ekf_filter_node provides /odometry/filtered
+    visual_odometry: false           # ekf_filter_node provides /odometry/filtered
 
     # ---------------------------------------------------------------------------
     # Depth cloud filtering
     # ---------------------------------------------------------------------------
-    cloud_max_depth: 3.8            # metres; discard points beyond this
-    cloud_min_depth: 0.3            # metres; discard points too close (noise)
-    cloud_voxel_size: 0.05          # metres; downsample for performance
+    cloud_max_depth: 1.0             # metres; reject far depth where the floor stripes are worst
+    cloud_min_depth: 0.35            # metres; reject bad near-field returns
+    cloud_voxel_size: 0.06           # metres; stronger smoothing before occupancy projection
 
     # ---------------------------------------------------------------------------
     # Occupancy grid
     # ---------------------------------------------------------------------------
-    Grid/MaxObstacleHeight: 2.0
-    Grid/MinClusterSize: 10         # discard small floating clusters
-    Grid/RangeMax: 3.0              # should match cloud_max_depth
-    Grid/RangeMin: 0.3              # should match cloud_min_depth
-    Grid/FootprintLength: 0.6       # robot footprint for self-filtering (metres)
+    Grid/MaxObstacleHeight: 1.0      # metres; keep only navigation-relevant obstacles
+    Grid/MinClusterSize: 40          # reject sparse fragmented streaks
+    Grid/RangeMax: 1.0               # should match cloud_max_depth
+    Grid/RangeMin: 0.35              # should match cloud_min_depth
+    Grid/FootprintLength: 0.6        # robot footprint for self-filtering
     Grid/FootprintWidth: 0.6
     Grid/FootprintHeight: 0.8
 
     # ---------------------------------------------------------------------------
     # Loop closure / mapping
     # ---------------------------------------------------------------------------
-    Mem/IncrementalMemory: true     # SLAM mode (set false for localisation only)
+    Mem/IncrementalMemory: true      # SLAM mode
     Mem/InitWMWithAllNodes: false
-    Mem/STMSize: 10                 # limit short-term memory to reduce CPU load
-    RGBD/AngularUpdate: 0.05        # radians; only update map when robot moves
-    RGBD/LinearUpdate: 0.05         # metres
+    Mem/STMSize: 8                   # reduce CPU load
+    RGBD/AngularUpdate: 0.12         # update less often while turning
+    RGBD/LinearUpdate: 0.12          # update less often while moving
     RGBD/OptimizeFromGraphEnd: false
 
     # ---------------------------------------------------------------------------
-    # Performance — reduce processing load to keep map->odom TF fresh
+    # Performance
     # ---------------------------------------------------------------------------
-    # Halve image resolution before feature extraction — biggest single win
-    Rtabmap/ImageDecimation: 2
+    Rtabmap/ImageDecimation: 2       # halve image resolution before feature extraction
+    Rtabmap/DetectionRate: 1.0       # only attempt loop closure once per second
 
-    # Only attempt loop closure once per second instead of every frame
-    Rtabmap/DetectionRate: 1.0
+    Vis/MaxFeatures: 400             # enough for indoor/sim SLAM
+    Vis/MinInliers: 12               # slightly stricter visual match acceptance
 
-    # Reduce feature count — default is ~1000, 400 is plenty for indoor/sim SLAM
-    Vis/MaxFeatures: 400
-    Vis/MinInliers: 10
-
-    # Re-publish map->odom TF at a fixed rate independent of keyframe processing.
-    # This keeps nav2 happy even when rtabmap is busy between keyframes.
-    tf_delay: 0.05                  # seconds; publishes TF at ~20 Hz
-    tf_tolerance: 0.1               # seconds; tolerance on the published TF stamp
+    # ---------------------------------------------------------------------------
+    # TF publishing
+    # ---------------------------------------------------------------------------
+    tf_delay: 0.05                   # publishes TF at ~20 Hz
+    tf_tolerance: 0.1                # tolerance on published TF stamp
 
     # ---------------------------------------------------------------------------
     # Published topics
     # ---------------------------------------------------------------------------
-    publish_tf: true                # publishes map -> odom TF
-    gen_scan: false                 # set true if you want a fake /scan from depth
+    publish_tf: true                 # publishes map -> odom TF
+    gen_scan: false                  # no fake /scan from depth

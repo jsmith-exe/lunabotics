@@ -6,7 +6,7 @@
     <parent link="base_link"/>
     <child link="camera_link_front"/>
     <!-- front-top-ish: adjust as needed -->
-    <origin xyz="0.25 0 0.15" rpy="0 0 0"/>
+    <origin xyz="0.25 0 0.30" rpy="0 -0.18 0"/>
   </joint>
 
   <link name="camera_link_front">
@@ -58,7 +58,7 @@
         </image>
         <clip>
           <near>0.05</near>
-          <far>8.0</far>
+          <far>5.0</far>
         </clip>
       </camera>
 
