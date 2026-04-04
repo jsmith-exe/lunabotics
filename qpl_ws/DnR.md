@@ -97,3 +97,15 @@ ros2 run demo_nodes_cpp talker
 # On the other device, run the listener:
 ros2 run demo_nodes_cpp listener
 ```
+
+---
+## Camera
+**List video feeds**:
+```bash
+v4l2-ctl --list-devices
+```
+
+**Take a picture**:
+```bash
+sudo ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 test.jpg
+```
