@@ -1,17 +1,18 @@
-<CycloneDDS>
-    <Domain>
-        <General>
-            <Interfaces>
-                <NetworkInterface name="tailscale0" priority="default" multicast="false"/>
-                <NetworkInterface name="lo" priority="default" multicast="false"/>
-            </Interfaces>
-        </General>
-        <Discovery>
-            <Peers>
-                <Peer address="100.89.72.39"/> <!-- Server tailscale address -->
-                <Peer address="127.0.0.1"/> <!-- localhost -->
-            </Peers>
-            <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
-        </Discovery>
-    </Domain>
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="tailscale0" priority="default" multicast="false"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <Peers>
+        <Peer Address="100.89.72.39"/>
+      </Peers>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
 </CycloneDDS>
