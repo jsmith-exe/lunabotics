@@ -86,9 +86,10 @@ Makefile
 # ======================
 .idea/
 
-# ROS 2 colcon outputs
-ros2/build/
-ros2/install/
-ros2/log/
-
+# Custom
+build/
+install/
+log/
 .use_server_sim
+OrbbecSDK_ROS2/
+Log/
