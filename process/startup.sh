@@ -94,6 +94,20 @@ alias vslam='ros2 launch rtabmap_launch rtabmap.launch.py \
   rtabmap_args:="--delete_db_on_start"'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 
+qpl_orbbecsdk_clone() {
+  git clone --single-branch --branch main git@github.com:orbbec/OrbbecSDK_ROS2.git "${QPL_PROJECT}/OrbbecSDK_ROS2"
+}
+qpl_orbbecsdk_build() {
+  local prev_path=$(pwd)
+  cd "${QPL_PROJECT}/OrbbecSDK_ROS2"
+  colcon build --event-handlers  console_direct+  --cmake-args  -DCMAKE_BUILD_TYPE=Release
+  cd "$prev_path"
+}
+qpl_orbbecsdk_run() {
+  source "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash"
+  ros2 launch orbbec_camera astra_pro_plus.launch.py
+}
+
 # For WSL: a path that can be used in PowerShell to run controller scripts without worrying about WSL path translation
 get_qpl_project_windows_path() {
   wslpath -w "$QPL_PROJECT"
