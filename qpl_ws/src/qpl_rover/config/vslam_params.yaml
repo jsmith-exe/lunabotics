@@ -36,7 +36,7 @@
     # Depth cloud filtering
     # -------------------------------------------------------------------------
     cloud_max_depth: 1.25
-    cloud_min_depth: 0.25
+    cloud_min_depth: 0.05
     cloud_voxel_size: 0.06
 
     # -------------------------------------------------------------------------
@@ -44,8 +44,8 @@
     # -------------------------------------------------------------------------
     Grid/MaxObstacleHeight: "1.0"
     Grid/MinClusterSize: "40"
-    Grid/RangeMax: "1.235"
-    Grid/RangeMin: "0.25"
+    Grid/RangeMax: "1.25"
+    Grid/RangeMin: "0.05"
     Grid/FootprintLength: "0.6"
     Grid/FootprintWidth: "0.6"
     Grid/FootprintHeight: "0.8"
