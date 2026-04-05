@@ -4,6 +4,6 @@ apriltag_node:
     family: 36h11
     size: 0.2
     max_hamming: 0
-    z_up: false
+    z_up: true
     queue_size: 10
     sync_slop: 0.05

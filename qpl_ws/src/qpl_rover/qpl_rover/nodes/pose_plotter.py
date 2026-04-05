@@ -20,8 +20,8 @@ dot, = ax.plot([], [], 'ro', markersize=10)
 
 
 def cb(msg):
-    y = -msg.x
-    x = msg.y
+    x = msg.x
+    y = msg.y
     dot.set_xdata([x])
     dot.set_ydata([y])
     fig.canvas.draw_idle()

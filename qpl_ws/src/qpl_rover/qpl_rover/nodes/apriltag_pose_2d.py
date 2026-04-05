@@ -41,31 +41,31 @@ class AprilTagPose2D(Node):
                 timeout=Duration(seconds=0.5)
             )
 
-            # --- Translation (USE X & Y ONLY) ---
-            x_raw = transform.transform.translation.x
+            # raw TF
+            x_raw = transform.transform.translation.z
             y_raw = transform.transform.translation.y
 
-            # --- Rotation ---
+            # rotate into arena frame
+            x_arena = x_raw
+            y_arena = y_raw
+
+            # apply tag offset
+            x_arena += 0.05
+            y_arena += 0.2
+
+            # rotation
             q = transform.transform.rotation
             quaternion = [q.x, q.y, q.z, q.w]
-
             roll, pitch, yaw = tf_transformations.euler_from_quaternion(quaternion)
 
-            theta_raw = yaw
+            theta_raw = math.atan2(math.sin(yaw), math.cos(yaw))
 
-            # --- Normalize angle (-pi to pi) ---
-            theta_raw = math.atan2(math.sin(theta_raw), math.cos(theta_raw))
-
-            # --- Apply filtering ---
-            x = self.filter(self.prev_x, x_raw)
-            y = self.filter(self.prev_y, y_raw)
+            # filtering
+            x = self.filter(self.prev_x, x_arena)
+            y = self.filter(self.prev_y, y_arena)
             theta = self.filter(self.prev_theta, theta_raw)
 
-            self.prev_x = x
-            self.prev_y = y
-            self.prev_theta = theta
-
-            # --- Publish ---
+            # publish
             pose = Pose2D()
             pose.x = x
             pose.y = y

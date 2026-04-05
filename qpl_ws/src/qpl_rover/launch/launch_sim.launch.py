@@ -111,24 +111,12 @@ def generate_launch_description():
         'apriltag.yaml'
     )
 
-    rectify_node = Node(
-        package='image_proc',
-        executable='rectify_node',
-        name='rectify_node',
-        remappings=[
-            ('image', '/back_camera/image_raw'),
-            ('camera_info', '/back_camera/camera_info'),
-            ('image_rect', '/back_camera/image_rect'),
-        ],
-        parameters=[{'use_sim_time': True}],
-    )
-
     apriltag_node = Node(
         package='apriltag_ros',
         executable='apriltag_node',
         name='apriltag_node',
         remappings=[
-            ('image_rect', '/back_camera/image_rect'),
+            ('image_rect', '/back_camera/image_raw'),
             ('camera_info', '/back_camera/camera_info'),
         ],
         parameters=[apriltag_config, {
@@ -147,7 +135,6 @@ def generate_launch_description():
         spawn_entity,
         diff_drive_spawner,
         joint_broad_spawner,
-        rectify_node,
         apriltag_node,
         Node(
             package=package_name,

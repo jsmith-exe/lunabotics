@@ -186,7 +186,10 @@
         <link name="link">
             <visual name="visual">
                 <geometry>
-                    <box><size>0.2 0.2 0.01</size></box>
+                    <plane>
+                        <normal>0 0 1</normal>
+                        <size>0.25 0.25</size>
+                    </plane>
                 </geometry>
                 <material>
                     <script>
