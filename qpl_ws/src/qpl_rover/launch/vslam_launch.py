@@ -27,6 +27,68 @@ def generate_launch_description():
             description='Full path to rtabmap params file'
         ),
 
+        # ---------------------------------------------------------------------
+        # Front RGB-D sync
+        # ---------------------------------------------------------------------
+        Node(
+            package='rtabmap_sync',
+            executable='rgbd_sync',
+            name='rgbd_sync_front',
+            output='screen',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+            ],
+            remappings=[
+                ('rgb/image',       '/depth_camera_front/image_raw'),
+                ('rgb/camera_info', '/depth_camera_front/camera_info'),
+                ('depth/image',     '/depth_camera_front/depth/image_raw'),
+                ('rgbd_image',      '/front/rgbd_image'),
+            ],
+        ),
+
+        # ---------------------------------------------------------------------
+        # Rear RGB-D sync
+        # ---------------------------------------------------------------------
+        Node(
+            package='rtabmap_sync',
+            executable='rgbd_sync',
+            name='rgbd_sync_rear',
+            output='screen',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+            ],
+            remappings=[
+                ('rgb/image',       '/depth_camera_rear/image_raw'),
+                ('rgb/camera_info', '/depth_camera_rear/camera_info'),
+                ('depth/image',     '/depth_camera_rear/depth/image_raw'),
+                ('rgbd_image',      '/rear/rgbd_image'),
+            ],
+        ),
+
+        # ---------------------------------------------------------------------
+        # Multi-RGBD sync
+        # Synchronises front + rear RGBDImage into one RGBDImages topic
+        # ---------------------------------------------------------------------
+        Node(
+            package='rtabmap_sync',
+            executable='rgbdx_sync',
+            name='rgbdx_sync',
+            output='screen',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+            ],
+            remappings=[
+                ('rgbd_image0', '/front/rgbd_image'),
+                ('rgbd_image1', '/rear/rgbd_image'),
+                ('rgbd_images', '/rgbd_images'),
+            ],
+        ),
+
+        # ---------------------------------------------------------------------
+        # RTAB-Map SLAM
+        # Uses RGBDImages interface because this build does not support
+        # direct multi-rgbd sync inside rtabmap.
+        # ---------------------------------------------------------------------
         Node(
             package='rtabmap_slam',
             executable='rtabmap',
@@ -38,28 +100,9 @@ def generate_launch_description():
                 {'use_sim_time': use_sim_time},
             ],
             remappings=[
-                ('rgb/image',       '/depth_camera_front/image_raw'),
-                ('rgb/camera_info', '/depth_camera_front/camera_info'),
-                ('depth/image',     '/depth_camera_front/depth/image_raw'),
-                ('odom',            '/odometry/filtered'),
+                ('rgbd_images', '/rgbd_images'),
+                ('odom',        '/odometry/filtered'),
             ],
             arguments=['--delete_db_on_start'],
         ),
-
-        # Node(
-        #     package='rtabmap_viz',
-        #     executable='rtabmap_viz',
-        #     name='rtabmap_viz',
-        #     namespace='rtabmap',
-        #     output='screen',
-        #     parameters=[
-        #         {'use_sim_time': use_sim_time},
-        #     ],
-        #     remappings=[
-        #         ('rgb/image',       '/depth_camera_front/image_raw'),
-        #         ('rgb/camera_info', '/depth_camera_front/camera_info'),
-        #         ('depth/image',     '/depth_camera_front/depth/image_raw'),
-        #     ],
-        # ),
-
     ])

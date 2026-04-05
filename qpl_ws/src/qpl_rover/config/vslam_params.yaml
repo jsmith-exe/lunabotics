@@ -1,72 +1,81 @@
-rtabmap:
+/rtabmap/rtabmap:
   ros__parameters:
     use_sim_time: true
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Frames
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     frame_id: base_footprint
     odom_frame_id: odom
     map_frame_id: map
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # Input mode
+    # We now feed RTAB-Map with one pre-synchronised RGBDImages topic
+    # that contains both front and rear RGBDImage streams.
+    # -------------------------------------------------------------------------
+    subscribe_rgb: false
+    subscribe_depth: false
+    subscribe_rgbd: true
+    rgbd_cameras: 0                  # use rgbd_images interface instead of rgbd_image0/rgbd_image1
+
+    # -------------------------------------------------------------------------
     # Input sync
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     approx_sync: true
-    approx_sync_max_interval: 0.03   # tighter sync; reduces depth/odom mismatch
-    queue_size: 5                    # drop old frames rather than building a backlog
+    approx_sync_max_interval: 0.03
+    sync_queue_size: 5
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Odometry — we supply external odometry, don't compute it inside rtabmap
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     subscribe_odom_info: false
-    visual_odometry: false           # ekf_filter_node provides /odometry/filtered
+    visual_odometry: false
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Depth cloud filtering
-    # ---------------------------------------------------------------------------
-    cloud_max_depth: 1.0             # metres; reject far depth where the floor stripes are worst
-    cloud_min_depth: 0.35            # metres; reject bad near-field returns
-    cloud_voxel_size: 0.06           # metres; stronger smoothing before occupancy projection
+    # -------------------------------------------------------------------------
+    cloud_max_depth: 1.25
+    cloud_min_depth: 0.25
+    cloud_voxel_size: 0.06
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Occupancy grid
-    # ---------------------------------------------------------------------------
-    Grid/MaxObstacleHeight: 1.0      # metres; keep only navigation-relevant obstacles
-    Grid/MinClusterSize: 40          # reject sparse fragmented streaks
-    Grid/RangeMax: 1.0               # should match cloud_max_depth
-    Grid/RangeMin: 0.35              # should match cloud_min_depth
-    Grid/FootprintLength: 0.6        # robot footprint for self-filtering
-    Grid/FootprintWidth: 0.6
-    Grid/FootprintHeight: 0.8
+    # -------------------------------------------------------------------------
+    Grid/MaxObstacleHeight: "1.0"
+    Grid/MinClusterSize: "40"
+    Grid/RangeMax: "1.235"
+    Grid/RangeMin: "0.25"
+    Grid/FootprintLength: "0.6"
+    Grid/FootprintWidth: "0.6"
+    Grid/FootprintHeight: "0.8"
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Loop closure / mapping
-    # ---------------------------------------------------------------------------
-    Mem/IncrementalMemory: true      # SLAM mode
-    Mem/InitWMWithAllNodes: false
-    Mem/STMSize: 8                   # reduce CPU load
-    RGBD/AngularUpdate: 0.12         # update less often while turning
-    RGBD/LinearUpdate: 0.12          # update less often while moving
-    RGBD/OptimizeFromGraphEnd: false
+    # -------------------------------------------------------------------------
+    Mem/IncrementalMemory: "true"
+    Mem/InitWMWithAllNodes: "false"
+    Mem/STMSize: "8"
+    RGBD/AngularUpdate: "0.12"
+    RGBD/LinearUpdate: "0.12"
+    RGBD/OptimizeFromGraphEnd: "false"
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Performance
-    # ---------------------------------------------------------------------------
-    Rtabmap/ImageDecimation: 2       # halve image resolution before feature extraction
-    Rtabmap/DetectionRate: 1.0       # only attempt loop closure once per second
+    # -------------------------------------------------------------------------
+    Rtabmap/ImageDecimation: "2"
+    Rtabmap/DetectionRate: "1.0"
+    Vis/MaxFeatures: "400"
+    Vis/MinInliers: "12"
 
-    Vis/MaxFeatures: 400             # enough for indoor/sim SLAM
-    Vis/MinInliers: 12               # slightly stricter visual match acceptance
-
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # TF publishing
-    # ---------------------------------------------------------------------------
-    tf_delay: 0.05                   # publishes TF at ~20 Hz
-    tf_tolerance: 0.1                # tolerance on published TF stamp
+    # -------------------------------------------------------------------------
+    tf_delay: 0.05
+    tf_tolerance: 0.1
 
-    # ---------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Published topics
-    # ---------------------------------------------------------------------------
-    publish_tf: true                 # publishes map -> odom TF
-    gen_scan: false                  # no fake /scan from depth
+    # -------------------------------------------------------------------------
+    publish_tf: true
+    gen_scan: false
