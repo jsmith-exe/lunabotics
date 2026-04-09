@@ -27,7 +27,7 @@
 
     # Visual odom tuning
     Vis/MaxFeatures: "400"
-    Vis/MinInliers: "12"
+    Vis/MinInliers: "8"
     Vis/InlierDistance: "0.10"
 
     # Update thresholds
