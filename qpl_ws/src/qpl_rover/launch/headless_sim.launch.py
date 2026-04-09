@@ -85,7 +85,7 @@ def generate_launch_description():
     ekf_params = os.path.join(
         get_package_share_directory(package_name),
         "config",
-        "imu_params.yaml",
+        "ekf_params.yaml",
     )
 
     # Delay EKF until after controllers are up (period=4.0) so the robot exists

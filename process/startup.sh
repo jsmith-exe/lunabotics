@@ -82,17 +82,6 @@ alias qpl_cloud_to_scan='ros2 launch qpl_rover point_cloud_to_scan.launch.py'
 alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
 alias qpl_rover='ros2 launch qpl_rover launch_rover.launch.py'
 alias qpl_controller_fwd='ros2 run basestation nav_pub'
-alias vslam='ros2 launch rtabmap_launch rtabmap.launch.py \
-  rgb_topic:=/depth_camera_front/image_raw \
-  depth_topic:=/depth_camera_front/depth/image_raw \
-  camera_info_topic:=/depth_camera_front/camera_info \
-  frame_id:=base_footprint \
-  odom_topic:=/odometry/filtered \
-  odom_frame_id:=odom \
-  visual_odometry:=false \
-  approx_sync:=true \
-  use_sim_time:=true \
-  rtabmap_args:="--delete_db_on_start"'
 alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 

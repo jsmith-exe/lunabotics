@@ -1,9 +1,11 @@
-/rtabmap/rtabmap:
+/rtabmap/rtab_perception:
   ros__parameters:
     use_sim_time: true
 
     # -------------------------------------------------------------------------
     # Frames
+    # rtabmap consumes the TF tree but does not own it.
+    # AprilTags own map->odom, EKF owns odom->base_footprint.
     # -------------------------------------------------------------------------
     frame_id: base_footprint
     odom_frame_id: odom
@@ -11,13 +13,13 @@
 
     # -------------------------------------------------------------------------
     # Input mode
-    # We now feed RTAB-Map with one pre-synchronised RGBDImages topic
-    # that contains both front and rear RGBDImage streams.
+    # Using one pre-synchronised RGBDImages topic containing both front
+    # and rear RGBDImage streams.
     # -------------------------------------------------------------------------
     subscribe_rgb: false
     subscribe_depth: false
     subscribe_rgbd: true
-    rgbd_cameras: 0                  # use rgbd_images interface instead of rgbd_image0/rgbd_image1
+    rgbd_cameras: 0
 
     # -------------------------------------------------------------------------
     # Input sync
@@ -25,22 +27,28 @@
     approx_sync: true
     approx_sync_max_interval: 0.03
     sync_queue_size: 5
+    queue_size: 30
 
     # -------------------------------------------------------------------------
-    # Odometry — we supply external odometry, don't compute it inside rtabmap
+    # Odometry input
+    # Main rtabmap node consumes external filtered odometry.
+    # Visual odometry is produced separately by rgbd_odometry.
     # -------------------------------------------------------------------------
     subscribe_odom_info: false
     visual_odometry: false
+    guess_frame_id: ""
 
     # -------------------------------------------------------------------------
     # Depth cloud filtering
+    # Keep aligned with your nav obstacle ranges.
     # -------------------------------------------------------------------------
     cloud_max_depth: 1.25
     cloud_min_depth: 0.05
     cloud_voxel_size: 0.06
 
     # -------------------------------------------------------------------------
-    # Occupancy grid
+    # Occupancy / obstacle extraction
+    # These are perception-focused settings for obstacle generation.
     # -------------------------------------------------------------------------
     Grid/MaxObstacleHeight: "1.0"
     Grid/MinClusterSize: "40"
@@ -51,7 +59,8 @@
     Grid/FootprintHeight: "0.8"
 
     # -------------------------------------------------------------------------
-    # Loop closure / mapping
+    # Mapping / graph behaviour
+    # Keep incremental memory on if you still want map products from rtabmap.
     # -------------------------------------------------------------------------
     Mem/IncrementalMemory: "true"
     Mem/InitWMWithAllNodes: "false"
@@ -59,6 +68,13 @@
     RGBD/AngularUpdate: "0.12"
     RGBD/LinearUpdate: "0.12"
     RGBD/OptimizeFromGraphEnd: "false"
+
+    # -------------------------------------------------------------------------
+    # 2D rover assumptions
+    # Helps keep the graph constrained to planar motion.
+    # -------------------------------------------------------------------------
+    Reg/Force3DoF: "true"
+    Optimizer/GravitySigma: "0"
 
     # -------------------------------------------------------------------------
     # Performance
@@ -70,12 +86,15 @@
 
     # -------------------------------------------------------------------------
     # TF publishing
+    # IMPORTANT: keep TF publishing OFF here so rtabmap does not fight with
+    # EKF / AprilTag localisation.
     # -------------------------------------------------------------------------
+    publish_tf: false
     tf_delay: 0.05
     tf_tolerance: 0.1
 
     # -------------------------------------------------------------------------
-    # Published topics
+    # Published topics / outputs
+    # Keep scan generation off since you're using cloud-based perception.
     # -------------------------------------------------------------------------
-    publish_tf: true
     gen_scan: false

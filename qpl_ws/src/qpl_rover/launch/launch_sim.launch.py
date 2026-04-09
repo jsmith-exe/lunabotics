@@ -71,7 +71,7 @@ def generate_launch_description():
     ekf_params = os.path.join(
         get_package_share_directory(package_name),
         "config",
-        "imu_params.yaml",
+        "ekf_params.yaml",
     )
 
     ekf_node = TimerAction(
