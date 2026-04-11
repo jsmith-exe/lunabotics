@@ -109,3 +109,9 @@ v4l2-ctl --list-devices
 ```bash
 sudo ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 test.jpg
 ```
+
+**Theora warning**: RViz2 may show the following warning and Theora compressed video may not come through, something like this:
+```
+[TheoraSubscriber]: [theora] Packet was not a Theora header
+```
+Restart the camera node if this happens.

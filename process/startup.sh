@@ -115,7 +115,6 @@ qpl_orbbecsdk_build() {
   cd "$prev_path"
 }
 qpl_orbbecsdk_run() {
-  source "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash"
   ros2 launch orbbec_camera astra_pro_plus.launch.py
 }
 
@@ -193,3 +192,6 @@ source "$QPL_PROJECT/qpl_ws/install/setup.bash"
 
 # -------------------- Other scripts --------------------
 source "$QPL_PROJECT/process/networking_limits.sh"
+if [ -f "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash" ]; then
+  source "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash"
+fi
