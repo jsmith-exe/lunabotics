@@ -1,0 +1,14 @@
+material AprilTag/tag0
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tag36_11_00000.png
+        filtering none
+      }
+    }
+  }
+}

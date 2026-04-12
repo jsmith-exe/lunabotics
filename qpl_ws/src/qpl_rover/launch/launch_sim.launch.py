@@ -3,23 +3,26 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from ament_index_python.packages import get_package_share_directory
 from launch.actions import TimerAction
-
-
 
 
 def generate_launch_description():
 
     package_name = "qpl_rover"
 
-    # Path to your saved Gazebo world
+    # tell gazebo where to find the apriltag model so the texture loads on any machine
+    models_path = os.path.join(get_package_share_directory(package_name), "worlds")
+    gazebo_model_path = SetEnvironmentVariable(
+        'GAZEBO_MODEL_PATH',
+        models_path + ':' + os.environ.get('GAZEBO_MODEL_PATH', '')
+    )
+
     world_path = os.path.join(
         get_package_share_directory(package_name),
         "worlds",
-        "arena.world"
+        "arena_april.world"
     )
 
     rsp = IncludeLaunchDescription(
@@ -35,37 +38,52 @@ def generate_launch_description():
             parameters=[twist_mux_params, {'use_sim_time': True}],
             remappings=[('/cmd_vel_out','/diff_cont/cmd_vel_unstamped')]
         )
-    
 
     gazebo_params_file = os.path.join(get_package_share_directory(package_name), "config", "gazebo_params.yaml")
 
-
-    # Include the Gazebo launch file, provided by the gazebo_ros package
     gazebo = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
                     launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file ' + gazebo_params_file}.items()
              )
 
-
-    # Run the spawner node from the gazebo_ros package. The entity name doesn't really matter if you only have a single robot.
-    spawn_entity = Node(
-        package="gazebo_ros",
-        executable="spawn_entity.py",
-        arguments=["-topic", "robot_description", "-entity", "rover"],
-        output="screen",
+    spawn_entity = TimerAction(
+        period=5.0,
+        actions=[
+            Node(
+                package="gazebo_ros",
+                executable="spawn_entity.py",
+                arguments=[
+                    "-topic", "robot_description",
+                    "-entity", "rover",
+                    "-x", "1.0", # set to 0 (default) if not using april_arena.world
+                    "-y", "1.0", # set to 0 (default) if not using april_arena.world
+                    "-z", "0.2"], # set to 0 (default) if not using april_arena.world
+                output="screen",
+            )
+        ],
     )
 
-    diff_drive_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["diff_cont"],
+    diff_drive_spawner = TimerAction(
+        period=8.0,
+        actions=[
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=["diff_cont"],
+            )
+        ],
     )
 
-    joint_broad_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_broad"],
+    joint_broad_spawner = TimerAction(
+        period=8.0,
+        actions=[
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=["joint_broad"],
+            )
+        ],
     )
 
     ekf_params = os.path.join(
@@ -87,7 +105,29 @@ def generate_launch_description():
         ],
     )
 
+    apriltag_config = os.path.join(
+        get_package_share_directory(package_name),
+        'config',
+        'apriltag.yaml'
+    )
+
+    apriltag_node = Node(
+        package='apriltag_ros',
+        executable='apriltag_node',
+        name='apriltag_node',
+        remappings=[
+            ('image_rect', '/back_camera/image_raw'),
+            ('camera_info', '/back_camera/camera_info'),
+        ],
+        parameters=[apriltag_config, {
+            'use_sim_time': True,
+            'queue_size': 10,
+            'sync_slop': 0.05,
+        }],
+    )
+
     return LaunchDescription([
+        gazebo_model_path,
         rsp,
         ekf_node,
         twist_mux,
@@ -95,6 +135,12 @@ def generate_launch_description():
         spawn_entity,
         diff_drive_spawner,
         joint_broad_spawner,
-        
+        apriltag_node,
+        Node(
+            package=package_name,
+            executable='apriltag_pose_2d',
+            name='apriltag_pose_2d',
+            output='screen',
+            parameters=[{'use_sim_time': True}],
+        ),
     ])
-

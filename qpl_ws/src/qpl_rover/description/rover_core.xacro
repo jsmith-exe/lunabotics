@@ -16,6 +16,7 @@
 
   <!-- Wheel dimensions -->
   <xacro:property name="wheel_r" value="0.10"/>
+
   <xacro:property name="wheel_w" value="0.03"/>
 
   <!-- Frame heights -->

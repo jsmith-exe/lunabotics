@@ -1,4 +1,3 @@
-#!/bin/bash
 # If you get an error to do with 'Unable to locate package', it may be due to Windows-style newlines
 sudo apt update
 
@@ -25,10 +24,13 @@ sudo apt -y install ros-humble-xacro \
   ros-humble-camera-info-manager \
   ros-humble-v4l2-camera \
   v4l-utils \
-  ros-humble-rtabmap-ros
-  ros-humble-gazebo-ros-pkgs
-#   gazebo \
+  ros-humble-rtabmap-ros \
+  ros-humble-gazebo-ros-pkgs \
+  ros-humble-apriltag-ros \
+  ros-humble-image-pipeline \
+  gazebo \
 
 sudo apt -y install mesa-utils
 
 sudo apt -y install libserial-dev
+  

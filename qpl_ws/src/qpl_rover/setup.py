@@ -13,7 +13,10 @@ setup(
     ("share/qpl_rover", ["package.xml"]),
     (os.path.join("share",  package_name, "description"), glob("description/*")),
     (os.path.join("share", package_name, "launch"), glob("launch/*")),
-    (os.path.join('share', package_name, 'worlds'), glob('worlds/*')),
+    (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
+    (os.path.join('share', package_name, 'worlds', 'apriltag_model'), glob('worlds/apriltag_model/model.config')),
+    (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'scripts'), glob('worlds/apriltag_model/materials/scripts/*')),
+    (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'textures'), glob('worlds/apriltag_model/materials/textures/*')),
     (os.path.join('share', package_name, 'config'), glob('config/*')),
     (os.path.join("share", package_name, "rviz"), glob("rviz/*")), 
     ],
@@ -29,6 +32,8 @@ setup(
         ],
     },
     entry_points={
-        'console_scripts': [],
+        'console_scripts': [
+            'apriltag_pose_2d = qpl_rover.nodes.apriltag_pose_2d:main',
+        ],
     },
 )
