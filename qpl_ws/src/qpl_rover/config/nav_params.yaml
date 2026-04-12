@@ -129,14 +129,17 @@ local_costmap:
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        observation_sources: scan
-        scan:
-          topic: /scan
-          data_type: "LaserScan"
+        observation_sources: rtab_local
+
+        rtab_local:
+          topic: /rtabmap/local_grid_obstacle
+          data_type: "PointCloud2"
           clearing: true
           marking: true
-          obstacle_max_range: 10.0
-          raytrace_max_range: 12.0
+          obstacle_max_range: 1.25    # match RTAB-Map max usable obstacle distance
+          raytrace_max_range: 1.5     # slightly beyond obstacle range for clearing
+          obstacle_range: 1.25
+          min_obstacle_height: 0.05
           max_obstacle_height: 2.0
 
       inflation_layer:
@@ -156,8 +159,8 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: true
-      update_frequency: 3.0
-      publish_frequency: 1.0
+      update_frequency: 5.0
+      publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_footprint
       rolling_window: true
@@ -168,20 +171,30 @@ global_costmap:
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
-      plugins: ["obstacle_layer", "inflation_layer"]
+    
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        enabled: true
+        map_topic: /rtabmap/map
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        observation_sources: scan
-        scan:
-          topic: /scan
-          data_type: "LaserScan"
+        observation_sources: rtabmap_obstacles
+
+        rtabmap_obstacles:
+          topic: /rtabmap/cloud_obstacles
+          data_type: "PointCloud2"
           clearing: true
           marking: true
-          obstacle_max_range: 10.0
-          raytrace_max_range: 12.0
+          obstacle_max_range: 1.25    # match RTAB-Map max obstacle cloud range
+          raytrace_max_range: 1.5     # slightly beyond obstacle range for clearing
           max_obstacle_height: 2.0
+          min_obstacle_height: 0.05
+          obstacle_range: 1.25
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -250,8 +263,8 @@ velocity_smoother:
     smoothing_frequency: 10.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.8, 0.0, 1.2]
-    min_velocity: [0.0, 0.0, -1.2]
+    max_velocity: [0.8, 0.0, 0.8]
+    min_velocity: [0.0, 0.0, -0.8]
     max_accel: [1.0, 0.0, 2.0]
     max_decel: [-1.0, 0.0, -2.0]
     odom_topic: /odometry/filtered
@@ -270,3 +283,23 @@ lifecycle_manager_navigation:
       - bt_navigator
       - waypoint_follower
       - velocity_smoother
+
+rtabmap:
+  ros__parameters:
+    use_sim_time: true
+    
+    # Depth cloud filtering — prevents phantom obstacle lines
+    cloud_max_depth: 1.25          # don't process points beyond this range
+    cloud_min_depth: 0.25          # ignore points too close (noise)
+    cloud_voxel_size: 0.05         # downsample for performance
+    
+    # Grid map settings
+    Grid/MaxObstacleHeight: 2.0
+    Grid/MinClusterSize: 10        # ignore small floating clusters
+    Grid/RangeMax: 1.25            # matches cloud_max_depth
+    Grid/RangeMin: 0.25            # matches cloud_min_depth
+    
+    # Obstacle cloud cleanup
+    Grid/FootprintLength: 0.6      # robot size for self-filtering
+    Grid/FootprintWidth: 0.6
+    Grid/FootprintHeight: 0.8
