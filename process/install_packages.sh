@@ -1,5 +1,5 @@
-/bin/bash
 # If you get an error to do with 'Unable to locate package', it may be due to Windows-style newlines
+echo "Test"
 sudo apt update
 
 sudo apt -y install ros-humble-xacro \
@@ -31,3 +31,4 @@ sudo apt -y install mesa-utils
 
 sudo apt -y install libserial-dev
   
+echo "Test"
