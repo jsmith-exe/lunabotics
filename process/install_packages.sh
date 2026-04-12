@@ -29,6 +29,7 @@ sudo apt -y install ros-humble-xacro \
   ros-humble-apriltag-ros \
   ros-humble-image-pipeline \
   gazebo \
+  ros-humble-tf-transformations
 
 sudo apt -y install mesa-utils
 

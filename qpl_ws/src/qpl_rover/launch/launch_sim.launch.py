@@ -26,26 +26,40 @@ def generate_launch_description():
     )
 
     rsp = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory(package_name),'launch','rsp.launch.py'
-                )]), launch_arguments={'use_sim_time': 'true', 'use_ros2_control': 'true'}.items()
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory(package_name), "launch", "rsp.launch.py"
+        )]),
+        launch_arguments={
+            "use_sim_time": "true",
+            "use_ros2_control": "true"
+        }.items()
     )
 
-    twist_mux_params = os.path.join(get_package_share_directory(package_name),'config','twist_mux.yaml')
+    twist_mux_params = os.path.join(
+        get_package_share_directory(package_name), "config", "twist_mux.yaml"
+    )
     twist_mux = Node(
-            package="twist_mux",
-            executable="twist_mux",
-            parameters=[twist_mux_params, {'use_sim_time': True}],
-            remappings=[('/cmd_vel_out','/diff_cont/cmd_vel_unstamped')]
-        )
+        package="twist_mux",
+        executable="twist_mux",
+        name="twist_mux",
+        output="screen",
+        parameters=[twist_mux_params, {"use_sim_time": True}],
+        remappings=[("cmd_vel_out", "/diff_cont/cmd_vel_unstamped")],
+    )
 
-    gazebo_params_file = os.path.join(get_package_share_directory(package_name), "config", "gazebo_params.yaml")
+    gazebo_params_file = os.path.join(
+        get_package_share_directory(package_name), "config", "gazebo_params.yaml"
+    )
 
     gazebo = IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
-                    launch_arguments={"world": world_path, 'extra_gazebo_args': '--ros-args --params-file ' + gazebo_params_file}.items()
-             )
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory("gazebo_ros"), "launch", "gzserver.launch.py"
+        )]),
+        launch_arguments={
+            "world": world_path,
+            "extra_gazebo_args": "--ros-args --params-file " + gazebo_params_file
+        }.items()
+    )
 
     spawn_entity = TimerAction(
         period=5.0,
@@ -56,34 +70,43 @@ def generate_launch_description():
                 arguments=[
                     "-topic", "robot_description",
                     "-entity", "rover",
-                    "-x", "1.0", # set to 0 (default) if not using april_arena.world
-                    "-y", "1.0", # set to 0 (default) if not using april_arena.world
+                    "-x", "5.0", # set to 0 (default) if not using april_arena.world
+                    "-y", "2.0", # set to 0 (default) if not using april_arena.world
                     "-z", "0.2"], # set to 0 (default) if not using april_arena.world
                 output="screen",
             )
         ],
     )
 
-    diff_drive_spawner = TimerAction(
-        period=8.0,
+    spawn_entity = TimerAction(
+        period=2.0,
         actions=[
             Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=["diff_cont"],
+                package="gazebo_ros",
+                executable="spawn_entity.py",
+                arguments=["-topic", "robot_description", "-entity", "rover",                     
+                        "-x", "1.0", # set to 0 (default) if not using april_arena.world
+                        "-y", "1.0", # set to 0 (default) if not using april_arena.world
+                        "-z", "0.2"], # set to 0 (default) if not using april_arena.world],
+                output="screen",
             )
-        ],
+        ]
     )
 
-    joint_broad_spawner = TimerAction(
-        period=8.0,
+    controller_spawners = TimerAction(
+        period=4.0,
         actions=[
             Node(
                 package="controller_manager",
                 executable="spawner",
                 arguments=["joint_broad"],
-            )
-        ],
+            ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=["diff_cont"],
+            ),
+        ]
     )
 
     ekf_params = os.path.join(
@@ -92,8 +115,11 @@ def generate_launch_description():
         "ekf_params.yaml",
     )
 
+    # Delay EKF until after controllers are up (period=4.0) so the robot exists
+    # and /diff_cont/odom + /imu/data are already publishing before EKF initialises.
+    # Starting EKF too early causes a bad initial state that never recovers cleanly.
     ekf_node = TimerAction(
-        period=2.0,
+        period=6.0,
         actions=[
             Node(
                 package="robot_localization",
@@ -107,40 +133,48 @@ def generate_launch_description():
 
     apriltag_config = os.path.join(
         get_package_share_directory(package_name),
-        'config',
-        'apriltag.yaml'
+        "config",
+        "apriltag.yaml",
     )
 
-    apriltag_node = Node(
-        package='apriltag_ros',
-        executable='apriltag_node',
-        name='apriltag_node',
-        remappings=[
-            ('image_rect', '/back_camera/image_raw'),
-            ('camera_info', '/back_camera/camera_info'),
+    apriltag_node = TimerAction(
+        period=7.0,
+        actions=[
+            Node(
+                package="apriltag_ros",
+                executable="apriltag_node",
+                name="apriltag_node",
+                output="screen",
+                remappings=[
+                    ("image_rect", "/back_camera/image_raw"),
+                    ("camera_info", "/back_camera/camera_info"),
+                ],
+                parameters=[apriltag_config, {"use_sim_time": True}],
+            )
         ],
-        parameters=[apriltag_config, {
-            'use_sim_time': True,
-            'queue_size': 10,
-            'sync_slop': 0.05,
-        }],
+    )
+
+    apriltag_map_odom = TimerAction(
+        period=8.0,
+        actions=[
+            Node(
+                package=package_name,
+                executable="apriltag_map_odom",
+                name="apriltag_map_odom",
+                output="screen",
+                parameters=[{"use_sim_time": True}],
+            )
+        ],
     )
 
     return LaunchDescription([
         gazebo_model_path,
         rsp,
-        ekf_node,
         twist_mux,
         gazebo,
         spawn_entity,
-        diff_drive_spawner,
-        joint_broad_spawner,
+        controller_spawners,
+        ekf_node,
         apriltag_node,
-        Node(
-            package=package_name,
-            executable='apriltag_pose_2d',
-            name='apriltag_pose_2d',
-            output='screen',
-            parameters=[{'use_sim_time': True}],
-        ),
+        apriltag_map_odom,
     ])
