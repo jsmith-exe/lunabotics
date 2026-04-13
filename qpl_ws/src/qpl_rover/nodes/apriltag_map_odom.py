@@ -62,19 +62,6 @@ class AprilTagMapOdom(Node):
         self.tf_broadcaster.sendTransform(t)
 
     def timer_callback(self):
-        if not self.tf_buffer.can_transform(
-            'tag36h11:0',
-            'base_footprint',
-            rclpy.time.Time(),
-            timeout=Duration(seconds=0.05)
-        ):
-            self.publish_identity_or_last_map_odom()
-            self.get_logger().info(
-                'AprilTag not visible yet, holding map -> odom',
-                throttle_duration_sec=5.0
-            )
-            return
-
         try:
             # Tag-based robot pose: tag frame is being used as map
             tag_tf = self.tf_buffer.lookup_transform(
@@ -82,6 +69,11 @@ class AprilTagMapOdom(Node):
                 'base_footprint',
                 rclpy.time.Time(),
                 timeout=Duration(seconds=0.2)
+            )
+
+            self.get_logger().info(
+                'AprilTag transform acquired',
+                throttle_duration_sec=2.0
             )
 
             # Axis mapping for your setup
@@ -162,7 +154,10 @@ class AprilTagMapOdom(Node):
             tf2_ros.ExtrapolationException,
         ) as e:
             self.publish_identity_or_last_map_odom()
-            self.get_logger().warn(f"TF error: {e}", throttle_duration_sec=2.0)
+            self.get_logger().info(
+                f'AprilTag transform not available yet: {e}',
+                throttle_duration_sec=5.0
+            )
 
 
 def main():

@@ -70,28 +70,14 @@ def generate_launch_description():
                 arguments=[
                     "-topic", "robot_description",
                     "-entity", "rover",
-                    "-x", "5.0", # set to 0 (default) if not using april_arena.world
-                    "-y", "2.0", # set to 0 (default) if not using april_arena.world
+                    "-x", "2.0", # set to 0 (default) if not using april_arena.world
+                    "-y", "1.0", # set to 0 (default) if not using april_arena.world
                     "-z", "0.2"], # set to 0 (default) if not using april_arena.world
                 output="screen",
             )
         ],
     )
 
-    spawn_entity = TimerAction(
-        period=2.0,
-        actions=[
-            Node(
-                package="gazebo_ros",
-                executable="spawn_entity.py",
-                arguments=["-topic", "robot_description", "-entity", "rover",                     
-                        "-x", "1.0", # set to 0 (default) if not using april_arena.world
-                        "-y", "1.0", # set to 0 (default) if not using april_arena.world
-                        "-z", "0.2"], # set to 0 (default) if not using april_arena.world],
-                output="screen",
-            )
-        ]
-    )
 
     controller_spawners = TimerAction(
         period=4.0,
@@ -146,8 +132,8 @@ def generate_launch_description():
                 name="apriltag_node",
                 output="screen",
                 remappings=[
-                    ("image_rect", "/back_camera/image_raw"),
-                    ("camera_info", "/back_camera/camera_info"),
+                    ("image_rect", "/depth_camera_rear/image_raw"),
+                    ("camera_info", "/depth_camera_rear/camera_info"),
                 ],
                 parameters=[apriltag_config, {"use_sim_time": True}],
             )
@@ -159,8 +145,8 @@ def generate_launch_description():
         actions=[
             Node(
                 package=package_name,
-                executable="apriltag_map_odom",
-                name="apriltag_map_odom",
+                executable="apriltag_pose_2d",
+                name="apriltag_pose_2d",
                 output="screen",
                 parameters=[{"use_sim_time": True}],
             )
