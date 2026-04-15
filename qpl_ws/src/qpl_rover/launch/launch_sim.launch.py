@@ -145,8 +145,8 @@ def generate_launch_description():
         actions=[
             Node(
                 package=package_name,
-                executable="apriltag_pose_2d",
-                name="apriltag_pose_2d",
+                executable="apriltag_map_odom",
+                name="apriltag_map_odom",
                 output="screen",
                 parameters=[{"use_sim_time": True}],
             )

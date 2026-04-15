@@ -1,11 +1,13 @@
+import math
+
 import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
+from rclpy.time import Time
 
 from geometry_msgs.msg import Pose2D, TransformStamped
 import tf2_ros
 import tf_transformations
-import math
 
 
 class AprilTagMapOdom(Node):
@@ -17,16 +19,19 @@ class AprilTagMapOdom(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
-        self.pose_pub = self.create_publisher(Pose2D, '/apriltag_pose_2d', 10)
+        self.publisher = self.create_publisher(Pose2D, '/apriltag_pose_2d', 10)
         self.timer = self.create_timer(0.1, self.timer_callback)
 
         self.prev_x = None
         self.prev_y = None
-        self.prev_yaw = None
+        self.prev_theta = None
         self.alpha = 0.2
 
         self.have_map_odom = False
         self.last_map_to_odom = None
+
+        # Maximum acceptable age of the tag transform before it is treated as stale
+        self.max_tag_age_sec = 0.3
 
     def filter_value(self, prev, new):
         if prev is None:
@@ -39,6 +44,17 @@ class AprilTagMapOdom(Node):
         diff = math.atan2(math.sin(new - prev), math.cos(new - prev))
         filtered = prev + self.alpha * diff
         return math.atan2(math.sin(filtered), math.cos(filtered))
+
+    def is_transform_fresh(self, transform, max_age_sec=None):
+        if max_age_sec is None:
+            max_age_sec = self.max_tag_age_sec
+
+        tf_time = Time.from_msg(transform.header.stamp)
+        now = self.get_clock().now()
+        age_sec = (now - tf_time).nanoseconds / 1e9
+
+        # Reject future-dated or stale transforms
+        return 0.0 <= age_sec < max_age_sec, age_sec
 
     def publish_identity_or_last_map_odom(self):
         now = self.get_clock().now().to_msg()
@@ -63,65 +79,80 @@ class AprilTagMapOdom(Node):
 
     def timer_callback(self):
         try:
-            # Tag-based robot pose: tag frame is being used as map
-            tag_tf = self.tf_buffer.lookup_transform(
+            # Pose of base_footprint in tag frame
+            tag_T_base = self.tf_buffer.lookup_transform(
                 'tag36h11:0',
                 'base_footprint',
                 rclpy.time.Time(),
                 timeout=Duration(seconds=0.2)
             )
 
-            self.get_logger().info(
-                'AprilTag transform acquired',
-                throttle_duration_sec=2.0
-            )
+            # Do not use the transform if it is stale
+            is_fresh, age_sec = self.is_transform_fresh(tag_T_base)
+            if not is_fresh:
+                self.publish_identity_or_last_map_odom()
+                self.get_logger().info(
+                    f'AprilTag transform is stale ({age_sec:.3f} s old); holding last map->odom',
+                    throttle_duration_sec=2.0
+                )
+                return
 
-            # Axis mapping for your setup
-            x_raw = tag_tf.transform.translation.z
-            y_raw = tag_tf.transform.translation.y
+            tx = tag_T_base.transform.translation.x
+            ty = tag_T_base.transform.translation.y
+            tz = tag_T_base.transform.translation.z
 
-            # Optional offsets if you want map origin shifted from tag origin
-            x_map_raw = x_raw
-            y_map_raw = y_raw
+            # Reuse the same planar mapping that already worked for map->base
+            x_raw = tz
+            y_raw = ty
 
-            q_tag = tag_tf.transform.rotation
-            _, _, yaw_map_raw = tf_transformations.euler_from_quaternion(
-                [q_tag.x, q_tag.y, q_tag.z, q_tag.w]
-            )
-            yaw_map_raw = math.atan2(math.sin(yaw_map_raw), math.cos(yaw_map_raw))
+            q = tag_T_base.transform.rotation
+            quaternion = [q.x, q.y, q.z, q.w]
+            rot = tf_transformations.quaternion_matrix(quaternion)
 
-            x_map = self.filter_value(self.prev_x, x_map_raw)
-            y_map = self.filter_value(self.prev_y, y_map_raw)
-            yaw_map = self.filter_angle(self.prev_yaw, yaw_map_raw)
+            # base +x axis expressed in tag frame
+            fwd_x_tag = rot[0, 0]
+            fwd_y_tag = rot[1, 0]
+            fwd_z_tag = rot[2, 0]
+
+            # Project onto chosen 2D plane
+            fwd_plane_x = fwd_z_tag
+            fwd_plane_y = fwd_y_tag
+            theta_raw = math.atan2(fwd_plane_y, fwd_plane_x)
+
+            # Filter estimated map->base pose
+            x_map = self.filter_value(self.prev_x, x_raw)
+            y_map = self.filter_value(self.prev_y, y_raw)
+            yaw_map = self.filter_angle(self.prev_theta, theta_raw)
 
             self.prev_x = x_map
             self.prev_y = y_map
-            self.prev_yaw = yaw_map
+            self.prev_theta = yaw_map
 
             pose = Pose2D()
             pose.x = x_map
             pose.y = y_map
             pose.theta = yaw_map
-            self.pose_pub.publish(pose)
+            self.publisher.publish(pose)
 
-            # Odom pose of robot
-            odom_tf = self.tf_buffer.lookup_transform(
+            # Pose of base_footprint in odom frame
+            odom_T_base = self.tf_buffer.lookup_transform(
                 'odom',
                 'base_footprint',
                 rclpy.time.Time(),
                 timeout=Duration(seconds=0.2)
             )
 
-            x_odom = odom_tf.transform.translation.x
-            y_odom = odom_tf.transform.translation.y
+            x_odom = odom_T_base.transform.translation.x
+            y_odom = odom_T_base.transform.translation.y
 
-            q_odom = odom_tf.transform.rotation
+            q_odom = odom_T_base.transform.rotation
             _, _, yaw_odom = tf_transformations.euler_from_quaternion(
                 [q_odom.x, q_odom.y, q_odom.z, q_odom.w]
             )
             yaw_odom = math.atan2(math.sin(yaw_odom), math.cos(yaw_odom))
 
-            # map -> odom
+            # Compute map->odom from:
+            # map->base = map->odom * odom->base
             yaw_mo = math.atan2(
                 math.sin(yaw_map - yaw_odom),
                 math.cos(yaw_map - yaw_odom)
@@ -164,4 +195,5 @@ def main():
     rclpy.init()
     node = AprilTagMapOdom()
     rclpy.spin(node)
+    node.destroy_node()
     rclpy.shutdown()

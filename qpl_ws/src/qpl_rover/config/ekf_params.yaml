@@ -23,7 +23,7 @@ ekf_filter_node:
     # ------------------------------------------------------------------
     imu0: /imu/data
     imu0_config: [false, false, false,   # x, y, z
-                  false, false, false,   # roll, pitch, yaw
+                  false, false, true,   # roll, pitch, yaw
                   false, false, false,   # vx, vy, vz
                   false, false, true,    # vroll, vpitch, vyaw
                   true, true, true]   # ax, ay, az
@@ -40,12 +40,12 @@ ekf_filter_node:
     # ------------------------------------------------------------------
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,  # x, y, z
-                   false, false, true,  # roll, pitch, yaw
+                   false, false, false,  # roll, pitch, yaw
                    true,  true,  false,  # vx, vy, vz
                    false, false, true,   # vroll, vpitch, vyaw
                    false, false, false]  # ax, ay, az
 
-    odom0_differential: true
+    odom0_differential: false
     odom0_relative: false
 
     # ------------------------------------------------------------------
@@ -56,23 +56,23 @@ ekf_filter_node:
     # ------------------------------------------------------------------
     odom1: /rtabmap/visual_odom
     odom1_config: [true,  true,  false,  # x, y, z
-                   false, false, true,   # roll, pitch, yaw
-                   false, false, false,  # vx, vy, vz
-                   false, false, false,  # vroll, vpitch, vyaw
+                   false, false, false,   # roll, pitch, yaw
+                   true, true, false,  # vx, vy, vz
+                   false, false, true,  # vroll, vpitch, vyaw
                    false, false, false]  # ax, ay, az
 
-    odom1_differential: true
+    odom1_differential: false
     odom1_relative: false
 
-    # If visual odom starts fighting wheel odom too hard, try this instead:
-    # odom1_config: [false, false, false,
-    #                false, false, false,
-    #                true,  false, false,
-    #                false, false, true,
-    #                false, false, false]
+    # # If visual odom starts fighting wheel odom too hard, try this instead:
+    # # odom1_config: [false, false, false,
+    # #                false, false, false,
+    # #                true,  false, false,
+    # #                false, false, true,
+    # #                false, false, false]
 
-    # ------------------------------------------------------------------
-    # General filter behavior
-    # ------------------------------------------------------------------
-    transform_time_offset: 0.0
-    transform_timeout: 0.0
+    # # ------------------------------------------------------------------
+    # # General filter behavior
+    # # ------------------------------------------------------------------
+    # transform_time_offset: 0.0
+    # transform_timeout: 0.0
