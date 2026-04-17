@@ -139,8 +139,8 @@ def generate_launch_description():
 
     return LaunchDescription([
         use_sim_time_arg,
-        perception_params_arg,
         odom_params_arg,
+        perception_params_arg,
         rgbd_sync_front,
         rgbd_sync_rear,
         rgbdx_sync,
