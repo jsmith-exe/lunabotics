@@ -95,27 +95,52 @@ def generate_launch_description():
         ]
     )
 
-    ekf_params = os.path.join(
+    ekf_local_params = os.path.join(
         get_package_share_directory(package_name),
         "config",
-        "ekf_params.yaml",
+        "ekf_local_params.yaml",
     )
 
     # Delay EKF until after controllers are up (period=4.0) so the robot exists
     # and /diff_cont/odom + /imu/data are already publishing before EKF initialises.
     # Starting EKF too early causes a bad initial state that never recovers cleanly.
-    ekf_node = TimerAction(
+    ekf_local_node = TimerAction(
         period=6.0,
         actions=[
             Node(
                 package="robot_localization",
                 executable="ekf_node",
-                name="ekf_filter_node",
+                name="ekf_local",
                 output="screen",
-                parameters=[ekf_params, {"use_sim_time": True}],
+                parameters=[ekf_local_params, {"use_sim_time": True}],
             )
         ],
     )
+
+    # ekf_global_params = os.path.join(
+    #     get_package_share_directory(package_name),
+    #     "config",
+    #     "ekf_global_params.yaml",
+    # )
+
+    # # Delay EKF until after controllers are up (period=4.0) so the robot exists
+    # # and /diff_cont/odom + /imu/data are already publishing before EKF initialises.
+    # # Starting EKF too early causes a bad initial state that never recovers cleanly.
+    # ekf_global_node = TimerAction(
+    #     period=6.0,
+    #     actions=[
+    #         Node(
+    #             package="robot_localization",
+    #             executable="ekf_node",
+    #             name="ekf_global",
+    #             output="screen",
+    #             parameters=[ekf_global_params, {"use_sim_time": True}],
+    #             remappings=[
+    #                 ("odometry/filtered", "/odometry/global"),
+    #             ],
+    #         )
+    #     ],
+    # )
 
     apriltag_config = os.path.join(
         get_package_share_directory(package_name),
@@ -145,13 +170,26 @@ def generate_launch_description():
         actions=[
             Node(
                 package=package_name,
-                executable="apriltag_map_odom",
-                name="apriltag_map_odom",
+                executable="apriltag_map_odom_3d",
+                name="apriltag_map_odom_3d",
                 output="screen",
                 parameters=[{"use_sim_time": True}],
             )
         ],
     )
+
+    # apriltag_tag_base = TimerAction(
+    #     period=9.0,
+    #     actions=[
+    #         Node(
+    #             package=package_name,
+    #             executable="apriltag_tag_base",
+    #             name="apriltag_tag_base",
+    #             output="screen",
+    #             parameters=[{"use_sim_time": True}],
+    #         )
+    #     ],
+    # )
 
     return LaunchDescription([
         gazebo_model_path,
@@ -160,7 +198,7 @@ def generate_launch_description():
         gazebo,
         spawn_entity,
         controller_spawners,
-        ekf_node,
+        ekf_local_node,
         apriltag_node,
-        apriltag_map_odom,
+        apriltag_map_odom
     ])
