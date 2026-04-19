@@ -85,6 +85,59 @@ alias qpl_controller_fwd='ros2 run basestation nav_pub'
 alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 
+qpl_orbbecsdk_clone() {
+  git clone --single-branch --branch main git@github.com:orbbec/OrbbecSDK_ROS2.git "${QPL_PROJECT}/OrbbecSDK_ROS2"
+}
+qpl_orbbecsdk_build() {
+  # For camera
+  sudo apt install libgflags-dev nlohmann-json3-dev  \
+    ros-humble-image-transport  ros-humble-image-transport-plugins ros-humble-compressed-image-transport \
+    ros-humble-image-publisher ros-humble-camera-info-manager \
+    ros-humble-diagnostic-updater ros-humble-diagnostic-msgs ros-humble-statistics-msgs \
+    ros-humble-backward-ros libdw-dev
+  # Additional camera setup
+  cd "${QPL_PROJECT}/qpl_ws/src/OrbbecSDK_ROS2/orbbec_camera/scripts"
+  sudo bash install_udev_rules.sh
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+
+  local prev_path=$(pwd)
+  cd "${QPL_PROJECT}/OrbbecSDK_ROS2"
+  colcon build --event-handlers  console_direct+  --cmake-args  -DCMAKE_BUILD_TYPE=Release
+  cd "$prev_path"
+}
+qpl_orbbecsdk_run() {
+  ros2 launch orbbec_camera astra_pro_plus.launch.py
+}
+
+# For WSL: a path that can be used in PowerShell to run controller scripts without worrying about WSL path translation
+get_qpl_project_windows_path() {
+  wslpath -w "$QPL_PROJECT"
+}
+qpl_wsl_run_controller() {
+  powershell.exe -Command "
+      cd $(get_qpl_project_windows_path);
+      .\run_controller.ps1;
+  "
+}
+
+qpl_wsl_setup_controller() {
+  powershell.exe -Command "
+      cd $(get_qpl_project_windows_path)\qpl_ws\src\basestation;
+      .\setup_controller.ps1;
+  "
+}
+
+qpl_list_processes() {
+  local colors=(31 32 33 34 35 36)
+  local n_colors=${#colors[@]}
+  local i=0
+
+  pgrep -af ros | while read -r line; do
+    echo -e "\033[${colors[$((i % "$n_colors"))]}m${line}\033[0m"
+    (( i++ ))
+  done
+}
+
 # Use functions (not aliases) for anything that needs env switching
 qpl_headless() {
   qpl_use_software_render
@@ -132,3 +185,7 @@ source "$QPL_PROJECT/qpl_ws/install/setup.bash"
 source "$QPL_PROJECT/process/networking_limits.sh"
 
 export GAZEBO_MODEL_PATH=$QPL_PROJECT/qpl_ws/src/qpl_rover/worlds:$GAZEBO_MODEL_PATH
+
+if [ -f "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash" ]; then
+  source "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash"
+fi

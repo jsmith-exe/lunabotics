@@ -35,7 +35,7 @@ qpl_net_limit_set() {
   DOWNLOAD=$(echo "$MAX_KBPS - $UPLOAD" | bc)
 
   cat << EOF
-Limiting $DEFAULT_LIMITED_INTERFACE to ${MAX_KBPS} Kbps
+Limiting $INTERFACE to ${MAX_KBPS} Kbps
     Egress/upload: $UPLOAD Kbps (${EGRESS_PERCENT}%)
     Ingress/download: $DOWNLOAD Kbps ($((100 - EGRESS_PERCENT))%)
 EOF
