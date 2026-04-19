@@ -3,69 +3,85 @@
 
   <xacro:include filename="inertial_macros.xacro"/>
 
+  <!-- Materials -->
   <material name="gray"><color rgba="0.6 0.6 0.6 1.0"/></material>
   <material name="black"><color rgba="0.05 0.05 0.05 1.0"/></material>
   <material name="red"><color rgba="0.8 0.1 0.1 1.0"/></material>
   <material name="blue"><color rgba="0.2 0.2 1.0 1.0"/></material>
 
+  <!-- Base dimensions -->
   <xacro:property name="base_x" value="0.50"/>
   <xacro:property name="base_y" value="0.30"/>
   <xacro:property name="base_z" value="0.18"/>
 
+  <!-- Wheel dimensions -->
   <xacro:property name="wheel_r" value="0.10"/>
-  <!-- base_link is located above the ground by wheel radius + half the base height -->
-  <xacro:property name="base_z_origin" value="${wheel_r + base_z/2}"/>
 
   <xacro:property name="wheel_w" value="0.03"/>
 
+  <!-- Frame heights -->
+  <!-- base_footprint is on the ground -->
+  <!-- base_link is at chassis centre -->
+  <xacro:property name="base_link_z" value="${wheel_r + base_z/2}"/>
+
+  <!-- Wheel positions relative to base_link -->
   <xacro:property name="wheel_x_front" value="0.18"/>
   <xacro:property name="wheel_x_rear"  value="-0.18"/>
   <xacro:property name="wheel_y" value="${base_y/2 + wheel_w/2}"/>
-  <xacro:property name="wheel_z" value="${wheel_r}"/>
+  <xacro:property name="wheel_z" value="${-base_z/2}"/>
 
-  <!-- 2D ground-projected base frame -->
+  <!-- Ground-projected frame -->
   <link name="base_footprint"/>
 
-  <!-- Body frame -->
+  <!-- Main body frame -->
   <link name="base_link">
     <visual>
-      <origin xyz="0 0 ${base_z_origin}" rpy="0 0 0"/>
-      <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_x} ${base_y} ${base_z}"/>
+      </geometry>
       <material name="gray"/>
     </visual>
+
     <collision>
-      <origin xyz="0 0 ${base_z_origin}" rpy="0 0 0"/>
-      <geometry><box size="${base_x} ${base_y} ${base_z}"/></geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_x} ${base_y} ${base_z}"/>
+      </geometry>
     </collision>
+
     <xacro:inertial_box mass="10.0" x="${base_x}" y="${base_y}" z="${base_z}">
-      <origin xyz="0 0 ${base_z_origin}" rpy="0 0 0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
     </xacro:inertial_box>
   </link>
 
-  <!-- base_footprint -> base_link (base_link sits above ground) -->
+  <!-- Lift base_link above the ground -->
   <joint name="base_footprint_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
-    <origin xyz="0 0 ${base_z_origin}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${base_link_z}" rpy="0 0 0"/>
   </joint>
 
   <gazebo reference="base_link">
     <material>Gazebo/Grey</material>
   </gazebo>
 
-  <!-- WHEELS -->
+  <!-- Wheel macro -->
   <xacro:macro name="wheel_link" params="name">
     <link name="${name}">
       <visual>
         <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
-        <geometry><cylinder radius="${wheel_r}" length="${wheel_w}"/></geometry>
+        <geometry>
+          <cylinder radius="${wheel_r}" length="${wheel_w}"/>
+        </geometry>
         <material name="red"/>
       </visual>
 
-      <!-- slightly smaller collision helps avoid micro-binding -->
       <collision>
         <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
-        <geometry><cylinder radius="${wheel_r*0.98}" length="${wheel_w*0.95}"/></geometry>
+        <geometry>
+          <cylinder radius="${wheel_r*0.98}" length="${wheel_w*0.95}"/>
+        </geometry>
       </collision>
 
       <xacro:inertial_cylinder mass="0.5" length="${wheel_w}" radius="${wheel_r}">
@@ -77,28 +93,22 @@
       <material>Gazebo/Red</material>
     </gazebo>
 
-    <!-- ONE gazebo block per wheel -->
     <gazebo reference="${name}">
-
       <fdir1>1 0 0</fdir1>
-
-      <!-- skid-steer turning: reduce lateral friction -->
       <mu1>1.4</mu1>
       <mu2>0.2</mu2>
-
-      <!-- optional: allow lateral slip -->
       <slip1>0.0</slip1>
       <slip2>0.0</slip2>
-
     </gazebo>
-
   </xacro:macro>
 
+  <!-- Wheels -->
   <xacro:wheel_link name="front_left_wheel"/>
   <xacro:wheel_link name="front_right_wheel"/>
   <xacro:wheel_link name="rear_left_wheel"/>
   <xacro:wheel_link name="rear_right_wheel"/>
 
+  <!-- Wheel joints -->
   <joint name="front_left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="front_left_wheel"/>

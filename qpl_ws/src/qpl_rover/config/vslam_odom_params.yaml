@@ -1,0 +1,46 @@
+/rtabmap/rgbd_odometry:
+  ros__parameters:
+    use_sim_time: true
+
+    # Frames
+    frame_id: base_footprint
+    odom_frame_id: odom
+
+    # Single front RGB-D camera
+    subscribe_rgb: true
+    subscribe_depth: true
+    subscribe_rgbd: false
+
+    # Sync
+    approx_sync: true
+    approx_sync_max_interval: 0.03
+    sync_queue_size: 10
+
+    # TF
+    publish_tf: false
+    tf_delay: 0.05
+    tf_tolerance: 0.1
+    guess_frame_id: ""
+
+    # Planar rover
+    Reg/Force3DoF: "true"
+
+    # Visual odom tuning
+    Vis/MaxFeatures: "400"
+    Vis/MinInliers: "8"
+    Vis/InlierDistance: "0.10"
+
+    # Update thresholds
+    RGBD/LinearUpdate: "0.05"
+    RGBD/AngularUpdate: "0.05"
+
+    # Depth handling
+    cloud_max_depth: 1.25
+    cloud_min_depth: 0.10
+    cloud_voxel_size: 0.05
+
+    # Odometry behaviour
+    Odom/ResetCountdown: "0"
+    Odom/FilteringStrategy: "0"
+    Odom/GuessMotion: "true"
+    Odom/FillInfoData: "true"
