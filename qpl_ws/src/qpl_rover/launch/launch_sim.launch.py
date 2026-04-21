@@ -9,7 +9,6 @@ from launch.actions import TimerAction
 
 
 def generate_launch_description():
-
     package_name = "qpl_rover"
 
     # tell gazebo where to find the apriltag model so the texture loads on any machine
@@ -35,16 +34,10 @@ def generate_launch_description():
         }.items()
     )
 
-    twist_mux_params = os.path.join(
-        get_package_share_directory(package_name), "config", "twist_mux.yaml"
-    )
-    twist_mux = Node(
-        package="twist_mux",
-        executable="twist_mux",
-        name="twist_mux",
-        output="screen",
-        parameters=[twist_mux_params, {"use_sim_time": True}],
-        remappings=[("cmd_vel_out", "/diff_cont/cmd_vel_unstamped")],
+    controllers = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory(package_name), "launch", "controllers.launch.py"
+        )])
     )
 
     gazebo_params_file = os.path.join(
@@ -78,127 +71,24 @@ def generate_launch_description():
         ],
     )
 
-
-    controller_spawners = TimerAction(
-        period=4.0,
-        actions=[
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=["joint_broad"],
-            ),
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=["diff_cont"],
-            ),
-        ]
+    odom_localisation = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory(package_name), "launch", "odom_localisation.launch.py"
+        )])
     )
 
-    ekf_local_params = os.path.join(
-        get_package_share_directory(package_name),
-        "config",
-        "ekf_local_params.yaml",
+    map_localisation = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory(package_name), "launch", "map_localisation.launch.py"
+        )])
     )
-
-    # Delay EKF until after controllers are up (period=4.0) so the robot exists
-    # and /diff_cont/odom + /imu/data are already publishing before EKF initialises.
-    # Starting EKF too early causes a bad initial state that never recovers cleanly.
-    ekf_local_node = TimerAction(
-        period=6.0,
-        actions=[
-            Node(
-                package="robot_localization",
-                executable="ekf_node",
-                name="ekf_local",
-                output="screen",
-                parameters=[ekf_local_params, {"use_sim_time": True}],
-            )
-        ],
-    )
-
-    # ekf_global_params = os.path.join(
-    #     get_package_share_directory(package_name),
-    #     "config",
-    #     "ekf_global_params.yaml",
-    # )
-
-    # # Delay EKF until after controllers are up (period=4.0) so the robot exists
-    # # and /diff_cont/odom + /imu/data are already publishing before EKF initialises.
-    # # Starting EKF too early causes a bad initial state that never recovers cleanly.
-    # ekf_global_node = TimerAction(
-    #     period=6.0,
-    #     actions=[
-    #         Node(
-    #             package="robot_localization",
-    #             executable="ekf_node",
-    #             name="ekf_global",
-    #             output="screen",
-    #             parameters=[ekf_global_params, {"use_sim_time": True}],
-    #             remappings=[
-    #                 ("odometry/filtered", "/odometry/global"),
-    #             ],
-    #         )
-    #     ],
-    # )
-
-    apriltag_config = os.path.join(
-        get_package_share_directory(package_name),
-        "config",
-        "apriltag.yaml",
-    )
-
-    apriltag_node = TimerAction(
-        period=7.0,
-        actions=[
-            Node(
-                package="apriltag_ros",
-                executable="apriltag_node",
-                name="apriltag_node",
-                output="screen",
-                remappings=[
-                    ("image_rect", "/depth_camera_rear/image_raw"),
-                    ("camera_info", "/depth_camera_rear/camera_info"),
-                ],
-                parameters=[apriltag_config, {"use_sim_time": True}],
-            )
-        ],
-    )
-
-    apriltag_map_odom = TimerAction(
-        period=8.0,
-        actions=[
-            Node(
-                package=package_name,
-                executable="apriltag_map_odom_3d",
-                name="apriltag_map_odom_3d",
-                output="screen",
-                parameters=[{"use_sim_time": True}],
-            )
-        ],
-    )
-
-    # apriltag_tag_base = TimerAction(
-    #     period=9.0,
-    #     actions=[
-    #         Node(
-    #             package=package_name,
-    #             executable="apriltag_tag_base",
-    #             name="apriltag_tag_base",
-    #             output="screen",
-    #             parameters=[{"use_sim_time": True}],
-    #         )
-    #     ],
-    # )
 
     return LaunchDescription([
         gazebo_model_path,
         rsp,
-        twist_mux,
+        controllers,
         gazebo,
         spawn_entity,
-        controller_spawners,
-        ekf_local_node,
-        apriltag_node,
-        apriltag_map_odom
+        odom_localisation,
+        map_localisation,
     ])
