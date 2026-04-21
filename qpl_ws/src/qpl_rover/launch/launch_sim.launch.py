@@ -11,6 +11,12 @@ from launch.actions import TimerAction
 def generate_launch_description():
     package_name = "qpl_rover"
 
+    components_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(
+            get_package_share_directory(package_name), "launch", "components.launch.py"
+        )])
+    )
+
     # tell gazebo where to find the apriltag model so the texture loads on any machine
     models_path = os.path.join(get_package_share_directory(package_name), "worlds")
     gazebo_model_path = SetEnvironmentVariable(
@@ -22,22 +28,6 @@ def generate_launch_description():
         get_package_share_directory(package_name),
         "worlds",
         "arena_april.world"
-    )
-
-    rsp = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory(package_name), "launch", "rsp.launch.py"
-        )]),
-        launch_arguments={
-            "use_sim_time": "true",
-            "use_ros2_control": "true"
-        }.items()
-    )
-
-    controllers = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory(package_name), "launch", "controllers.launch.py"
-        )])
     )
 
     gazebo_params_file = os.path.join(
@@ -71,24 +61,9 @@ def generate_launch_description():
         ],
     )
 
-    odom_localisation = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory(package_name), "launch", "odom_localisation.launch.py"
-        )])
-    )
-
-    map_localisation = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory(package_name), "launch", "map_localisation.launch.py"
-        )])
-    )
-
     return LaunchDescription([
+        components_launch,
         gazebo_model_path,
-        rsp,
-        controllers,
         gazebo,
         spawn_entity,
-        odom_localisation,
-        map_localisation,
     ])
