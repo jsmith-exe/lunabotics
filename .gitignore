@@ -93,3 +93,4 @@ log/
 .use_server_sim
 OrbbecSDK_ROS2/
 Log/
+*:Zone.Identifier
