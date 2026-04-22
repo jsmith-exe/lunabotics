@@ -3,9 +3,8 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from os import path, environ
 
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import TimerAction
 
 
 def generate_launch_description():
@@ -31,7 +30,7 @@ def generate_launch_description():
         launch_arguments={
             "world": world_path,
             "extra_gazebo_args": f"--ros-args --params-file {gazebo_params_file}"
-        }
+        }.items()
     )
 
     spawn_entity = TimerAction(
