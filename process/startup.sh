@@ -80,7 +80,7 @@ alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r
 alias qpl_slam='ros2 launch qpl_rover online_async_launch.py'
 alias qpl_cloud_to_scan='ros2 launch qpl_rover point_cloud_to_scan.launch.py'
 alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
-alias qpl_rover='ros2 launch qpl_rover launch_rover.launch.py'
+alias qpl_rover='ros2 launch qpl_rover rover.launch.py'
 alias qpl_controller_fwd='ros2 run basestation nav_pub'
 alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
@@ -147,7 +147,7 @@ qpl_headless() {
 
   qpl_print_renderer
 
-  ros2 launch qpl_rover headless_sim.launch.py "$@"
+  ros2 launch qpl_rover sim.launch.py "$@" headless:=true
 }
 
 
@@ -159,7 +159,7 @@ qpl_sim() {
 
   qpl_print_renderer
 
-  ros2 launch qpl_rover launch_sim.launch.py "$@"
+  ros2 launch qpl_rover sim.launch.py "$@"
 }
 
 qpl_rviz() {
