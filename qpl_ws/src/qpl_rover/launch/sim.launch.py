@@ -10,8 +10,8 @@ from launch.actions import TimerAction
 
 def generate_launch_description():
     selected_world = "arena_april.world"
-    rover_directory: str = get_package_share_directory("qpl_rover"),
-    gazebo_directory: str = get_package_share_directory("gazebo_ros"),
+    rover_directory: str = get_package_share_directory("qpl_rover")
+    gazebo_directory: str = get_package_share_directory("gazebo_ros")
 
     components_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(path.join(rover_directory, "launch", "components.launch.py"))
