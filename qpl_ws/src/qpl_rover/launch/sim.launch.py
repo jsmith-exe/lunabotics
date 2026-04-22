@@ -34,10 +34,26 @@ def generate_launch_description():
         }
     )
 
-
+    spawn_entity = TimerAction(
+        period=5.0,
+        actions=[
+            Node(
+                package="gazebo_ros",
+                executable="spawn_entity.py",
+                arguments=[
+                    "-topic", "robot_description",
+                    "-entity", "rover",
+                    "-x", "2.0", # set to 0 (default) if not using april_arena.world
+                    "-y", "1.0", # set to 0 (default) if not using april_arena.world
+                    "-z", "0.2"], # set to 0 (default) if not using april_arena.world
+                output="screen",
+            )
+        ],
+    )
 
     return LaunchDescription([
         components_launch,
         gazebo_model_path,
         gazebo,
+        spawn_entity,
     ])
