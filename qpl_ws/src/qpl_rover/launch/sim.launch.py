@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-import os
+from os import path, environ
 
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -9,39 +9,29 @@ from launch.actions import TimerAction
 
 
 def generate_launch_description():
-    package_name = "qpl_rover"
+    selected_world = "arena_april.world"
+    rover_directory: str = get_package_share_directory("qpl_rover"),
+    gazebo_directory: str = get_package_share_directory("gazebo_ros"),
 
     components_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory(package_name), "launch", "components.launch.py"
-        )])
+        PythonLaunchDescriptionSource(path.join(rover_directory, "launch", "components.launch.py"))
     )
 
     # tell gazebo where to find the apriltag model so the texture loads on any machine
-    models_path = os.path.join(get_package_share_directory(package_name), "worlds")
+    models_path = path.join(rover_directory, "worlds")
     gazebo_model_path = SetEnvironmentVariable(
         'GAZEBO_MODEL_PATH',
-        models_path + ':' + os.environ.get('GAZEBO_MODEL_PATH', '')
+        models_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
     )
 
-    world_path = os.path.join(
-        get_package_share_directory(package_name),
-        "worlds",
-        "arena_april.world"
-    )
-
-    gazebo_params_file = os.path.join(
-        get_package_share_directory(package_name), "config", "gazebo_params.yaml"
-    )
-
+    world_path = path.join(rover_directory, "worlds", selected_world)
+    gazebo_params_file = path.join(rover_directory, "config", "gazebo_params.yaml")
     gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory("gazebo_ros"), "launch", "gazebo.launch.py"
-        )]),
+        PythonLaunchDescriptionSource(path.join(gazebo_directory, "launch", "gazebo.launch.py")),
         launch_arguments={
             "world": world_path,
-            "extra_gazebo_args": "--ros-args --params-file " + gazebo_params_file
-        }.items()
+            "extra_gazebo_args": f"--ros-args --params-file {gazebo_params_file}"
+        }
     )
 
     spawn_entity = TimerAction(
