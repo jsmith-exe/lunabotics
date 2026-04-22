@@ -12,9 +12,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 rover_pkg: str = get_package_share_directory("qpl_rover")
 
 def get_component_python_launch(name: str) -> PythonLaunchDescriptionSource:
-    return PythonLaunchDescriptionSource(os.path.join(
-        rover_pkg, "launch", f"{name}.launch.py"
-    )),
+    return PythonLaunchDescriptionSource(
+        os.path.join(rover_pkg, "launch", f"{name}.launch.py")
+    )
 
 def generate_launch_description():
     rsp = IncludeLaunchDescription(
