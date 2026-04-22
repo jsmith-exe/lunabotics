@@ -3,14 +3,37 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from os import path, environ
 
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction, DeclareLaunchArgument, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 
+selected_world = "arena_april.world"
+rover_directory: str = get_package_share_directory("qpl_rover")
+gazebo_directory: str = get_package_share_directory("gazebo_ros")
+
+def gazebo_setup(context):
+    """ Separate function to evaluate headless option. """
+    headless = LaunchConfiguration('headless').perform(context)
+    mode = "gzserver" if headless == "true" else "gazebo"
+    world_path = path.join(rover_directory, "worlds", selected_world)
+    gazebo_params_file = path.join(rover_directory, "config", "gazebo_params.yaml")
+
+    gazebo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(path.join(gazebo_directory, "launch", f"{mode}.launch.py")),
+        launch_arguments={
+            "world": world_path,
+            "extra_gazebo_args": f"--ros-args --params-file {gazebo_params_file}"
+        }.items()
+    )
+
+    return [gazebo]
 
 def generate_launch_description():
-    selected_world = "arena_april.world"
-    rover_directory: str = get_package_share_directory("qpl_rover")
-    gazebo_directory: str = get_package_share_directory("gazebo_ros")
+    headless_parameter = DeclareLaunchArgument(
+        'headless',
+        default_value='false',
+        description='Whether to run Gazebo in headless mode (true won\'t show GUI).'
+    )
 
     components_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(path.join(rover_directory, "launch", "components.launch.py"))
@@ -21,16 +44,6 @@ def generate_launch_description():
     gazebo_model_path = SetEnvironmentVariable(
         'GAZEBO_MODEL_PATH',
         models_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
-    )
-
-    world_path = path.join(rover_directory, "worlds", selected_world)
-    gazebo_params_file = path.join(rover_directory, "config", "gazebo_params.yaml")
-    gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(path.join(gazebo_directory, "launch", "gazebo.launch.py")),
-        launch_arguments={
-            "world": world_path,
-            "extra_gazebo_args": f"--ros-args --params-file {gazebo_params_file}"
-        }.items()
     )
 
     spawn_entity = TimerAction(
@@ -51,8 +64,9 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        headless_parameter,
         components_launch,
         gazebo_model_path,
-        gazebo,
+        OpaqueFunction(function=gazebo_setup),
         spawn_entity,
     ])

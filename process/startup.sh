@@ -147,7 +147,7 @@ qpl_headless() {
 
   qpl_print_renderer
 
-  ros2 launch qpl_rover headless_sim.launch.py "$@"
+  ros2 launch qpl_rover sim.launch.py "$@" headless:=true
 }
 
 
