@@ -1,3 +1,6 @@
+"""
+Robot State Publisher
+"""
 import os
 import xml.etree.ElementTree as ET
 
