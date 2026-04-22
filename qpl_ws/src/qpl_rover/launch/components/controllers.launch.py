@@ -3,17 +3,14 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import TimerAction
 
 
 def generate_launch_description():
-    package_name = "qpl_rover"
+    rover_pkg: str = get_package_share_directory("qpl_rover")
 
-    twist_mux_params = os.path.join(
-        get_package_share_directory(package_name), "config", "twist_mux.yaml"
-    )
+    twist_mux_params = os.path.join(rover_pkg, "config", "twist_mux.yaml")
     twist_mux = Node(
         package="twist_mux",
         executable="twist_mux",
