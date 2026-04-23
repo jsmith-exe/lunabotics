@@ -36,6 +36,20 @@ ament_target_dependencies(
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
+# Standalone test executable
+add_executable(
+  spark_max_test
+  hardware/spark_max_test.cpp
+)
+target_compile_features(spark_max_test PUBLIC cxx_std_17)
+target_include_directories(spark_max_test PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+  $<INSTALL_INTERFACE:include/diffdrive_canbus>
+)
+
+target_link_libraries(spark_max_test serial)
+
+
 target_link_libraries(diffdrive_canbus PUBLIC serial)
 
 # Causes the visibility macros to use dllexport rather than dllimport,
@@ -63,6 +77,12 @@ install(TARGETS diffdrive_canbus
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(
+  TARGETS
+    spark_max_test
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

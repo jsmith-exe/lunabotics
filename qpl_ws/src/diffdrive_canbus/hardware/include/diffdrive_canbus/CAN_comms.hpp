@@ -2,10 +2,15 @@
 #define DIFFDRIVE_CANBUS__CAN_COMMS_HPP_
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
+#include <functional>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -21,7 +26,7 @@ struct CANFrame
   uint32_t id = 0;
   uint8_t dlc = 0;
   uint8_t data[8] = {0};
-  bool extended = false;
+  bool extended = true;
   bool remote = false;
 };
 
@@ -74,6 +79,48 @@ inline uint8_t can_baud_to_waveshare_code(int32_t can_baud_rate)
   }
 }
 
+// Helpers for REV/SPARK MAX style 29-bit FRC CAN IDs.
+// Bit layout:
+// [28:24] Device Type
+// [23:16] Manufacturer
+// [15:10] API Class
+// [ 9: 6] API Index
+// [ 5: 0] Device ID
+struct SparkMaxCanIdFields
+{
+  uint8_t device_type = 0;
+  uint8_t manufacturer = 0;
+  uint8_t api_class = 0;
+  uint8_t api_index = 0;
+  uint8_t device_id = 0;
+};
+
+inline uint32_t make_frc_extended_can_id(
+  uint8_t device_type,
+  uint8_t manufacturer,
+  uint8_t api_class,
+  uint8_t api_index,
+  uint8_t device_id)
+{
+  return
+    ((static_cast<uint32_t>(device_type)  & 0x1F) << 24) |
+    ((static_cast<uint32_t>(manufacturer) & 0xFF) << 16) |
+    ((static_cast<uint32_t>(api_class)    & 0x3F) << 10) |
+    ((static_cast<uint32_t>(api_index)    & 0x0F) <<  6) |
+    ((static_cast<uint32_t>(device_id)    & 0x3F) <<  0);
+}
+
+inline SparkMaxCanIdFields parse_frc_extended_can_id(uint32_t id)
+{
+  SparkMaxCanIdFields fields;
+  fields.device_type  = static_cast<uint8_t>((id >> 24) & 0x1F);
+  fields.manufacturer = static_cast<uint8_t>((id >> 16) & 0xFF);
+  fields.api_class    = static_cast<uint8_t>((id >> 10) & 0x3F);
+  fields.api_index    = static_cast<uint8_t>((id >>  6) & 0x0F);
+  fields.device_id    = static_cast<uint8_t>((id >>  0) & 0x3F);
+  return fields;
+}
+
 class CANComms
 {
 public:
@@ -90,7 +137,7 @@ public:
   void connect(
     const std::string & device,
     int32_t serial_baud_rate = 2000000,
-    int32_t timeout_ms = 500)
+    int32_t timeout_ms = 100)
   {
     timeout_ms_ = timeout_ms;
 
@@ -103,66 +150,21 @@ public:
     {
       if (serial_conn_.IsOpen())
       {
-        try { serial_conn_.Close(); }
-        catch (const std::exception & e)
-        {
-          throw std::runtime_error(
-            "Failed to close existing connection on '" + device + "': " + e.what());
-        }
+        serial_conn_.Close();
       }
 
-      try { serial_conn_.Open(device); }
-      catch (const std::exception & e)
-      {
-        throw std::runtime_error(
-          "Failed to open serial device '" + device + "': " + e.what());
-      }
-
-      try { serial_conn_.SetBaudRate(convert_baud_rate(serial_baud_rate)); }
-      catch (const std::exception & e)
-      {
-        throw std::runtime_error(
-          "Failed to set baud rate (" + std::to_string(serial_baud_rate) + "): " + e.what());
-      }
-
-      try { serial_conn_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8); }
-      catch (const std::exception & e)
-      {
-        throw std::runtime_error(std::string("Failed to set character size: ") + e.what());
-      }
-
-      try { serial_conn_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE); }
-      catch (const std::exception & e)
-      {
-        throw std::runtime_error(std::string("Failed to set flow control: ") + e.what());
-      }
-
-      try { serial_conn_.SetParity(LibSerial::Parity::PARITY_NONE); }
-      catch (const std::exception & e)
-      {
-        throw std::runtime_error(std::string("Failed to set parity: ") + e.what());
-      }
-
-      try { serial_conn_.SetStopBits(LibSerial::StopBits::STOP_BITS_1); }
-      catch (const std::exception & e)
-      {
-        throw std::runtime_error(std::string("Failed to set stop bits: ") + e.what());
-      }
-
-      try { serial_conn_.FlushIOBuffers(); }
-      catch (const std::exception & e)
-      {
-        throw std::runtime_error(std::string("Failed to flush IO buffers: ") + e.what());
-      }
-    }
-    catch (const std::runtime_error &)
-    {
-      throw; // re-throw the specific messages we already built
+      serial_conn_.Open(device);
+      serial_conn_.SetBaudRate(convert_baud_rate(serial_baud_rate));
+      serial_conn_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
+      serial_conn_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
+      serial_conn_.SetParity(LibSerial::Parity::PARITY_NONE);
+      serial_conn_.SetStopBits(LibSerial::StopBits::STOP_BITS_1);
+      serial_conn_.FlushIOBuffers();
     }
     catch (const std::exception & e)
     {
       throw std::runtime_error(
-        "Unexpected error configuring '" + device + "': " + e.what());
+        "Failed to open/configure serial device '" + device + "': " + e.what());
     }
   }
 
@@ -179,35 +181,9 @@ public:
     return serial_conn_.IsOpen();
   }
 
-  bool send_raw_packet(const std::vector<uint8_t> & packet, bool print_output = false)
-  {
-    if (!connected())
-    {
-      std::cerr << "CAN adapter not connected." << std::endl;
-      return false;
-    }
-
-    try
-    {
-      write_bytes(packet);
-
-      if (print_output)
-      {
-        std::cerr << "Sent raw packet: " << bytes_to_hex(packet) << std::endl;
-      }
-
-      return true;
-    }
-    catch (const std::exception & e)
-    {
-      std::cerr << "Failed sending raw packet: " << e.what() << std::endl;
-      return false;
-    }
-  }
-
   bool configure_adapter(
     int32_t can_baud_rate,
-    bool use_extended_filter = false,
+    bool use_extended_filter = true,
     uint32_t filter_id = 0x00000000,
     uint32_t block_id = 0x00000000,
     CANMode mode = CANMode::NORMAL,
@@ -246,7 +222,7 @@ public:
     }
   }
 
-  bool send_can_frame(const CANFrame & frame, bool print_output = false)
+  bool send_frame(const CANFrame & frame, bool print_output = false)
   {
     if (!connected())
     {
@@ -267,7 +243,8 @@ public:
 
       if (print_output)
       {
-        std::cerr << "Sent frame: " << bytes_to_hex(packet) << std::endl;
+        std::cerr << "Sent frame: " << frame_to_string(frame)
+                  << " | raw=" << bytes_to_hex(packet) << std::endl;
       }
 
       return true;
@@ -279,7 +256,33 @@ public:
     }
   }
 
-  bool read_can_frame(CANFrame & frame, bool print_output = false)
+  bool send_extended_frame(
+    uint32_t can_id,
+    const std::vector<uint8_t> & data,
+    bool print_output = false)
+  {
+    if (data.size() > 8)
+    {
+      std::cerr << "Invalid DLC " << data.size() << std::endl;
+      return false;
+    }
+
+    CANFrame frame;
+    frame.id = can_id;
+    frame.dlc = static_cast<uint8_t>(data.size());
+    frame.extended = true;
+    frame.remote = false;
+    std::fill(std::begin(frame.data), std::end(frame.data), 0);
+
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+      frame.data[i] = data[i];
+    }
+
+    return send_frame(frame, print_output);
+  }
+
+  bool read_frame(CANFrame & frame, bool print_output = false)
   {
     if (!connected())
     {
@@ -295,12 +298,18 @@ public:
         return false;
       }
 
-      if (print_output)
+      if (!decode_frame(packet, frame))
       {
-        std::cerr << "Recv frame: " << bytes_to_hex(packet) << std::endl;
+        return false;
       }
 
-      return decode_frame(packet, frame);
+      if (print_output)
+      {
+        std::cerr << "Recv frame: " << frame_to_string(frame)
+                  << " | raw=" << bytes_to_hex(packet) << std::endl;
+      }
+
+      return true;
     }
     catch (const std::exception & e)
     {
@@ -309,63 +318,52 @@ public:
     }
   }
 
+  // Compatibility wrappers for older code paths
+  bool send_can_frame(const CANFrame & frame, bool print_output = false)
+  {
+    return send_frame(frame, print_output);
+  }
+
+  bool read_can_frame(CANFrame & frame, bool print_output = false)
+  {
+    return read_frame(frame, print_output);
+  }
+
   bool read_can_frame_for_id(
     uint32_t expected_id,
     CANFrame & frame,
     bool print_output = false,
-    int max_attempts = 20)
+    int max_attempts = 100)
   {
-    for (int i = 0; i < max_attempts; ++i)
-    {
-      CANFrame temp;
-      if (!read_can_frame(temp, print_output))
-      {
-        return false;
-      }
-
-      if (temp.id == expected_id)
-      {
-        frame = temp;
-        return true;
-      }
-    }
-
-    std::cerr << "Did not receive expected CAN ID " << expected_id
-              << " within " << max_attempts << " frame attempts." << std::endl;
-    return false;
+    return read_frame_for_id(expected_id, frame, print_output, max_attempts);
   }
 
+  // Temporary legacy helper so diffbot_system.cpp still builds.
+  // This is NOT a validated SPARK MAX command format.
   bool write_motor_command(int can_id, int command, bool print_output = false)
   {
     CANFrame frame;
     frame.id = static_cast<uint32_t>(can_id);
     frame.dlc = 4;
-    frame.extended = false;
+    frame.extended = true;
     frame.remote = false;
 
+    std::fill(std::begin(frame.data), std::end(frame.data), 0);
     frame.data[0] = static_cast<uint8_t>(command & 0xFF);
     frame.data[1] = static_cast<uint8_t>((command >> 8) & 0xFF);
     frame.data[2] = static_cast<uint8_t>((command >> 16) & 0xFF);
     frame.data[3] = static_cast<uint8_t>((command >> 24) & 0xFF);
 
-    return send_can_frame(frame, print_output);
+    return send_frame(frame, print_output);
   }
 
+  // Temporary legacy helper so diffbot_system.cpp still builds.
+  // This just reads a matching frame and interprets first 4 bytes as int32.
+  // It is NOT a proper SPARK MAX encoder API.
   bool read_motor_encoder(int can_id, int & encoder_count, bool print_output = false)
   {
-    CANFrame request;
-    request.id = static_cast<uint32_t>(can_id);
-    request.dlc = 0;
-    request.extended = false;
-    request.remote = true;
-
-    if (!send_can_frame(request, print_output))
-    {
-      return false;
-    }
-
     CANFrame response;
-    if (!read_can_frame_for_id(static_cast<uint32_t>(can_id), response, print_output))
+    if (!read_frame_for_id(static_cast<uint32_t>(can_id), response, print_output))
     {
       return false;
     }
@@ -383,6 +381,88 @@ public:
       (static_cast<int>(response.data[3]) << 24);
 
     return true;
+  }
+
+  bool read_frame_for_id(
+    uint32_t expected_id,
+    CANFrame & frame,
+    bool print_output = false,
+    int max_attempts = 100)
+  {
+    return read_frame_matching(
+      [&](const CANFrame & f) { return f.id == expected_id; },
+      frame,
+      print_output,
+      max_attempts);
+  }
+
+  bool read_frame_matching(
+    const std::function<bool(const CANFrame &)> & matcher,
+    CANFrame & frame,
+    bool print_output = false,
+    int max_attempts = 100)
+  {
+    for (int i = 0; i < max_attempts; ++i)
+    {
+      CANFrame temp;
+      if (!read_frame(temp, print_output))
+      {
+        continue;
+      }
+
+      if (matcher(temp))
+      {
+        frame = temp;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  std::vector<CANFrame> drain_frames(
+    std::size_t max_frames = 256,
+    bool print_output = false)
+  {
+    std::vector<CANFrame> frames;
+    frames.reserve(max_frames);
+
+    for (std::size_t i = 0; i < max_frames; ++i)
+    {
+      CANFrame frame;
+      if (!read_frame(frame, print_output))
+      {
+        break;
+      }
+      frames.push_back(frame);
+    }
+
+    return frames;
+  }
+
+  static std::string frame_to_string(const CANFrame & frame)
+  {
+    std::ostringstream ss;
+    ss << (frame.extended ? "EXT" : "STD")
+       << " ID=0x" << std::hex << std::uppercase << frame.id
+       << " DLC=" << std::dec << static_cast<int>(frame.dlc)
+       << " DATA=[";
+    for (uint8_t i = 0; i < frame.dlc; ++i)
+    {
+      ss << "0x" << std::hex << std::uppercase
+         << std::setw(2) << std::setfill('0')
+         << static_cast<int>(frame.data[i]);
+      if (i + 1 < frame.dlc)
+      {
+        ss << ' ';
+      }
+    }
+    ss << "]";
+    if (frame.remote)
+    {
+      ss << " RTR";
+    }
+    return ss.str();
   }
 
 private:
@@ -440,7 +520,7 @@ private:
       packet.push_back(static_cast<uint8_t>( frame.id        & 0xFF));
       packet.push_back(static_cast<uint8_t>((frame.id >> 8)  & 0xFF));
       packet.push_back(static_cast<uint8_t>((frame.id >> 16) & 0xFF));
-      packet.push_back(static_cast<uint8_t>((frame.id >> 24) & 0xFF));
+      packet.push_back(static_cast<uint8_t>((frame.id >> 24) & 0x1F));
     }
     else
     {
@@ -504,10 +584,10 @@ private:
     if (frame.extended)
     {
       frame.id =
-        static_cast<uint32_t>(packet[2]) |
+        (static_cast<uint32_t>(packet[2]) << 0) |
         (static_cast<uint32_t>(packet[3]) << 8) |
         (static_cast<uint32_t>(packet[4]) << 16) |
-        (static_cast<uint32_t>(packet[5]) << 24);
+        ((static_cast<uint32_t>(packet[5]) & 0x1F) << 24);
     }
     else
     {
@@ -651,7 +731,7 @@ private:
   }
 
   LibSerial::SerialPort serial_conn_;
-  int timeout_ms_ = 500;
+  int timeout_ms_ = 100;
 };
 
 }  // namespace diffdrive_canbus
