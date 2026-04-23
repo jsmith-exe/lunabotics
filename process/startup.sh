@@ -73,8 +73,7 @@ qpl_print_renderer() {
 }
 
 # -------------------- Shortcuts --------------------
-alias qpl_build='${QPL_PROJECT}/process/build.sh'
-alias qpl_clean_build='${QPL_PROJECT}/process/clean_build.sh'
+source "$QPL_PROJECT/process/build.sh"
 alias qpl_packages='${QPL_PROJECT}/process/install_packages.sh'
 alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=cmd_vel_teleop'
 alias qpl_slam='ros2 launch qpl_rover online_async_launch.py'
