@@ -1,0 +1,233 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="lunabotics_uk_arena">
+
+    <physics type="ode">
+      <gravity>0 0 -9.81</gravity>
+    </physics>
+
+    <light type="directional" name="sun">
+      <pose>0 0 10 0 0 0</pose>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- ============================================================
+         COORDINATE SYSTEM
+         - Arena spans X[0..4.4], Y[0..7.9]
+         - Building envelope spans X[-0.6..4.9], Y[-1.0..9.4]
+         - Floor top surface at Z = 0
+         ============================================================ -->
+
+    <!-- ============================================================
+         SAND FLOOR (single flat slab covering entire building footprint)
+         Spans X[-0.6..4.9] = 5.5m wide, Y[-1.0..9.4] = 10.4m long
+         ============================================================ -->
+    <model name="sand_floor">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>5.5 10.4 0.2</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+            <geometry>
+                <box><size>5.5 10.4 0.2</size></box>
+            </geometry>
+            <material>
+                <ambient>0.7 0.65 0.5 1</ambient>
+                <diffuse>0.7 0.65 0.5 1</diffuse>
+            </material>
+        </visual>
+        <pose>2.15 4.2 -0.1 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- ============================================================
+         ARENA BOUNDARY MARKERS (VISUAL ONLY, no collision)
+         Yellow painted lines on 7.9m x 4.4m perimeter.
+         Rover must stay inside via localisation, not wall sensing.
+         ============================================================ -->
+
+    <model name="boundary_south">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>4.4 0.05 0.005</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+        <pose>2.2 0 0.011 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="boundary_north">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>4.4 0.05 0.005</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+        <pose>2.2 7.9 0.011 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="boundary_west">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.05 7.9 0.005</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+        <pose>0 3.95 0.011 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="boundary_east">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.05 7.9 0.005</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+        <pose>4.4 3.95 0.011 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- ============================================================
+         OUTER BUILDING WALLS (collision, set back from arena)
+         ============================================================ -->
+
+    <model name="building_wall_south">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>5.5 0.1 1.5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>5.5 0.1 1.5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>2.15 -1.0 0.75 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="building_wall_north">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>5.5 0.1 1.5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>5.5 0.1 1.5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>2.15 9.4 0.75 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="building_wall_west">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.1 10.4 1.5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.1 10.4 1.5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>-0.6 4.2 0.75 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="building_wall_east">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.1 10.4 1.5</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.1 10.4 1.5</size></box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>4.9 4.2 0.75 0 0 0</pose>
+      </link>
+    </model>
+
+
+
+
+    <!-- ============================================================
+         APRILTAG BEACON
+         ============================================================ -->
+    <model name="apriltag_0">
+        <static>true</static>
+        <pose>0.055 0.2 0.3 1.5708 0 1.5708</pose>
+        <link name="link">
+            <visual name="visual">
+                <geometry>
+                    <plane>
+                        <normal>0 0 1</normal>
+                        <size>0.25 0.25</size>
+                    </plane>
+                </geometry>
+                <material>
+                    <script>
+                        <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
+                        <uri>model://apriltag_model/materials/textures/</uri>
+                        <name>AprilTag/tag0</name>
+                    </script>
+                </material>
+            </visual>
+        </link>
+    </model>
+
+  </world>
+</sdf>

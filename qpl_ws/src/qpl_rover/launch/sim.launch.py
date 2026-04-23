@@ -7,7 +7,7 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Tim
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
-selected_world = "arena_april.world"
+selected_world = "real_world.world"
 rover_directory: str = get_package_share_directory("qpl_rover")
 gazebo_directory: str = get_package_share_directory("gazebo_ros")
 
