@@ -1,16 +1,18 @@
-#!/bin/bash
+# SERVER SPECIFIC INSTALLATION INSTRUCTIONS:
 # The following is only useful for the server or the robot itself.
-# wondershaper is required; install it with these instructions:
+
+# wondershaper is used for network limiting; install it with these instructions:
 # https://github.com/magnific0/wondershaper?tab=readme-ov-file#system-installation-optional
 
-# Also creates a shortcut for speedometer, which can be downloaded here:
+# Speedometer is used for network monitoring; install it with these instructions:
 # https://excess.org/speedometer/
-# Another good option is nload
+# Another good option is nload: sudo apt install nload
 
 if [[ -z "$DEFAULT_LIMITED_INTERFACE" ]]; then
   export DEFAULT_LIMITED_INTERFACE="tailscale0"
 fi
 
+# --------------------- Network monitoring and limiting --------------------
 alias qpl_speedometer="speedometer -s -l -m 625000 -r tailscale0 -t tailscale0"
 
 qpl_net_limit_clear() {
@@ -42,3 +44,29 @@ EOF
 
   sudo wondershaper -a "$INTERFACE" -d "$DOWNLOAD" -u "$UPLOAD"
 }
+
+
+# -------------------- DDS and other config --------------------
+export ROS_DOMAIN_ID=42
+
+use_server_flag_file_path="${QPL_PROJECT}/.use_server_sim"
+
+use_server_sim() {
+  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+  export CYCLONEDDS_URI=file://"${QPL_PROJECT}"/dds/cyclonedds.xml
+  touch "$use_server_flag_file_path" # Create file flag
+  echo "Configured to use server sim. Type 'use_local_sim' to use local simulation."
+}
+
+use_local_sim() {
+  unset RMW_IMPLEMENTATION
+  unset CYCLONEDDS_URI
+  rm -f "$use_server_flag_file_path"
+  echo "Configured to use local sim. Type 'use_server_sim' to use server simulation."
+}
+
+if [ -f "$use_server_flag_file_path" ]; then
+  use_server_sim
+else
+  use_local_sim
+fi

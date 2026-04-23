@@ -1,190 +1,25 @@
 #!/bin/bash
+alias reload='source "$QPL_PROJECT/process/startup.sh"'
+
+if [ -z "${QPL_PROJECT:-}" ]; then
+  echo "ERROR: QPL_PROJECT is not set. Export it in bashrc."
+  exit 1
+fi
+
+# Source ROS and workspace
 source /opt/ros/humble/setup.bash
-# -------------------- ROS daemon --------------------
+source "$QPL_PROJECT/qpl_ws/install/setup.bash" > /dev/null 2>&1 # Hide output
+
+# Source functions
+source "$QPL_PROJECT/process/functions/build.sh"
+source "$QPL_PROJECT/process/functions/executables.sh"
+source "$QPL_PROJECT/process/functions/install_packages.sh"
+source "$QPL_PROJECT/process/functions/networking.sh"
+source "$QPL_PROJECT/process/functions/orbbec_sdk.sh"
+source "$QPL_PROJECT/process/functions/teleop.sh"
+
 # The ROS daemon sometimes doesn't start on WSL.
 ros2 daemon start >/dev/null 2>&1 || true
 
-# -------------------- Project path --------------------
-# Ensure QPL_PROJECT is set (you already rely on it below)
-if [ -z "${QPL_PROJECT:-}" ]; then
-  echo "ERROR: QPL_PROJECT is not set. Export it before sourcing this script."
-  return 1 2>/dev/null || exit 1
-fi
-
-# -------------------- ROS2 network --------------------
-export ROS_DOMAIN_ID=42
-export ROS_LOCALHOST_ONLY=0
-
-useServerFlagFilePath="${QPL_PROJECT}/.use_server_sim"
-
-use_server_sim() {
-  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-  export CYCLONEDDS_URI=file://"${QPL_PROJECT}"/dds/cyclonedds.xml
-  touch "$useServerFlagFilePath"
-  echo "Configured to use server sim. Type 'use_local_sim' to use local simulation."
-}
-
-use_local_sim() {
-  unset RMW_IMPLEMENTATION
-  unset CYCLONEDDS_URI
-  rm -f "$useServerFlagFilePath"
-  echo "Configured to use local sim. Type 'use_server_sim' to use server simulation."
-}
-
-if [ -f "$useServerFlagFilePath" ]; then
-  use_server_sim
-else
-  use_local_sim
-fi
-
-# -------------------- Render mode helpers --------------------
-qpl_use_software_render() {
-  export LIBGL_ALWAYS_SOFTWARE=1
-  export GALLIUM_DRIVER=llvmpipe
-}
-
-qpl_use_gpu_render() {
-  if [ -n "${LIBGL_ALWAYS_SOFTWARE}" ]; then
-    return
-  fi
-  # Unset software-render overrides so GL can use your GPU stack again
-  unset LIBGL_ALWAYS_SOFTWARE
-  unset GALLIUM_DRIVER
-}
-
-if [ -n "${LIBGL_ALWAYS_SOFTWARE:-}" ]; then
-  # echo "Note: software rendering override is set."
-  qpl_use_software_render
-fi
-
-qpl_render_status() {
-  echo "LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE:-<unset>}"
-  echo "GALLIUM_DRIVER=${GALLIUM_DRIVER:-<unset>}"
-  glxinfo -B 2>/dev/null | grep -i "OpenGL renderer" || true
-}
-
-qpl_print_renderer() {
-  if command -v glxinfo >/dev/null 2>&1; then
-    echo "[Renderer Info]"
-    glxinfo -B | grep -E "OpenGL vendor|OpenGL renderer" || true
-  else
-    echo "[Renderer Info] glxinfo not installed (install mesa-utils)"
-  fi
-}
-
-# -------------------- Shortcuts --------------------
-source "$QPL_PROJECT/process/build.sh"
-alias qpl_packages='${QPL_PROJECT}/process/install_packages.sh'
-alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=cmd_vel_teleop'
-alias qpl_slam='ros2 launch qpl_rover online_async_launch.py'
-alias qpl_cloud_to_scan='ros2 launch qpl_rover point_cloud_to_scan.launch.py'
-alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
-alias qpl_rover='ros2 launch qpl_rover rover.launch.py'
-alias qpl_controller_fwd='ros2 run basestation nav_pub'
-alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
-alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
-
-qpl_orbbecsdk_clone() {
-  git clone --single-branch --branch main git@github.com:orbbec/OrbbecSDK_ROS2.git "${QPL_PROJECT}/OrbbecSDK_ROS2"
-}
-qpl_orbbecsdk_build() {
-  # For camera
-  sudo apt install libgflags-dev nlohmann-json3-dev  \
-    ros-humble-image-transport  ros-humble-image-transport-plugins ros-humble-compressed-image-transport \
-    ros-humble-image-publisher ros-humble-camera-info-manager \
-    ros-humble-diagnostic-updater ros-humble-diagnostic-msgs ros-humble-statistics-msgs \
-    ros-humble-backward-ros libdw-dev
-  # Additional camera setup
-  cd "${QPL_PROJECT}/qpl_ws/src/OrbbecSDK_ROS2/orbbec_camera/scripts"
-  sudo bash install_udev_rules.sh
-  sudo udevadm control --reload-rules && sudo udevadm trigger
-
-  local prev_path=$(pwd)
-  cd "${QPL_PROJECT}/OrbbecSDK_ROS2"
-  colcon build --event-handlers  console_direct+  --cmake-args  -DCMAKE_BUILD_TYPE=Release
-  cd "$prev_path"
-}
-qpl_orbbecsdk_run() {
-  ros2 launch orbbec_camera astra_pro_plus.launch.py
-}
-
-# For WSL: a path that can be used in PowerShell to run controller scripts without worrying about WSL path translation
-get_qpl_project_windows_path() {
-  wslpath -w "$QPL_PROJECT"
-}
-qpl_wsl_run_controller() {
-  powershell.exe -Command "
-      cd $(get_qpl_project_windows_path);
-      .\run_controller.ps1;
-  "
-}
-
-qpl_wsl_setup_controller() {
-  powershell.exe -Command "
-      cd $(get_qpl_project_windows_path)\qpl_ws\src\basestation;
-      .\setup_controller.ps1;
-  "
-}
-
-qpl_list_processes() {
-  local colors=(31 32 33 34 35 36)
-  local n_colors=${#colors[@]}
-  local i=0
-
-  pgrep -af ros | while read -r line; do
-    echo -e "\033[${colors[$((i % "$n_colors"))]}m${line}\033[0m"
-    (( i++ ))
-  done
-}
-
-# Use functions (not aliases) for anything that needs env switching
-qpl_headless() {
-  qpl_use_software_render
-
-  echo "[qpl_headless] LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE}"
-  echo "[qpl_headless] GALLIUM_DRIVER=${GALLIUM_DRIVER}"
-
-  qpl_print_renderer
-
-  ros2 launch qpl_rover sim.launch.py "$@" headless:=true
-}
-
-
-qpl_sim() {
-  qpl_use_gpu_render
-
-  echo "[qpl_sim] LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE:-<unset>}"
-  echo "[qpl_sim] GALLIUM_DRIVER=${GALLIUM_DRIVER:-<unset>}"
-
-  qpl_print_renderer
-
-  ros2 launch qpl_rover sim.launch.py "$@"
-}
-
-qpl_rviz() {
-  qpl_use_gpu_render
-
-  echo "[qpl_rviz] LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE:-<unset>}"
-  echo "[qpl_rviz] GALLIUM_DRIVER=${GALLIUM_DRIVER:-<unset>}"
-
-  qpl_print_renderer
-
-  ros2 launch basestation rviz.launch.py "$@"
-}
-
-# -------------------- Make scripts executable --------------------
-chmod +x "$QPL_PROJECT/process/install_packages.sh" 2>/dev/null || true
-chmod +x "$QPL_PROJECT/process/build.sh" 2>/dev/null || true
-chmod +x "$QPL_PROJECT/process/clean_build.sh" 2>/dev/null || true
-
-# -------------------- Source workspace --------------------
-source "$QPL_PROJECT/qpl_ws/install/setup.bash"
-
-# -------------------- Other scripts --------------------
-source "$QPL_PROJECT/process/networking_limits.sh"
-
+# Environment vars
 export GAZEBO_MODEL_PATH=$QPL_PROJECT/qpl_ws/src/qpl_rover/worlds:$GAZEBO_MODEL_PATH
-
-if [ -f "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash" ]; then
-  source "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash"
-fi
