@@ -5,7 +5,6 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -22,6 +21,7 @@ using diffdrive_canbus::parse_frc_extended_can_id;
 
 namespace
 {
+
 volatile std::sig_atomic_t g_running = 1;
 
 void signal_handler(int)
@@ -50,10 +50,18 @@ uint8_t parse_u8(const std::string & s)
   return static_cast<uint8_t>(value);
 }
 
+uint16_t make_api_id(const SparkMaxCanIdFields & f)
+{
+  return static_cast<uint16_t>((static_cast<uint16_t>(f.api_class) << 4) | f.api_index);
+}
+
 std::string id_fields_to_string(const SparkMaxCanIdFields & f)
 {
   std::ostringstream ss;
-  ss << "device_type=" << static_cast<int>(f.device_type)
+  ss << "api_id=0x"
+     << std::hex << std::uppercase << make_api_id(f)
+     << std::dec
+     << " device_type=" << static_cast<int>(f.device_type)
      << " manufacturer=" << static_cast<int>(f.manufacturer)
      << " api_class=" << static_cast<int>(f.api_class)
      << " api_index=" << static_cast<int>(f.api_index)
@@ -82,11 +90,13 @@ void print_usage(const char * prog)
     << "  " << prog << " listen <serial_device> [can_baud]\n"
     << "  " << prog << " listen-filter <serial_device> <device_id> [can_baud]\n"
     << "  " << prog << " send <serial_device> <can_id> <ext|std> <byte0> [byte1 ... byte7]\n"
+    << "  " << prog << " send-n <serial_device> <can_id> <ext|std> <count> <period_ms> <byte0> [byte1 ... byte7]\n"
     << "  " << prog << " spam <serial_device> <can_id> <ext|std> <period_ms> <byte0> [byte1 ... byte7]\n"
     << "\nExamples:\n"
     << "  " << prog << " listen /dev/ttyUSB0 1000000\n"
     << "  " << prog << " listen-filter /dev/ttyUSB0 1 1000000\n"
     << "  " << prog << " send /dev/ttyUSB0 0x2051801 ext 0x00 0x00 0x00 0x00\n"
+    << "  " << prog << " send-n /dev/ttyUSB0 0x2051801 ext 5 100 0x00 0x00 0x00 0x00\n"
     << "  " << prog << " spam /dev/ttyUSB0 0x2051801 ext 100 0x00 0x00 0x80 0x3F\n"
     << "\nNotes:\n"
     << "  - SPARK MAX traffic should normally use ext.\n"
@@ -173,6 +183,44 @@ void run_send(CANComms & comms, uint32_t can_id, bool extended, const std::vecto
   }
 }
 
+void run_send_n(
+  CANComms & comms,
+  uint32_t can_id,
+  bool extended,
+  int count,
+  int period_ms,
+  const std::vector<uint8_t> & data)
+{
+  if (count <= 0)
+  {
+    throw std::runtime_error("count must be > 0");
+  }
+
+  if (period_ms < 0)
+  {
+    throw std::runtime_error("period_ms must be >= 0");
+  }
+
+  const CANFrame frame = build_frame(can_id, extended, data);
+
+  std::cout << "Sending " << count << " frame(s) every "
+            << period_ms << " ms:\n";
+  std::cout << frame_with_fields_to_string(frame) << std::endl;
+
+  for (int i = 0; i < count; ++i)
+  {
+    if (!comms.send_frame(frame, true))
+    {
+      throw std::runtime_error("Failed to send frame");
+    }
+
+    if (i + 1 < count && period_ms > 0)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(period_ms));
+    }
+  }
+}
+
 void run_spam(
   CANComms & comms,
   uint32_t can_id,
@@ -200,6 +248,39 @@ void run_spam(
 
     std::this_thread::sleep_for(std::chrono::milliseconds(period_ms));
   }
+}
+
+bool parse_id_type(const std::string & id_type)
+{
+  if (id_type == "ext")
+  {
+    return true;
+  }
+  if (id_type == "std")
+  {
+    return false;
+  }
+
+  throw std::runtime_error("ID type must be 'ext' or 'std'");
+}
+
+void configure_and_print(CANComms & comms, const std::string & serial_device, int32_t serial_baud, int32_t can_baud)
+{
+  if (!comms.configure_adapter(
+        can_baud,
+        true,
+        0x00000000,
+        0x00000000,
+        CANMode::NORMAL,
+        false,
+        true))
+  {
+    throw std::runtime_error("Failed to configure CAN adapter");
+  }
+
+  std::cout << "Connected to " << serial_device
+            << " at serial baud " << serial_baud
+            << ", CAN baud " << can_baud << "\n";
 }
 
 }  // namespace
@@ -233,22 +314,7 @@ int main(int argc, char ** argv)
         can_baud = static_cast<int32_t>(parse_u32(argv[3]));
       }
 
-      if (!comms.configure_adapter(
-            can_baud,
-            true,   // extended filter mode
-            0x00000000,
-            0x00000000,
-            CANMode::NORMAL,
-            false,
-            true))
-      {
-        throw std::runtime_error("Failed to configure CAN adapter");
-      }
-
-      std::cout << "Connected to " << serial_device
-                << " at serial baud " << serial_baud
-                << ", CAN baud " << can_baud << "\n";
-
+      configure_and_print(comms, serial_device, serial_baud, can_baud);
       run_listen(comms);
       return 0;
     }
@@ -267,22 +333,7 @@ int main(int argc, char ** argv)
         can_baud = static_cast<int32_t>(parse_u32(argv[4]));
       }
 
-      if (!comms.configure_adapter(
-            can_baud,
-            true,
-            0x00000000,
-            0x00000000,
-            CANMode::NORMAL,
-            false,
-            true))
-      {
-        throw std::runtime_error("Failed to configure CAN adapter");
-      }
-
-      std::cout << "Connected to " << serial_device
-                << " at serial baud " << serial_baud
-                << ", CAN baud " << can_baud << "\n";
-
+      configure_and_print(comms, serial_device, serial_baud, can_baud);
       run_listen_filter(comms, device_id);
       return 0;
     }
@@ -296,13 +347,7 @@ int main(int argc, char ** argv)
       }
 
       const uint32_t can_id = parse_u32(argv[3]);
-      const std::string id_type = argv[4];
-      const bool extended = (id_type == "ext");
-
-      if (!(extended || id_type == "std"))
-      {
-        throw std::runtime_error("ID type must be 'ext' or 'std'");
-      }
+      const bool extended = parse_id_type(argv[4]);
 
       std::vector<uint8_t> data;
       for (int i = 5; i < argc; ++i)
@@ -310,23 +355,32 @@ int main(int argc, char ** argv)
         data.push_back(parse_u8(argv[i]));
       }
 
-      if (!comms.configure_adapter(
-            can_baud,
-            true,
-            0x00000000,
-            0x00000000,
-            CANMode::NORMAL,
-            false,
-            true))
+      configure_and_print(comms, serial_device, serial_baud, can_baud);
+      run_send(comms, can_id, extended, data);
+      return 0;
+    }
+
+    if (mode == "send-n")
+    {
+      if (argc < 8)
       {
-        throw std::runtime_error("Failed to configure CAN adapter");
+        print_usage(argv[0]);
+        return 1;
       }
 
-      std::cout << "Connected to " << serial_device
-                << " at serial baud " << serial_baud
-                << ", CAN baud " << can_baud << "\n";
+      const uint32_t can_id = parse_u32(argv[3]);
+      const bool extended = parse_id_type(argv[4]);
+      const int count = static_cast<int>(parse_u32(argv[5]));
+      const int period_ms = static_cast<int>(parse_u32(argv[6]));
 
-      run_send(comms, can_id, extended, data);
+      std::vector<uint8_t> data;
+      for (int i = 7; i < argc; ++i)
+      {
+        data.push_back(parse_u8(argv[i]));
+      }
+
+      configure_and_print(comms, serial_device, serial_baud, can_baud);
+      run_send_n(comms, can_id, extended, count, period_ms, data);
       return 0;
     }
 
@@ -339,14 +393,7 @@ int main(int argc, char ** argv)
       }
 
       const uint32_t can_id = parse_u32(argv[3]);
-      const std::string id_type = argv[4];
-      const bool extended = (id_type == "ext");
-
-      if (!(extended || id_type == "std"))
-      {
-        throw std::runtime_error("ID type must be 'ext' or 'std'");
-      }
-
+      const bool extended = parse_id_type(argv[4]);
       const int period_ms = static_cast<int>(parse_u32(argv[5]));
 
       std::vector<uint8_t> data;
@@ -355,22 +402,7 @@ int main(int argc, char ** argv)
         data.push_back(parse_u8(argv[i]));
       }
 
-      if (!comms.configure_adapter(
-            can_baud,
-            true,
-            0x00000000,
-            0x00000000,
-            CANMode::NORMAL,
-            false,
-            true))
-      {
-        throw std::runtime_error("Failed to configure CAN adapter");
-      }
-
-      std::cout << "Connected to " << serial_device
-                << " at serial baud " << serial_baud
-                << ", CAN baud " << can_baud << "\n";
-
+      configure_and_print(comms, serial_device, serial_baud, can_baud);
       run_spam(comms, can_id, extended, period_ms, data);
       return 0;
     }
