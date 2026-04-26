@@ -1,0 +1,13 @@
+apriltag_front:
+  ros__parameters:
+    image_transport: raw
+    family: 36h11
+    size: 0.3
+    max_hamming: 0
+    z_up: true
+    queue_size: 10
+    sync_slop: 0.05
+    tag:
+      ids: [0]
+      frames: [tag36h11_front_0]
+      sizes: [0.3]

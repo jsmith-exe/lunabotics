@@ -50,7 +50,7 @@
       <update_rate>10</update_rate>
 
       <camera>
-        <horizontal_fov>1.089</horizontal_fov>
+        <horizontal_fov>1.5708</horizontal_fov>
         <image>
           <format>B8G8R8</format>
           <width>640</width>

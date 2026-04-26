@@ -46,6 +46,12 @@ class AprilTagMapOdom3D(Node):
         # --------------------------------------------------------------
         self.force_base_z_to_zero = True
 
+        # --------------------------------------------------------------
+        # Tag frames published by each detector. Tried in order;
+        # first fresh one wins.
+        # --------------------------------------------------------------
+        self.tag_frames = ['tag36h11_front_0', 'tag36h11_rear_0']
+
     def filter_value(self, prev, new):
         if prev is None:
             return new
@@ -67,6 +73,26 @@ class AprilTagMapOdom3D(Node):
         age_sec = (now - tf_time).nanoseconds / 1e9
 
         return 0.0 <= age_sec < max_age_sec, age_sec
+
+    def lookup_freshest_tag(self):
+        for frame in self.tag_frames:
+            try:
+                tf = self.tf_buffer.lookup_transform(
+                    frame,
+                    'base_footprint',
+                    rclpy.time.Time(),
+                    timeout=Duration(seconds=0.05),
+                )
+                is_fresh, _ = self.is_transform_fresh(tf)
+                if is_fresh:
+                    return tf, frame
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ):
+                continue
+        return None, None
 
     def publish_identity_or_last_map_odom(self):
         now = self.get_clock().now().to_msg()
@@ -136,21 +162,16 @@ class AprilTagMapOdom3D(Node):
     def timer_callback(self):
         try:
             # --------------------------------------------------------------
-            # 1) Lookup full 3D tag -> base transform
+            # 1) Lookup full 3D tag -> base transform from whichever
+            #    detector has a fresh reading (front or rear).
             # --------------------------------------------------------------
-            tag_T_base_msg = self.tf_buffer.lookup_transform(
-                'tag36h11:0',
-                'base_footprint',
-                rclpy.time.Time(),
-                timeout=Duration(seconds=0.2)
-            )
+            tag_T_base_msg, source_frame = self.lookup_freshest_tag()
 
-            is_fresh, age_sec = self.is_transform_fresh(tag_T_base_msg)
-            if not is_fresh:
+            if tag_T_base_msg is None:
                 self.publish_identity_or_last_map_odom()
                 self.get_logger().info(
-                    f'AprilTag transform is stale ({age_sec:.3f} s old); holding last map->odom',
-                    throttle_duration_sec=2.0
+                    'No fresh AprilTag from any camera; holding last map->odom',
+                    throttle_duration_sec=2.0,
                 )
                 return
 

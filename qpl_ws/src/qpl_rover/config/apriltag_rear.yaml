@@ -1,4 +1,4 @@
-apriltag_node:
+apriltag_rear:
   ros__parameters:
     image_transport: raw
     family: 36h11
@@ -7,3 +7,7 @@ apriltag_node:
     z_up: true
     queue_size: 10
     sync_slop: 0.05
+    tag:
+      ids: [0]
+      frames: [tag36h11_rear_0]
+      sizes: [0.3]

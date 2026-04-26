@@ -11,20 +11,39 @@ def generate_launch_description():
     package_name = "qpl_rover"
     rover_pkg: str = get_package_share_directory(package_name)
 
-    apriltag_config = os.path.join(rover_pkg, "config", "apriltag.yaml")
-    apriltag_node = TimerAction(
+    apriltag_config_front = os.path.join(rover_pkg, "config", "apriltag_front.yaml")
+    apriltag_config_rear = os.path.join(rover_pkg, "config", "apriltag_rear.yaml")
+
+    apriltag_front = TimerAction(
         period=7.0,
         actions=[
             Node(
                 package="apriltag_ros",
                 executable="apriltag_node",
-                name="apriltag_node",
+                name="apriltag_front",
+                output="screen",
+                remappings=[
+                    ("image_rect", "/depth_camera_front/image_raw"),
+                    ("camera_info", "/depth_camera_front/camera_info"),
+                ],
+                parameters=[apriltag_config_front, {"use_sim_time": True}],
+            )
+        ],
+    )
+
+    apriltag_rear = TimerAction(
+        period=7.0,
+        actions=[
+            Node(
+                package="apriltag_ros",
+                executable="apriltag_node",
+                name="apriltag_rear",
                 output="screen",
                 remappings=[
                     ("image_rect", "/depth_camera_rear/image_raw"),
                     ("camera_info", "/depth_camera_rear/camera_info"),
                 ],
-                parameters=[apriltag_config, {"use_sim_time": True}],
+                parameters=[apriltag_config_rear, {"use_sim_time": True}],
             )
         ],
     )
@@ -65,6 +84,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        apriltag_node,
-        apriltag_map_odom
+        apriltag_front,
+        apriltag_rear,
+        apriltag_map_odom,
     ])
