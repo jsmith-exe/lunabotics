@@ -5,6 +5,7 @@ alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r
 alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
 alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias qpl_rover='ros2 launch qpl_rover rover.launch.py'
+alias qpl_components='ros2 launch qpl_rover components.launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 
 
@@ -24,6 +25,13 @@ qpl_headless() { # Sim with no GUI
   qpl_print_renderer
 
   ros2 launch qpl_rover sim.launch.py "$@" headless:=true
+}
+
+qpl_sim_minimal() {
+  qpl_use_software_render
+  qpl_print_renderer
+
+  ros2 launch qpl_rover sim.launch.py "$@" headless:=true run_components:=false
 }
 
 qpl_rviz() {

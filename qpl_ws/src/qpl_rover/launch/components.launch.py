@@ -17,20 +17,11 @@ def get_component_python_launch(name: str) -> PythonLaunchDescriptionSource:
     )
 
 def generate_launch_description():
-    rsp = IncludeLaunchDescription(
-        get_component_python_launch("rsp"),
-        launch_arguments={
-            "use_sim_time": "true",
-            "use_ros2_control": "true"
-        }.items()
-    )
-
     controllers = IncludeLaunchDescription(get_component_python_launch("controllers"))
     odom_localisation = IncludeLaunchDescription(get_component_python_launch("odom_localisation"))
     map_localisation = IncludeLaunchDescription(get_component_python_launch("map_localisation"))
 
     return LaunchDescription([
-        rsp,
         controllers,
         odom_localisation,
         map_localisation,
