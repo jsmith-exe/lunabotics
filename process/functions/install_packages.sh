@@ -6,7 +6,6 @@ qpl_packages() {
     python3-colcon-common-extensions \
     ros-humble-ros2-control \
     ros-humble-ros2-controllers \
-    ros-humble-gazebo-ros2-control \
     ros-humble-nav2-bringup \
     ros-humble-teleop-twist-keyboard \
     ros-humble-rviz2 \
@@ -25,11 +24,16 @@ qpl_packages() {
     ros-humble-v4l2-camera \
     v4l-utils \
     ros-humble-rtabmap-ros \
-    ros-humble-gazebo-ros-pkgs \
     ros-humble-apriltag-ros \
     ros-humble-image-pipeline \
-    gazebo \
     ros-humble-tf-transformations \
     mesa-utils \
     libserial-dev
+}
+
+qpl_gazebo_packages() {
+  sudo apt update
+  sudo apt -y install gazebo \
+    ros-humble-gazebo-ros2-control \
+    ros-humble-gazebo-ros-pkgs
 }
