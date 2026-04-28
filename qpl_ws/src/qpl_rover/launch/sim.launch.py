@@ -7,16 +7,16 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Tim
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
-selected_world = "real_world.world"
-rover_directory: str = get_package_share_directory("qpl_rover")
+selected_world = "arena_april.world"
+rover_pkg: str = get_package_share_directory("qpl_rover")
 gazebo_directory: str = get_package_share_directory("gazebo_ros")
 
-def gazebo_setup(context):
+def setup_gazebo(context):
     """ Separate function to evaluate headless option. """
     headless = LaunchConfiguration('headless').perform(context)
     mode = "gzserver" if headless == "true" else "gazebo"
-    world_path = path.join(rover_directory, "worlds", selected_world)
-    gazebo_params_file = path.join(rover_directory, "config", "gazebo_params.yaml")
+    world_path = path.join(rover_pkg, "worlds", selected_world)
+    gazebo_params_file = path.join(rover_pkg, "config", "gazebo_params.yaml")
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(path.join(gazebo_directory, "launch", f"{mode}.launch.py")),
@@ -28,6 +28,17 @@ def gazebo_setup(context):
 
     return [gazebo]
 
+def setup_components(context):
+    """ Separate function to evaluate whether to components. """
+    run_components = LaunchConfiguration('run_components').perform(context)
+    if run_components != "true":
+        return []
+
+    components = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "components.launch.py"))
+    )
+    return [components]
+
 def generate_launch_description():
     headless_parameter = DeclareLaunchArgument(
         'headless',
@@ -35,15 +46,25 @@ def generate_launch_description():
         description='Whether to run Gazebo in headless mode (true won\'t show GUI).'
     )
 
-    components_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(path.join(rover_directory, "launch", "components.launch.py"))
+    run_components_parameter = DeclareLaunchArgument(
+        'run_components',
+        default_value='true',
+        description='Whether to run the simulation with components.'
     )
 
     # tell gazebo where to find the apriltag model so the texture loads on any machine
-    models_path = path.join(rover_directory, "worlds")
+    models_path = path.join(rover_pkg, "worlds")
     gazebo_model_path = SetEnvironmentVariable(
         'GAZEBO_MODEL_PATH',
         models_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
+    )
+
+    rsp = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", f"rsp.launch.py")),
+        launch_arguments={
+            "use_sim_time": "true",
+            "use_ros2_control": "true"
+        }.items()
     )
 
     spawn_entity = TimerAction(
@@ -65,8 +86,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         headless_parameter,
-        components_launch,
+        run_components_parameter,
         gazebo_model_path,
-        OpaqueFunction(function=gazebo_setup),
+        rsp,
+        OpaqueFunction(function=setup_gazebo),
         spawn_entity,
+        OpaqueFunction(function=setup_components),
     ])
