@@ -31,7 +31,7 @@ qpl_sim_minimal() {
   qpl_use_software_render
   qpl_print_renderer
 
-  ros2 launch qpl_rover sim.launch.py "$@" headless:=true
+  ros2 launch qpl_rover sim.launch.py "$@" headless:=true run_components:=false
 }
 
 qpl_rviz() {
