@@ -1,33 +1,20 @@
 # SERVER SPECIFIC INSTALLATION INSTRUCTIONS:
 # The following is only useful for the server or the robot itself.
 
-# wondershaper is used for network limiting; install it with these instructions:
-# https://github.com/magnific0/wondershaper?tab=readme-ov-file#system-installation-optional
-
 # Speedometer is used for network monitoring; install it with these instructions:
 # https://excess.org/speedometer/
 # Another good option is nload: sudo apt install nload
 
-if [[ -z "$DEFAULT_LIMITED_INTERFACE" ]]; then
-  export DEFAULT_LIMITED_INTERFACE="tailscale0"
-fi
+# DEPRECATED:
+# wondershaper was used for network limiting; install it with these instructions:
+# https://github.com/magnific0/wondershaper?tab=readme-ov-file#system-installation-optional
+
+export DEFAULT_LIMITED_INTERFACE="eno1"
 
 # --------------------- Network monitoring and limiting --------------------
-alias qpl_speedometer="speedometer -s -l -m 625000 -r tailscale0 -t tailscale0"
-
-qpl_net_limit_clear() {
+qpl_speedometer() {
   local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
-
-  for TABLE in iptables ip6tables; do
-    # Remove jumps from main chains
-    sudo $TABLE -D OUTPUT -o "$INTERFACE" -j QPL_LIMIT_OUT 2>/dev/null || true
-    sudo $TABLE -D INPUT  -i "$INTERFACE" -j QPL_LIMIT_IN  2>/dev/null || true
-    # Flush and delete custom chains
-    sudo $TABLE -F QPL_LIMIT_OUT 2>/dev/null || true
-    sudo $TABLE -F QPL_LIMIT_IN  2>/dev/null || true
-    sudo $TABLE -X QPL_LIMIT_OUT 2>/dev/null || true
-    sudo $TABLE -X QPL_LIMIT_IN  2>/dev/null || true
-  done
+  speedometer -s -l -m 625000 -r "$INTERFACE" -t "$INTERFACE"
 }
 
 qpl_net_limit_set() {
@@ -40,40 +27,49 @@ qpl_net_limit_set() {
   DOWNLOAD=$(echo "$MAX_KBPS - $UPLOAD" | bc)
 
   # hashlimit uses kilobytes/sec — divide kbps by 8
-  local UPLOAD_KBS=$(echo "$UPLOAD / 8" | bc)
   local DOWNLOAD_KBS=$(echo "$DOWNLOAD / 8" | bc)
-  local UPLOAD_BURST_KBS=$UPLOAD_KBS
-  local DOWNLOAD_BURST_KBS=$DOWNLOAD_KBS
 
   cat << EOF
 Limiting $INTERFACE to ${MAX_KBPS} Kbps
-    Egress/upload:    $UPLOAD Kbps (${EGRESS_PERCENT}%)
-    Ingress/download: $DOWNLOAD Kbps ($((100 - EGRESS_PERCENT))%)
+    Egress/upload:    $UPLOAD Kbps (${EGRESS_PERCENT}%) [tc tbf — smooth shaping]
+    Ingress/download: $DOWNLOAD Kbps ($((100 - EGRESS_PERCENT))%) [iptables hashlimit — drop based]
 EOF
 
   qpl_net_limit_clear "$INTERFACE"
 
+  # --- Egress: tc tbf (smooth shaping) ---
+  sudo tc qdisc add dev "$INTERFACE" root tbf \
+    rate "${UPLOAD}kbit" \
+    burst 15360 \
+    latency 50ms
+
+  # --- Ingress: iptables/ip6tables hashlimit (drop based) ---
   for TABLE in iptables ip6tables; do
-    # Create dedicated chains so we don't touch other rules
-    sudo $TABLE -N QPL_LIMIT_OUT
     sudo $TABLE -N QPL_LIMIT_IN
-    # Jump into them from the main chains
-    sudo $TABLE -A OUTPUT -o "$INTERFACE" -j QPL_LIMIT_OUT
-    sudo $TABLE -A INPUT  -i "$INTERFACE" -j QPL_LIMIT_IN
-    # Egress limit
-    sudo $TABLE -A QPL_LIMIT_OUT \
-      -m hashlimit \
-      --hashlimit-name "qpl_egress" \
-      --hashlimit-above "${UPLOAD_KBS}kb/s" \
-      --hashlimit-burst "${UPLOAD_BURST_KBS}kb" \
-      -j DROP
-    # Ingress limit
+    sudo $TABLE -A INPUT -i "$INTERFACE" -j QPL_LIMIT_IN
     sudo $TABLE -A QPL_LIMIT_IN \
       -m hashlimit \
       --hashlimit-name "qpl_ingress" \
       --hashlimit-above "${DOWNLOAD_KBS}kb/s" \
-      --hashlimit-burst "${DOWNLOAD_BURST_KBS}kb" \
+      --hashlimit-burst "${DOWNLOAD_KBS}kb" \
       -j DROP
+  done
+}
+
+qpl_net_limit_clear() {
+  local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
+
+  # Remove egress shaping
+  sudo tc qdisc del dev "$INTERFACE" root 2>/dev/null || true
+
+  # Remove ingress iptables chains
+  for TABLE in iptables ip6tables; do
+    sudo $TABLE -D OUTPUT -o "$INTERFACE" -j QPL_LIMIT_OUT 2>/dev/null || true
+    sudo $TABLE -D INPUT  -i "$INTERFACE" -j QPL_LIMIT_IN  2>/dev/null || true
+    sudo $TABLE -F QPL_LIMIT_OUT 2>/dev/null || true
+    sudo $TABLE -F QPL_LIMIT_IN  2>/dev/null || true
+    sudo $TABLE -X QPL_LIMIT_OUT 2>/dev/null || true
+    sudo $TABLE -X QPL_LIMIT_IN  2>/dev/null || true
   done
 }
 
