@@ -29,24 +29,33 @@ qpl_net_limit_set() {
   # hashlimit uses kilobytes/sec — divide kbps by 8
   local DOWNLOAD_KBS=$(echo "$DOWNLOAD / 8" | bc)
 
+  qpl_net_limit_clear "$INTERFACE" >/dev/null 2>/dev/null
+
   cat << EOF
 Limiting $INTERFACE to ${MAX_KBPS} Kbps
-    Egress/upload:    $UPLOAD Kbps (${EGRESS_PERCENT}%) [tc tbf — smooth shaping]
-    Ingress/download: $DOWNLOAD Kbps ($((100 - EGRESS_PERCENT))%) [iptables hashlimit — drop based]
+    Egress/upload:    $UPLOAD Kbps (${EGRESS_PERCENT}%)
+    Ingress/download: $DOWNLOAD Kbps ($((100 - EGRESS_PERCENT))%)
 EOF
 
-  qpl_net_limit_clear "$INTERFACE"
-
-  # --- Egress: tc tbf (smooth shaping) ---
+  # Use tc for egress
+  # Add queuing disciplice (qdisc) to interface/device (dev) to the egress/outbound (root),
+  # using token bucket filter (tbf), with the rate at which the bucket fills (rate).
+  # Key params:
+  # rate     — how fast the bucket refills
+  # burst    — how large the bucket is
+  # latency  — how long a packet waits before being dropped if bucket is empty
   sudo tc qdisc add dev "$INTERFACE" root tbf \
     rate "${UPLOAD}kbit" \
     burst 15360 \
     latency 50ms
 
-  # --- Ingress: iptables/ip6tables hashlimit (drop based) ---
+  # Use iptables; limit IPv4 and 6
   for TABLE in iptables ip6tables; do
+    # Creates a new 'chain' - think of this as a pipeline of sorts
     sudo $TABLE -N QPL_LIMIT_IN
+    # Add (-A) rule to INPUT chain, for interface (-i), redirect (-j) to QPL_LIMIT_IN chain
     sudo $TABLE -A INPUT -i "$INTERFACE" -j QPL_LIMIT_IN
+    # Add rule to our new QPL_LIMIT_IN chain for limiting network by dropping traffic
     sudo $TABLE -A QPL_LIMIT_IN \
       -m hashlimit \
       --hashlimit-name "qpl_ingress" \
@@ -60,31 +69,49 @@ qpl_net_limit_clear() {
   local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
 
   # Remove egress shaping
-  sudo tc qdisc del dev "$INTERFACE" root 2>/dev/null || true
+  echo "Clearing egress on $INTERFACE"
+  sudo tc qdisc del dev "$INTERFACE" root
 
   # Remove ingress iptables chains
   for TABLE in iptables ip6tables; do
-    sudo $TABLE -D OUTPUT -o "$INTERFACE" -j QPL_LIMIT_OUT 2>/dev/null || true
-    sudo $TABLE -D INPUT  -i "$INTERFACE" -j QPL_LIMIT_IN  2>/dev/null || true
-    sudo $TABLE -F QPL_LIMIT_OUT 2>/dev/null || true
-    sudo $TABLE -F QPL_LIMIT_IN  2>/dev/null || true
-    sudo $TABLE -X QPL_LIMIT_OUT 2>/dev/null || true
-    sudo $TABLE -X QPL_LIMIT_IN  2>/dev/null || true
+    echo "Clearing egress $TABLE on $INTERFACE"
+    # Delete rule (D), flush (F), delete chain (X)
+    sudo $TABLE -D INPUT -i "$INTERFACE" -j QPL_LIMIT_IN 
+    sudo $TABLE -F QPL_LIMIT_IN 
+    sudo $TABLE -X QPL_LIMIT_IN 
   done
 }
 
 qpl_net_limit_status() {
+  local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
+
+  echo "=== Egress (tc with $INTERFACE) ==="
+  sudo tc -s qdisc show dev "$INTERFACE"
+
+  echo ""
   for TABLE in iptables ip6tables; do
-    echo "=== $TABLE ==="
-    echo "--- Jump rules (shows interface) ---"
-    sudo $TABLE -L OUTPUT -v -n | grep QPL_LIMIT_OUT
-    sudo $TABLE -L INPUT  -v -n | grep QPL_LIMIT_IN
-    echo "--- Egress rules ---"
-    sudo $TABLE -L QPL_LIMIT_OUT -v -n 2>/dev/null || echo "  (no chain)"
+    echo "=== Ingress ($TABLE) ==="
+    echo "--- Jump rule ---"
+    sudo $TABLE -L INPUT -v -n | grep QPL_LIMIT_IN
     echo "--- Ingress rules ---"
-    sudo $TABLE -L QPL_LIMIT_IN  -v -n 2>/dev/null || echo "  (no chain)"
-    echo
+    sudo $TABLE -L QPL_LIMIT_IN -v -n 2>/dev/null || echo "  (no chain)"
+    echo ""
   done
+}
+
+qpl_net_limit_status_simple() {
+  local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
+
+  local HAS_EGRESS HAS_INGRESS
+  # Count for expected values if enabled
+  HAS_EGRESS=$(sudo tc qdisc show dev "$INTERFACE" | grep -c tbf)
+  HAS_INGRESS=$(sudo iptables -L QPL_LIMIT_IN -v -n 2>/dev/null | grep -c hashlimit)
+
+  if [[ $HAS_EGRESS -gt 0 || $HAS_INGRESS -gt 0 ]]; then
+    echo "Limited"
+  else
+    echo "Unlimited"
+  fi
 }
 
 
