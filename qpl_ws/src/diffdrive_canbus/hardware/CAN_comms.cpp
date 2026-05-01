@@ -392,21 +392,26 @@ std::string CANComms::frame_to_string(const CANFrame & frame)
      << " ID=0x" << std::hex << std::uppercase << frame.id
      << " DLC=" << std::dec << static_cast<int>(frame.dlc)
      << " DATA=[";
+
   for (uint8_t i = 0; i < frame.dlc; ++i)
   {
     ss << "0x" << std::hex << std::uppercase
        << std::setw(2) << std::setfill('0')
        << static_cast<int>(frame.data[i]);
+
     if (i + 1 < frame.dlc)
     {
       ss << ' ';
     }
   }
+
   ss << "]";
+
   if (frame.remote)
   {
     ss << " RTR";
   }
+
   return ss.str();
 }
 
@@ -454,15 +459,24 @@ std::vector<uint8_t> CANComms::encode_frame(const CANFrame & frame) const
   packet.push_back(0xAA);
 
   uint8_t type = 0xC0;
-  if (frame.extended) { type |= (1u << 5); }
-  if (frame.remote)   { type |= (1u << 4); }
+
+  if (frame.extended)
+  {
+    type |= (1u << 5);
+  }
+
+  if (frame.remote)
+  {
+    type |= (1u << 4);
+  }
+
   type |= static_cast<uint8_t>(frame.dlc & 0x0F);
   packet.push_back(type);
 
   if (frame.extended)
   {
-    packet.push_back(static_cast<uint8_t>( frame.id        & 0xFF));
-    packet.push_back(static_cast<uint8_t>((frame.id >> 8)  & 0xFF));
+    packet.push_back(static_cast<uint8_t>(frame.id & 0xFF));
+    packet.push_back(static_cast<uint8_t>((frame.id >> 8) & 0xFF));
     packet.push_back(static_cast<uint8_t>((frame.id >> 16) & 0xFF));
     packet.push_back(static_cast<uint8_t>((frame.id >> 24) & 0x1F));
   }
@@ -473,7 +487,7 @@ std::vector<uint8_t> CANComms::encode_frame(const CANFrame & frame) const
       throw std::runtime_error("Standard CAN ID out of range: " + std::to_string(frame.id));
     }
 
-    packet.push_back(static_cast<uint8_t>( frame.id       & 0xFF));
+    packet.push_back(static_cast<uint8_t>(frame.id & 0xFF));
     packet.push_back(static_cast<uint8_t>((frame.id >> 8) & 0x07));
   }
 
@@ -502,6 +516,7 @@ bool CANComms::decode_frame(const std::vector<uint8_t> & packet, CANFrame & fram
   }
 
   const uint8_t type = packet[1];
+
   if ((type & 0xC0) != 0xC0)
   {
     return false;
@@ -545,6 +560,7 @@ bool CANComms::decode_frame(const std::vector<uint8_t> & packet, CANFrame & fram
   if (!frame.remote)
   {
     const std::size_t data_offset = 2 + id_len;
+
     for (uint8_t i = 0; i < frame.dlc; ++i)
     {
       frame.data[i] = packet[data_offset + i];
@@ -575,10 +591,12 @@ bool CANComms::read_variable_packet(std::vector<uint8_t> & packet)
   }
 
   uint8_t type = 0;
+
   if (!read_byte(type))
   {
     return false;
   }
+
   packet.push_back(type);
 
   if ((type & 0xC0) != 0xC0)
@@ -605,6 +623,7 @@ bool CANComms::read_variable_packet(std::vector<uint8_t> & packet)
     {
       return false;
     }
+
     packet.push_back(byte);
   }
 
@@ -641,6 +660,7 @@ void CANComms::write_bytes(const std::vector<uint8_t> & bytes)
   const std::string raw(
     reinterpret_cast<const char *>(bytes.data()),
     bytes.size());
+
   serial_conn_.Write(raw);
 }
 
@@ -650,10 +670,12 @@ uint8_t CANComms::checksum_low8(
   std::size_t end_idx_inclusive)
 {
   uint32_t sum = 0;
+
   for (std::size_t i = start_idx; i <= end_idx_inclusive; ++i)
   {
     sum += bytes[i];
   }
+
   return static_cast<uint8_t>(sum & 0xFF);
 }
 
@@ -665,6 +687,7 @@ std::string CANComms::bytes_to_hex(const std::vector<uint8_t> & bytes)
   for (std::size_t i = 0; i < bytes.size(); ++i)
   {
     ss << std::setw(2) << static_cast<int>(bytes[i]);
+
     if (i + 1 < bytes.size())
     {
       ss << ' ';
@@ -674,4 +697,4 @@ std::string CANComms::bytes_to_hex(const std::vector<uint8_t> & bytes)
   return ss.str();
 }
 
-}  // namespace diffdrive_canbus
+}  // namespace hardware

@@ -1,418 +1,303 @@
+
+#include "diffdrive_canbus/CAN_comms.hpp"
+
 #include <chrono>
-#include <csignal>
-#include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <iomanip>
 #include <iostream>
-#include <sstream>
-#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "diffdrive_canbus/CAN_comms.hpp"
-
 using diffdrive_canbus::CANComms;
 using diffdrive_canbus::CANFrame;
 using diffdrive_canbus::CANMode;
-using diffdrive_canbus::SparkMaxCanIdFields;
+using diffdrive_canbus::make_frc_extended_can_id;
 using diffdrive_canbus::parse_frc_extended_can_id;
 
 namespace
 {
 
-volatile std::sig_atomic_t g_running = 1;
+constexpr uint8_t DEVICE_TYPE_MOTOR_CONTROLLER = 2;
+constexpr uint8_t MANUFACTURER_REV = 5;
 
-void signal_handler(int)
+constexpr uint8_t API_CLASS_SETPOINT = 0;
+constexpr uint8_t API_INDEX_DUTY_CYCLE = 2;
+
+constexpr uint8_t API_CLASS_PERIODIC_STATUS = 6;
+constexpr uint8_t API_INDEX_CLEAR_FAULTS = 14;
+
+constexpr uint8_t API_CLASS_ROBORIO = 9;
+constexpr uint8_t API_INDEX_ROBORIO_HEARTBEAT = 2;
+
+constexpr uint8_t API_CLASS_NON_RIO = 11;
+constexpr uint8_t API_INDEX_NON_RIO_HEARTBEAT = 2;
+
+constexpr uint8_t HEARTBEAT_DEVICE_ID = 0;
+
+constexpr auto LOOP_PERIOD = std::chrono::milliseconds(10);
+constexpr auto ARM_TIME = std::chrono::seconds(2);
+constexpr auto RUN_TIME = std::chrono::seconds(2);
+constexpr auto STOP_TIME = std::chrono::seconds(2);
+
+constexpr int NUM_ATTEMPTS = 3;
+
+std::vector<uint8_t> float_to_le_bytes(float value)
 {
-  g_running = 0;
+  static_assert(sizeof(float) == 4, "float must be 32-bit");
+
+  std::vector<uint8_t> bytes(4);
+  std::memcpy(bytes.data(), &value, sizeof(float));
+  return bytes;
 }
 
-uint32_t parse_u32(const std::string & s)
+uint32_t make_sparkmax_id(uint8_t api_class, uint8_t api_index, uint8_t device_id)
 {
-  size_t idx = 0;
-  const unsigned long value = std::stoul(s, &idx, 0);
-  if (idx != s.size())
-  {
-    throw std::runtime_error("Invalid integer: " + s);
-  }
-  return static_cast<uint32_t>(value);
+  return make_frc_extended_can_id(
+    DEVICE_TYPE_MOTOR_CONTROLLER,
+    MANUFACTURER_REV,
+    api_class,
+    api_index,
+    device_id);
 }
 
-uint8_t parse_u8(const std::string & s)
+bool send_heartbeats(CANComms & can, bool print = false)
 {
-  const uint32_t value = parse_u32(s);
-  if (value > 0xFF)
-  {
-    throw std::runtime_error("Byte out of range: " + s);
-  }
-  return static_cast<uint8_t>(value);
+  const std::vector<uint8_t> data = {
+    0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF
+  };
+
+  const uint32_t non_rio_id = make_sparkmax_id(
+    API_CLASS_NON_RIO,
+    API_INDEX_NON_RIO_HEARTBEAT,
+    HEARTBEAT_DEVICE_ID);
+
+  const uint32_t rio_id = make_sparkmax_id(
+    API_CLASS_ROBORIO,
+    API_INDEX_ROBORIO_HEARTBEAT,
+    HEARTBEAT_DEVICE_ID);
+
+  const bool ok1 = can.send_extended_frame(non_rio_id, data, print);
+  const bool ok2 = can.send_extended_frame(rio_id, data, print);
+
+  return ok1 && ok2;
 }
 
-uint16_t make_api_id(const SparkMaxCanIdFields & f)
+bool clear_faults(CANComms & can, uint8_t device_id, bool print = true)
 {
-  return static_cast<uint16_t>((static_cast<uint16_t>(f.api_class) << 4) | f.api_index);
+  const uint32_t id = make_sparkmax_id(
+    API_CLASS_PERIODIC_STATUS,
+    API_INDEX_CLEAR_FAULTS,
+    device_id);
+
+  return can.send_extended_frame(id, {}, print);
 }
 
-std::string id_fields_to_string(const SparkMaxCanIdFields & f)
+bool set_duty_cycle(
+  CANComms & can,
+  uint8_t device_id,
+  float duty,
+  uint8_t pid_slot = 0,
+  bool print = false)
 {
-  std::ostringstream ss;
-  ss << "api_id=0x"
-     << std::hex << std::uppercase << make_api_id(f)
-     << std::dec
-     << " device_type=" << static_cast<int>(f.device_type)
-     << " manufacturer=" << static_cast<int>(f.manufacturer)
-     << " api_class=" << static_cast<int>(f.api_class)
-     << " api_index=" << static_cast<int>(f.api_index)
-     << " device_id=" << static_cast<int>(f.device_id);
-  return ss.str();
-}
-
-std::string frame_with_fields_to_string(const CANFrame & frame)
-{
-  std::ostringstream ss;
-  ss << CANComms::frame_to_string(frame);
-
-  if (frame.extended)
+  if (duty < -1.0f || duty > 1.0f)
   {
-    const auto fields = parse_frc_extended_can_id(frame.id);
-    ss << " | " << id_fields_to_string(fields);
-  }
-
-  return ss.str();
-}
-
-void print_usage(const char * prog)
-{
-  std::cerr
-    << "\nUsage:\n"
-    << "  " << prog << " listen <serial_device> [can_baud]\n"
-    << "  " << prog << " listen-filter <serial_device> <device_id> [can_baud]\n"
-    << "  " << prog << " send <serial_device> <can_id> <ext|std> <byte0> [byte1 ... byte7]\n"
-    << "  " << prog << " send-n <serial_device> <can_id> <ext|std> <count> <period_ms> <byte0> [byte1 ... byte7]\n"
-    << "  " << prog << " spam <serial_device> <can_id> <ext|std> <period_ms> <byte0> [byte1 ... byte7]\n"
-    << "\nExamples:\n"
-    << "  " << prog << " listen /dev/ttyUSB0 1000000\n"
-    << "  " << prog << " listen-filter /dev/ttyUSB0 1 1000000\n"
-    << "  " << prog << " send /dev/ttyUSB0 0x2051801 ext 0x00 0x00 0x00 0x00\n"
-    << "  " << prog << " send-n /dev/ttyUSB0 0x2051801 ext 5 100 0x00 0x00 0x00 0x00\n"
-    << "  " << prog << " spam /dev/ttyUSB0 0x2051801 ext 100 0x00 0x00 0x80 0x3F\n"
-    << "\nNotes:\n"
-    << "  - SPARK MAX traffic should normally use ext.\n"
-    << "  - can_id accepts decimal or hex.\n"
-    << "  - byte values accept decimal or hex.\n"
-    << "  - listen-filter matches the FRC/SPARK device_id field (0-63).\n\n";
-}
-
-CANFrame build_frame(
-  uint32_t can_id,
-  bool extended,
-  const std::vector<uint8_t> & data)
-{
-  if (data.size() > 8)
-  {
-    throw std::runtime_error("CAN data length cannot exceed 8 bytes");
-  }
-
-  CANFrame frame;
-  frame.id = can_id;
-  frame.extended = extended;
-  frame.remote = false;
-  frame.dlc = static_cast<uint8_t>(data.size());
-  std::memset(frame.data, 0, sizeof(frame.data));
-
-  for (size_t i = 0; i < data.size(); ++i)
-  {
-    frame.data[i] = data[i];
-  }
-
-  return frame;
-}
-
-void run_listen(CANComms & comms)
-{
-  std::cout << "Listening... Press Ctrl+C to stop.\n";
-
-  while (g_running)
-  {
-    CANFrame frame;
-    if (comms.read_frame(frame, false))
-    {
-      std::cout << frame_with_fields_to_string(frame) << std::endl;
-    }
-  }
-}
-
-void run_listen_filter(CANComms & comms, uint8_t wanted_device_id)
-{
-  std::cout << "Listening for device_id=" << static_cast<int>(wanted_device_id)
-            << "... Press Ctrl+C to stop.\n";
-
-  while (g_running)
-  {
-    CANFrame frame;
-    if (!comms.read_frame(frame, false))
-    {
-      continue;
-    }
-
-    if (!frame.extended)
-    {
-      continue;
-    }
-
-    const auto fields = parse_frc_extended_can_id(frame.id);
-    if (fields.device_id == wanted_device_id)
-    {
-      std::cout << frame_with_fields_to_string(frame) << std::endl;
-    }
-  }
-}
-
-void run_send(CANComms & comms, uint32_t can_id, bool extended, const std::vector<uint8_t> & data)
-{
-  const CANFrame frame = build_frame(can_id, extended, data);
-
-  std::cout << "Sending one frame:\n";
-  std::cout << frame_with_fields_to_string(frame) << std::endl;
-
-  if (!comms.send_frame(frame, true))
-  {
-    throw std::runtime_error("Failed to send frame");
-  }
-}
-
-void run_send_n(
-  CANComms & comms,
-  uint32_t can_id,
-  bool extended,
-  int count,
-  int period_ms,
-  const std::vector<uint8_t> & data)
-{
-  if (count <= 0)
-  {
-    throw std::runtime_error("count must be > 0");
-  }
-
-  if (period_ms < 0)
-  {
-    throw std::runtime_error("period_ms must be >= 0");
-  }
-
-  const CANFrame frame = build_frame(can_id, extended, data);
-
-  std::cout << "Sending " << count << " frame(s) every "
-            << period_ms << " ms:\n";
-  std::cout << frame_with_fields_to_string(frame) << std::endl;
-
-  for (int i = 0; i < count; ++i)
-  {
-    if (!comms.send_frame(frame, true))
-    {
-      throw std::runtime_error("Failed to send frame");
-    }
-
-    if (i + 1 < count && period_ms > 0)
-    {
-      std::this_thread::sleep_for(std::chrono::milliseconds(period_ms));
-    }
-  }
-}
-
-void run_spam(
-  CANComms & comms,
-  uint32_t can_id,
-  bool extended,
-  int period_ms,
-  const std::vector<uint8_t> & data)
-{
-  if (period_ms <= 0)
-  {
-    throw std::runtime_error("period_ms must be > 0");
-  }
-
-  const CANFrame frame = build_frame(can_id, extended, data);
-
-  std::cout << "Spamming frame every " << period_ms << " ms:\n";
-  std::cout << frame_with_fields_to_string(frame) << std::endl;
-  std::cout << "Press Ctrl+C to stop.\n";
-
-  while (g_running)
-  {
-    if (!comms.send_frame(frame, false))
-    {
-      std::cerr << "Send failed\n";
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(period_ms));
-  }
-}
-
-bool parse_id_type(const std::string & id_type)
-{
-  if (id_type == "ext")
-  {
-    return true;
-  }
-  if (id_type == "std")
-  {
+    std::cerr << "Duty cycle must be between -1 and 1\n";
     return false;
   }
 
-  throw std::runtime_error("ID type must be 'ext' or 'std'");
+  const uint32_t id = make_sparkmax_id(
+    API_CLASS_SETPOINT,
+    API_INDEX_DUTY_CYCLE,
+    device_id);
+
+  std::vector<uint8_t> data(8, 0x00);
+
+  const auto target = float_to_le_bytes(duty);
+
+  data[0] = target[0];
+  data[1] = target[1];
+  data[2] = target[2];
+  data[3] = target[3];
+
+  data[6] = static_cast<uint8_t>(pid_slot & 0x03);
+
+  return can.send_extended_frame(id, data, print);
 }
 
-void configure_and_print(CANComms & comms, const std::string & serial_device, int32_t serial_baud, int32_t can_baud)
+void print_received_frames(CANComms & can, int frames_to_try = 50)
 {
-  if (!comms.configure_adapter(
-        can_baud,
-        true,
-        0x00000000,
-        0x00000000,
-        CANMode::NORMAL,
-        false,
-        true))
+  std::cout << "\nListening for returned/status frames...\n";
+
+  for (int i = 0; i < frames_to_try; ++i)
   {
-    throw std::runtime_error("Failed to configure CAN adapter");
+    CANFrame frame;
+    if (!can.read_can_frame(frame, false))
+    {
+      continue;
+    }
+
+    const auto fields = parse_frc_extended_can_id(frame.id);
+
+    std::cout << CANComms::frame_to_string(frame)
+              << " | device_type=" << static_cast<int>(fields.device_type)
+              << " manufacturer=" << static_cast<int>(fields.manufacturer)
+              << " api_class=" << static_cast<int>(fields.api_class)
+              << " api_index=" << static_cast<int>(fields.api_index)
+              << " device_id=" << static_cast<int>(fields.device_id)
+              << "\n";
+  }
+}
+
+void command_duty_for(
+  CANComms & can,
+  uint8_t device_id,
+  float duty,
+  std::chrono::milliseconds duration,
+  bool print_commands = false)
+{
+  const auto start = std::chrono::steady_clock::now();
+
+  while (std::chrono::steady_clock::now() - start < duration)
+  {
+    send_heartbeats(can, false);
+    set_duty_cycle(can, device_id, duty, 0, print_commands);
+
+    std::this_thread::sleep_for(LOOP_PERIOD);
+  }
+}
+
+void stop_motor_for(
+  CANComms & can,
+  uint8_t device_id,
+  std::chrono::milliseconds duration)
+{
+  const auto start = std::chrono::steady_clock::now();
+
+  while (std::chrono::steady_clock::now() - start < duration)
+  {
+    send_heartbeats(can, false);
+    set_duty_cycle(can, device_id, 0.0f, 0, false);
+
+    std::this_thread::sleep_for(LOOP_PERIOD);
+  }
+}
+
+void run_attempt(
+  CANComms & can,
+  uint8_t spark_id,
+  float duty,
+  int attempt,
+  int total_attempts)
+{
+  std::cout << "\nAttempt " << attempt << "/" << total_attempts << "\n";
+
+  std::cout << "Clearing faults...\n";
+  for (int i = 0; i < 3; ++i)
+  {
+    clear_faults(can, spark_id, false);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
-  std::cout << "Connected to " << serial_device
-            << " at serial baud " << serial_baud
-            << ", CAN baud " << can_baud << "\n";
+  std::cout << "Arming with heartbeat pair + zero duty...\n";
+  command_duty_for(
+    can,
+    spark_id,
+    0.0f,
+    ARM_TIME,
+    false);
+
+  std::cout << "Running duty " << duty << "...\n";
+  command_duty_for(
+    can,
+    spark_id,
+    duty,
+    RUN_TIME,
+    false);
+
+  std::cout << "Stopping...\n";
+  stop_motor_for(
+    can,
+    spark_id,
+    STOP_TIME);
 }
 
 }  // namespace
 
 int main(int argc, char ** argv)
 {
-  std::signal(SIGINT, signal_handler);
-
   if (argc < 3)
   {
-    print_usage(argv[0]);
+    std::cerr << "Usage:\n"
+              << "  " << argv[0] << " /dev/ttyUSB0 <spark_can_id> [duty]\n\n"
+              << "Example:\n"
+              << "  " << argv[0] << " /dev/ttyUSB0 1 0.03\n";
     return 1;
   }
+
+  const std::string serial_device = argv[1];
+  const uint8_t spark_id = static_cast<uint8_t>(std::stoi(argv[2]));
+
+  float duty = 0.03f;
+  if (argc >= 4)
+  {
+    duty = std::stof(argv[3]);
+  }
+
+  if (duty < -0.2f || duty > 0.2f)
+  {
+    std::cerr << "Refusing to run duty outside +/-0.2 for this test.\n";
+    return 1;
+  }
+
+  CANComms can;
 
   try
   {
-    const std::string mode = argv[1];
-    const std::string serial_device = argv[2];
+    can.connect(serial_device, 2000000, 20);
 
-    constexpr int32_t serial_baud = 2000000;
-    constexpr int32_t timeout_ms = 50;
-    int32_t can_baud = 1000000;
-
-    CANComms comms;
-    comms.connect(serial_device, serial_baud, timeout_ms);
-
-    if (mode == "listen")
+    if (!can.configure_adapter(
+          1000000,
+          false,
+          0x00000000,
+          0x00000000,
+          CANMode::NORMAL,
+          false,
+          true))
     {
-      if (argc >= 4)
-      {
-        can_baud = static_cast<int32_t>(parse_u32(argv[3]));
-      }
-
-      configure_and_print(comms, serial_device, serial_baud, can_baud);
-      run_listen(comms);
-      return 0;
+      std::cerr << "Failed to configure adapter\n";
+      return 1;
     }
 
-    if (mode == "listen-filter")
+    std::cout << "\nConnected and configured.\n";
+    std::cout << "Testing SPARK MAX ID " << static_cast<int>(spark_id) << "\n";
+    std::cout << "Duty command: " << duty << "\n";
+    std::cout << "Attempts in one process: " << NUM_ATTEMPTS << "\n\n";
+
+    std::cout << "Sending one printed heartbeat pair.\n";
+    std::cout << "Expected IDs: 0x2052C80 and 0x2052480\n";
+    send_heartbeats(can, true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    for (int attempt = 1; attempt <= NUM_ATTEMPTS; ++attempt)
     {
-      if (argc < 4)
-      {
-        print_usage(argv[0]);
-        return 1;
-      }
-
-      const uint8_t device_id = parse_u8(argv[3]);
-      if (argc >= 5)
-      {
-        can_baud = static_cast<int32_t>(parse_u32(argv[4]));
-      }
-
-      configure_and_print(comms, serial_device, serial_baud, can_baud);
-      run_listen_filter(comms, device_id);
-      return 0;
+      run_attempt(
+        can,
+        spark_id,
+        duty,
+        attempt,
+        NUM_ATTEMPTS);
     }
 
-    if (mode == "send")
-    {
-      if (argc < 6)
-      {
-        print_usage(argv[0]);
-        return 1;
-      }
+    print_received_frames(can, 100);
 
-      const uint32_t can_id = parse_u32(argv[3]);
-      const bool extended = parse_id_type(argv[4]);
-
-      std::vector<uint8_t> data;
-      for (int i = 5; i < argc; ++i)
-      {
-        data.push_back(parse_u8(argv[i]));
-      }
-
-      configure_and_print(comms, serial_device, serial_baud, can_baud);
-      run_send(comms, can_id, extended, data);
-      return 0;
-    }
-
-    if (mode == "send-n")
-    {
-      if (argc < 8)
-      {
-        print_usage(argv[0]);
-        return 1;
-      }
-
-      const uint32_t can_id = parse_u32(argv[3]);
-      const bool extended = parse_id_type(argv[4]);
-      const int count = static_cast<int>(parse_u32(argv[5]));
-      const int period_ms = static_cast<int>(parse_u32(argv[6]));
-
-      std::vector<uint8_t> data;
-      for (int i = 7; i < argc; ++i)
-      {
-        data.push_back(parse_u8(argv[i]));
-      }
-
-      configure_and_print(comms, serial_device, serial_baud, can_baud);
-      run_send_n(comms, can_id, extended, count, period_ms, data);
-      return 0;
-    }
-
-    if (mode == "spam")
-    {
-      if (argc < 7)
-      {
-        print_usage(argv[0]);
-        return 1;
-      }
-
-      const uint32_t can_id = parse_u32(argv[3]);
-      const bool extended = parse_id_type(argv[4]);
-      const int period_ms = static_cast<int>(parse_u32(argv[5]));
-
-      std::vector<uint8_t> data;
-      for (int i = 6; i < argc; ++i)
-      {
-        data.push_back(parse_u8(argv[i]));
-      }
-
-      configure_and_print(comms, serial_device, serial_baud, can_baud);
-      run_spam(comms, can_id, extended, period_ms, data);
-      return 0;
-    }
-
-    print_usage(argv[0]);
-    return 1;
+    can.disconnect();
   }
   catch (const std::exception & e)
   {
-    std::cerr << "ERROR: " << e.what() << std::endl;
+    std::cerr << "Error: " << e.what() << "\n";
     return 1;
   }
+
+  return 0;
 }

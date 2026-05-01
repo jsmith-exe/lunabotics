@@ -5,7 +5,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
   add_compile_options(-Wall -Wextra)
 endif()
 
-# find dependencies
+# Dependencies
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   hardware_interface
   pluginlib
@@ -13,25 +13,24 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
 )
 
-# find dependencies
 find_package(ament_cmake REQUIRED)
+
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 
-## COMPILE
+# Main hardware interface / CAN communication library
 add_library(
   diffdrive_canbus
   SHARED
-  hardware/diffbot_system.cpp
-  hardware/include/diffdrive_canbus/CAN_comms.cpp
+  hardware/CAN_comms.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)
 
 target_include_directories(diffdrive_canbus PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
-  $<INSTALL_INTERFACE:include/diffdrive_canbus>
+  $<INSTALL_INTERFACE:include>
 )
 
 ament_target_dependencies(
@@ -39,9 +38,40 @@ ament_target_dependencies(
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
 
-target_link_libraries(diffdrive_canbus PUBLIC serial)
+target_link_libraries(diffdrive_canbus PUBLIC
+  serial
+)
 
-# Standalone test executable
+# Causes the visibility macros to use dllexport rather than dllimport,
+# which is appropriate when building the dll but not consuming it.
+target_compile_definitions(diffdrive_canbus PRIVATE
+  "CANBUS_BUILDING_DLL"
+)
+
+# SPARK MAX abstraction library
+add_library(
+  spark_max
+  SHARED
+  hardware/spark_max.cpp
+)
+
+target_compile_features(spark_max PUBLIC cxx_std_17)
+
+target_include_directories(spark_max PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(
+  spark_max PUBLIC
+  ${THIS_PACKAGE_INCLUDE_DEPENDS}
+)
+
+target_link_libraries(spark_max PUBLIC
+  diffdrive_canbus
+)
+
+# Standalone low-level SPARK MAX test executable
 add_executable(
   spark_max_test
   hardware/spark_max_test.cpp
@@ -51,44 +81,67 @@ target_compile_features(spark_max_test PUBLIC cxx_std_17)
 
 target_include_directories(spark_max_test PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
-  $<INSTALL_INTERFACE:include/diffdrive_canbus>
+  $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(spark_max_test diffdrive_canbus serial)
+target_link_libraries(spark_max_test
+  diffdrive_canbus
+)
 
-# Causes the visibility macros to use dllexport rather than dllimport,
-# which is appropriate when building the dll but not consuming it.
-target_compile_definitions(${PROJECT_NAME} PRIVATE "DIFFDRIVE_CANBUS_BUILDING_DLL")
+# SPARK MAX class test executable
+add_executable(
+  spark_max_class_test
+  hardware/spark_max_class_test.cpp
+)
+
+target_compile_features(spark_max_class_test PUBLIC cxx_std_17)
+
+target_include_directories(spark_max_class_test PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(spark_max_class_test
+  spark_max
+  diffdrive_canbus
+)
 
 # Export hardware plugins
-pluginlib_export_plugin_description_file(hardware_interface diffdrive_canbus.xml)
+pluginlib_export_plugin_description_file(
+  hardware_interface
+  diffdrive_canbus.xml
+)
 
-# INSTALL
+# Install headers
 install(
   DIRECTORY hardware/include/
-  DESTINATION include/diffdrive_canbus
+  DESTINATION include
 )
 
+# Install robot description files
 install(
   DIRECTORY description/ros2_control description/urdf
-  DESTINATION share/diffdrive_canbus
+  DESTINATION share/${PROJECT_NAME}
 )
 
+# Install launch/config files
 install(
   DIRECTORY bringup/launch bringup/config
-  DESTINATION share/diffdrive_canbus
+  DESTINATION share/${PROJECT_NAME}
 )
 
+# Install libraries
 install(
-  TARGETS diffdrive_canbus
+  TARGETS diffdrive_canbus spark_max
   EXPORT export_diffdrive_canbus
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
+# Install test executables
 install(
-  TARGETS spark_max_test
+  TARGETS spark_max_test spark_max_class_test
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -96,7 +149,8 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
 endif()
 
-## EXPORTS
+# Exports
 ament_export_targets(export_diffdrive_canbus HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
+
 ament_package()
