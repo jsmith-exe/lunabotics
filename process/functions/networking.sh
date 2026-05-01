@@ -19,22 +19,32 @@ qpl_speedometer() {
 
 qpl_net_limit_set() {
   local EGRESS_PERCENT=${1:-90}
-  local MAX_KBPS=${2:-4000}
+  local MAX_KBITS=${2:-4000}
   local INTERFACE=${3:-"$DEFAULT_LIMITED_INTERFACE"}
 
-  local UPLOAD DOWNLOAD
-  UPLOAD=$(echo "$MAX_KBPS * $EGRESS_PERCENT / 100" | bc)
-  DOWNLOAD=$(echo "$MAX_KBPS - $UPLOAD" | bc)
+  local UPLOAD_KBITS DOWNLOAD_KBITS
+  UPLOAD_KBITS=$(echo "$MAX_KBITS * $EGRESS_PERCENT / 100" | bc)
+  DOWNLOAD_KBITS=$(echo "$MAX_KBITS - $UPLOAD_KBITS" | bc)
+
+  # Validate
+  local MIN_UPLOAD_KBITS MIN_DOWNLOAD_KBITS
+  MIN_UPLOAD_KBITS=100
+  MIN_DOWNLOAD_KBITS=100
+  if (( UPLOAD_KBITS < MIN_UPLOAD_KBITS|| MIN_DOWNLOAD_KBITS < 100 )); then
+    echo "UPLOAD_KBITS cannot be less than $MIN_UPLOAD_KBITS ($UPLOAD_KBITS)"
+    echo "DOWNLOAD_KBITS cannot be less than $MIN_DOWNLOAD_KBITS ($DOWNLOAD_KBITS)"
+    return
+  fi
 
   # hashlimit uses kilobytes/sec — divide kbps by 8
-  local DOWNLOAD_KBS=$(echo "$DOWNLOAD / 8" | bc)
+  local DOWNLOAD_KBYTES=$(echo "$DOWNLOAD_KBITS / 8" | bc)
 
   qpl_net_limit_clear "$INTERFACE" >/dev/null 2>/dev/null
 
   cat << EOF
-Limiting $INTERFACE to ${MAX_KBPS} Kbps
-    Egress/upload:    $UPLOAD Kbps (${EGRESS_PERCENT}%)
-    Ingress/download: $DOWNLOAD Kbps ($((100 - EGRESS_PERCENT))%)
+Limiting $INTERFACE to ${MAX_KBITS} Kbps
+    Egress/upload:    $UPLOAD_KBITS Kbps (${EGRESS_PERCENT}%)
+    Ingress/download: $DOWNLOAD_KBITS Kbps ($((100 - EGRESS_PERCENT))%)
 EOF
 
   # Use tc for egress
@@ -45,7 +55,7 @@ EOF
   # burst    — how large the bucket is
   # latency  — how long a packet waits before being dropped if bucket is empty
   sudo tc qdisc add dev "$INTERFACE" root tbf \
-    rate "${UPLOAD}kbit" \
+    rate "${UPLOAD_KBITS}kbit" \
     burst 15360 \
     latency 50ms
 
@@ -59,8 +69,8 @@ EOF
     sudo $TABLE -A QPL_LIMIT_IN \
       -m hashlimit \
       --hashlimit-name "qpl_ingress" \
-      --hashlimit-above "${DOWNLOAD_KBS}kb/s" \
-      --hashlimit-burst "${DOWNLOAD_KBS}kb" \
+      --hashlimit-above "${DOWNLOAD_KBYTES}kb/s" \
+      --hashlimit-burst "${DOWNLOAD_KBYTES}kb" \
       -j DROP
   done
 }
