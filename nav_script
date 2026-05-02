@@ -1,0 +1,130 @@
+state = 0
+manual = 1
+localised = 0
+goal_achieved = 0
+def state_machine():
+    global state
+    global manual
+    global localised
+    global goal_achieved
+   
+    match state:
+        case 0:
+            print("manual mode")
+            if(manual == 0):
+                state = 1
+            else:
+                state = 0
+        case 1:
+            print("localising")
+            if(manual == 1):
+                state = 0
+            elif(localised == 1):
+                state = 2
+            else:
+                state = 1
+        case 2:
+            print("Navigating to excivation zone")
+            if(manual == 1):
+                state = 0
+            elif(localised == 0):
+                state = 1
+            elif(goal_achieved == 1):
+                goal_achieved = 0
+                state = 3
+            else:
+                state = 2
+        case 3:
+            print("excivating")
+            if(manual == 1):
+                state = 0
+            elif(localised == 0):
+                state = 1
+            elif(goal_achieved == 1):
+                goal_achieved = 0
+                state = 4
+            else:
+                state = 3
+        case 4:
+            print("navigating to deposition zone")
+            if(manual == 1):
+                state = 0
+            elif(localised == 0):
+                state = 1
+            elif(goal_achieved == 1):
+                goal_achieved = 0
+                state = 5
+            else:
+                state = 4
+        case 5:
+            print("depositing")
+            if(manual == 1):
+                state = 0
+            elif(localised == 0):
+                state = 1
+            elif(goal_achieved == 1):
+                goal_achieved = 0
+                state = 2
+            else:
+                state = 5
+
+manual = 0
+localised = 0
+goal_achieved = 0
+state_machine()
+
+
+manual = 0
+localised = 1
+goal_achieved = 0
+state_machine()
+
+
+manual = 0
+localised = 1
+goal_achieved = 1
+state_machine()
+
+
+manual = 0
+localised = 1
+goal_achieved = 1
+state_machine()
+
+
+manual = 0
+localised = 1
+goal_achieved = 1
+state_machine()
+
+
+manual = 0
+localised = 1
+goal_achieved = 1
+state_machine()
+
+
+manual = 0
+localised = 1
+goal_achieved = 1
+state_machine()
+
+
+manual = 0
+localised = 0
+goal_achieved = 1
+state_machine()
+
+
+manual = 1
+localised = 1
+goal_achieved = 1
+state_machine()
+
+
+       
+
+
+
+
+
