@@ -24,6 +24,8 @@ add_library(
   diffdrive_canbus
   SHARED
   hardware/CAN_comms.cpp
+  hardware/spark_max.cpp
+  hardware/Velocity_Controller.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)
@@ -48,30 +50,7 @@ target_compile_definitions(diffdrive_canbus PRIVATE
   "CANBUS_BUILDING_DLL"
 )
 
-# SPARK MAX abstraction library
-add_library(
-  spark_max
-  SHARED
-  hardware/spark_max.cpp
-)
-
-target_compile_features(spark_max PUBLIC cxx_std_17)
-
-target_include_directories(spark_max PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-ament_target_dependencies(
-  spark_max PUBLIC
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
-
-target_link_libraries(spark_max PUBLIC
-  diffdrive_canbus
-)
-
-# Standalone low-level SPARK MAX test executable
+# Standalone SPARK MAX test executable
 add_executable(
   spark_max_test
   hardware/spark_max_test.cpp
@@ -85,24 +64,6 @@ target_include_directories(spark_max_test PUBLIC
 )
 
 target_link_libraries(spark_max_test
-  diffdrive_canbus
-)
-
-# SPARK MAX class test executable
-add_executable(
-  spark_max_class_test
-  hardware/spark_max_class_test.cpp
-)
-
-target_compile_features(spark_max_class_test PUBLIC cxx_std_17)
-
-target_include_directories(spark_max_class_test PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-target_link_libraries(spark_max_class_test
-  spark_max
   diffdrive_canbus
 )
 
@@ -130,18 +91,18 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Install libraries
+# Install library
 install(
-  TARGETS diffdrive_canbus spark_max
+  TARGETS diffdrive_canbus
   EXPORT export_diffdrive_canbus
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
-# Install test executables
+# Install test executable
 install(
-  TARGETS spark_max_test spark_max_class_test
+  TARGETS spark_max_test
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
