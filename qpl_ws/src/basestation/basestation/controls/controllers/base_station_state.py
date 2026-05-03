@@ -1,11 +1,20 @@
 from dataclasses import dataclass, field
 
 from ..control_maps import default_control_map
+from ...constants import NAV_TOPIC, DRUM_TOPIC
 
-def generate_base_twist_state():
+
+def generate_base_twist_state(topic):
     return {
+        'topic': str(topic),
         'linear': {'x': 0.0, 'y': 0.0, 'z': 0.0},
         'angular': {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    }
+
+def generate_topic_state():
+    return {
+        NAV_TOPIC: generate_base_twist_state(NAV_TOPIC),
+        DRUM_TOPIC: generate_base_twist_state(DRUM_TOPIC),
     }
 
 @dataclass
@@ -14,4 +23,4 @@ class BaseStationState:
     desktop_controller_enabled: bool = False # Not yet used
     physical_controller_enabled: bool = False # Not yet used
     control_map: dict = field(default_factory=lambda: default_control_map)
-    nav_state: dict = field(default_factory=generate_base_twist_state)
+    topic_target_states: dict = field(default_factory=generate_topic_state)

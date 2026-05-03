@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from ..constants import ControllerInputs, ControlMode, TwistOptions, NAV_TOPIC
+from ..constants import ControllerInputs, ControlMode, TwistOptions, NAV_TOPIC, DRUM_TOPIC
 
 Con = ControllerInputs
 
@@ -21,17 +21,21 @@ default_control_map = {
     Con.DPAD_DOWN: Command(NAV_TOPIC, TwistOptions.LINEAR_X, -1),
     Con.DPAD_RIGHT: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z, -1),
     Con.DPAD_LEFT: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z),
-
-    Con.LEFT_JOYSTICK_X: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z, -1),
-    Con.LEFT_JOYSTICK_Y: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
+    # Con.LEFT_JOYSTICK_X: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z, -1),
+    # Con.LEFT_JOYSTICK_Y: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
     Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z, -1),
     Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
 
-    Con.L2_ANALOGUE_STICK: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z),
-    Con.R2_ANALOGUE_STICK: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z, -1),
+    Con.L2_ANALOGUE_STICK: Command(DRUM_TOPIC, TwistOptions.ANGULAR_X, -1),
+    Con.R2_ANALOGUE_STICK: Command(DRUM_TOPIC, TwistOptions.ANGULAR_X),
+    Con.LEFT_JOYSTICK_Y: Command(DRUM_TOPIC, TwistOptions.LINEAR_Y),
 
     'w': Command(NAV_TOPIC, TwistOptions.LINEAR_X),
     'a': Command(NAV_TOPIC, TwistOptions.ANGULAR_Z),
     's': Command(NAV_TOPIC, TwistOptions.LINEAR_X, -1),
     'd': Command(NAV_TOPIC, TwistOptions.ANGULAR_Z, -1),
+    'left': Command(DRUM_TOPIC, TwistOptions.ANGULAR_X, -1),
+    'right': Command(DRUM_TOPIC, TwistOptions.ANGULAR_X),
+    'up': Command(DRUM_TOPIC, TwistOptions.LINEAR_Y),
+    'down': Command(DRUM_TOPIC, TwistOptions.LINEAR_Y, -1),
 }

@@ -1,4 +1,4 @@
-twist_mux:
+drum_mux:
   ros__parameters:
     use_stamped: false
     cmd_vel_out: cmd_vel_out

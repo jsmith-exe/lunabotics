@@ -10,14 +10,24 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 def generate_launch_description():
     rover_pkg: str = get_package_share_directory("qpl_rover")
 
-    twist_mux_params = os.path.join(rover_pkg, "config", "twist_mux.yaml")
-    twist_mux = Node(
+    drive_mux_params = os.path.join(rover_pkg, "config", "drive_mux.yaml")
+    drive_mux = Node(
         package="twist_mux",
         executable="twist_mux",
-        name="twist_mux",
+        name="drive_mux",
         output="screen",
-        parameters=[twist_mux_params, {"use_sim_time": True}],
+        parameters=[drive_mux_params, {"use_sim_time": True}],
         remappings=[("cmd_vel_out", "/diff_cont/cmd_vel_unstamped")],
+    )
+
+    drum_mux_params = os.path.join(rover_pkg, "config", "drum_mux.yaml")
+    drum_mux = Node(
+        package="twist_mux",
+        executable="twist_mux",
+        name="drum_mux",
+        output="screen",
+        parameters=[drum_mux_params, {"use_sim_time": True}],
+        # remappings=[("cmd_vel_out", "/diff_cont/cmd_vel_unstamped")],
     )
 
     controller_spawners = TimerAction(
@@ -37,6 +47,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        twist_mux,
+        drive_mux,
+        # drum_mux,
         controller_spawners
     ])
