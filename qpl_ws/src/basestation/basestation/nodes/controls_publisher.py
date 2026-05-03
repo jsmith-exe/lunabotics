@@ -7,16 +7,20 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, Vector3
 
 from basestation.forwarding.tcp_receiver import TCPReceiver
-from basestation.constants import NAV_TOPIC, PUBLISHER_UPDATE_RATE
+from basestation.constants import NAV_TOPIC, DRUM_TOPIC, PUBLISHER_UPDATE_RATE
 
 class ControlsPublisher(Node):
     def __init__(self):
         super().__init__('nav_teleop_publisher')
 
-        self.current_twist = None
-
-        self.publisher_ = self.create_publisher(Twist, NAV_TOPIC, 10)
-        self.get_logger().info(f'Publishing to {NAV_TOPIC}')
+        self.publishers_ = {
+            NAV_TOPIC: self.create_publisher(Twist, NAV_TOPIC, 10),
+            DRUM_TOPIC: self.create_publisher(Twist, DRUM_TOPIC, 10),
+        }
+        topics = list(self.publishers_.keys())
+        # Keep track of states for republishing
+        self.topic_states = {topic: None for topic in topics}
+        self.get_logger().info(f'Publishing to {topics}')
 
         self.tcp_receiver = TCPReceiver(self.handle_data, log=self.get_logger().info)
         self.tcp_receiver_thread = Thread(target=self.tcp_receiver.start_listening_forever, daemon=True)
@@ -35,10 +39,11 @@ class ControlsPublisher(Node):
             self.get_logger().info(f'Received: {received_data}')
             split_data = received_data.split(';')
             target_state = json.loads(split_data[len(split_data) - 2]) # second last item is the most recent json data
+            topic = target_state['topic']
 
             twist = self.twist_from_target_state_dict(target_state)
-            self.current_twist = twist
-            self.publisher_.publish(twist)
+            self.topic_states[topic] = twist
+            self.publishers_[topic].publish(twist)
         except Exception as e:
             self.get_logger().error(f'Error handling data: {e}')
 
@@ -57,9 +62,11 @@ class ControlsPublisher(Node):
         )
 
     def republish_twist(self):
-        if self.current_twist is None:
-            return
-        self.publisher_.publish(self.current_twist)
+        """ Republish the most recent Twist messages for each topic at a fixed rate.
+        Rover mux are set to stop if they don't receive messages for a while. """
+        for topic, twist in self.topic_states.items():
+            if twist is None: continue
+            self.publishers_[topic].publish(twist)
 
     def destroy_node(self):
         super().destroy_node()
@@ -74,4 +81,8 @@ def main(args=None):
     rclpy.shutdown()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(e)
+        input('Will not recover, press enter to exit.')

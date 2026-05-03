@@ -27,7 +27,7 @@ def generate_launch_description():
         name="drum_mux",
         output="screen",
         parameters=[drum_mux_params, {"use_sim_time": True}],
-        # remappings=[("cmd_vel_out", "/diff_cont/cmd_vel_unstamped")],
+        remappings=[("cmd_vel_out", "/drum_cont/cmd_vel_unstamped")],
     )
 
     controller_spawners = TimerAction(
@@ -48,6 +48,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         drive_mux,
-        # drum_mux,
+        drum_mux,
         controller_spawners
     ])

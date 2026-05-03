@@ -9,22 +9,22 @@ drum_mux:
     # Optional: cap overall speeds (acts as a limiter)
     # You can remove these if you prefer limiting elsewhere
     linear:
-      x: 0.8
+      x: 1.0
       y: 0.0
       z: 0.0
     angular:
       x: 0.0
-      y: 0.0
-      z: 2.0
+      y: 1.0
+      z: 0.0
 
     # Inputs
     topics:
       teleop:
-        topic: cmd_vel_teleop
+        topic: cmd_drum_teleop
         timeout: 0.5
         priority: 100
       nav2:
-        topic: cmd_vel_nav
+        topic: cmd_drum_auto
         timeout: 0.5
         priority: 50
       # Optional: an emergency stop topic (highest priority)
