@@ -3,8 +3,8 @@
 
 #include <atomic>
 #include <chrono>
-#include <cmath>
 #include <csignal>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
@@ -18,9 +18,13 @@ using diffdrive_canbus::SparkMax;
 namespace
 {
 
-constexpr auto LOOP_PERIOD = std::chrono::milliseconds(10);
-constexpr auto ARM_TIME = std::chrono::seconds(2);
-constexpr auto STOP_TIME = std::chrono::seconds(2);
+// Keep both on the same 20 ms robot-style loop.
+// This avoids hammering the bus with repeated setpoints.
+constexpr auto LOOP_PERIOD = std::chrono::milliseconds(20);
+constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
+constexpr auto STOP_TIME = std::chrono::milliseconds(300);
+
+constexpr float PI = 3.14159265358979323846f;
 
 std::atomic_bool g_running{true};
 
@@ -36,205 +40,235 @@ enum class TestMode
   RAD_PER_SEC
 };
 
-enum class VelocityRoute
+struct CommandInfo
 {
-  SOFTWARE_DUTY_PID,
-  NATIVE_SPARKMAX_PID
+  float user_command = 0.0f;
+  float target_motor_rpm = 0.0f;
+  float target_wheel_rad_per_sec = 0.0f;
 };
 
-const char * route_to_string(VelocityRoute route)
+float rad_per_sec_to_rpm(float rad_per_sec)
 {
-  if (route == VelocityRoute::NATIVE_SPARKMAX_PID)
-  {
-    return "native SPARK MAX velocity PID";
-  }
-
-  return "software PID to duty-cycle";
+  return rad_per_sec * 60.0f / (2.0f * PI);
 }
 
-void print_telemetry(
+CommandInfo make_command_info(
   TestMode mode,
-  VelocityRoute route,
   float command,
-  const SparkMax & spark)
+  float gear_ratio)
 {
-  const auto & t = spark.telemetry();
-
-  std::cout << std::fixed << std::setprecision(3);
+  CommandInfo info;
+  info.user_command = command;
 
   if (mode == TestMode::DUTY)
   {
-    std::cout << "cmd duty=" << command;
-  }
-  else if (mode == TestMode::RPM)
-  {
-    std::cout << "cmd rpm=" << command;
-  }
-  else if (mode == TestMode::RAD_PER_SEC)
-  {
-    std::cout << "cmd rad/s=" << command;
+    return info;
   }
 
-  if (mode == TestMode::RPM || mode == TestMode::RAD_PER_SEC)
+  if (mode == TestMode::RPM)
   {
-    if (route == VelocityRoute::NATIVE_SPARKMAX_PID)
-    {
-      std::cout << " | route=native";
-    }
-    else
-    {
-      std::cout << " | route=software";
-    }
+    // User command is motor RPM.
+    info.target_motor_rpm = command;
+
+    info.target_wheel_rad_per_sec =
+      (info.target_motor_rpm / gear_ratio) * (2.0f * PI / 60.0f);
+
+    return info;
   }
 
-  if (t.has_encoder_velocity)
+  if (mode == TestMode::RAD_PER_SEC)
   {
-    std::cout << " | encoder_velocity=" << t.encoder_velocity_rpm << " RPM"
-              << " | motor=" << t.motor_rad_per_sec << " rad/s"
-              << " | wheel=" << t.wheel_rad_per_sec << " rad/s";
-  }
-  else
-  {
-    std::cout << " | encoder_velocity=NO STATUS2";
+    // User command is wheel rad/s.
+    const float target_motor_rad_per_sec = command * gear_ratio;
+
+    info.target_motor_rpm =
+      rad_per_sec_to_rpm(target_motor_rad_per_sec);
+
+    info.target_wheel_rad_per_sec = command;
+
+    return info;
   }
 
-  if (t.has_encoder_position)
-  {
-    std::cout << " | encoder_position=" << t.encoder_position_rotations << " rev"
-              << " | wheel_position=" << t.wheel_position_rotations << " rev";
-  }
-
-  if (t.has_applied_output)
-  {
-    std::cout << " | applied=" << t.applied_output;
-  }
-  else
-  {
-    std::cout << " | applied=NO STATUS0";
-  }
-
-  if ((mode == TestMode::RPM || mode == TestMode::RAD_PER_SEC) &&
-      route == VelocityRoute::SOFTWARE_DUTY_PID)
-  {
-    std::cout << " | pid_correction=" << spark.velocity_controller_output();
-  }
-
-  std::cout << "\n";
+  return info;
 }
 
 bool send_command(
   SparkMax & spark,
   TestMode mode,
-  float command,
-  bool print_command = false)
+  const CommandInfo & info,
+  bool print_command)
 {
   if (mode == TestMode::DUTY)
   {
-    return spark.set_duty_cycle(command, print_command);
+    return spark.set_duty_cycle(info.user_command, print_command);
   }
 
   if (mode == TestMode::RPM)
   {
-    return spark.set_velocity_rpm(command, print_command);
+    // Native velocity command.
+    // This sends the motor RPM value through SparkMax::set_velocity_rpm().
+    return spark.set_velocity_rpm(info.target_motor_rpm, print_command);
   }
 
   if (mode == TestMode::RAD_PER_SEC)
   {
-    return spark.set_velocity_rad_per_sec(command, print_command);
+    // Native velocity command.
+    // This sends wheel rad/s through SparkMax::set_velocity_rad_per_sec(),
+    // which converts internally to motor RPM using the gear ratio.
+    return spark.set_velocity_rad_per_sec(
+      info.target_wheel_rad_per_sec,
+      print_command);
   }
 
   return false;
 }
 
-void command_for_duration(
-  SparkMax & spark,
+void print_command_status(
   TestMode mode,
-  VelocityRoute route,
-  float command,
-  std::chrono::milliseconds duration,
-  bool print_commands = false,
-  bool print_status_frames = false)
+  const CommandInfo & info,
+  int heartbeat_count,
+  int command_count)
 {
-  const auto start = std::chrono::steady_clock::now();
-  auto last_print = start;
+  std::cout << std::fixed << std::setprecision(3);
 
-  while (g_running && std::chrono::steady_clock::now() - start < duration)
+  if (mode == TestMode::DUTY)
   {
-    const bool hb_ok = spark.send_heartbeats(false);
+    std::cout << "cmd duty=" << info.user_command;
+  }
+  else if (mode == TestMode::RPM)
+  {
+    std::cout << "cmd motor rpm=" << info.target_motor_rpm
+              << " | route=native velocity";
+  }
+  else if (mode == TestMode::RAD_PER_SEC)
+  {
+    std::cout << "cmd wheel rad/s=" << info.target_wheel_rad_per_sec
+              << " | target motor rpm=" << info.target_motor_rpm
+              << " | route=native velocity";
+  }
 
-    const bool cmd_ok = send_command(
-      spark,
-      mode,
-      command,
-      print_commands);
+  std::cout << " | heartbeats=" << heartbeat_count
+            << " | commands=" << command_count
+            << "\n";
+}
 
-    spark.read_telemetry(50, print_status_frames);
+void send_stop_for_duration(
+  SparkMax & spark,
+  std::chrono::milliseconds duration)
+{
+  using clock = std::chrono::steady_clock;
 
-    if (!hb_ok)
+  const auto start = clock::now();
+  auto next_loop = start;
+
+  while (clock::now() - start < duration)
+  {
+    const auto now = clock::now();
+
+    if (now >= next_loop)
     {
-      std::cerr << "WARNING: heartbeat send failed\n";
+      spark.send_heartbeats(false);
+      spark.set_duty_cycle(0.0f, false);
+      next_loop += LOOP_PERIOD;
+
+      if (next_loop < now - LOOP_PERIOD)
+      {
+        next_loop = now + LOOP_PERIOD;
+      }
     }
 
-    if (!cmd_ok)
-    {
-      std::cerr << "WARNING: command send failed\n";
-    }
-
-    const auto now = std::chrono::steady_clock::now();
-
-    if (now - last_print >= std::chrono::milliseconds(100))
-    {
-      print_telemetry(mode, route, command, spark);
-      last_print = now;
-    }
-
-    std::this_thread::sleep_for(LOOP_PERIOD);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 
 void command_until_ctrl_c(
   SparkMax & spark,
   TestMode mode,
-  VelocityRoute route,
-  float command,
-  bool print_commands = false,
-  bool print_status_frames = false)
+  const CommandInfo & info,
+  int timeout_seconds,
+  bool print_commands)
 {
-  auto last_print = std::chrono::steady_clock::now();
+  using clock = std::chrono::steady_clock;
 
-  std::cout << "\nRunning command continuously. Press Ctrl+C to stop.\n\n";
+  const auto start = clock::now();
+  auto next_loop = start;
+  auto next_print = start + PRINT_PERIOD;
+
+  int heartbeat_count = 0;
+  int command_count = 0;
+
+  std::cout << "\nRunning command. Press Ctrl+C to stop.\n";
+
+  if (timeout_seconds > 0)
+  {
+    std::cout << "Automatic stop after " << timeout_seconds << " seconds.\n";
+  }
+
+  std::cout << "\n";
 
   while (g_running)
   {
-    const bool hb_ok = spark.send_heartbeats(false);
+    const auto now = clock::now();
 
-    const bool cmd_ok = send_command(
-      spark,
-      mode,
-      command,
-      print_commands);
-
-    spark.read_telemetry(50, print_status_frames);
-
-    if (!hb_ok)
+    if (timeout_seconds > 0 &&
+        now - start >= std::chrono::seconds(timeout_seconds))
     {
-      std::cerr << "WARNING: heartbeat send failed\n";
+      std::cout << "\nTimeout reached. Stopping...\n";
+      break;
     }
 
-    if (!cmd_ok)
+    if (now >= next_loop)
     {
-      std::cerr << "WARNING: command send failed\n";
+      const bool hb_ok = spark.send_heartbeats(false);
+      const bool cmd_ok = send_command(
+        spark,
+        mode,
+        info,
+        print_commands);
+
+      if (hb_ok)
+      {
+        ++heartbeat_count;
+      }
+      else
+      {
+        std::cerr << "WARNING: heartbeat send failed\n";
+      }
+
+      if (cmd_ok)
+      {
+        ++command_count;
+      }
+      else
+      {
+        std::cerr << "WARNING: command send failed\n";
+      }
+
+      next_loop += LOOP_PERIOD;
+
+      if (next_loop < now - LOOP_PERIOD)
+      {
+        next_loop = now + LOOP_PERIOD;
+      }
     }
 
-    const auto now = std::chrono::steady_clock::now();
-
-    if (now - last_print >= std::chrono::milliseconds(100))
+    if (now >= next_print)
     {
-      print_telemetry(mode, route, command, spark);
-      last_print = now;
+      print_command_status(
+        mode,
+        info,
+        heartbeat_count,
+        command_count);
+
+      next_print += PRINT_PERIOD;
+
+      if (next_print < now - PRINT_PERIOD)
+      {
+        next_print = now + PRINT_PERIOD;
+      }
     }
 
-    std::this_thread::sleep_for(LOOP_PERIOD);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 
@@ -258,21 +292,6 @@ TestMode parse_mode(const std::string & mode)
   throw std::runtime_error("Invalid mode. Use duty, rpm, or rad.");
 }
 
-VelocityRoute parse_route_flag(const std::string & flag)
-{
-  if (flag == "--software" || flag == "--software-pid")
-  {
-    return VelocityRoute::SOFTWARE_DUTY_PID;
-  }
-
-  if (flag == "--native" || flag == "--native-pid")
-  {
-    return VelocityRoute::NATIVE_SPARKMAX_PID;
-  }
-
-  throw std::runtime_error("Invalid velocity route. Use --software or --native.");
-}
-
 }  // namespace
 
 int main(int argc, char ** argv)
@@ -285,23 +304,22 @@ int main(int argc, char ** argv)
     std::cerr << "Usage:\n"
               << "  " << argv[0]
               << " /dev/ttyUSB0 <spark_can_id> <mode> <value> [gear_ratio]"
-              << " [--software | --native] [--pid-slot N] [--print-status] [--print-command]\n\n"
+              << " [--pid-slot N] [--print-command] [--timeout S]\n\n"
               << "Modes:\n"
               << "  duty   value is duty from -1.0 to 1.0\n"
               << "  rpm    value is target motor RPM\n"
               << "  rad    value is target wheel rad/s\n\n"
-              << "Velocity routes:\n"
-              << "  --software  use local software PID to generate duty-cycle commands, default\n"
-              << "  --native    send velocity setpoint directly to SPARK MAX internal PID\n\n"
               << "Options:\n"
+              << "  [gear_ratio]       motor rev / wheel rev, default 1.0\n"
               << "  --pid-slot N       native PID slot, default 0\n"
-              << "  --print-status     print received SPARK MAX status frames\n"
-              << "  --print-command    print transmitted command frames\n\n"
+              << "  --print-command    print transmitted command frames\n"
+              << "  --timeout S        automatically stop after S seconds, default 5\n\n"
               << "Examples:\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 duty 0.1\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 580 10.71 --software\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 580 10.71 --native --pid-slot 0 --print-command\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 rad 6.0 10.71 --native --pid-slot 0\n";
+              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 1000 --timeout 5\n"
+              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 1000 --timeout 5 --print-command\n"
+              << "  " << argv[0] << " /dev/ttyUSB0 1 rad 10.0 10.71 --timeout 5\n"
+              << "  " << argv[0] << " /dev/ttyUSB0 1 duty 0.05 --timeout 2\n";
+
     return 1;
   }
 
@@ -311,11 +329,9 @@ int main(int argc, char ** argv)
   const float command = std::stof(argv[4]);
 
   float gear_ratio = 1.0f;
-  bool print_status_frames = false;
   bool print_commands = false;
   uint8_t pid_slot = 0;
-
-  VelocityRoute velocity_route = VelocityRoute::SOFTWARE_DUTY_PID;
+  int timeout_seconds = 5;
 
   int arg_index = 5;
 
@@ -329,20 +345,9 @@ int main(int argc, char ** argv)
   {
     const std::string arg = argv[i];
 
-    if (arg == "--print-status")
-    {
-      print_status_frames = true;
-    }
-    else if (arg == "--print-command")
+    if (arg == "--print-command")
     {
       print_commands = true;
-    }
-    else if (arg == "--software" ||
-             arg == "--software-pid" ||
-             arg == "--native" ||
-             arg == "--native-pid")
-    {
-      velocity_route = parse_route_flag(arg);
     }
     else if (arg == "--pid-slot")
     {
@@ -356,11 +361,27 @@ int main(int argc, char ** argv)
 
       if (parsed_slot < 0 || parsed_slot > 3)
       {
-        std::cerr << "PID slot should usually be between 0 and 3\n";
+        std::cerr << "PID slot should be between 0 and 3\n";
         return 1;
       }
 
       pid_slot = static_cast<uint8_t>(parsed_slot);
+    }
+    else if (arg == "--timeout")
+    {
+      if (i + 1 >= argc)
+      {
+        std::cerr << "--timeout requires a value in seconds\n";
+        return 1;
+      }
+
+      timeout_seconds = std::stoi(argv[++i]);
+
+      if (timeout_seconds < 0)
+      {
+        std::cerr << "--timeout must be >= 0. Use 0 for no timeout.\n";
+        return 1;
+      }
     }
     else
     {
@@ -381,21 +402,23 @@ int main(int argc, char ** argv)
     return 1;
   }
 
-  if (mode == TestMode::DUTY && std::fabs(command) > 0.2f)
+  if (mode == TestMode::DUTY && std::fabs(command) > 0.15f)
   {
-    std::cout << "\nWARNING: duty is above +/-0.2. Make sure the motor is secure.\n";
+    std::cout << "\nWARNING: duty is above +/-0.15. Make sure the motor is secure.\n";
   }
 
-  if (mode == TestMode::RPM && std::fabs(command) > 5800.0f)
+  if (mode == TestMode::RPM && std::fabs(command) > 1000.0f)
   {
-    std::cout << "\nWARNING: target RPM is above 5800.\n";
+    std::cout << "\nWARNING: target RPM is above 1000. Start lower while testing.\n";
   }
+
+  const CommandInfo info = make_command_info(mode, command, gear_ratio);
 
   CANComms can;
 
   try
   {
-    can.connect(serial_device, 2000000, 20);
+    can.connect(serial_device, 2000000, 1);
 
     if (!can.configure_adapter(
           1000000,
@@ -411,70 +434,56 @@ int main(int argc, char ** argv)
     }
 
     SparkMax spark(can, spark_id, gear_ratio);
-
-    if (velocity_route == VelocityRoute::NATIVE_SPARKMAX_PID)
-    {
-      spark.set_velocity_command_mode(
-        SparkMax::VelocityCommandMode::NativeSparkMaxPid);
-
-      spark.set_native_velocity_pid_slot(pid_slot);
-    }
-    else
-    {
-      spark.set_velocity_command_mode(
-        SparkMax::VelocityCommandMode::SoftwareDutyPid);
-    }
-
-    spark.configure_velocity_pid(
-      0.001f,  // Kp
-      0.0f,    // Ki
-      0.0f,    // Kd
-      -1.0f,   // integral reset disabled
-      0.02f);  // derivative filter tau
+    spark.set_native_velocity_pid_slot(pid_slot);
 
     std::cout << "\nConnected and configured.\n";
     std::cout << "Testing SPARK MAX ID " << static_cast<int>(spark_id) << "\n";
     std::cout << "Gear ratio: " << gear_ratio << " motor rev / wheel rev\n";
+    std::cout << "Loop period: " << LOOP_PERIOD.count() << " ms\n";
+    std::cout << "Timeout: " << timeout_seconds << " s";
+    if (timeout_seconds == 0)
+    {
+      std::cout << " (disabled)";
+    }
+    std::cout << "\n";
 
     if (mode == TestMode::DUTY)
     {
-      std::cout << "Command mode: duty\n";
+      std::cout << "Command mode: duty cycle\n";
       std::cout << "Duty command: " << command << "\n";
-      std::cout << "Velocity route ignored for duty mode.\n";
+      std::cout << "Expected command ID: 0x205008"
+                << static_cast<int>(spark_id)
+                << " for small CAN IDs\n";
     }
     else if (mode == TestMode::RPM)
     {
-      std::cout << "Command mode: motor RPM\n";
-      std::cout << "Target motor RPM: " << command << "\n";
-      std::cout << "Velocity route: " << route_to_string(velocity_route) << "\n";
+      std::cout << "Command mode: native velocity setpoint\n";
+      std::cout << "Target motor RPM: " << info.target_motor_rpm << "\n";
+      std::cout << "Expected command ID: 0x205048"
+                << static_cast<int>(spark_id)
+                << " for small CAN IDs\n";
     }
     else if (mode == TestMode::RAD_PER_SEC)
     {
-      std::cout << "Command mode: wheel rad/s\n";
-      std::cout << "Target wheel rad/s: " << command << "\n";
-      std::cout << "Velocity route: " << route_to_string(velocity_route) << "\n";
+      std::cout << "Command mode: native velocity setpoint\n";
+      std::cout << "Target wheel rad/s: " << info.target_wheel_rad_per_sec << "\n";
+      std::cout << "Calculated target motor RPM: " << info.target_motor_rpm << "\n";
+      std::cout << "Expected command ID: 0x205048"
+                << static_cast<int>(spark_id)
+                << " for small CAN IDs\n";
     }
 
-    if (velocity_route == VelocityRoute::NATIVE_SPARKMAX_PID &&
-        mode != TestMode::DUTY)
-    {
-      std::cout << "Native PID slot: " << static_cast<int>(pid_slot) << "\n";
-      std::cout << "NOTE: native mode should now send 0x012 for RPM commands.\n";
-      std::cout << "      PID constants must already be configured on the SPARK MAX.\n";
-    }
-
-    if (print_status_frames)
-    {
-      std::cout << "Verbose status printing enabled.\n";
-    }
+    std::cout << "PID slot: " << static_cast<int>(pid_slot) << "\n";
 
     if (print_commands)
     {
-      std::cout << "Verbose command printing enabled.\n";
+      std::cout << "\nVerbose command printing enabled.\n";
+      std::cout << "NOTE: use this only briefly, because printing can disturb timing.\n";
     }
 
-    std::cout << "\nSending one printed heartbeat pair.\n";
+    std::cout << "\nSending one printed heartbeat...\n";
     spark.send_heartbeats(true);
+
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     std::cout << "\nClearing faults...\n";
@@ -484,50 +493,27 @@ int main(int argc, char ** argv)
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
-    std::cout << "\nArming with heartbeat pair + zero duty...\n";
-    spark.reset_velocity_controller();
-
-    command_for_duration(
+    std::cout << "\nSending one printed command frame...\n";
+    send_command(
       spark,
-      TestMode::DUTY,
-      velocity_route,
-      0.0f,
-      ARM_TIME,
-      print_commands,
-      print_status_frames);
+      mode,
+      info,
+      true);
 
-    if (!g_running)
-    {
-      std::cout << "\nStopped during arming.\n";
-    }
-    else
-    {
-      spark.reset_velocity_controller();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-      spark.send_heartbeats(false);
-      spark.read_telemetry(50, false);
-
-      command_until_ctrl_c(
-        spark,
-        mode,
-        velocity_route,
-        command,
-        print_commands,
-        print_status_frames);
-    }
-
-    std::cout << "\nCtrl+C received. Stopping...\n";
-
-    spark.reset_velocity_controller();
-
-    command_for_duration(
+    command_until_ctrl_c(
       spark,
-      TestMode::DUTY,
-      velocity_route,
-      0.0f,
-      STOP_TIME,
-      print_commands,
-      print_status_frames);
+      mode,
+      info,
+      timeout_seconds,
+      print_commands);
+
+    std::cout << "\nStopping...\n";
+
+    send_stop_for_duration(
+      spark,
+      STOP_TIME);
 
     std::cout << "\nFinal stop frame...\n";
     spark.stop(true);

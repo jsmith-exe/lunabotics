@@ -1,27 +1,53 @@
 #include "diffdrive_canbus/spark_max.hpp"
 
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <thread>
 #include <vector>
 
 namespace diffdrive_canbus
 {
 
+namespace
+{
+
+constexpr uint8_t SPARKMAX_API_DUTY_CYCLE_SET = 0x02;
+constexpr uint8_t SPARKMAX_API_VELOCITY_SET   = 0x12;
+
+// Firmware 24 status frame layout:
+//   Status 0: 0x2051800 + device_id
+//   Status 1: 0x2051840 + device_id
+//   Status 2: 0x2051880 + device_id
+//
+// Firmware 25+ status frame layout seen in your earlier logs:
+//   Status 0: 0x205B800 + device_id
+//   Status 1: 0x205B840 + device_id
+//   Status 2: 0x205B880 + device_id
+constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_24 = 6;
+constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS = 46;
+
+// IMPORTANT:
+//
+// Keep only one heartbeat source for now.
+// This is the firmware 24 / non-roboRIO heartbeat you originally had working:
+//
+//   EXT ID = 0x2052C80
+//   DATA   = FF FF FF FF FF FF FF FF
+//
+// Do not also send 0x2052480 or any other heartbeat while debugging the LED.
+constexpr int TELEMETRY_EMPTY_READ_RETRIES = 8;
+constexpr auto TELEMETRY_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
+
+}  // namespace
+
 SparkMax::SparkMax(CANComms & can, uint8_t device_id, float gear_ratio)
 : can_(can),
   device_id_(device_id),
-  gear_ratio_(gear_ratio),
-  velocity_controller_(
-    0.0015f,    // Kp
-    0.00002f,   // Ki
-    0.0f,       // Kd
-    -1.0f,      // integral reset disabled
-    -1.0f,      // min output duty
-    1.0f,       // max output duty
-    0.0f)       // derivative filter tau
+  gear_ratio_(gear_ratio)
 {
   if (gear_ratio_ <= 0.0f)
   {
@@ -61,19 +87,13 @@ bool SparkMax::send_heartbeats(bool print)
     API_INDEX_NON_RIO_HEARTBEAT,
     HEARTBEAT_DEVICE_ID);
 
-  const uint32_t rio_id = make_sparkmax_id(
-    API_CLASS_ROBORIO,
-    API_INDEX_ROBORIO_HEARTBEAT,
-    HEARTBEAT_DEVICE_ID);
-
-  const bool ok1 = can_.send_extended_frame(non_rio_id, data, print);
-  const bool ok2 = can_.send_extended_frame(rio_id, data, print);
-
-  return ok1 && ok2;
+  return can_.send_extended_frame(non_rio_id, data, print);
 }
 
 bool SparkMax::clear_faults(bool print)
 {
+  send_heartbeats(false);
+
   const uint32_t id = make_sparkmax_id(
     API_CLASS_CLEAR_FAULTS,
     API_INDEX_CLEAR_FAULTS,
@@ -89,6 +109,8 @@ bool SparkMax::send_setpoint(
   uint8_t pid_slot,
   bool print)
 {
+  send_heartbeats(false);
+
   const uint32_t id = make_sparkmax_id(
     api_class,
     api_index,
@@ -112,6 +134,33 @@ bool SparkMax::send_setpoint(
   return can_.send_extended_frame(id, data, print);
 }
 
+bool SparkMax::send_simple_setpoint(
+  uint8_t api_id,
+  float setpoint,
+  bool print)
+{
+  send_heartbeats(false);
+
+  const uint32_t id = make_sparkmax_id_from_api_id(api_id, device_id_);
+
+  std::vector<uint8_t> data(8, 0x00);
+
+  uint8_t target[4];
+  float_to_le_bytes(setpoint, target);
+
+  data[0] = target[0];
+  data[1] = target[1];
+  data[2] = target[2];
+  data[3] = target[3];
+
+  data[4] = 0x00;
+  data[5] = 0x00;
+  data[6] = static_cast<uint8_t>(native_velocity_pid_slot_ & 0x03);
+  data[7] = 0x00;
+
+  return can_.send_extended_frame(id, data, print);
+}
+
 bool SparkMax::send_setpoint_with_control_type(
   uint8_t api_class,
   uint8_t api_index,
@@ -120,6 +169,8 @@ bool SparkMax::send_setpoint_with_control_type(
   uint8_t pid_slot,
   bool print)
 {
+  send_heartbeats(false);
+
   const uint32_t id = make_sparkmax_id(
     api_class,
     api_index,
@@ -147,35 +198,38 @@ bool SparkMax::set_duty_cycle(float duty, bool print)
 {
   duty = clamp_duty(duty);
 
-  return send_setpoint(
-    API_CLASS_DUTY_CYCLE_SETPOINT,
-    API_INDEX_DUTY_CYCLE,
+  return send_simple_setpoint(
+    SPARKMAX_API_DUTY_CYCLE_SET,
     duty,
-    0,
     print);
 }
 
 bool SparkMax::stop(bool print)
 {
-  velocity_controller_.reset();
-  velocity_controller_.setOutputState(0.0f);
-
   send_heartbeats(false);
+
   return set_duty_cycle(0.0f, print);
 }
 
 bool SparkMax::read_telemetry(int max_frames, bool print_status_frames)
 {
   bool parsed_any = false;
+  int frames_read = 0;
+  int empty_reads = 0;
 
-  for (int i = 0; i < max_frames; ++i)
+  while (frames_read < max_frames && empty_reads < TELEMETRY_EMPTY_READ_RETRIES)
   {
     CANFrame frame;
 
     if (!can_.read_can_frame(frame, false))
     {
-      return parsed_any;
+      ++empty_reads;
+      std::this_thread::sleep_for(TELEMETRY_EMPTY_READ_DELAY);
+      continue;
     }
+
+    empty_reads = 0;
+    ++frames_read;
 
     if (parse_status_frame(frame, print_status_frames))
     {
@@ -221,31 +275,6 @@ float SparkMax::applied_output() const
   return telemetry_.applied_output;
 }
 
-void SparkMax::configure_velocity_pid(
-  float Kp,
-  float Ki,
-  float Kd,
-  float integral_reset,
-  float d_tau)
-{
-  velocity_controller_.setGains(Kp, Ki, Kd);
-  velocity_controller_.setIntegralReset(integral_reset);
-  velocity_controller_.setDerivativeFilterTau(d_tau);
-}
-
-void SparkMax::set_velocity_command_mode(VelocityCommandMode mode)
-{
-  velocity_command_mode_ = mode;
-
-  velocity_controller_.reset();
-  velocity_controller_.setOutputState(0.0f);
-}
-
-SparkMax::VelocityCommandMode SparkMax::velocity_command_mode() const
-{
-  return velocity_command_mode_;
-}
-
 void SparkMax::set_native_velocity_pid_slot(uint8_t pid_slot)
 {
   native_velocity_pid_slot_ = static_cast<uint8_t>(pid_slot & 0x03);
@@ -255,25 +284,14 @@ bool SparkMax::set_native_velocity_rpm(
   float target_motor_rpm,
   bool print)
 {
-  return send_setpoint(
-    API_CLASS_NATIVE_VELOCITY_SETPOINT,
-    API_INDEX_NATIVE_VELOCITY,
-    target_motor_rpm,
-    native_velocity_pid_slot_,
-    print);
+  return set_velocity_rpm(target_motor_rpm, print);
 }
 
 bool SparkMax::set_native_velocity_rad_per_sec(
   float target_wheel_rad_per_sec,
   bool print)
 {
-  const float target_motor_rad_per_sec =
-    target_wheel_rad_per_sec * gear_ratio_;
-
-  const float target_motor_rpm =
-    rad_per_sec_to_rpm(target_motor_rad_per_sec);
-
-  return set_native_velocity_rpm(target_motor_rpm, print);
+  return set_velocity_rad_per_sec(target_wheel_rad_per_sec, print);
 }
 
 bool SparkMax::debug_send_setpoint_api(
@@ -295,113 +313,50 @@ bool SparkMax::set_velocity_rad_per_sec(
   float target_wheel_rad_per_sec,
   bool print)
 {
-  if (velocity_command_mode_ == VelocityCommandMode::NativeSparkMaxPid)
-  {
-    return set_native_velocity_rad_per_sec(
-      target_wheel_rad_per_sec,
-      print);
-  }
+  const float target_motor_rad_per_sec =
+    target_wheel_rad_per_sec * gear_ratio_;
 
-  update_velocity_controller_only(target_wheel_rad_per_sec);
-  return send_velocity_controller_output(print);
+  const float target_motor_rpm =
+    rad_per_sec_to_rpm(target_motor_rad_per_sec);
+
+  return set_velocity_rpm(target_motor_rpm, print);
 }
 
 bool SparkMax::set_velocity_rpm(
   float target_motor_rpm,
   bool print)
 {
-  if (velocity_command_mode_ == VelocityCommandMode::NativeSparkMaxPid)
-  {
-    return set_native_velocity_rpm(target_motor_rpm, print);
-  }
-
-  const float target_motor_rad_per_sec =
-    rpm_to_rad_per_sec(target_motor_rpm);
-
-  const float target_wheel_rad_per_sec =
-    target_motor_rad_per_sec / gear_ratio_;
-
-  return set_velocity_rad_per_sec(
-    target_wheel_rad_per_sec,
+  // Native velocity command:
+  //
+  //   API ID = 0x12
+  //   EXT ID = 0x2050480 + device_id
+  //
+  // For device ID 1:
+  //
+  //   EXT ID = 0x2050481
+  //
+  // REV Client showed the physical motor RPM was correct with this value being
+  // sent directly as RPM, so do not divide by 60 here.
+  return send_simple_setpoint(
+    SPARKMAX_API_VELOCITY_SET,
+    target_motor_rpm,
     print);
-}
-
-void SparkMax::update_velocity_controller_only(float target_wheel_rad_per_sec)
-{
-  constexpr float STOP_TARGET_RAD_PER_SEC = 0.001f;
-  constexpr float MIN_MOVING_DUTY = 0.07f;
-
-  if (std::fabs(target_wheel_rad_per_sec) < STOP_TARGET_RAD_PER_SEC)
-  {
-    velocity_controller_.reset();
-    velocity_controller_.setOutputState(0.0f);
-    return;
-  }
-
-  float duty = clamp_duty(velocity_controller_.getOutputState());
-
-  if (!telemetry_.has_encoder_velocity)
-  {
-    if (duty == 0.0f)
-    {
-      duty = target_wheel_rad_per_sec > 0.0f ?
-        MIN_MOVING_DUTY :
-        -MIN_MOVING_DUTY;
-    }
-
-    velocity_controller_.setOutputState(duty);
-    return;
-  }
-
-  const float measured_wheel_rad_per_sec =
-    telemetry_.wheel_rad_per_sec;
-
-  const auto [delta_output, latency_ms] =
-    velocity_controller_.update(
-      target_wheel_rad_per_sec,
-      measured_wheel_rad_per_sec);
-
-  (void)delta_output;
-  (void)latency_ms;
-
-  duty = clamp_duty(velocity_controller_.getOutputState());
-
-  if (duty > 0.0f && duty < MIN_MOVING_DUTY)
-  {
-    duty = MIN_MOVING_DUTY;
-  }
-  else if (duty < 0.0f && duty > -MIN_MOVING_DUTY)
-  {
-    duty = -MIN_MOVING_DUTY;
-  }
-
-  if (duty == 0.0f)
-  {
-    duty = target_wheel_rad_per_sec > 0.0f ?
-      MIN_MOVING_DUTY :
-      -MIN_MOVING_DUTY;
-  }
-
-  velocity_controller_.setOutputState(duty);
-}
-
-bool SparkMax::send_velocity_controller_output(bool print)
-{
-  const float duty =
-    clamp_duty(velocity_controller_.getOutputState());
-
-  return set_duty_cycle(duty, print);
 }
 
 void SparkMax::reset_velocity_controller()
 {
-  velocity_controller_.reset();
-  velocity_controller_.setOutputState(0.0f);
+  // No software velocity controller is used anymore.
+  // Velocity control is handled internally by the SPARK MAX.
 }
 
 float SparkMax::velocity_controller_output() const
 {
-  return velocity_controller_.getOutputState();
+  if (telemetry_.has_applied_output)
+  {
+    return telemetry_.applied_output;
+  }
+
+  return 0.0f;
 }
 
 uint32_t SparkMax::make_sparkmax_id(
@@ -414,6 +369,18 @@ uint32_t SparkMax::make_sparkmax_id(
     MANUFACTURER_REV,
     api_class,
     api_index,
+    device_id);
+}
+
+uint32_t SparkMax::make_sparkmax_id_from_api_id(
+  uint8_t api_id,
+  uint8_t device_id)
+{
+  return make_frc_extended_can_id(
+    DEVICE_TYPE_MOTOR_CONTROLLER,
+    MANUFACTURER_REV,
+    static_cast<uint8_t>((api_id >> 4) & 0x3F),
+    static_cast<uint8_t>(api_id & 0x0F),
     device_id);
 }
 
@@ -485,7 +452,13 @@ bool SparkMax::parse_status_frame(
     return false;
   }
 
-  if (fields.api_class != API_CLASS_PERIODIC_STATUS)
+  const bool is_firmware24_status =
+    fields.api_class == API_CLASS_PERIODIC_STATUS_FIRMWARE_24;
+
+  const bool is_firmware25_status =
+    fields.api_class == API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS;
+
+  if (!is_firmware24_status && !is_firmware25_status)
   {
     return false;
   }
@@ -496,8 +469,18 @@ bool SparkMax::parse_status_frame(
               << CANComms::frame_to_string(frame)
               << " | api_class=" << static_cast<int>(fields.api_class)
               << " api_index=" << static_cast<int>(fields.api_index)
-              << " device_id=" << static_cast<int>(fields.device_id)
-              << "\n";
+              << " device_id=" << static_cast<int>(fields.device_id);
+
+    if (is_firmware24_status)
+    {
+      std::cout << " | style=firmware24";
+    }
+    else
+    {
+      std::cout << " | style=firmware25+";
+    }
+
+    std::cout << "\n";
   }
 
   if (fields.api_index == API_INDEX_STATUS_0)
