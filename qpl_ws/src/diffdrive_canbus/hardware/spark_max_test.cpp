@@ -18,9 +18,17 @@ using diffdrive_canbus::SparkMax;
 namespace
 {
 
-// Keep both on the same 20 ms robot-style loop.
-// This avoids hammering the bus with repeated setpoints.
+// Command loop period.
+// Keep setpoint commands on a 20 ms robot-style loop.
 constexpr auto LOOP_PERIOD = std::chrono::milliseconds(20);
+
+// Heartbeat is deliberately separate from the command loop.
+// Old REVLib-style heartbeat behaviour appears closer to a 50 ms periodic task.
+constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
+
+// Read telemetry frequently so we can catch what happens before a runaway.
+constexpr auto TELEMETRY_PERIOD = std::chrono::milliseconds(20);
+
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
 constexpr auto STOP_TIME = std::chrono::milliseconds(300);
 
@@ -67,7 +75,6 @@ CommandInfo make_command_info(
 
   if (mode == TestMode::RPM)
   {
-    // User command is motor RPM.
     info.target_motor_rpm = command;
 
     info.target_wheel_rad_per_sec =
@@ -78,7 +85,6 @@ CommandInfo make_command_info(
 
   if (mode == TestMode::RAD_PER_SEC)
   {
-    // User command is wheel rad/s.
     const float target_motor_rad_per_sec = command * gear_ratio;
 
     info.target_motor_rpm =
@@ -105,16 +111,11 @@ bool send_command(
 
   if (mode == TestMode::RPM)
   {
-    // Native velocity command.
-    // This sends the motor RPM value through SparkMax::set_velocity_rpm().
     return spark.set_velocity_rpm(info.target_motor_rpm, print_command);
   }
 
   if (mode == TestMode::RAD_PER_SEC)
   {
-    // Native velocity command.
-    // This sends wheel rad/s through SparkMax::set_velocity_rad_per_sec(),
-    // which converts internally to motor RPM using the gear ratio.
     return spark.set_velocity_rad_per_sec(
       info.target_wheel_rad_per_sec,
       print_command);
@@ -123,11 +124,14 @@ bool send_command(
   return false;
 }
 
-void print_command_status(
+void print_runtime_status(
+  SparkMax & spark,
   TestMode mode,
   const CommandInfo & info,
   int heartbeat_count,
-  int command_count)
+  int command_count,
+  int telemetry_count,
+  bool enable_heartbeat)
 {
   std::cout << std::fixed << std::setprecision(3);
 
@@ -147,33 +151,54 @@ void print_command_status(
               << " | route=native velocity";
   }
 
-  std::cout << " | heartbeats=" << heartbeat_count
+  std::cout << " | measured rpm=" << spark.encoder_velocity_rpm()
+            << " | motor rad/s=" << spark.motor_rad_per_sec()
+            << " | wheel rad/s=" << spark.wheel_rad_per_sec()
+            << " | applied=" << spark.applied_output()
+            << " | heartbeat=" << (enable_heartbeat ? "on" : "off")
+            << " | heartbeats=" << heartbeat_count
             << " | commands=" << command_count
+            << " | telemetry=" << telemetry_count
             << "\n";
 }
 
 void send_stop_for_duration(
   SparkMax & spark,
-  std::chrono::milliseconds duration)
+  std::chrono::milliseconds duration,
+  bool enable_heartbeat)
 {
   using clock = std::chrono::steady_clock;
 
   const auto start = clock::now();
-  auto next_loop = start;
+
+  auto next_heartbeat = start;
+  auto next_command = start;
 
   while (clock::now() - start < duration)
   {
     const auto now = clock::now();
 
-    if (now >= next_loop)
+    if (enable_heartbeat && now >= next_heartbeat)
     {
       spark.send_heartbeats(false);
-      spark.set_duty_cycle(0.0f, false);
-      next_loop += LOOP_PERIOD;
 
-      if (next_loop < now - LOOP_PERIOD)
+      next_heartbeat += HEARTBEAT_PERIOD;
+
+      if (next_heartbeat < now - HEARTBEAT_PERIOD)
       {
-        next_loop = now + LOOP_PERIOD;
+        next_heartbeat = now + HEARTBEAT_PERIOD;
+      }
+    }
+
+    if (now >= next_command)
+    {
+      spark.set_duty_cycle(0.0f, false);
+
+      next_command += LOOP_PERIOD;
+
+      if (next_command < now - LOOP_PERIOD)
+      {
+        next_command = now + LOOP_PERIOD;
       }
     }
 
@@ -186,16 +211,21 @@ void command_until_ctrl_c(
   TestMode mode,
   const CommandInfo & info,
   int timeout_seconds,
-  bool print_commands)
+  bool print_commands,
+  bool enable_heartbeat)
 {
   using clock = std::chrono::steady_clock;
 
   const auto start = clock::now();
-  auto next_loop = start;
+
+  auto next_heartbeat = start;
+  auto next_command = start;
+  auto next_telemetry = start;
   auto next_print = start + PRINT_PERIOD;
 
   int heartbeat_count = 0;
   int command_count = 0;
+  int telemetry_count = 0;
 
   std::cout << "\nRunning command. Press Ctrl+C to stop.\n";
 
@@ -204,6 +234,13 @@ void command_until_ctrl_c(
     std::cout << "Automatic stop after " << timeout_seconds << " seconds.\n";
   }
 
+  std::cout << "Heartbeat: " << (enable_heartbeat ? "enabled" : "disabled") << "\n";
+  if (enable_heartbeat)
+  {
+    std::cout << "Heartbeat period: " << HEARTBEAT_PERIOD.count() << " ms\n";
+  }
+  std::cout << "Command period: " << LOOP_PERIOD.count() << " ms\n";
+  std::cout << "Telemetry period: " << TELEMETRY_PERIOD.count() << " ms\n";
   std::cout << "\n";
 
   while (g_running)
@@ -217,14 +254,9 @@ void command_until_ctrl_c(
       break;
     }
 
-    if (now >= next_loop)
+    if (enable_heartbeat && now >= next_heartbeat)
     {
       const bool hb_ok = spark.send_heartbeats(false);
-      const bool cmd_ok = send_command(
-        spark,
-        mode,
-        info,
-        print_commands);
 
       if (hb_ok)
       {
@@ -235,6 +267,22 @@ void command_until_ctrl_c(
         std::cerr << "WARNING: heartbeat send failed\n";
       }
 
+      next_heartbeat += HEARTBEAT_PERIOD;
+
+      if (next_heartbeat < now - HEARTBEAT_PERIOD)
+      {
+        next_heartbeat = now + HEARTBEAT_PERIOD;
+      }
+    }
+
+    if (now >= next_command)
+    {
+      const bool cmd_ok = send_command(
+        spark,
+        mode,
+        info,
+        print_commands);
+
       if (cmd_ok)
       {
         ++command_count;
@@ -244,21 +292,39 @@ void command_until_ctrl_c(
         std::cerr << "WARNING: command send failed\n";
       }
 
-      next_loop += LOOP_PERIOD;
+      next_command += LOOP_PERIOD;
 
-      if (next_loop < now - LOOP_PERIOD)
+      if (next_command < now - LOOP_PERIOD)
       {
-        next_loop = now + LOOP_PERIOD;
+        next_command = now + LOOP_PERIOD;
+      }
+    }
+
+    if (now >= next_telemetry)
+    {
+      if (spark.read_telemetry(10, false))
+      {
+        ++telemetry_count;
+      }
+
+      next_telemetry += TELEMETRY_PERIOD;
+
+      if (next_telemetry < now - TELEMETRY_PERIOD)
+      {
+        next_telemetry = now + TELEMETRY_PERIOD;
       }
     }
 
     if (now >= next_print)
     {
-      print_command_status(
+      print_runtime_status(
+        spark,
         mode,
         info,
         heartbeat_count,
-        command_count);
+        command_count,
+        telemetry_count,
+        enable_heartbeat);
 
       next_print += PRINT_PERIOD;
 
@@ -304,7 +370,7 @@ int main(int argc, char ** argv)
     std::cerr << "Usage:\n"
               << "  " << argv[0]
               << " /dev/ttyUSB0 <spark_can_id> <mode> <value> [gear_ratio]"
-              << " [--pid-slot N] [--print-command] [--timeout S]\n\n"
+              << " [--pid-slot N] [--print-command] [--timeout S] [--no-heartbeat]\n\n"
               << "Modes:\n"
               << "  duty   value is duty from -1.0 to 1.0\n"
               << "  rpm    value is target motor RPM\n"
@@ -313,12 +379,12 @@ int main(int argc, char ** argv)
               << "  [gear_ratio]       motor rev / wheel rev, default 1.0\n"
               << "  --pid-slot N       native PID slot, default 0\n"
               << "  --print-command    print transmitted command frames\n"
-              << "  --timeout S        automatically stop after S seconds, default 5\n\n"
+              << "  --timeout S        automatically stop after S seconds, default 5\n"
+              << "  --no-heartbeat     disable heartbeat frames for testing\n\n"
               << "Examples:\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 1000 --timeout 5\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 1000 --timeout 5 --print-command\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 rad 10.0 10.71 --timeout 5\n"
-              << "  " << argv[0] << " /dev/ttyUSB0 1 duty 0.05 --timeout 2\n";
+              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 50 --timeout 5\n"
+              << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 50 --timeout 5 --no-heartbeat\n"
+              << "  " << argv[0] << " /dev/ttyUSB0 1 duty 0.03 --timeout 2 --no-heartbeat\n";
 
     return 1;
   }
@@ -330,6 +396,7 @@ int main(int argc, char ** argv)
 
   float gear_ratio = 1.0f;
   bool print_commands = false;
+  bool enable_heartbeat = true;
   uint8_t pid_slot = 0;
   int timeout_seconds = 5;
 
@@ -348,6 +415,10 @@ int main(int argc, char ** argv)
     if (arg == "--print-command")
     {
       print_commands = true;
+    }
+    else if (arg == "--no-heartbeat")
+    {
+      enable_heartbeat = false;
     }
     else if (arg == "--pid-slot")
     {
@@ -390,6 +461,13 @@ int main(int argc, char ** argv)
     }
   }
 
+  if (spark_id == 0)
+  {
+    std::cerr << "SPARK MAX CAN ID 0 is blocked for this test.\n";
+    std::cerr << "Use your real controller ID, e.g. 1.\n";
+    return 1;
+  }
+
   if (gear_ratio <= 0.0f)
   {
     std::cerr << "Gear ratio must be greater than zero\n";
@@ -407,9 +485,9 @@ int main(int argc, char ** argv)
     std::cout << "\nWARNING: duty is above +/-0.15. Make sure the motor is secure.\n";
   }
 
-  if (mode == TestMode::RPM && std::fabs(command) > 1000.0f)
+  if (mode == TestMode::RPM && std::fabs(command) > 500.0f)
   {
-    std::cout << "\nWARNING: target RPM is above 1000. Start lower while testing.\n";
+    std::cout << "\nWARNING: target RPM is above 500. Start lower while debugging runaway behaviour.\n";
   }
 
   const CommandInfo info = make_command_info(mode, command, gear_ratio);
@@ -439,7 +517,13 @@ int main(int argc, char ** argv)
     std::cout << "\nConnected and configured.\n";
     std::cout << "Testing SPARK MAX ID " << static_cast<int>(spark_id) << "\n";
     std::cout << "Gear ratio: " << gear_ratio << " motor rev / wheel rev\n";
-    std::cout << "Loop period: " << LOOP_PERIOD.count() << " ms\n";
+    std::cout << "Command period: " << LOOP_PERIOD.count() << " ms\n";
+    std::cout << "Heartbeat: " << (enable_heartbeat ? "enabled" : "disabled") << "\n";
+    if (enable_heartbeat)
+    {
+      std::cout << "Heartbeat period: " << HEARTBEAT_PERIOD.count() << " ms\n";
+    }
+    std::cout << "Telemetry period: " << TELEMETRY_PERIOD.count() << " ms\n";
     std::cout << "Timeout: " << timeout_seconds << " s";
     if (timeout_seconds == 0)
     {
@@ -481,8 +565,15 @@ int main(int argc, char ** argv)
       std::cout << "NOTE: use this only briefly, because printing can disturb timing.\n";
     }
 
-    std::cout << "\nSending one printed heartbeat...\n";
-    spark.send_heartbeats(true);
+    if (enable_heartbeat)
+    {
+      std::cout << "\nSending one printed heartbeat...\n";
+      spark.send_heartbeats(true);
+    }
+    else
+    {
+      std::cout << "\nHeartbeat disabled. No heartbeat frames will be sent by this test.\n";
+    }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -502,18 +593,22 @@ int main(int argc, char ** argv)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
+    spark.read_telemetry(20, true);
+
     command_until_ctrl_c(
       spark,
       mode,
       info,
       timeout_seconds,
-      print_commands);
+      print_commands,
+      enable_heartbeat);
 
     std::cout << "\nStopping...\n";
 
     send_stop_for_duration(
       spark,
-      STOP_TIME);
+      STOP_TIME,
+      enable_heartbeat);
 
     std::cout << "\nFinal stop frame...\n";
     spark.stop(true);

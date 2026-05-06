@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <stdexcept>
 #include <thread>
@@ -38,9 +39,40 @@ constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS = 46;
 //   EXT ID = 0x2052C80
 //   DATA   = FF FF FF FF FF FF FF FF
 //
-// Do not also send 0x2052480 or any other heartbeat while debugging the LED.
+// This may intentionally use device ID 0. Do not confuse the heartbeat frame
+// 0x2052C80 with a bad velocity command frame like 0x2050480.
 constexpr int TELEMETRY_EMPTY_READ_RETRIES = 8;
 constexpr auto TELEMETRY_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
+
+void print_debug_can_id(
+  const std::string & label,
+  uint8_t api_id,
+  uint8_t device_id,
+  uint32_t can_id,
+  float setpoint)
+{
+  std::cout << "DEBUG TX " << label
+            << ": api_id=0x"
+            << std::hex << std::uppercase << static_cast<int>(api_id)
+            << " device_id=" << std::dec << static_cast<int>(device_id)
+            << " can_id=0x"
+            << std::hex << std::uppercase << can_id
+            << std::dec
+            << " setpoint=" << setpoint
+            << "\n";
+
+  if (device_id == 0)
+  {
+    std::cerr << "WARNING: setpoint command is targeting SPARK MAX device ID 0\n";
+  }
+
+  if ((can_id & 0x3F) == 0)
+  {
+    std::cerr << "WARNING: outgoing setpoint CAN ID appears to end in device ID 0: 0x"
+              << std::hex << std::uppercase << can_id
+              << std::dec << "\n";
+  }
+}
 
 }  // namespace
 
@@ -49,6 +81,18 @@ SparkMax::SparkMax(CANComms & can, uint8_t device_id, float gear_ratio)
   device_id_(device_id),
   gear_ratio_(gear_ratio)
 {
+  std::cout << "DEBUG SparkMax constructed with device_id_="
+            << static_cast<int>(device_id_)
+            << ", gear_ratio_=" << gear_ratio_
+            << "\n";
+
+  if (device_id_ == 0)
+  {
+    throw std::runtime_error(
+      "Refusing to construct SparkMax with CAN ID 0. "
+      "Your physical controller is ID 1, so run the test with spark_can_id 1.");
+  }
+
   if (gear_ratio_ <= 0.0f)
   {
     throw std::runtime_error("SparkMax gear ratio must be greater than zero");
@@ -87,6 +131,16 @@ bool SparkMax::send_heartbeats(bool print)
     API_INDEX_NON_RIO_HEARTBEAT,
     HEARTBEAT_DEVICE_ID);
 
+  if (print)
+  {
+    std::cout << "DEBUG TX HEARTBEAT:"
+              << " heartbeat_device_id=" << static_cast<int>(HEARTBEAT_DEVICE_ID)
+              << " can_id=0x"
+              << std::hex << std::uppercase << non_rio_id
+              << std::dec
+              << "\n";
+  }
+
   return can_.send_extended_frame(non_rio_id, data, print);
 }
 
@@ -98,6 +152,21 @@ bool SparkMax::clear_faults(bool print)
     API_CLASS_CLEAR_FAULTS,
     API_INDEX_CLEAR_FAULTS,
     device_id_);
+
+  if (print)
+  {
+    std::cout << "DEBUG TX CLEAR_FAULTS:"
+              << " device_id_=" << static_cast<int>(device_id_)
+              << " can_id=0x"
+              << std::hex << std::uppercase << id
+              << std::dec
+              << "\n";
+  }
+
+  if (device_id_ == 0)
+  {
+    std::cerr << "WARNING: clear_faults is targeting SPARK MAX device ID 0\n";
+  }
 
   return can_.send_extended_frame(id, {}, print);
 }
@@ -115,6 +184,22 @@ bool SparkMax::send_setpoint(
     api_class,
     api_index,
     device_id_);
+
+  std::cout << "DEBUG TX SETPOINT:"
+            << " api_class=" << static_cast<int>(api_class)
+            << " api_index=" << static_cast<int>(api_index)
+            << " device_id_=" << static_cast<int>(device_id_)
+            << " can_id=0x"
+            << std::hex << std::uppercase << id
+            << std::dec
+            << " setpoint=" << setpoint
+            << " pid_slot=" << static_cast<int>(pid_slot)
+            << "\n";
+
+  if (device_id_ == 0)
+  {
+    std::cerr << "WARNING: send_setpoint is targeting SPARK MAX device ID 0\n";
+  }
 
   std::vector<uint8_t> data(8, 0x00);
 
@@ -142,6 +227,13 @@ bool SparkMax::send_simple_setpoint(
   send_heartbeats(false);
 
   const uint32_t id = make_sparkmax_id_from_api_id(api_id, device_id_);
+
+  print_debug_can_id(
+    "SIMPLE_SETPOINT",
+    api_id,
+    device_id_,
+    id,
+    setpoint);
 
   std::vector<uint8_t> data(8, 0x00);
 
@@ -175,6 +267,23 @@ bool SparkMax::send_setpoint_with_control_type(
     api_class,
     api_index,
     device_id_);
+
+  std::cout << "DEBUG TX SETPOINT_WITH_CONTROL_TYPE:"
+            << " api_class=" << static_cast<int>(api_class)
+            << " api_index=" << static_cast<int>(api_index)
+            << " device_id_=" << static_cast<int>(device_id_)
+            << " can_id=0x"
+            << std::hex << std::uppercase << id
+            << std::dec
+            << " setpoint=" << setpoint
+            << " control_type=" << static_cast<int>(control_type)
+            << " pid_slot=" << static_cast<int>(pid_slot)
+            << "\n";
+
+  if (device_id_ == 0)
+  {
+    std::cerr << "WARNING: send_setpoint_with_control_type is targeting SPARK MAX device ID 0\n";
+  }
 
   std::vector<uint8_t> data(8, 0x00);
 
