@@ -25,19 +25,23 @@ def get_current_dds() -> str:
 def get_dds_options() -> list[str]:
     all_filenames = listdir(dds_dir)
     dds_filenames = filter(lambda filename: filename.endswith(".xml"), all_filenames)
-    return list(dds_filenames)
+    return list(dds_filenames) + ["Unset"]
 
 def set_dds(target_dds_name: str) -> None:
-    print("Setting DDS to:", target_dds_name)
+    """ Sets the current environment variables and the .current_dds file to the target DDS. Pass blank string to unset DDS. """
     dds_path = dds_dir / target_dds_name
+    env_variables = {
+        "CURRENT_DDS": target_dds_name,
+        "RMW_IMPLEMENTATION": get_dds_type(target_dds_name),
+        "CYCLONEDDS_URI": f"file://{dds_path}"
+    }
+    env_file_lines = [f"{key}={value}\n" for key, value in env_variables.items()]
     with open(dds_config_file, "w") as dds_config:
-        dds_config.write(f"CURRENT_DDS={target_dds_name}\n"
-                         f"RMW_IMPLEMENTATION={get_dds_type(target_dds_name)}\n"
-                         f"CYCLONEDDS_URI=file://{dds_path}")
+        dds_config.writelines(env_file_lines)
 
 def get_dds_type(dds_file_name: str) -> str:
     if dds_file_name.startswith("cyclone"):
-        return "cyclone"
+        return "rmw_cyclonedds_cpp"
     return ""
 
 
@@ -60,7 +64,10 @@ def menu(title: str, current_choice: str, choices: Iterable[str]) -> urwid.ListB
     return urwid.ListBox(urwid.SimpleFocusListWalker(body))
 
 def item_chosen(button: urwid.Button, choice: str) -> None:
-    set_dds(choice)
+    if choice == "Unset":
+        set_dds("")
+    else:
+        set_dds(choice)
     raise urwid.ExitMainLoop()
 
 main = urwid.Padding(menu("DDS Selector", get_current_dds(), get_dds_options()), left=2, right=2)

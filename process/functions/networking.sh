@@ -128,7 +128,10 @@ qpl_net_limit_status_simple() {
 # -------------------- DDS and other config --------------------
 export ROS_DOMAIN_ID=42
 
-alias qpl_dds_selector="python3 \${QPL_PROJECT}/dds/selector.py"
+qpl_dds_selector() {
+  python3 "${QPL_PROJECT}/dds/selector.py"
+  _load_dds
+}
 
 _load_dds() {
   set -a # Enable exporting all set variables
