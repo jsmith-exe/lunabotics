@@ -3,18 +3,15 @@
   <Domain Id="any">
     <General>
       <Interfaces>
-        <NetworkInterface name="eth" priority="default" multicast="false"/>
+        <NetworkInterface name="eth4" priority="default"/>
       </Interfaces>
-      <AllowMulticast>false</AllowMulticast>
     </General>
     <Discovery>
-      <Peers>
-        <Peer Address="100.89.72.39"/>
-        <Peer Address="100.64.118.39"/>
-        <Peer Address="100.71.72.51"/>
-      </Peers>
       <ParticipantIndex>auto</ParticipantIndex>
       <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
     </Discovery>
+    <Internal>
+      <SocketReceiveBufferSize min="10MB"/>
+    </Internal>
   </Domain>
 </CycloneDDS>
