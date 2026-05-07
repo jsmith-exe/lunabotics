@@ -9,7 +9,7 @@ palette = [
     ("title", "dark red", "black"),
     ("current_option", "light gray", "black"),
     ("btn", "white", "black"),
-    ("reversed_btn", "dark red", "light gray"),
+    ("reversed_btn", "dark red", "dark gray"),
 ]
 
 current_dds = environ.get("CURRENT_DDS", "Unset")
