@@ -1,3 +1,11 @@
+// Example run command:
+// ros2 run diffdrive_canbus spark_max_test /dev/ttyUSB0 1 rpm 2000 --timeout 20
+// /dev/ttyUSB0 = serial device of CAN adapter
+// 1 = SPARK MAX CAN ID
+// rpm = command mode (duty, rpm, or rad)
+// 2000 = command value (interpreted according to mode, e.g. target motor
+// --timeout 20 = automatically stop after 20 seconds (optional, default 5 seconds, use 0 for no timeout)
+
 #include "diffdrive_canbus/CAN_comms.hpp"
 #include "diffdrive_canbus/spark_max.hpp"
 
@@ -396,7 +404,7 @@ int main(int argc, char ** argv)
 
   float gear_ratio = 1.0f;
   bool print_commands = false;
-  bool enable_heartbeat = true;
+  bool enable_heartbeat = false;
   uint8_t pid_slot = 0;
   int timeout_seconds = 5;
 
@@ -416,9 +424,9 @@ int main(int argc, char ** argv)
     {
       print_commands = true;
     }
-    else if (arg == "--no-heartbeat")
+    else if (arg == "--heartbeat")
     {
-      enable_heartbeat = false;
+      enable_heartbeat = true;
     }
     else if (arg == "--pid-slot")
     {
