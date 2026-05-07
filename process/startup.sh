@@ -18,7 +18,11 @@ startup() {
   source "$QPL_PROJECT/process/functions/teleop.sh"
 
   # The ROS daemon sometimes doesn't start on WSL; run in background via &
-  ros2 daemon start >/dev/null 2>&1 || true &
+  ros2 daemon start >/dev/null 2>&1 &
+
+  # Some DDS configs require more memory
+  sudo sysctl -w net.core.rmem_max=10485760 >/dev/null 2>&1
+  sudo sysctl -w net.core.rmem_default=10485760 >/dev/null 2>&1
 }
 
 if [ -z "${QPL_PROJECT:-}" ]; then
