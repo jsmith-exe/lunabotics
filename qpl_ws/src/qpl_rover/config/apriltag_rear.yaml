@@ -10,4 +10,3 @@ apriltag_rear:
     tag:
       ids: [0]
       frames: [tag36h11_rear_0]
-      sizes: [0.3]

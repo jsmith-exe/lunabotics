@@ -10,4 +10,3 @@ apriltag_front:
     tag:
       ids: [0]
       frames: [tag36h11_front_0]
-      sizes: [0.3]
