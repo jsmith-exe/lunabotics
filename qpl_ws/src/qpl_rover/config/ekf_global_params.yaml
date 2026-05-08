@@ -16,19 +16,20 @@ ekf_global:
     transform_time_offset: 0.0
     transform_timeout: 0.1
 
-    # odom0: /odometry/local
-    # odom0_config: [false, false, false,
-    #                false, false, false,
-    #                true,  true,  false,
-    #                false, false, true,
-    #                false, false, false]
+    # INPUT 1: The "Smooth" movement from Local EKF
+    odom0: /odometry/filtered
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false, # Fuse X velocity
+                   false, false, true,  # Fuse Yaw velocity
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
 
-    # odom0_differential: false
-    # odom0_relative: false
-
+    # INPUT 2: The "Truth" from AprilTags
     pose0: /apriltag/pose
-    pose0_config: [true,  true,  false,
-                   false, false, true,
+    pose0_config: [true,  true,  false, # Fuse X, Y position
+                   false, false, true,  # Fuse Yaw orientation
                    false, false, false,
                    false, false, false,
                    false, false, false]

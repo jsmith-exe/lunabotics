@@ -12,7 +12,6 @@ ekf_local:
     # Local EKF:
     # - this filter publishes odom -> base_footprint
     # - a separate global source/filter should publish map -> odom
-    map_frame: map
     odom_frame: odom
     base_link_frame: base_footprint
     world_frame: odom
