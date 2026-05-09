@@ -20,8 +20,8 @@ ekf_global:
     odom0: /odometry/filtered
     odom0_config: [false, false, false,
                    false, false, false,
-                   true,  false, false, # Fuse X velocity
-                   false, false, true,  # Fuse Yaw velocity
+                   true,  true, false,
+                   false, false, true,
                    false, false, false]
     odom0_differential: false
     odom0_relative: false

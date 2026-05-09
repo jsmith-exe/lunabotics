@@ -17,7 +17,7 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='static_map_to_tag',
-        arguments=['0.055', '0.2', '0.3', '1.5708', '0', '1.5708', 'map', 'tag_0']
+        arguments=['0.055', '0.2', '0.3', '0', '0', '0', 'map', 'tag_0']
     )
 
     # 2. The Observer: Your new Pupil-AprilTags Python node

@@ -181,26 +181,32 @@
 
     <!-- AprilTag -->
     <model name="apriltag_0">
-        <static>true</static>
-        <pose>0.055 0.2 0.3 1.5708 0 1.5708</pose>
-        <link name="link">
-            <visual name="visual">
-                <geometry>
-                    <plane>
-                        <normal>0 0 1</normal>
-                        <size>0.3 0.3</size>
-                    </plane>
-                </geometry>
-                <material>
-                    <script>
-                        <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
-                        <uri>model://apriltag_model/materials/textures/</uri>
-                        <name>AprilTag/tag0</name>
-                    </script>
-                </material>
-            </visual>
-        </link>
-    </model>
+    <static>true</static>
+    <pose>0.055 0.2 0.3 0 0 0</pose>
+    <link name="link">
+        <collision name="collision">
+            <geometry>
+                <box>
+                    <size>0.01 0.3 0.3</size>
+                </box>
+            </geometry>
+        </collision>
+        <visual name="visual">
+            <geometry>
+                <box>
+                    <size>0.01 0.3 0.3</size>
+                </box>
+            </geometry>
+            <material>
+                <script>
+                    <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
+                    <uri>model://apriltag_model/materials/textures/</uri>
+                    <name>AprilTag/tag0</name>
+                </script>
+            </material>
+        </visual>
+    </link>
+</model>
 
   </world>
 </sdf>

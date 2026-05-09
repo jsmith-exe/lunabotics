@@ -17,7 +17,7 @@ class AprilTagObserver(Node):
         self.bridge = CvBridge()
         self.cam_params = {'front': None, 'rear': None}
         self.tag_id = 0
-        self.tag_size = 0.3  # Meters
+        self.tag_size = 0.24 # Tag size is measured between edges of tag's BLACK OUTLINE
 
         # 2. CONFIGURE DETECTOR
         # quad_decimate=2.0 and nthreads=4 to prevent EKF "Failed to meet update rate" errors
@@ -31,22 +31,17 @@ class AprilTagObserver(Node):
         )
 
         # 3. CALCULATE STATIC TRANSFORMS
-        # Tag pose in MAP frame (From your Gazebo world file)
+        # Tag pose in MAP frame
         tag_pos = [0.055, 0.2, 0.3]
-        tag_q = tf_transformations.quaternion_from_euler(1.5708, 0, 1.5708)
+        tag_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
         self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
 
-        # Front Camera Optical relative to base_link
-        f_pos = [0.25, 0.0, 0.04]
-        f_q = tf_transformations.quaternion_from_euler(-np.pi / 2, 0, -np.pi / 2)
-        self.T_base_cam_front = self.make_tf_matrix(f_pos, f_q)
+        # Front Camera (Facing forward, 25cm ahead)
+        self.T_base_cam_front = self.make_tf_matrix([0.25, 0, 0.04], [0, 0, 0, 1])
 
-        # Rear Camera Optical relative to base_link
-        r_pos = [-0.25, 0.0, 0.04]
-        r_q_base_link = tf_transformations.quaternion_from_euler(0, 0, np.pi)
-        r_q_link_opt = tf_transformations.quaternion_from_euler(-np.pi / 2, 0, -np.pi / 2)
-        r_q_combined = tf_transformations.quaternion_multiply(r_q_base_link, r_q_link_opt)
-        self.T_base_cam_rear = self.make_tf_matrix(r_pos, r_q_combined)
+        # Rear Camera (Facing backward, 25cm behind)
+        r_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
+        self.T_base_cam_rear = self.make_tf_matrix([-0.25, 0, 0.04], r_q)
 
         # 4. SETUP PUBLISHER
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/apriltag/pose', 10)
@@ -75,9 +70,24 @@ class AprilTagObserver(Node):
         # Extract [fx, fy, cx, cy]
         self.cam_params[cam_id] = [msg.k[0], msg.k[4], msg.k[2], msg.k[5]]
 
+    def sanitize_optical_to_ros(self, raw_r, raw_t):
+        # ROS X (Forward) is Optical Z
+        # ROS Y (Left) is -Optical X
+        # ROS Z (Up) is -Optical Y
+        ros_t = np.array([raw_t[2], -raw_t[0], -raw_t[1]])
+
+        # Change of Basis Matrix
+        S = np.array([
+            [0, 0, 1],
+            [-1, 0, 0],
+            [0, -1, 0]
+        ])
+        ros_r = S @ raw_r @ S.T
+        return ros_r, ros_t
+
     def image_cb(self, msg, cam_id):
         # Diagnostic: Check if we are even getting frames
-        self.get_logger().info(f"IMAGE RECEIVED from {cam_id}", once=True)
+        #self.get_logger().info(f"IMAGE RECEIVED from {cam_id}", once=True)
 
         if self.cam_params[cam_id] is None:
             self.get_logger().warn(f"STUCK: Waiting for CameraInfo on {cam_id}...")
@@ -95,27 +105,51 @@ class AprilTagObserver(Node):
         if len(results) > 0:
             # Diagnostic: Tell us what IDs are actually being seen
             for r in results:
-                self.get_logger().info(f"!!! DETECTED TAG ID: {r.tag_id} !!!")
+                self.get_logger().info(f"{cam_id} camera detected tag.")
 
-                # --- THE MAGIC FORMULA ---
+                # Get raw data from detector
+                raw_t = r.pose_t.flatten()
+                raw_R = r.pose_R
+
+                # SANITIZE: Convert Optical -> ROS Standard
+                ros_R, ros_t = self.sanitize_optical_to_ros(raw_R, raw_t)
+
+                # Now create the CLEAN measurement matrix (Camera Body -> Tag)
                 T_cam_tag = np.eye(4)
-                T_cam_tag[0:3, 0:3] = r.pose_R
-                T_cam_tag[0:3, 3] = r.pose_t.flatten()
+                T_cam_tag[0:3, 0:3] = ros_R
+                T_cam_tag[0:3, 3] = ros_t
 
-                # T_base_cam: Static offset
-                T_base_cam = self.T_base_cam_front if cam_id == 'front' else self.T_base_cam_rear
+                # Select the correct static transform based on which camera sent the frame
+                if cam_id == 'front':
+                    T_base_cam = self.T_base_cam_front
+                else:
+                    T_base_cam = self.T_base_cam_rear
 
-                # T_map_base = T_map_tag * inv(T_cam_tag) * inv(T_base_cam)
+                # 1. Compute the full chain
+                # Map -> Tag -> Camera -> Base
                 T_map_base = self.T_map_tag @ np.linalg.inv(T_cam_tag) @ np.linalg.inv(T_base_cam)
+
+                # 2. Extract Position
+                pos = T_map_base[0:3, 3]
+
+                # 3. Extract Rotation (Yaw)
+                # We convert the 4x4 matrix back into Euler angles for the log
+                q_final = tf_transformations.quaternion_from_matrix(T_map_base)
+                euler = tf_transformations.euler_from_quaternion(q_final)
+                yaw_deg = np.degrees(euler[2])
+
+                # 4. Success!
+                self.get_logger().info(
+                    f"Robot Pose in Map: X:{pos[0]:.3f}, Y:{pos[1]:.3f}, Z:{pos[2]:.3f}, Yaw:{yaw_deg:.2f}°")
 
                 # Publish regardless of ID for now to force the TF bridge to connect
                 self.publish_pose(T_map_base, msg.header.stamp)
-                self.get_logger().info(f"Published pose for Tag ID {r.tag_id}")
+                #self.get_logger().info(f"Published pose for Tag ID {r.tag_id}")
 
         else:
             # If this spams "sees nothing" even when looking at the tag,
             # then Gazebo's image is too blurry/low-res for the detector.
-            self.get_logger().info("Detector sees nothing.", once=True)
+            #self.get_logger().info(f"{cam_id} detector sees nothing.", once=True)
             pass
 
     def publish_pose(self, T, stamp):
@@ -137,7 +171,7 @@ class AprilTagObserver(Node):
 
         # Covariance: Low values mean high trust.
         # [x, y, z, roll, pitch, yaw]
-        msg.pose.covariance = np.diag([0.05, 0.05, 0.1, 0.1, 0.1, 0.05]).flatten().tolist()
+        msg.pose.covariance = np.diag([0.001, 0.001, 100.0, 100.0, 100.0, 0.01]).flatten().tolist()
 
         self.pose_pub.publish(msg)
 
