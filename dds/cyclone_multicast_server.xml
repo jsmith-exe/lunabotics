@@ -3,7 +3,7 @@
   <Domain Id="any">
     <General>
       <Interfaces>
-        <NetworkInterface name="eno1"/>
+        <NetworkInterface autodetermine="true" priority="default" />
       </Interfaces>
     </General>
     <Discovery>
