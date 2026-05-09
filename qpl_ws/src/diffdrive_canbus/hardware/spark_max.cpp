@@ -24,23 +24,13 @@ constexpr uint8_t SPARKMAX_API_VELOCITY_SET   = 0x12;
 //   Status 1: 0x2051840 + device_id
 //   Status 2: 0x2051880 + device_id
 //
-// Firmware 25+ status frame layout seen in your earlier logs:
+// Firmware 25+ status frame layout seen in earlier logs:
 //   Status 0: 0x205B800 + device_id
 //   Status 1: 0x205B840 + device_id
 //   Status 2: 0x205B880 + device_id
 constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_24 = 6;
 constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS = 46;
 
-// IMPORTANT:
-//
-// Keep only one heartbeat source for now.
-// This is the firmware 24 / non-roboRIO heartbeat you originally had working:
-//
-//   EXT ID = 0x2052C80
-//   DATA   = FF FF FF FF FF FF FF FF
-//
-// This may intentionally use device ID 0. Do not confuse the heartbeat frame
-// 0x2052C80 with a bad velocity command frame like 0x2050480.
 constexpr int TELEMETRY_EMPTY_READ_RETRIES = 8;
 constexpr auto TELEMETRY_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 
@@ -435,17 +425,6 @@ bool SparkMax::set_velocity_rpm(
   float target_motor_rpm,
   bool print)
 {
-  // Native velocity command:
-  //
-  //   API ID = 0x12
-  //   EXT ID = 0x2050480 + device_id
-  //
-  // For device ID 1:
-  //
-  //   EXT ID = 0x2050481
-  //
-  // REV Client showed the physical motor RPM was correct with this value being
-  // sent directly as RPM, so do not divide by 60 here.
   return send_simple_setpoint(
     SPARKMAX_API_VELOCITY_SET,
     target_motor_rpm,
@@ -608,13 +587,76 @@ bool SparkMax::parse_status_frame(
     return true;
   }
 
-  if (fields.api_index == API_INDEX_STATUS_1)
+  if (is_firmware24_status && fields.api_index == API_INDEX_STATUS_1)
   {
+    // Firmware 24:
+    // Status 1, bytes 0-3 = encoder velocity RPM.
+    //
+    // Example from your logs:
+    //   DATA=[0x39 0x8A 0xF8 0x43 ...] -> about 497 RPM
+    // while commanding 500 RPM.
+    if (frame.dlc >= 4)
+    {
+      const float encoder_velocity_rpm =
+        le_bytes_to_float(frame.data, 0);
+
+      if (std::isfinite(encoder_velocity_rpm))
+      {
+        telemetry_.encoder_velocity_rpm =
+          encoder_velocity_rpm;
+
+        telemetry_.motor_rad_per_sec =
+          rpm_to_rad_per_sec(encoder_velocity_rpm);
+
+        telemetry_.wheel_rad_per_sec =
+          telemetry_.motor_rad_per_sec / gear_ratio_;
+
+        telemetry_.has_encoder_velocity = true;
+      }
+    }
+
     return true;
   }
 
-  if (fields.api_index == API_INDEX_STATUS_2)
+  if (is_firmware24_status && fields.api_index == API_INDEX_STATUS_2)
   {
+    // Firmware 24:
+    // Status 2, bytes 0-3 = encoder position rotations.
+    //
+    // Example from your logs:
+    //   DATA=[0xB8 0xC2 0xB0 0x44 ...] -> about 1414 rotations
+    // and this value increases over time.
+    if (frame.dlc >= 4)
+    {
+      const float encoder_position_rotations =
+        le_bytes_to_float(frame.data, 0);
+
+      if (std::isfinite(encoder_position_rotations))
+      {
+        telemetry_.encoder_position_rotations =
+          encoder_position_rotations;
+
+        telemetry_.wheel_position_rotations =
+          encoder_position_rotations / gear_ratio_;
+
+        telemetry_.has_encoder_position = true;
+      }
+    }
+
+    return true;
+  }
+
+  if (is_firmware25_status && fields.api_index == API_INDEX_STATUS_1)
+  {
+    // Not decoding firmware 25 status 1 yet.
+    return true;
+  }
+
+  if (is_firmware25_status && fields.api_index == API_INDEX_STATUS_2)
+  {
+    // Firmware 25+ assumption from your earlier logs:
+    // Status 2, bytes 0-3 = velocity RPM
+    // Status 2, bytes 4-7 = position rotations
     if (frame.dlc >= 8)
     {
       const float encoder_velocity_rpm =
@@ -652,12 +694,9 @@ bool SparkMax::parse_status_frame(
     return true;
   }
 
-  if (fields.api_index == API_INDEX_STATUS_5)
-  {
-    return true;
-  }
-
-  return false;
+  // Any other status frame from this SPARK MAX is valid traffic,
+  // but we are not decoding it yet.
+  return true;
 }
 
 }  // namespace diffdrive_canbus
