@@ -18,7 +18,13 @@ startup() {
   source "$QPL_PROJECT/process/functions/teleop.sh"
 
   # The ROS daemon sometimes doesn't start on WSL; run in background via &
-  ros2 daemon start >/dev/null 2>&1 || true &
+  ros2 daemon start >/dev/null 2>&1 &
+
+  # Some DDS configs require more memory; only runs if not already set. TODO: Tune
+  local MEMORY_LIMIT=10485760
+  if [ "$(sysctl -n net.core.rmem_max)" -lt $MEMORY_LIMIT ]; then
+    sudo sysctl -w net.core.rmem_max=$MEMORY_LIMIT net.core.rmem_default=$MEMORY_LIMIT
+  fi
 }
 
 if [ -z "${QPL_PROJECT:-}" ]; then

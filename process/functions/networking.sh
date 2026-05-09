@@ -128,24 +128,21 @@ qpl_net_limit_status_simple() {
 # -------------------- DDS and other config --------------------
 export ROS_DOMAIN_ID=42
 
-use_server_flag_file_path="${QPL_PROJECT}/.use_server_sim"
-
-use_server_sim() {
-  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-  export CYCLONEDDS_URI=file://"${QPL_PROJECT}"/dds/cyclonedds.xml
-  touch "$use_server_flag_file_path" # Create file flag
-  echo "Configured to use server sim. Type 'use_local_sim' to use local simulation."
+qpl_dds_selector() {
+  python3 "${QPL_PROJECT}/dds/selector.py"
+  _load_dds
 }
 
-use_local_sim() {
-  unset RMW_IMPLEMENTATION
-  unset CYCLONEDDS_URI
-  rm -f "$use_server_flag_file_path"
-  echo "Configured to use local sim. Type 'use_server_sim' to use server simulation."
+_load_dds() {
+  set -a # Enable exporting all set variables
+  source "${QPL_PROJECT}/dds/.current_dds" > /dev/null 2>&1 # Source current DDS config if it exists, ignore if not
+  set +a # Disable exporting variables
+  echo "CURRENT_DDS: ${CURRENT_DDS:-Unset}"
 }
+_load_dds
 
-if [ -f "$use_server_flag_file_path" ]; then
-  use_server_sim
-else
-  use_local_sim
-fi
+qpl_echo_dds() {
+  echo "CURRENT_DDS: $CURRENT_DDS"
+  echo "RMW_IMPLEMENTATION: $RMW_IMPLEMENTATION"
+  echo "CYCLONEDDS_URI: $CYCLONEDDS_URI"
+}
