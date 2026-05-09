@@ -24,7 +24,6 @@ add_library(
   SHARED
   hardware/CAN_comms.cpp
   hardware/spark_max.cpp
-  hardware/Velocity_Controller.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)

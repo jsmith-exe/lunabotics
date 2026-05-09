@@ -697,4 +697,4 @@ std::string CANComms::bytes_to_hex(const std::vector<uint8_t> & bytes)
   return ss.str();
 }
 
-}  // namespace hardware
+}  // namespace diffdrive_canbus
