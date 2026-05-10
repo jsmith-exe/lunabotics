@@ -24,6 +24,7 @@ add_library(
   SHARED
   hardware/CAN_comms.cpp
   hardware/spark_max.cpp
+  hardware/diffdrive_canbus_system.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)
@@ -44,7 +45,7 @@ target_link_libraries(diffdrive_canbus PUBLIC
 )
 
 target_compile_definitions(diffdrive_canbus PRIVATE
-  CANBUS_BUILDING_DLL
+  DIFFDRIVE_CANBUS_BUILDING_DLL
 )
 
 add_executable(

@@ -4,7 +4,7 @@
   <xacro:unless value="$(arg sim_mode)">
       <ros2_control name="RealRover" type="system">
           <hardware>
-              <plugin>diffdrive_canbus/DiffDriveCANBusHardware</plugin>
+              <plugin>diffdrive_canbus/DiffDriveCanbusHardware</plugin>
               <param name="front_left_wheel_name">front_left_wheel_joint</param>
               <param name="front_right_wheel_name">front_right_wheel_joint</param>
               <param name="rear_left_wheel_name">rear_left_wheel_joint</param>
@@ -12,7 +12,7 @@
 
               <param name="serial_device">/dev/ttyUSB0</param>
               <param name="serial_baud_rate">2000000</param>
-              <param name="can_baud_rate">500000</param>
+              <param name="can_baud_rate">1000000</param>
               <param name="timeout_ms">100</param>
 
               <param name="front_left_can_id">1</param>
@@ -22,6 +22,10 @@
 
               <param name="enc_counts_per_rev">2048</param>
               <param name="loopback_mode">false</param>
+
+              <param name="print_commands">false</param>
+              <param name="print_status">false</param>
+              <param name="debug_printing_enabled">false</param>
           </hardware>
       <joint name="front_left_wheel_joint">
         <command_interface name="velocity">
