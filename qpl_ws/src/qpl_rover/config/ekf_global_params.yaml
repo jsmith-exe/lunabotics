@@ -17,7 +17,7 @@ ekf_global:
     transform_timeout: 0.1
 
     # INPUT 1: The "Smooth" movement from Local EKF
-    odom0: /odometry/filtered
+    odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true, false,
@@ -33,6 +33,7 @@ ekf_global:
                    false, false, false,
                    false, false, false,
                    false, false, false]
+    pose0_mahalanobis_distance: 3.0  # 3.0 is a standard starting point for strictness
 
     pose0_differential: false
     pose0_relative: false

@@ -76,7 +76,7 @@ def generate_launch_description():
                 arguments=[
                     "-topic", "robot_description",
                     "-entity", "rover",
-                    "-x", "2.5", # set to 0 (default) if not using april_arena.world
+                    "-x", "1.0", # set to 0 (default) if not using april_arena.world
                     "-y", "0.5", # set to 0 (default) if not using april_arena.world
                     "-z", "0.2"], # set to 0 (default) if not using april_arena.world
                 output="screen",
