@@ -35,13 +35,15 @@ public:
   bool send_heartbeats(bool print = false);
   bool clear_faults(bool print = false);
 
-  // Open-loop duty-cycle command.
-  // Mainly useful for simple testing and stop commands.
   bool set_duty_cycle(float duty, bool print = false);
 
   bool stop(bool print = false);
 
   bool read_telemetry(int max_frames = 20, bool print_status_frames = false);
+
+  bool handle_status_frame(
+    const CANFrame & frame,
+    bool print_status_frame);
 
   const SparkMaxTelemetry & telemetry() const;
 
@@ -52,39 +54,16 @@ public:
   float wheel_position_rotations() const;
   float applied_output() const;
 
-  // Optional PID slot selector retained for compatibility.
-  //
-  // The current raw velocity frame sends:
-  //   float RPM + 4 zero bytes
-  //
-  // So this value is not currently packed into the velocity command.
-  // PID gains/slot should be configured on the SPARK MAX using REV Hardware Client.
   void set_native_velocity_pid_slot(uint8_t pid_slot);
 
-  // Native SPARK MAX velocity commands.
-  //
-  // These send the velocity setpoint frame directly to the controller:
-  //
-  //   api_id = 0x12
-  //   frame  = 0x2050480 + device_id
-  //   data   = float target_motor_rpm, little-endian, followed by 4 zero bytes
-  //
-  // Example for device ID 1 and 1000 RPM:
-  //
-  //   EXT ID = 0x2050481
-  //   DATA   = 00 00 7A 44 00 00 00 00
   bool set_velocity_rpm(
     float target_motor_rpm,
     bool print = false);
 
-  // Command wheel angular velocity in rad/s.
-  // This accounts for gear_ratio_ internally before sending motor RPM.
   bool set_velocity_rad_per_sec(
     float target_wheel_rad_per_sec,
     bool print = false);
 
-  // Compatibility wrappers.
-  // These now call the normal native velocity functions above.
   bool set_native_velocity_rpm(
     float target_motor_rpm,
     bool print = false);
@@ -93,9 +72,6 @@ public:
     float target_wheel_rad_per_sec,
     bool print = false);
 
-  // Debug only:
-  // Send a raw setpoint-style frame to any API class/index.
-  // Useful for testing possible REV setpoint endpoints.
   bool debug_send_setpoint_api(
     uint8_t api_class,
     uint8_t api_index,
@@ -103,9 +79,6 @@ public:
     uint8_t pid_slot = 0,
     bool print = false);
 
-  // No local software PID is used anymore.
-  // These are retained as no-op / telemetry compatibility helpers so older
-  // test code does not immediately break.
   void reset_velocity_controller();
 
   float velocity_controller_output() const;
@@ -116,7 +89,6 @@ private:
   static constexpr uint8_t DEVICE_TYPE_MOTOR_CONTROLLER = 2;
   static constexpr uint8_t MANUFACTURER_REV = 5;
 
-  // Confirmed from live bus frames.
   static constexpr uint8_t API_CLASS_PERIODIC_STATUS = 46;
   static constexpr uint8_t API_INDEX_STATUS_0 = 0;
   static constexpr uint8_t API_INDEX_STATUS_1 = 1;
@@ -179,7 +151,9 @@ private:
     uint8_t pid_slot,
     bool print);
 
-  bool parse_status_frame(const CANFrame & frame, bool print_status_frame);
+  bool parse_status_frame(
+    const CANFrame & frame,
+    bool print_status_frame);
 };
 
 }  // namespace diffdrive_canbus

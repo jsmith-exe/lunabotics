@@ -28,9 +28,18 @@ namespace
 
 constexpr double TWO_PI = 2.0 * M_PI;
 
-constexpr auto STOP_TIME = std::chrono::milliseconds(300);
+constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
+constexpr auto STOP_TIME = std::chrono::milliseconds(350);
+constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(150);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
+
+// Simple duty debug mode.
+// This bypasses native velocity mode completely.
+// A wheel command of 1 rad/s becomes 0.01 duty.
+// Duty is hard-limited to +/-10%.
+constexpr double RAD_PER_SEC_TO_DUTY = 0.01;
+constexpr double MAX_DEBUG_DUTY = 0.10;
 
 bool string_to_bool(const std::string & value)
 {
@@ -50,6 +59,21 @@ double apply_deadband(double value, double deadband)
   }
 
   return value;
+}
+
+double clamp_debug_duty(double duty)
+{
+  if (duty > MAX_DEBUG_DUTY)
+  {
+    return MAX_DEBUG_DUTY;
+  }
+
+  if (duty < -MAX_DEBUG_DUTY)
+  {
+    return -MAX_DEBUG_DUTY;
+  }
+
+  return duty;
 }
 
 }  // namespace
@@ -80,6 +104,16 @@ public:
       return hardware_interface::CallbackReturn::ERROR;
     }
 
+    RCLCPP_WARN(logger_, "============================================================");
+    RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE IS RUNNING IN SIMPLE DUTY MODE");
+    RCLCPP_WARN(logger_, "Runtime path is close to the fast working version");
+    RCLCPP_WARN(logger_, "No CAN reads are performed in read() while debugging command sticking");
+    RCLCPP_WARN(logger_, "No command/heartbeat frames are sent during configure() or activate()");
+    RCLCPP_WARN(logger_, "Heartbeat is only sent while commanding or stopping");
+    RCLCPP_WARN(logger_, "A zero-duty burst is always sent during deactivate()/Ctrl+C");
+    RCLCPP_WARN(logger_, "Max duty: +/-%.3f", MAX_DEBUG_DUTY);
+    RCLCPP_WARN(logger_, "============================================================");
+
     RCLCPP_INFO(logger_, "Initialised DiffDriveCanbusHardware");
     RCLCPP_INFO(logger_, "Serial device: %s", serial_device_.c_str());
     RCLCPP_INFO(logger_, "Serial baud rate: %d", serial_baud_rate_);
@@ -95,6 +129,14 @@ public:
       logger_,
       "Debug flag debug_printing_enabled: %s",
       debug_printing_enabled_ ? "true" : "false");
+
+    if (timeout_ms_ > 10)
+    {
+      RCLCPP_WARN(
+        logger_,
+        "timeout_ms is %d ms. Set timeout_ms to 1 or 5 inside the ros2_control hardware params.",
+        timeout_ms_);
+    }
 
     return hardware_interface::CallbackReturn::SUCCESS;
   }
@@ -202,6 +244,9 @@ public:
         return hardware_interface::CallbackReturn::ERROR;
       }
 
+      RCLCPP_WARN(logger_, "Constructing all 4 SparkMax objects");
+      RCLCPP_WARN(logger_, "No SPARK MAX setpoint, zero-duty, or heartbeat frames are sent in configure()");
+
       front_left_spark_ = std::make_unique<SparkMax>(
         can_,
         front_left_can_id_,
@@ -222,10 +267,7 @@ public:
         rear_right_can_id_,
         static_cast<float>(gear_ratio_));
 
-      front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
-      front_right_spark_->set_native_velocity_pid_slot(pid_slot_);
-      rear_left_spark_->set_native_velocity_pid_slot(pid_slot_);
-      rear_right_spark_->set_native_velocity_pid_slot(pid_slot_);
+      RCLCPP_WARN(logger_, "Skipping set_native_velocity_pid_slot() for duty-mode debugging");
 
       RCLCPP_INFO(logger_, "CAN adapter configured");
       RCLCPP_INFO(logger_, "Front left SPARK MAX ID: %u", front_left_can_id_);
@@ -269,28 +311,33 @@ public:
     rear_left_position_ = 0.0;
     rear_right_position_ = 0.0;
 
+    front_left_position_offset_ = 0.0;
+    front_right_position_offset_ = 0.0;
+    rear_left_position_offset_ = 0.0;
+    rear_right_position_offset_ = 0.0;
+
+    front_left_position_offset_valid_ = false;
+    front_right_position_offset_valid_ = false;
+    rear_left_position_offset_valid_ = false;
+    rear_right_position_offset_valid_ = false;
+
     command_count_ = 0;
     skipped_idle_write_count_ = 0;
     telemetry_read_count_ = 0;
     telemetry_hit_count_ = 0;
+    can_frames_read_count_ = 0;
+    can_frames_parsed_count_ = 0;
+    heartbeat_count_ = 0;
+    idle_stop_count_ = 0;
 
     motors_currently_commanded_ = false;
 
+    next_heartbeat_time_ = std::chrono::steady_clock::now();
     last_print_time_ = std::chrono::steady_clock::now() + PRINT_PERIOD;
 
-    RCLCPP_INFO(logger_, "Clearing SPARK MAX faults");
-
-    for (int i = 0; i < 3; ++i)
-    {
-      clear_faults_all(false);
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-
-    RCLCPP_INFO(logger_, "DiffDriveCanbusHardware activated");
-    RCLCPP_INFO(
-      logger_,
-      "Idle behaviour: no motor commands are sent while all wheel commands are inside %.6f rad/s deadband",
-      command_deadband_rad_per_sec_);
+    RCLCPP_WARN(logger_, "Activated in simple duty mode");
+    RCLCPP_WARN(logger_, "No SPARK MAX frames sent during activate()");
+    RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
 
     return hardware_interface::CallbackReturn::SUCCESS;
   }
@@ -298,31 +345,34 @@ public:
   hardware_interface::CallbackReturn on_deactivate(
     const rclcpp_lifecycle::State &) override
   {
-    RCLCPP_INFO(logger_, "Stopping SPARK MAX controllers");
-
-    send_stop_for_duration(STOP_TIME);
+    RCLCPP_WARN(logger_, "Deactivating DiffDriveCanbusHardware");
+    RCLCPP_WARN(logger_, "Sending guaranteed zero-duty stop burst to all 4 motors");
 
     try
     {
+      send_stop_for_duration(STOP_TIME);
+
       if (front_left_spark_)
       {
-        front_left_spark_->stop(true);
+        front_left_spark_->stop(false);
       }
 
       if (front_right_spark_)
       {
-        front_right_spark_->stop(true);
+        front_right_spark_->stop(false);
       }
 
       if (rear_left_spark_)
       {
-        rear_left_spark_->stop(true);
+        rear_left_spark_->stop(false);
       }
 
       if (rear_right_spark_)
       {
-        rear_right_spark_->stop(true);
+        rear_right_spark_->stop(false);
       }
+
+      send_stop_for_duration(EXTRA_STOP_TIME);
 
       can_.disconnect();
     }
@@ -346,33 +396,10 @@ public:
   {
     ++telemetry_read_count_;
 
-    bool any_hit = false;
-
-    any_hit |= read_one_motor(
-      front_left_spark_,
-      front_left_velocity_,
-      front_left_position_);
-
-    any_hit |= read_one_motor(
-      front_right_spark_,
-      front_right_velocity_,
-      front_right_position_);
-
-    any_hit |= read_one_motor(
-      rear_left_spark_,
-      rear_left_velocity_,
-      rear_left_position_);
-
-    any_hit |= read_one_motor(
-      rear_right_spark_,
-      rear_right_velocity_,
-      rear_right_position_);
-
-    if (any_hit)
-    {
-      ++telemetry_hit_count_;
-    }
-
+    // Important:
+    // Disabled while debugging command sticking.
+    // CAN reads can block or drain serial traffic and disturb command response.
+    // The simple working version behaved better without feedback reads.
     if (debug_printing_enabled_)
     {
       maybe_print_status();
@@ -406,29 +433,51 @@ public:
     if (!any_active_command)
     {
       ++skipped_idle_write_count_;
+
+      // Simple working behaviour:
+      // Do not send frames continuously while idle.
+      // Only send one zero burst when transitioning from active to idle.
+      if (motors_currently_commanded_)
+      {
+        ++idle_stop_count_;
+
+        RCLCPP_WARN_THROTTLE(
+          logger_,
+          *rclcpp::Clock::make_shared(),
+          1000,
+          "Commands returned to zero. Sending immediate zero-duty stop frames.");
+
+        maybe_send_heartbeat();
+        send_zero_duty_all(false);
+      }
+
       motors_currently_commanded_ = false;
 
       return hardware_interface::return_type::OK;
     }
 
+    // Heartbeat only when there is an actual non-zero command.
+    // This prevents heartbeat from waking a latched command during idle launch.
+    maybe_send_heartbeat();
+
     motors_currently_commanded_ = true;
 
-    write_one_motor(
+    write_one_motor_debug_duty(
       "front_left",
       front_left_spark_,
       front_left_command);
 
-    write_one_motor(
+    write_one_motor_debug_duty(
       "front_right",
       front_right_spark_,
       front_right_command);
 
-    write_one_motor(
+    write_one_motor_debug_duty(
       "rear_left",
       rear_left_spark_,
       rear_left_command);
 
-    write_one_motor(
+    write_one_motor_debug_duty(
       "rear_right",
       rear_right_spark_,
       rear_right_command);
@@ -448,7 +497,8 @@ private:
 
     serial_baud_rate_ = get_int("serial_baud_rate", 2000000);
     can_baud_rate_ = get_int("can_baud_rate", 1000000);
-    timeout_ms_ = get_int("timeout_ms", 100);
+
+    timeout_ms_ = get_int("timeout_ms", 5);
 
     front_left_can_id_ = get_can_id("front_left_can_id");
     front_right_can_id_ = get_can_id("front_right_can_id");
@@ -665,58 +715,55 @@ private:
     }
   }
 
-  void clear_faults_all(bool print)
+  void maybe_send_heartbeat()
+  {
+    const auto now = std::chrono::steady_clock::now();
+
+    if (now < next_heartbeat_time_)
+    {
+      return;
+    }
+
+    if (front_left_spark_)
+    {
+      if (front_left_spark_->send_heartbeats(false))
+      {
+        ++heartbeat_count_;
+      }
+    }
+
+    next_heartbeat_time_ += HEARTBEAT_PERIOD;
+
+    if (next_heartbeat_time_ < now - HEARTBEAT_PERIOD)
+    {
+      next_heartbeat_time_ = now + HEARTBEAT_PERIOD;
+    }
+  }
+
+  void send_zero_duty_all(bool print)
   {
     if (front_left_spark_)
     {
-      front_left_spark_->clear_faults(print);
+      front_left_spark_->set_duty_cycle(0.0f, print);
     }
 
     if (front_right_spark_)
     {
-      front_right_spark_->clear_faults(print);
+      front_right_spark_->set_duty_cycle(0.0f, print);
     }
 
     if (rear_left_spark_)
     {
-      rear_left_spark_->clear_faults(print);
+      rear_left_spark_->set_duty_cycle(0.0f, print);
     }
 
     if (rear_right_spark_)
     {
-      rear_right_spark_->clear_faults(print);
+      rear_right_spark_->set_duty_cycle(0.0f, print);
     }
   }
 
-  bool read_one_motor(
-    const std::unique_ptr<SparkMax> & spark,
-    double & velocity_rad_per_sec,
-    double & position_rad)
-  {
-    if (!spark)
-    {
-      return false;
-    }
-
-    const bool hit = spark->read_telemetry(1, print_status_frames_);
-
-    const auto & tel = spark->telemetry();
-
-    if (tel.has_encoder_velocity)
-    {
-      velocity_rad_per_sec = static_cast<double>(tel.wheel_rad_per_sec);
-    }
-
-    if (tel.has_encoder_position)
-    {
-      position_rad =
-        static_cast<double>(tel.wheel_position_rotations) * TWO_PI;
-    }
-
-    return hit;
-  }
-
-  void write_one_motor(
+  void write_one_motor_debug_duty(
     const std::string & label,
     const std::unique_ptr<SparkMax> & spark,
     double command_rad_per_sec)
@@ -739,14 +786,27 @@ private:
         logger_,
         *rclcpp::Clock::make_shared(),
         1000,
-        "Command for %s motor is not finite. Sending zero.",
+        "Command for %s motor is not finite. Skipping this command.",
         label.c_str());
 
-      command_rad_per_sec = 0.0;
+      return;
     }
 
-    const bool ok = spark->set_velocity_rad_per_sec(
-      static_cast<float>(command_rad_per_sec),
+    const double raw_duty = command_rad_per_sec * RAD_PER_SEC_TO_DUTY;
+    const double duty = clamp_debug_duty(raw_duty);
+
+    RCLCPP_WARN_THROTTLE(
+      logger_,
+      *rclcpp::Clock::make_shared(),
+      2000,
+      "DUTY MODE: %s cmd_rad/s=%.6f raw_duty=%.6f clamped_duty=%.6f",
+      label.c_str(),
+      command_rad_per_sec,
+      raw_duty,
+      duty);
+
+    const bool ok = spark->set_duty_cycle(
+      static_cast<float>(duty),
       print_commands_);
 
     if (ok)
@@ -759,7 +819,7 @@ private:
         logger_,
         *rclcpp::Clock::make_shared(),
         1000,
-        "Failed to send command to %s motor",
+        "Failed to send duty command to %s motor",
         label.c_str());
     }
   }
@@ -770,32 +830,30 @@ private:
 
     const auto start = clock::now();
     auto next_command = start;
+    auto next_heartbeat = start;
 
     while (clock::now() - start < duration)
     {
       const auto now = clock::now();
 
-      if (now >= next_command)
+      if (now >= next_heartbeat)
       {
         if (front_left_spark_)
         {
-          front_left_spark_->set_duty_cycle(0.0f, false);
+          front_left_spark_->send_heartbeats(false);
         }
 
-        if (front_right_spark_)
-        {
-          front_right_spark_->set_duty_cycle(0.0f, false);
-        }
+        next_heartbeat += HEARTBEAT_PERIOD;
 
-        if (rear_left_spark_)
+        if (next_heartbeat < now - HEARTBEAT_PERIOD)
         {
-          rear_left_spark_->set_duty_cycle(0.0f, false);
+          next_heartbeat = now + HEARTBEAT_PERIOD;
         }
+      }
 
-        if (rear_right_spark_)
-        {
-          rear_right_spark_->set_duty_cycle(0.0f, false);
-        }
+      if (now >= next_command)
+      {
+        send_zero_duty_all(false);
 
         next_command += STOP_COMMAND_PERIOD;
 
@@ -827,10 +885,12 @@ private:
 
     std::cout << std::fixed << std::setprecision(3);
 
-    std::cout << "\n[DiffDriveCanbusHardware]\n";
+    std::cout << "\n[DiffDriveCanbusHardware SIMPLE DUTY MODE]\n";
     std::cout << "command_state="
-              << (motors_currently_commanded_ ? "ACTIVE" : "IDLE_COAST_NO_COMMANDS")
+              << (motors_currently_commanded_ ? "ACTIVE_ALL_MOTORS_DUTY" : "PASSIVE_IDLE")
               << " | command_deadband_rad/s=" << command_deadband_rad_per_sec_
+              << " | rad_per_sec_to_duty=" << RAD_PER_SEC_TO_DUTY
+              << " | max_debug_duty=" << MAX_DEBUG_DUTY
               << "\n";
 
     print_motor_status(
@@ -867,8 +927,12 @@ private:
 
     std::cout << "commands_sent=" << command_count_
               << " | idle_writes_skipped=" << skipped_idle_write_count_
-              << " | telemetry_reads=" << telemetry_read_count_
+              << " | idle_stops_sent=" << idle_stop_count_
+              << " | heartbeats=" << heartbeat_count_
+              << " | telemetry_reads_skipped=" << telemetry_read_count_
               << " | telemetry_hits=" << telemetry_hit_count_
+              << " | can_frames_read=" << can_frames_read_count_
+              << " | can_frames_parsed=" << can_frames_parsed_count_
               << "\n";
   }
 
@@ -883,6 +947,9 @@ private:
     const double deadbanded_command =
       apply_deadband(command_rad_per_sec, command_deadband_rad_per_sec_);
 
+    const double debug_duty =
+      clamp_debug_duty(deadbanded_command * RAD_PER_SEC_TO_DUTY);
+
     const double target_motor_rpm =
       deadbanded_command * gear_ratio_ * 60.0 / TWO_PI;
 
@@ -890,7 +957,8 @@ private:
               << " id=" << static_cast<int>(can_id)
               << " | raw cmd wheel rad/s=" << command_rad_per_sec
               << " | db cmd wheel rad/s=" << deadbanded_command
-              << " | target motor rpm=" << target_motor_rpm
+              << " | equivalent target motor rpm=" << target_motor_rpm
+              << " | calculated duty=" << debug_duty
               << " | ros pos rad=" << position_rad
               << " | ros vel rad/s=" << velocity_rad_per_sec;
 
@@ -951,15 +1019,11 @@ private:
 
   int serial_baud_rate_{2000000};
   int can_baud_rate_{1000000};
-  int timeout_ms_{100};
+  int timeout_ms_{5};
   int enc_counts_per_rev_{2048};
 
   bool loopback_mode_{false};
 
-  // Debug flags:
-  // print_commands_ controls transmitted CAN command frame debug from SparkMax.
-  // print_status_frames_ controls raw received SPARK MAX status frame debug from SparkMax.
-  // debug_printing_enabled_ controls this hardware interface's runtime summary block.
   bool print_commands_{false};
   bool print_status_frames_{false};
   bool debug_printing_enabled_{false};
@@ -994,12 +1058,29 @@ private:
   double rear_left_velocity_{0.0};
   double rear_right_velocity_{0.0};
 
+  double front_left_position_offset_{0.0};
+  double front_right_position_offset_{0.0};
+  double rear_left_position_offset_{0.0};
+  double rear_right_position_offset_{0.0};
+
+  bool front_left_position_offset_valid_{false};
+  bool front_right_position_offset_valid_{false};
+  bool rear_left_position_offset_valid_{false};
+  bool rear_right_position_offset_valid_{false};
+
   int command_count_{0};
   int skipped_idle_write_count_{0};
   int telemetry_read_count_{0};
   int telemetry_hit_count_{0};
+  int can_frames_read_count_{0};
+  int can_frames_parsed_count_{0};
+  int heartbeat_count_{0};
+  int idle_stop_count_{0};
 
   bool motors_currently_commanded_{false};
+
+  std::chrono::steady_clock::time_point next_heartbeat_time_{
+    std::chrono::steady_clock::now()};
 
   std::chrono::steady_clock::time_point last_print_time_{
     std::chrono::steady_clock::now()};

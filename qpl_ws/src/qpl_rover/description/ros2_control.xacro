@@ -13,7 +13,7 @@
               <param name="serial_device">/dev/ttyUSB0</param>
               <param name="serial_baud_rate">2000000</param>
               <param name="can_baud_rate">1000000</param>
-              <param name="timeout_ms">100</param>
+              <param name="timeout_ms">5</param>
 
               <param name="front_left_can_id">1</param>
               <param name="front_right_can_id">2</param>
