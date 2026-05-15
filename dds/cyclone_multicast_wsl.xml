@@ -3,7 +3,7 @@
   <Domain Id="any">
     <General>
       <Interfaces>
-        <NetworkInterface name="eth4" priority="default"/>
+        <NetworkInterface name="${QPL_WSL_INTERFACE}" priority="default"/>
       </Interfaces>
     </General>
     <Discovery>
