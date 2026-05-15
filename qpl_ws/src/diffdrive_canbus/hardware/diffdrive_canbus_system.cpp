@@ -34,12 +34,10 @@ constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(150);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
 
-// Simple duty debug mode.
-// This bypasses native velocity mode completely.
-// A wheel command of 1 rad/s becomes 0.01 duty.
-// Duty is hard-limited to +/-10%.
-constexpr double RAD_PER_SEC_TO_DUTY = 0.01;
-constexpr double MAX_DEBUG_DUTY = 0.10;
+// Native velocity safety clamp.
+// This is wheel rad/s before gear-ratio conversion inside SparkMax.
+// Your logs showed wheel commands around +/-11.65 rad/s, so 12.0 is a sensible cap.
+constexpr double MAX_NATIVE_WHEEL_RAD_PER_SEC = 12.0;
 
 bool string_to_bool(const std::string & value)
 {
@@ -61,19 +59,19 @@ double apply_deadband(double value, double deadband)
   return value;
 }
 
-double clamp_debug_duty(double duty)
+double clamp_native_velocity(double value)
 {
-  if (duty > MAX_DEBUG_DUTY)
+  if (value > MAX_NATIVE_WHEEL_RAD_PER_SEC)
   {
-    return MAX_DEBUG_DUTY;
+    return MAX_NATIVE_WHEEL_RAD_PER_SEC;
   }
 
-  if (duty < -MAX_DEBUG_DUTY)
+  if (value < -MAX_NATIVE_WHEEL_RAD_PER_SEC)
   {
-    return -MAX_DEBUG_DUTY;
+    return -MAX_NATIVE_WHEEL_RAD_PER_SEC;
   }
 
-  return duty;
+  return value;
 }
 
 }  // namespace
@@ -105,13 +103,14 @@ public:
     }
 
     RCLCPP_WARN(logger_, "============================================================");
-    RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE IS RUNNING IN SIMPLE DUTY MODE");
-    RCLCPP_WARN(logger_, "Runtime path is close to the fast working version");
+    RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE IS RUNNING IN SIMPLE NATIVE VELOCITY MODE");
+    RCLCPP_WARN(logger_, "Runtime path is based on the simple working duty version");
     RCLCPP_WARN(logger_, "No CAN reads are performed in read() while debugging command sticking");
     RCLCPP_WARN(logger_, "No command/heartbeat frames are sent during configure() or activate()");
     RCLCPP_WARN(logger_, "Heartbeat is only sent while commanding or stopping");
-    RCLCPP_WARN(logger_, "A zero-duty burst is always sent during deactivate()/Ctrl+C");
-    RCLCPP_WARN(logger_, "Max duty: +/-%.3f", MAX_DEBUG_DUTY);
+    RCLCPP_WARN(logger_, "Active commands use native SPARK MAX velocity setpoints");
+    RCLCPP_WARN(logger_, "Shutdown/Ctrl+C uses zero-duty stop bursts");
+    RCLCPP_WARN(logger_, "Max wheel velocity command: +/-%.3f rad/s", MAX_NATIVE_WHEEL_RAD_PER_SEC);
     RCLCPP_WARN(logger_, "============================================================");
 
     RCLCPP_INFO(logger_, "Initialised DiffDriveCanbusHardware");
@@ -121,6 +120,7 @@ public:
     RCLCPP_INFO(logger_, "Timeout: %d ms", timeout_ms_);
     RCLCPP_INFO(logger_, "Gear ratio: %.3f motor rev / wheel rev", gear_ratio_);
     RCLCPP_INFO(logger_, "Command deadband: %.6f rad/s", command_deadband_rad_per_sec_);
+    RCLCPP_INFO(logger_, "PID slot: %u", pid_slot_);
     RCLCPP_INFO(logger_, "Loopback mode: %s", loopback_mode_ ? "true" : "false");
 
     RCLCPP_INFO(logger_, "Debug flag print_commands: %s", print_commands_ ? "true" : "false");
@@ -267,7 +267,10 @@ public:
         rear_right_can_id_,
         static_cast<float>(gear_ratio_));
 
-      RCLCPP_WARN(logger_, "Skipping set_native_velocity_pid_slot() for duty-mode debugging");
+      front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
+      front_right_spark_->set_native_velocity_pid_slot(pid_slot_);
+      rear_left_spark_->set_native_velocity_pid_slot(pid_slot_);
+      rear_right_spark_->set_native_velocity_pid_slot(pid_slot_);
 
       RCLCPP_INFO(logger_, "CAN adapter configured");
       RCLCPP_INFO(logger_, "Front left SPARK MAX ID: %u", front_left_can_id_);
@@ -335,7 +338,7 @@ public:
     next_heartbeat_time_ = std::chrono::steady_clock::now();
     last_print_time_ = std::chrono::steady_clock::now() + PRINT_PERIOD;
 
-    RCLCPP_WARN(logger_, "Activated in simple duty mode");
+    RCLCPP_WARN(logger_, "Activated in simple native velocity mode");
     RCLCPP_WARN(logger_, "No SPARK MAX frames sent during activate()");
     RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
 
@@ -396,10 +399,7 @@ public:
   {
     ++telemetry_read_count_;
 
-    // Important:
-    // Disabled while debugging command sticking.
-    // CAN reads can block or drain serial traffic and disturb command response.
-    // The simple working version behaved better without feedback reads.
+    // Feedback reads remain disabled because this was the version that avoided command sticking.
     if (debug_printing_enabled_)
     {
       maybe_print_status();
@@ -413,16 +413,20 @@ public:
     const rclcpp::Duration &) override
   {
     const double front_left_command =
-      apply_deadband(front_left_command_, command_deadband_rad_per_sec_);
+      clamp_native_velocity(
+        apply_deadband(front_left_command_, command_deadband_rad_per_sec_));
 
     const double front_right_command =
-      apply_deadband(front_right_command_, command_deadband_rad_per_sec_);
+      clamp_native_velocity(
+        apply_deadband(front_right_command_, command_deadband_rad_per_sec_));
 
     const double rear_left_command =
-      apply_deadband(rear_left_command_, command_deadband_rad_per_sec_);
+      clamp_native_velocity(
+        apply_deadband(rear_left_command_, command_deadband_rad_per_sec_));
 
     const double rear_right_command =
-      apply_deadband(rear_right_command_, command_deadband_rad_per_sec_);
+      clamp_native_velocity(
+        apply_deadband(rear_right_command_, command_deadband_rad_per_sec_));
 
     const bool any_active_command =
       std::fabs(front_left_command) > 0.0 ||
@@ -436,7 +440,7 @@ public:
 
       // Simple working behaviour:
       // Do not send frames continuously while idle.
-      // Only send one zero burst when transitioning from active to idle.
+      // Only send one zero-duty stop when transitioning from active to idle.
       if (motors_currently_commanded_)
       {
         ++idle_stop_count_;
@@ -462,22 +466,22 @@ public:
 
     motors_currently_commanded_ = true;
 
-    write_one_motor_debug_duty(
+    write_one_motor_native_velocity(
       "front_left",
       front_left_spark_,
       front_left_command);
 
-    write_one_motor_debug_duty(
+    write_one_motor_native_velocity(
       "front_right",
       front_right_spark_,
       front_right_command);
 
-    write_one_motor_debug_duty(
+    write_one_motor_native_velocity(
       "rear_left",
       rear_left_spark_,
       rear_left_command);
 
-    write_one_motor_debug_duty(
+    write_one_motor_native_velocity(
       "rear_right",
       rear_right_spark_,
       rear_right_command);
@@ -763,7 +767,7 @@ private:
     }
   }
 
-  void write_one_motor_debug_duty(
+  void write_one_motor_native_velocity(
     const std::string & label,
     const std::unique_ptr<SparkMax> & spark,
     double command_rad_per_sec)
@@ -792,21 +796,20 @@ private:
       return;
     }
 
-    const double raw_duty = command_rad_per_sec * RAD_PER_SEC_TO_DUTY;
-    const double duty = clamp_debug_duty(raw_duty);
+    const double target_motor_rpm =
+      command_rad_per_sec * gear_ratio_ * 60.0 / TWO_PI;
 
     RCLCPP_WARN_THROTTLE(
       logger_,
       *rclcpp::Clock::make_shared(),
       2000,
-      "DUTY MODE: %s cmd_rad/s=%.6f raw_duty=%.6f clamped_duty=%.6f",
+      "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f target_motor_rpm=%.3f",
       label.c_str(),
       command_rad_per_sec,
-      raw_duty,
-      duty);
+      target_motor_rpm);
 
-    const bool ok = spark->set_duty_cycle(
-      static_cast<float>(duty),
+    const bool ok = spark->set_velocity_rad_per_sec(
+      static_cast<float>(command_rad_per_sec),
       print_commands_);
 
     if (ok)
@@ -819,7 +822,7 @@ private:
         logger_,
         *rclcpp::Clock::make_shared(),
         1000,
-        "Failed to send duty command to %s motor",
+        "Failed to send native velocity command to %s motor",
         label.c_str());
     }
   }
@@ -885,12 +888,11 @@ private:
 
     std::cout << std::fixed << std::setprecision(3);
 
-    std::cout << "\n[DiffDriveCanbusHardware SIMPLE DUTY MODE]\n";
+    std::cout << "\n[DiffDriveCanbusHardware SIMPLE NATIVE VELOCITY MODE]\n";
     std::cout << "command_state="
-              << (motors_currently_commanded_ ? "ACTIVE_ALL_MOTORS_DUTY" : "PASSIVE_IDLE")
+              << (motors_currently_commanded_ ? "ACTIVE_NATIVE_VELOCITY" : "PASSIVE_IDLE")
               << " | command_deadband_rad/s=" << command_deadband_rad_per_sec_
-              << " | rad_per_sec_to_duty=" << RAD_PER_SEC_TO_DUTY
-              << " | max_debug_duty=" << MAX_DEBUG_DUTY
+              << " | max_native_wheel_rad/s=" << MAX_NATIVE_WHEEL_RAD_PER_SEC
               << "\n";
 
     print_motor_status(
@@ -945,10 +947,8 @@ private:
     const std::unique_ptr<SparkMax> & spark)
   {
     const double deadbanded_command =
-      apply_deadband(command_rad_per_sec, command_deadband_rad_per_sec_);
-
-    const double debug_duty =
-      clamp_debug_duty(deadbanded_command * RAD_PER_SEC_TO_DUTY);
+      clamp_native_velocity(
+        apply_deadband(command_rad_per_sec, command_deadband_rad_per_sec_));
 
     const double target_motor_rpm =
       deadbanded_command * gear_ratio_ * 60.0 / TWO_PI;
@@ -956,9 +956,8 @@ private:
     std::cout << label
               << " id=" << static_cast<int>(can_id)
               << " | raw cmd wheel rad/s=" << command_rad_per_sec
-              << " | db cmd wheel rad/s=" << deadbanded_command
-              << " | equivalent target motor rpm=" << target_motor_rpm
-              << " | calculated duty=" << debug_duty
+              << " | db/clamped cmd wheel rad/s=" << deadbanded_command
+              << " | target motor rpm=" << target_motor_rpm
               << " | ros pos rad=" << position_rad
               << " | ros vel rad/s=" << velocity_rad_per_sec;
 
