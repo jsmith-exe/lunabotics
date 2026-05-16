@@ -227,7 +227,8 @@ bool SparkMax::send_simple_setpoint(
     api_id,
     device_id_,
     id,
-    setpoint);
+    setpoint,
+    print);
 
   std::vector<uint8_t> data(8, 0x00);
 
