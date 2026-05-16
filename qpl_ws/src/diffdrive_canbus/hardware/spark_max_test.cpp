@@ -9,11 +9,6 @@
 //
 // Useful feedback test:
 // ros2 run diffdrive_canbus spark_max_test /dev/ttyUSB0 1 rpm 2000 --timeout 20 --print-status
-//
-// This version is deliberately close to the original reliable test script.
-// The only compatibility change is that it manually sends a heartbeat immediately
-// before command, clear-faults, and stop frames, because the newer spark_max.cpp
-// no longer sends hidden heartbeats internally.
 
 #include "diffdrive_canbus/CAN_comms.hpp"
 #include "diffdrive_canbus/spark_max.hpp"
@@ -39,9 +34,8 @@ namespace
 // Keep setpoint commands on a 20 ms robot-style loop.
 constexpr auto LOOP_PERIOD = std::chrono::milliseconds(20);
 
-// Heartbeat loop is still optional, just like the original test script.
-// However, this script always sends one heartbeat immediately before each
-// command/clear/stop frame to mimic the old spark_max.cpp behaviour.
+// Heartbeat is deliberately separate from the command loop.
+// Old REVLib-style heartbeat behaviour appears closer to a 50 ms periodic task.
 constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
 
 // Read telemetry frequently so we can catch what happens before a runaway.
@@ -227,7 +221,7 @@ void print_runtime_status(
     std::cout << " | applied=NO_FEEDBACK";
   }
 
-  std::cout << " | heartbeat_loop=" << (enable_heartbeat ? "on" : "off")
+  std::cout << " | heartbeat=" << (enable_heartbeat ? "on" : "off")
             << " | heartbeats=" << heartbeat_count
             << " | commands=" << command_count
             << " | telemetry_reads=" << telemetry_read_count
@@ -310,13 +304,12 @@ void command_until_ctrl_c(
     std::cout << "Automatic stop after " << timeout_seconds << " seconds.\n";
   }
 
-  std::cout << "Heartbeat loop: " << (enable_heartbeat ? "enabled" : "disabled") << "\n";
+  std::cout << "Heartbeat: " << (enable_heartbeat ? "enabled" : "disabled") << "\n";
   if (enable_heartbeat)
   {
-    std::cout << "Heartbeat loop period: " << HEARTBEAT_PERIOD.count() << " ms\n";
+    std::cout << "Heartbeat period: " << HEARTBEAT_PERIOD.count() << " ms\n";
   }
 
-  std::cout << "Compatibility heartbeat before each command: enabled\n";
   std::cout << "Command period: " << LOOP_PERIOD.count() << " ms\n";
   std::cout << "Telemetry period: " << TELEMETRY_PERIOD.count() << " ms\n";
   std::cout << "Raw status printing: "
@@ -465,7 +458,7 @@ int main(int argc, char ** argv)
               << "  --print-command    print transmitted command frames\n"
               << "  --print-status     print received SPARK MAX status frames\n"
               << "  --timeout S        automatically stop after S seconds, default 5\n"
-              << "  --heartbeat        enable extra periodic heartbeat loop\n\n"
+              << "  --heartbeat        enable explicit heartbeat frames from the test script\n\n"
               << "Examples:\n"
               << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 50 --timeout 5\n"
               << "  " << argv[0] << " /dev/ttyUSB0 1 rpm 50 --timeout 5 --print-status\n"
@@ -609,12 +602,11 @@ int main(int argc, char ** argv)
     std::cout << "Testing SPARK MAX ID " << static_cast<int>(spark_id) << "\n";
     std::cout << "Gear ratio: " << gear_ratio << " motor rev / wheel rev\n";
     std::cout << "Command period: " << LOOP_PERIOD.count() << " ms\n";
-    std::cout << "Heartbeat loop: " << (enable_heartbeat ? "enabled" : "disabled") << "\n";
+    std::cout << "Heartbeat: " << (enable_heartbeat ? "enabled" : "disabled") << "\n";
     if (enable_heartbeat)
     {
-      std::cout << "Heartbeat loop period: " << HEARTBEAT_PERIOD.count() << " ms\n";
+      std::cout << "Heartbeat period: " << HEARTBEAT_PERIOD.count() << " ms\n";
     }
-    std::cout << "Compatibility heartbeat before every command/clear/stop: enabled\n";
     std::cout << "Telemetry period: " << TELEMETRY_PERIOD.count() << " ms\n";
     std::cout << "Raw status printing: "
               << (print_status_frames ? "enabled" : "disabled")
@@ -673,8 +665,8 @@ int main(int argc, char ** argv)
     }
     else
     {
-      std::cout << "\nExtra periodic heartbeat loop disabled.\n";
-      std::cout << "NOTE: one compatibility heartbeat is still sent immediately before every command.\n";
+      std::cout << "\nExplicit heartbeat loop disabled.\n";
+      std::cout << "NOTE: your SparkMax class may still send internal heartbeats before commands.\n";
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -716,6 +708,19 @@ int main(int argc, char ** argv)
 
     std::cout << "\nFinal stop frame...\n";
     stop_compat(spark, true);
+
+    std::cout << "\nFinal telemetry read...\n";
+    spark.read_telemetry(50, print_status_frames);
+
+    print_runtime_status(
+      spark,
+      mode,
+      info,
+      0,
+      0,
+      0,
+      0,
+      enable_heartbeat);
 
     std::cout << "\nFinal telemetry read...\n";
     spark.read_telemetry(50, print_status_frames);

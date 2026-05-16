@@ -76,6 +76,11 @@ SparkMax::SparkMax(CANComms & can, uint8_t device_id, float gear_ratio)
   device_id_(device_id),
   gear_ratio_(gear_ratio)
 {
+  std::cout << "DEBUG SparkMax constructed with device_id_="
+            << static_cast<int>(device_id_)
+            << ", gear_ratio_=" << gear_ratio_
+            << "\n";
+
   if (device_id_ == 0)
   {
     throw std::runtime_error(
@@ -171,18 +176,20 @@ bool SparkMax::send_setpoint(
     api_index,
     device_id_);
 
-  if (print)
+  std::cout << "DEBUG TX SETPOINT:"
+            << " api_class=" << static_cast<int>(api_class)
+            << " api_index=" << static_cast<int>(api_index)
+            << " device_id_=" << static_cast<int>(device_id_)
+            << " can_id=0x"
+            << std::hex << std::uppercase << id
+            << std::dec
+            << " setpoint=" << setpoint
+            << " pid_slot=" << static_cast<int>(pid_slot)
+            << "\n";
+
+  if (device_id_ == 0)
   {
-    std::cout << "DEBUG TX SETPOINT:"
-              << " api_class=" << static_cast<int>(api_class)
-              << " api_index=" << static_cast<int>(api_index)
-              << " device_id_=" << static_cast<int>(device_id_)
-              << " can_id=0x"
-              << std::hex << std::uppercase << id
-              << std::dec
-              << " setpoint=" << setpoint
-              << " pid_slot=" << static_cast<int>(pid_slot)
-              << "\n";
+    std::cerr << "WARNING: send_setpoint is targeting SPARK MAX device ID 0\n";
   }
 
   if (device_id_ == 0)
@@ -220,8 +227,7 @@ bool SparkMax::send_simple_setpoint(
     api_id,
     device_id_,
     id,
-    setpoint,
-    print);
+    setpoint);
 
   std::vector<uint8_t> data(8, 0x00);
 
@@ -254,19 +260,21 @@ bool SparkMax::send_setpoint_with_control_type(
     api_index,
     device_id_);
 
-  if (print)
+  std::cout << "DEBUG TX SETPOINT_WITH_CONTROL_TYPE:"
+            << " api_class=" << static_cast<int>(api_class)
+            << " api_index=" << static_cast<int>(api_index)
+            << " device_id_=" << static_cast<int>(device_id_)
+            << " can_id=0x"
+            << std::hex << std::uppercase << id
+            << std::dec
+            << " setpoint=" << setpoint
+            << " control_type=" << static_cast<int>(control_type)
+            << " pid_slot=" << static_cast<int>(pid_slot)
+            << "\n";
+
+  if (device_id_ == 0)
   {
-    std::cout << "DEBUG TX SETPOINT_WITH_CONTROL_TYPE:"
-              << " api_class=" << static_cast<int>(api_class)
-              << " api_index=" << static_cast<int>(api_index)
-              << " device_id_=" << static_cast<int>(device_id_)
-              << " can_id=0x"
-              << std::hex << std::uppercase << id
-              << std::dec
-              << " setpoint=" << setpoint
-              << " control_type=" << static_cast<int>(control_type)
-              << " pid_slot=" << static_cast<int>(pid_slot)
-              << "\n";
+    std::cerr << "WARNING: send_setpoint_with_control_type is targeting SPARK MAX device ID 0\n";
   }
 
   if (device_id_ == 0)
@@ -304,6 +312,8 @@ bool SparkMax::set_duty_cycle(float duty, bool print)
 
 bool SparkMax::stop(bool print)
 {
+  send_heartbeats(false);
+
   return set_duty_cycle(0.0f, print);
 }
 
@@ -593,6 +603,12 @@ bool SparkMax::parse_status_frame(
 
   if (is_firmware24_status && fields.api_index == API_INDEX_STATUS_1)
   {
+    // Firmware 24:
+    // Status 1, bytes 0-3 = encoder velocity RPM.
+    //
+    // Example from your logs:
+    //   DATA=[0x39 0x8A 0xF8 0x43 ...] -> about 497 RPM
+    // while commanding 500 RPM.
     if (frame.dlc >= 4)
     {
       const float encoder_velocity_rpm =
@@ -618,6 +634,12 @@ bool SparkMax::parse_status_frame(
 
   if (is_firmware24_status && fields.api_index == API_INDEX_STATUS_2)
   {
+    // Firmware 24:
+    // Status 2, bytes 0-3 = encoder position rotations.
+    //
+    // Example from your logs:
+    //   DATA=[0xB8 0xC2 0xB0 0x44 ...] -> about 1414 rotations
+    // and this value increases over time.
     if (frame.dlc >= 4)
     {
       const float encoder_position_rotations =
@@ -646,6 +668,9 @@ bool SparkMax::parse_status_frame(
 
   if (is_firmware25_status && fields.api_index == API_INDEX_STATUS_2)
   {
+    // Firmware 25+ assumption from your earlier logs:
+    // Status 2, bytes 0-3 = velocity RPM
+    // Status 2, bytes 4-7 = position rotations
     if (frame.dlc >= 8)
     {
       const float encoder_velocity_rpm =

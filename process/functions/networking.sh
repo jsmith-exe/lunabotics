@@ -128,18 +128,25 @@ qpl_net_limit_status_simple() {
 # -------------------- DDS and other config --------------------
 export ROS_DOMAIN_ID=42
 
+_get_highest_eth_interface() {
+  # Function for WSL; this returns the highest eth interface, which is typically the one connected to
+  # the network (e.g. eth0 is often a virtual interface for WSL itself).
+  ip -brief addr show | grep -oP 'eth[1-9]\d*' | sort -t'h' -k2 -n | tail -1
+}
+export QPL_WSL_INTERFACE=$(_get_highest_eth_interface)
+
 qpl_dds_selector() {
   python3 "${QPL_PROJECT}/dds/selector.py"
-  _load_dds
+  qpl_load_dds
 }
 
-_load_dds() {
+qpl_load_dds() {
   set -a # Enable exporting all set variables
   source "${QPL_PROJECT}/dds/.current_dds" > /dev/null 2>&1 # Source current DDS config if it exists, ignore if not
   set +a # Disable exporting variables
   echo "CURRENT_DDS: ${CURRENT_DDS:-Unset}"
 }
-_load_dds
+qpl_load_dds
 
 qpl_echo_dds() {
   echo "CURRENT_DDS: $CURRENT_DDS"
