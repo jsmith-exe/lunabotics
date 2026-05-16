@@ -35,15 +35,21 @@ constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
 
 // Feedback copied closer to spark_max_test behaviour.
-// The standalone test does:
-//   TELEMETRY_PERIOD = 20 ms
-//   spark.read_telemetry(20, print_status_frames)
-// and SparkMax::read_telemetry retries empty reads up to 8 times with 1 ms delay.
 constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
 constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 20;
 constexpr int FEEDBACK_EMPTY_READ_RETRIES = 8;
 constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 constexpr int INITIAL_FEEDBACK_FRAMES = 50;
+
+// Runaway watchdog.
+// These are deliberately conservative for catching obvious runaway,
+// not for doing normal closed-loop control.
+constexpr double RUNAWAY_MIN_MEASURED_RPM = 1000.0;
+constexpr double RUNAWAY_ALLOWED_RPM_ERROR = 1500.0;
+constexpr double RUNAWAY_SMALL_TARGET_RPM = 500.0;
+constexpr double RUNAWAY_SIGN_TARGET_MIN_RPM = 50.0;
+constexpr double RUNAWAY_HIGH_APPLIED_OUTPUT = 0.80;
+constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(500);
 
 bool string_to_bool(const std::string & value)
 {
@@ -115,10 +121,8 @@ public:
     RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
     RCLCPP_WARN(logger_, "Feedback path copied closer to spark_max_test read_telemetry behaviour");
     RCLCPP_WARN(logger_, "Command logs include cached SPARK MAX readback when available");
-    RCLCPP_WARN(logger_, "Feedback read period: %ld ms", FEEDBACK_READ_PERIOD.count());
-    RCLCPP_WARN(logger_, "Max feedback frames per read: %d", MAX_FEEDBACK_FRAMES_PER_READ);
-    RCLCPP_WARN(logger_, "Feedback empty read retries: %d", FEEDBACK_EMPTY_READ_RETRIES);
-    RCLCPP_WARN(logger_, "Feedback empty read delay: %ld ms", FEEDBACK_EMPTY_READ_DELAY.count());
+    RCLCPP_WARN(logger_, "Runaway watchdog is enabled");
+    RCLCPP_WARN(logger_, "Runaway stop time: %ld ms", RUNAWAY_STOP_TIME.count());
     RCLCPP_WARN(logger_, "============================================================");
 
     RCLCPP_INFO(logger_, "Initialised DiffDriveCanbusHardware");
@@ -344,8 +348,10 @@ public:
     non_finite_command_count_ = 0;
     feedback_cycle_count_ = 0;
     feedback_empty_count_ = 0;
+    runaway_count_ = 0;
 
     motors_currently_commanded_ = false;
+    runaway_latched_ = false;
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
     next_feedback_read_time_ = std::chrono::steady_clock::now();
@@ -355,6 +361,7 @@ public:
     RCLCPP_WARN(logger_, "No SPARK MAX command frames sent during activate()");
     RCLCPP_WARN(logger_, "Gear ratio active: %.3f motor rev / wheel rev", gear_ratio_);
     RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
+    RCLCPP_WARN(logger_, "Runaway latch reset");
     RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
 
     if (feedback_enabled_)
@@ -475,6 +482,31 @@ public:
       std::fabs(front_right_command) > 0.0 ||
       std::fabs(rear_left_command) > 0.0 ||
       std::fabs(rear_right_command) > 0.0;
+
+    if (runaway_latched_)
+    {
+      if (!any_active_command)
+      {
+        RCLCPP_WARN(
+          logger_,
+          "Runaway latch cleared because ros2_control command returned to zero.");
+
+        runaway_latched_ = false;
+      }
+      else
+      {
+        RCLCPP_ERROR_THROTTLE(
+          logger_,
+          *rclcpp::Clock::make_shared(),
+          1000,
+          "Runaway latch active. Blocking velocity commands and sending zero-duty stop frames.");
+
+        maybe_send_heartbeat();
+        send_zero_duty_all(false);
+
+        return hardware_interface::return_type::OK;
+      }
+    }
 
     if (!any_active_command)
     {
@@ -826,6 +858,94 @@ private:
     }
   }
 
+  bool detect_runaway(
+    const std::string & label,
+    const std::unique_ptr<SparkMax> & spark,
+    double target_motor_rpm)
+  {
+    if (!spark)
+    {
+      return false;
+    }
+
+    const auto & tel = spark->telemetry();
+
+    if (!tel.has_encoder_velocity)
+    {
+      return false;
+    }
+
+    const double measured_rpm =
+      static_cast<double>(tel.encoder_velocity_rpm);
+
+    const double rpm_error =
+      measured_rpm - target_motor_rpm;
+
+    const bool target_small =
+      std::fabs(target_motor_rpm) < RUNAWAY_SMALL_TARGET_RPM;
+
+    const bool measured_large =
+      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM;
+
+    const bool huge_error =
+      std::fabs(rpm_error) > RUNAWAY_ALLOWED_RPM_ERROR;
+
+    const bool sign_opposed =
+      std::fabs(target_motor_rpm) > RUNAWAY_SIGN_TARGET_MIN_RPM &&
+      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM &&
+      ((target_motor_rpm > 0.0 && measured_rpm < 0.0) ||
+       (target_motor_rpm < 0.0 && measured_rpm > 0.0));
+
+    const bool high_applied =
+      tel.has_applied_output &&
+      std::fabs(static_cast<double>(tel.applied_output)) >
+        RUNAWAY_HIGH_APPLIED_OUTPUT;
+
+    const bool runaway =
+      (target_small && measured_large) ||
+      (huge_error && measured_large && high_applied) ||
+      sign_opposed;
+
+    if (runaway)
+    {
+      if (tel.has_applied_output)
+      {
+        RCLCPP_ERROR(
+          logger_,
+          "RUNAWAY DETECTED on %s: target_motor_rpm=%.3f measured_motor_rpm=%.3f rpm_error=%.3f applied=%.3f",
+          label.c_str(),
+          target_motor_rpm,
+          measured_rpm,
+          rpm_error,
+          static_cast<double>(tel.applied_output));
+      }
+      else
+      {
+        RCLCPP_ERROR(
+          logger_,
+          "RUNAWAY DETECTED on %s: target_motor_rpm=%.3f measured_motor_rpm=%.3f rpm_error=%.3f applied=NO_FEEDBACK",
+          label.c_str(),
+          target_motor_rpm,
+          measured_rpm,
+          rpm_error);
+      }
+    }
+
+    return runaway;
+  }
+
+  void latch_runaway_and_stop()
+  {
+    ++runaway_count_;
+    runaway_latched_ = true;
+
+    RCLCPP_ERROR(
+      logger_,
+      "Runaway latched. Sending zero-duty stop burst and blocking velocity commands until command returns to zero.");
+
+    send_stop_for_duration(RUNAWAY_STOP_TIME);
+  }
+
   void write_one_motor_native_velocity(
     const std::string & label,
     const std::unique_ptr<SparkMax> & spark,
@@ -916,6 +1036,17 @@ private:
         command_rad_per_sec,
         gear_ratio_,
         target_motor_rpm);
+    }
+
+    if (detect_runaway(label, spark, target_motor_rpm))
+    {
+      latch_runaway_and_stop();
+      return;
+    }
+
+    if (runaway_latched_)
+    {
+      return;
     }
 
     const bool ok = spark->set_velocity_rad_per_sec(
@@ -1158,6 +1289,7 @@ private:
               << " | velocity_clamp=DISABLED"
               << " | gear_ratio=" << gear_ratio_
               << " | feedback=" << (feedback_enabled_ ? "ENABLED" : "DISABLED")
+              << " | runaway_latched=" << (runaway_latched_ ? "YES" : "NO")
               << "\n";
 
     print_motor_status(
@@ -1197,6 +1329,7 @@ private:
               << " | idle_stops_sent=" << idle_stop_count_
               << " | heartbeats=" << heartbeat_count_
               << " | non_finite_commands=" << non_finite_command_count_
+              << " | runaway_count=" << runaway_count_
               << " | read_calls=" << telemetry_read_count_
               << " | telemetry_hits=" << telemetry_hit_count_
               << " | feedback_cycles=" << feedback_cycle_count_
@@ -1347,8 +1480,10 @@ private:
   int non_finite_command_count_{0};
   int feedback_cycle_count_{0};
   int feedback_empty_count_{0};
+  int runaway_count_{0};
 
   bool motors_currently_commanded_{false};
+  bool runaway_latched_{false};
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{
     std::chrono::steady_clock::now()};
