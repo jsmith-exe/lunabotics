@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 
 def generate_launch_description():
-    params = {
+    camera_params = {
         "camera.color.image_raw.ffmpeg.encoder": "libx264",
         "camera.color.image_raw.ffmpeg.bit_rate": 1000000,
         "camera.color.image_raw.ffmpeg.qmax": 51,
@@ -16,7 +16,7 @@ def generate_launch_description():
             executable='realsense2_camera_node',
             name='camera',
             namespace='camera',
-            parameters=[params],
+            parameters=[camera_params],
             output='screen',
         )
     ])
