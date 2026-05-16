@@ -23,6 +23,8 @@
               <param name="gear_ratio">100</param>
               <param name="loopback_mode">false</param>
 
+              <param name="feedback_enabled">true</param>
+
               <param name="print_commands">false</param>
               <param name="print_status">false</param>
               <param name="debug_printing_enabled">false</param>

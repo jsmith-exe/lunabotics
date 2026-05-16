@@ -34,6 +34,17 @@ constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(150);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
 
+// Feedback copied closer to spark_max_test behaviour.
+// The standalone test does:
+//   TELEMETRY_PERIOD = 20 ms
+//   spark.read_telemetry(20, print_status_frames)
+// and SparkMax::read_telemetry retries empty reads up to 8 times with 1 ms delay.
+constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
+constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 20;
+constexpr int FEEDBACK_EMPTY_READ_RETRIES = 8;
+constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
+constexpr int INITIAL_FEEDBACK_FRAMES = 50;
+
 bool string_to_bool(const std::string & value)
 {
   return value == "true" ||
@@ -94,15 +105,20 @@ public:
 
     RCLCPP_WARN(logger_, "============================================================");
     RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE IS RUNNING IN SIMPLE NATIVE VELOCITY MODE");
-    RCLCPP_WARN(logger_, "Runtime path is based on the simple working duty version");
-    RCLCPP_WARN(logger_, "No CAN reads are performed in read() while debugging command sticking");
-    RCLCPP_WARN(logger_, "No command/heartbeat frames are sent during configure() or activate()");
+    RCLCPP_WARN(logger_, "Runtime command path remains based on the best working version");
     RCLCPP_WARN(logger_, "Heartbeat is only sent while commanding or stopping");
     RCLCPP_WARN(logger_, "Active commands use native SPARK MAX velocity setpoints");
     RCLCPP_WARN(logger_, "Shutdown/Ctrl+C uses zero-duty stop bursts");
     RCLCPP_WARN(logger_, "Velocity clamp removed");
     RCLCPP_WARN(logger_, "NaN/+inf/-inf commands are forced to zero before deadband");
     RCLCPP_WARN(logger_, "Gear ratio is REQUIRED from ros2_control hardware params");
+    RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
+    RCLCPP_WARN(logger_, "Feedback path copied closer to spark_max_test read_telemetry behaviour");
+    RCLCPP_WARN(logger_, "Command logs include cached SPARK MAX readback when available");
+    RCLCPP_WARN(logger_, "Feedback read period: %ld ms", FEEDBACK_READ_PERIOD.count());
+    RCLCPP_WARN(logger_, "Max feedback frames per read: %d", MAX_FEEDBACK_FRAMES_PER_READ);
+    RCLCPP_WARN(logger_, "Feedback empty read retries: %d", FEEDBACK_EMPTY_READ_RETRIES);
+    RCLCPP_WARN(logger_, "Feedback empty read delay: %ld ms", FEEDBACK_EMPTY_READ_DELAY.count());
     RCLCPP_WARN(logger_, "============================================================");
 
     RCLCPP_INFO(logger_, "Initialised DiffDriveCanbusHardware");
@@ -326,16 +342,31 @@ public:
     heartbeat_count_ = 0;
     idle_stop_count_ = 0;
     non_finite_command_count_ = 0;
+    feedback_cycle_count_ = 0;
+    feedback_empty_count_ = 0;
 
     motors_currently_commanded_ = false;
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
+    next_feedback_read_time_ = std::chrono::steady_clock::now();
     last_print_time_ = std::chrono::steady_clock::now() + PRINT_PERIOD;
 
     RCLCPP_WARN(logger_, "Activated in simple native velocity mode");
-    RCLCPP_WARN(logger_, "No SPARK MAX frames sent during activate()");
+    RCLCPP_WARN(logger_, "No SPARK MAX command frames sent during activate()");
     RCLCPP_WARN(logger_, "Gear ratio active: %.3f motor rev / wheel rev", gear_ratio_);
+    RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
     RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
+
+    if (feedback_enabled_)
+    {
+      RCLCPP_WARN(logger_, "Performing initial telemetry drain like spark_max_test");
+
+      read_telemetry_like_test_script(
+        INITIAL_FEEDBACK_FRAMES,
+        print_status_frames_);
+
+      update_all_joint_states_from_telemetry();
+    }
 
     return hardware_interface::CallbackReturn::SUCCESS;
   }
@@ -393,6 +424,12 @@ public:
     const rclcpp::Duration &) override
   {
     ++telemetry_read_count_;
+
+    if (feedback_enabled_)
+    {
+      maybe_read_feedback_like_test_script();
+      update_all_joint_states_from_telemetry();
+    }
 
     if (debug_printing_enabled_)
     {
@@ -512,9 +549,6 @@ private:
     enc_counts_per_rev_ = get_int("enc_counts_per_rev", 2048);
     loopback_mode_ = get_bool("loopback_mode", false);
 
-    // Important:
-    // Gear ratio is now REQUIRED from ros2_control.
-    // This avoids silently using 1.0 and sending commands that are 100x wrong.
     gear_ratio_ = get_required_double("gear_ratio");
 
     pid_slot_ = static_cast<uint8_t>(get_int("pid_slot", 0));
@@ -522,6 +556,8 @@ private:
     print_commands_ = get_bool("print_commands", false);
     print_status_frames_ = get_bool("print_status", false);
     debug_printing_enabled_ = get_bool("debug_printing_enabled", false);
+
+    feedback_enabled_ = get_bool("feedback_enabled", false);
 
     command_deadband_rad_per_sec_ =
       get_double("command_deadband_rad_per_sec", 0.001);
@@ -822,15 +858,65 @@ private:
     const double target_motor_rpm =
       command_rad_per_sec * gear_ratio_ * 60.0 / TWO_PI;
 
-    RCLCPP_WARN_THROTTLE(
-      logger_,
-      *rclcpp::Clock::make_shared(),
-      2000,
-      "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f",
-      label.c_str(),
-      command_rad_per_sec,
-      gear_ratio_,
-      target_motor_rpm);
+    const auto & tel = spark->telemetry();
+
+    const bool has_velocity = tel.has_encoder_velocity;
+    const bool has_applied = tel.has_applied_output;
+
+    if (has_velocity && has_applied)
+    {
+      RCLCPP_WARN_THROTTLE(
+        logger_,
+        *rclcpp::Clock::make_shared(),
+        500,
+        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=%.3f measured_wheel_rad/s=%.6f applied=%.3f",
+        label.c_str(),
+        command_rad_per_sec,
+        gear_ratio_,
+        target_motor_rpm,
+        static_cast<double>(tel.encoder_velocity_rpm),
+        static_cast<double>(tel.wheel_rad_per_sec),
+        static_cast<double>(tel.applied_output));
+    }
+    else if (has_velocity && !has_applied)
+    {
+      RCLCPP_WARN_THROTTLE(
+        logger_,
+        *rclcpp::Clock::make_shared(),
+        500,
+        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=%.3f measured_wheel_rad/s=%.6f applied=NO_FEEDBACK",
+        label.c_str(),
+        command_rad_per_sec,
+        gear_ratio_,
+        target_motor_rpm,
+        static_cast<double>(tel.encoder_velocity_rpm),
+        static_cast<double>(tel.wheel_rad_per_sec));
+    }
+    else if (!has_velocity && has_applied)
+    {
+      RCLCPP_WARN_THROTTLE(
+        logger_,
+        *rclcpp::Clock::make_shared(),
+        500,
+        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=NO_FEEDBACK measured_wheel_rad/s=NO_FEEDBACK applied=%.3f",
+        label.c_str(),
+        command_rad_per_sec,
+        gear_ratio_,
+        target_motor_rpm,
+        static_cast<double>(tel.applied_output));
+    }
+    else
+    {
+      RCLCPP_WARN_THROTTLE(
+        logger_,
+        *rclcpp::Clock::make_shared(),
+        500,
+        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=NO_FEEDBACK measured_wheel_rad/s=NO_FEEDBACK applied=NO_FEEDBACK",
+        label.c_str(),
+        command_rad_per_sec,
+        gear_ratio_,
+        target_motor_rpm);
+    }
 
     const bool ok = spark->set_velocity_rad_per_sec(
       static_cast<float>(command_rad_per_sec),
@@ -894,6 +980,159 @@ private:
     }
   }
 
+  void maybe_read_feedback_like_test_script()
+  {
+    const auto now = std::chrono::steady_clock::now();
+
+    if (now < next_feedback_read_time_)
+    {
+      return;
+    }
+
+    next_feedback_read_time_ += FEEDBACK_READ_PERIOD;
+
+    if (next_feedback_read_time_ < now - FEEDBACK_READ_PERIOD)
+    {
+      next_feedback_read_time_ = now + FEEDBACK_READ_PERIOD;
+    }
+
+    ++feedback_cycle_count_;
+
+    read_telemetry_like_test_script(
+      MAX_FEEDBACK_FRAMES_PER_READ,
+      print_status_frames_);
+  }
+
+  bool read_telemetry_like_test_script(
+    int max_frames,
+    bool print_status_frames)
+  {
+    bool parsed_any = false;
+    int frames_read = 0;
+    int empty_reads = 0;
+
+    while (frames_read < max_frames && empty_reads < FEEDBACK_EMPTY_READ_RETRIES)
+    {
+      CANFrame frame;
+
+      if (!can_.read_can_frame(frame, false))
+      {
+        ++empty_reads;
+        ++feedback_empty_count_;
+        std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
+        continue;
+      }
+
+      empty_reads = 0;
+      ++frames_read;
+      ++can_frames_read_count_;
+
+      bool parsed_this_frame = false;
+
+      if (front_left_spark_ &&
+          front_left_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
+      if (front_right_spark_ &&
+          front_right_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
+      if (rear_left_spark_ &&
+          rear_left_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
+      if (rear_right_spark_ &&
+          rear_right_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
+      if (parsed_this_frame)
+      {
+        parsed_any = true;
+        ++can_frames_parsed_count_;
+      }
+    }
+
+    if (parsed_any)
+    {
+      ++telemetry_hit_count_;
+    }
+
+    return parsed_any;
+  }
+
+  void update_all_joint_states_from_telemetry()
+  {
+    update_joint_state_from_telemetry(
+      front_left_spark_,
+      front_left_position_,
+      front_left_velocity_,
+      front_left_position_offset_,
+      front_left_position_offset_valid_);
+
+    update_joint_state_from_telemetry(
+      front_right_spark_,
+      front_right_position_,
+      front_right_velocity_,
+      front_right_position_offset_,
+      front_right_position_offset_valid_);
+
+    update_joint_state_from_telemetry(
+      rear_left_spark_,
+      rear_left_position_,
+      rear_left_velocity_,
+      rear_left_position_offset_,
+      rear_left_position_offset_valid_);
+
+    update_joint_state_from_telemetry(
+      rear_right_spark_,
+      rear_right_position_,
+      rear_right_velocity_,
+      rear_right_position_offset_,
+      rear_right_position_offset_valid_);
+  }
+
+  void update_joint_state_from_telemetry(
+    const std::unique_ptr<SparkMax> & spark,
+    double & position_rad,
+    double & velocity_rad_per_sec,
+    double & position_offset_rad,
+    bool & position_offset_valid)
+  {
+    if (!spark)
+    {
+      return;
+    }
+
+    const auto & tel = spark->telemetry();
+
+    if (tel.has_encoder_velocity)
+    {
+      velocity_rad_per_sec = static_cast<double>(tel.wheel_rad_per_sec);
+    }
+
+    if (tel.has_encoder_position)
+    {
+      const double absolute_position_rad =
+        static_cast<double>(tel.wheel_position_rotations) * TWO_PI;
+
+      if (!position_offset_valid)
+      {
+        position_offset_rad = absolute_position_rad;
+        position_offset_valid = true;
+      }
+
+      position_rad = absolute_position_rad - position_offset_rad;
+    }
+  }
+
   void maybe_print_status()
   {
     const auto now = std::chrono::steady_clock::now();
@@ -918,6 +1157,7 @@ private:
               << " | command_deadband_rad/s=" << command_deadband_rad_per_sec_
               << " | velocity_clamp=DISABLED"
               << " | gear_ratio=" << gear_ratio_
+              << " | feedback=" << (feedback_enabled_ ? "ENABLED" : "DISABLED")
               << "\n";
 
     print_motor_status(
@@ -957,8 +1197,10 @@ private:
               << " | idle_stops_sent=" << idle_stop_count_
               << " | heartbeats=" << heartbeat_count_
               << " | non_finite_commands=" << non_finite_command_count_
-              << " | telemetry_reads_skipped=" << telemetry_read_count_
+              << " | read_calls=" << telemetry_read_count_
               << " | telemetry_hits=" << telemetry_hit_count_
+              << " | feedback_cycles=" << feedback_cycle_count_
+              << " | feedback_empty=" << feedback_empty_count_
               << " | can_frames_read=" << can_frames_read_count_
               << " | can_frames_parsed=" << can_frames_parsed_count_
               << "\n";
@@ -1052,6 +1294,7 @@ private:
   bool print_commands_{false};
   bool print_status_frames_{false};
   bool debug_printing_enabled_{false};
+  bool feedback_enabled_{false};
 
   double gear_ratio_{1.0};
   double command_deadband_rad_per_sec_{0.001};
@@ -1102,10 +1345,15 @@ private:
   int heartbeat_count_{0};
   int idle_stop_count_{0};
   int non_finite_command_count_{0};
+  int feedback_cycle_count_{0};
+  int feedback_empty_count_{0};
 
   bool motors_currently_commanded_{false};
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{
+    std::chrono::steady_clock::now()};
+
+  std::chrono::steady_clock::time_point next_feedback_read_time_{
     std::chrono::steady_clock::now()};
 
   std::chrono::steady_clock::time_point last_print_time_{
