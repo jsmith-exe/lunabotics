@@ -116,6 +116,11 @@ bool send_command(
   const CommandInfo & info,
   bool print_command)
 {
+  // Compatibility with the original reliable spark_max.cpp:
+  // the old SparkMax methods sent a heartbeat internally before setpoint frames.
+  // The new spark_max.cpp does not, so we do it here.
+  spark.send_heartbeats(false);
+
   if (mode == TestMode::DUTY)
   {
     return spark.set_duty_cycle(info.user_command, print_command);
@@ -134,6 +139,24 @@ bool send_command(
   }
 
   return false;
+}
+
+bool clear_faults_compat(
+  SparkMax & spark,
+  bool print)
+{
+  // Match old behaviour: heartbeat immediately before clear_faults.
+  spark.send_heartbeats(false);
+  return spark.clear_faults(print);
+}
+
+bool stop_compat(
+  SparkMax & spark,
+  bool print)
+{
+  // Match old behaviour: heartbeat immediately before zero-duty stop.
+  spark.send_heartbeats(false);
+  return spark.stop(print);
 }
 
 void print_runtime_status(
@@ -236,7 +259,8 @@ void send_stop_for_duration(
 
     if (now >= next_command)
     {
-      spark.set_duty_cycle(0.0f, false);
+      // Match old behaviour: heartbeat immediately before zero-duty frame.
+      stop_compat(spark, false);
 
       next_command += LOOP_PERIOD;
 
@@ -650,7 +674,7 @@ int main(int argc, char ** argv)
     std::cout << "\nClearing faults...\n";
     for (int i = 0; i < 3; ++i)
     {
-      spark.clear_faults(false);
+      clear_faults_compat(spark, false);
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
@@ -683,7 +707,20 @@ int main(int argc, char ** argv)
       enable_heartbeat);
 
     std::cout << "\nFinal stop frame...\n";
-    spark.stop(true);
+    stop_compat(spark, true);
+
+    std::cout << "\nFinal telemetry read...\n";
+    spark.read_telemetry(50, print_status_frames);
+
+    print_runtime_status(
+      spark,
+      mode,
+      info,
+      0,
+      0,
+      0,
+      0,
+      enable_heartbeat);
 
     std::cout << "\nFinal telemetry read...\n";
     spark.read_telemetry(50, print_status_frames);

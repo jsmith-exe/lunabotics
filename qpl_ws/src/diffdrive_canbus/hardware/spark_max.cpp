@@ -39,18 +39,23 @@ void print_debug_can_id(
   uint8_t api_id,
   uint8_t device_id,
   uint32_t can_id,
-  float setpoint)
+  float setpoint,
+  bool print)
 {
-  std::cout << "DEBUG TX " << label
-            << ": api_id=0x"
-            << std::hex << std::uppercase << static_cast<int>(api_id)
-            << " device_id=" << std::dec << static_cast<int>(device_id)
-            << " can_id=0x"
-            << std::hex << std::uppercase << can_id
-            << std::dec
-            << " setpoint=" << setpoint
-            << "\n";
+  if (print)
+  {
+    std::cout << "DEBUG TX " << label
+              << ": api_id=0x"
+              << std::hex << std::uppercase << static_cast<int>(api_id)
+              << " device_id=" << std::dec << static_cast<int>(device_id)
+              << " can_id=0x"
+              << std::hex << std::uppercase << can_id
+              << std::dec
+              << " setpoint=" << setpoint
+              << "\n";
+  }
 
+  // Keep these warnings always-on because they indicate a dangerous CAN ID issue.
   if (device_id == 0)
   {
     std::cerr << "WARNING: setpoint command is targeting SPARK MAX device ID 0\n";
@@ -136,8 +141,6 @@ bool SparkMax::send_heartbeats(bool print)
 
 bool SparkMax::clear_faults(bool print)
 {
-  send_heartbeats(false);
-
   const uint32_t id = make_sparkmax_id(
     API_CLASS_CLEAR_FAULTS,
     API_INDEX_CLEAR_FAULTS,
@@ -168,8 +171,6 @@ bool SparkMax::send_setpoint(
   uint8_t pid_slot,
   bool print)
 {
-  send_heartbeats(false);
-
   const uint32_t id = make_sparkmax_id(
     api_class,
     api_index,
@@ -185,6 +186,11 @@ bool SparkMax::send_setpoint(
             << " setpoint=" << setpoint
             << " pid_slot=" << static_cast<int>(pid_slot)
             << "\n";
+
+  if (device_id_ == 0)
+  {
+    std::cerr << "WARNING: send_setpoint is targeting SPARK MAX device ID 0\n";
+  }
 
   if (device_id_ == 0)
   {
@@ -214,8 +220,6 @@ bool SparkMax::send_simple_setpoint(
   float setpoint,
   bool print)
 {
-  send_heartbeats(false);
-
   const uint32_t id = make_sparkmax_id_from_api_id(api_id, device_id_);
 
   print_debug_can_id(
@@ -251,8 +255,6 @@ bool SparkMax::send_setpoint_with_control_type(
   uint8_t pid_slot,
   bool print)
 {
-  send_heartbeats(false);
-
   const uint32_t id = make_sparkmax_id(
     api_class,
     api_index,
@@ -269,6 +271,11 @@ bool SparkMax::send_setpoint_with_control_type(
             << " control_type=" << static_cast<int>(control_type)
             << " pid_slot=" << static_cast<int>(pid_slot)
             << "\n";
+
+  if (device_id_ == 0)
+  {
+    std::cerr << "WARNING: send_setpoint_with_control_type is targeting SPARK MAX device ID 0\n";
+  }
 
   if (device_id_ == 0)
   {
@@ -337,6 +344,13 @@ bool SparkMax::read_telemetry(int max_frames, bool print_status_frames)
   }
 
   return parsed_any;
+}
+
+bool SparkMax::handle_status_frame(
+  const CANFrame & frame,
+  bool print_status_frame)
+{
+  return parse_status_frame(frame, print_status_frame);
 }
 
 const SparkMaxTelemetry & SparkMax::telemetry() const
