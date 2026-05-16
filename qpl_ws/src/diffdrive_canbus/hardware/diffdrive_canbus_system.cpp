@@ -34,11 +34,6 @@ constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(150);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
 
-// Native velocity safety clamp.
-// This is wheel rad/s before gear-ratio conversion inside SparkMax.
-// Your logs showed wheel commands around +/-11.65 rad/s, so 12.0 is a sensible cap.
-constexpr double MAX_NATIVE_WHEEL_RAD_PER_SEC = 12.0;
-
 bool string_to_bool(const std::string & value)
 {
   return value == "true" ||
@@ -59,19 +54,14 @@ double apply_deadband(double value, double deadband)
   return value;
 }
 
-double clamp_native_velocity(double value)
+double clean_command(double value, double deadband)
 {
-  if (value > MAX_NATIVE_WHEEL_RAD_PER_SEC)
+  if (!std::isfinite(value))
   {
-    return MAX_NATIVE_WHEEL_RAD_PER_SEC;
+    return 0.0;
   }
 
-  if (value < -MAX_NATIVE_WHEEL_RAD_PER_SEC)
-  {
-    return -MAX_NATIVE_WHEEL_RAD_PER_SEC;
-  }
-
-  return value;
+  return apply_deadband(value, deadband);
 }
 
 }  // namespace
@@ -110,7 +100,9 @@ public:
     RCLCPP_WARN(logger_, "Heartbeat is only sent while commanding or stopping");
     RCLCPP_WARN(logger_, "Active commands use native SPARK MAX velocity setpoints");
     RCLCPP_WARN(logger_, "Shutdown/Ctrl+C uses zero-duty stop bursts");
-    RCLCPP_WARN(logger_, "Max wheel velocity command: +/-%.3f rad/s", MAX_NATIVE_WHEEL_RAD_PER_SEC);
+    RCLCPP_WARN(logger_, "Velocity clamp removed");
+    RCLCPP_WARN(logger_, "NaN/+inf/-inf commands are forced to zero before deadband");
+    RCLCPP_WARN(logger_, "Gear ratio is REQUIRED from ros2_control hardware params");
     RCLCPP_WARN(logger_, "============================================================");
 
     RCLCPP_INFO(logger_, "Initialised DiffDriveCanbusHardware");
@@ -118,7 +110,7 @@ public:
     RCLCPP_INFO(logger_, "Serial baud rate: %d", serial_baud_rate_);
     RCLCPP_INFO(logger_, "CAN baud rate: %d", can_baud_rate_);
     RCLCPP_INFO(logger_, "Timeout: %d ms", timeout_ms_);
-    RCLCPP_INFO(logger_, "Gear ratio: %.3f motor rev / wheel rev", gear_ratio_);
+    RCLCPP_INFO(logger_, "Gear ratio from ros2_control: %.3f motor rev / wheel rev", gear_ratio_);
     RCLCPP_INFO(logger_, "Command deadband: %.6f rad/s", command_deadband_rad_per_sec_);
     RCLCPP_INFO(logger_, "PID slot: %u", pid_slot_);
     RCLCPP_INFO(logger_, "Loopback mode: %s", loopback_mode_ ? "true" : "false");
@@ -245,6 +237,7 @@ public:
       }
 
       RCLCPP_WARN(logger_, "Constructing all 4 SparkMax objects");
+      RCLCPP_WARN(logger_, "Using gear ratio %.3f from ros2_control for all SparkMax objects", gear_ratio_);
       RCLCPP_WARN(logger_, "No SPARK MAX setpoint, zero-duty, or heartbeat frames are sent in configure()");
 
       front_left_spark_ = std::make_unique<SparkMax>(
@@ -332,6 +325,7 @@ public:
     can_frames_parsed_count_ = 0;
     heartbeat_count_ = 0;
     idle_stop_count_ = 0;
+    non_finite_command_count_ = 0;
 
     motors_currently_commanded_ = false;
 
@@ -340,6 +334,7 @@ public:
 
     RCLCPP_WARN(logger_, "Activated in simple native velocity mode");
     RCLCPP_WARN(logger_, "No SPARK MAX frames sent during activate()");
+    RCLCPP_WARN(logger_, "Gear ratio active: %.3f motor rev / wheel rev", gear_ratio_);
     RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
 
     return hardware_interface::CallbackReturn::SUCCESS;
@@ -399,7 +394,6 @@ public:
   {
     ++telemetry_read_count_;
 
-    // Feedback reads remain disabled because this was the version that avoided command sticking.
     if (debug_printing_enabled_)
     {
       maybe_print_status();
@@ -412,21 +406,32 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
+    if (
+      !std::isfinite(front_left_command_) ||
+      !std::isfinite(front_right_command_) ||
+      !std::isfinite(rear_left_command_) ||
+      !std::isfinite(rear_right_command_))
+    {
+      ++non_finite_command_count_;
+
+      RCLCPP_WARN_THROTTLE(
+        logger_,
+        *rclcpp::Clock::make_shared(),
+        1000,
+        "Non-finite ros2_control command detected. Forcing non-finite commands to zero.");
+    }
+
     const double front_left_command =
-      clamp_native_velocity(
-        apply_deadband(front_left_command_, command_deadband_rad_per_sec_));
+      clean_command(front_left_command_, command_deadband_rad_per_sec_);
 
     const double front_right_command =
-      clamp_native_velocity(
-        apply_deadband(front_right_command_, command_deadband_rad_per_sec_));
+      clean_command(front_right_command_, command_deadband_rad_per_sec_);
 
     const double rear_left_command =
-      clamp_native_velocity(
-        apply_deadband(rear_left_command_, command_deadband_rad_per_sec_));
+      clean_command(rear_left_command_, command_deadband_rad_per_sec_);
 
     const double rear_right_command =
-      clamp_native_velocity(
-        apply_deadband(rear_right_command_, command_deadband_rad_per_sec_));
+      clean_command(rear_right_command_, command_deadband_rad_per_sec_);
 
     const bool any_active_command =
       std::fabs(front_left_command) > 0.0 ||
@@ -438,9 +443,6 @@ public:
     {
       ++skipped_idle_write_count_;
 
-      // Simple working behaviour:
-      // Do not send frames continuously while idle.
-      // Only send one zero-duty stop when transitioning from active to idle.
       if (motors_currently_commanded_)
       {
         ++idle_stop_count_;
@@ -460,8 +462,6 @@ public:
       return hardware_interface::return_type::OK;
     }
 
-    // Heartbeat only when there is an actual non-zero command.
-    // This prevents heartbeat from waking a latched command during idle launch.
     maybe_send_heartbeat();
 
     motors_currently_commanded_ = true;
@@ -512,7 +512,11 @@ private:
     enc_counts_per_rev_ = get_int("enc_counts_per_rev", 2048);
     loopback_mode_ = get_bool("loopback_mode", false);
 
-    gear_ratio_ = get_double("gear_ratio", 1.0);
+    // Important:
+    // Gear ratio is now REQUIRED from ros2_control.
+    // This avoids silently using 1.0 and sending commands that are 100x wrong.
+    gear_ratio_ = get_required_double("gear_ratio");
+
     pid_slot_ = static_cast<uint8_t>(get_int("pid_slot", 0));
 
     print_commands_ = get_bool("print_commands", false);
@@ -586,6 +590,25 @@ private:
     }
 
     return it->second;
+  }
+
+  double get_required_double(const std::string & name) const
+  {
+    const auto it = info_.hardware_parameters.find(name);
+
+    if (it == info_.hardware_parameters.end())
+    {
+      throw std::runtime_error(
+        "Missing required hardware parameter: " + name +
+        ". Add <param name=\"" + name + "\">100.0</param> to the ros2_control hardware block.");
+    }
+
+    if (it->second.empty())
+    {
+      throw std::runtime_error("Hardware parameter is empty: " + name);
+    }
+
+    return std::stod(it->second);
   }
 
   int get_int(
@@ -803,9 +826,10 @@ private:
       logger_,
       *rclcpp::Clock::make_shared(),
       2000,
-      "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f target_motor_rpm=%.3f",
+      "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f",
       label.c_str(),
       command_rad_per_sec,
+      gear_ratio_,
       target_motor_rpm);
 
     const bool ok = spark->set_velocity_rad_per_sec(
@@ -892,7 +916,8 @@ private:
     std::cout << "command_state="
               << (motors_currently_commanded_ ? "ACTIVE_NATIVE_VELOCITY" : "PASSIVE_IDLE")
               << " | command_deadband_rad/s=" << command_deadband_rad_per_sec_
-              << " | max_native_wheel_rad/s=" << MAX_NATIVE_WHEEL_RAD_PER_SEC
+              << " | velocity_clamp=DISABLED"
+              << " | gear_ratio=" << gear_ratio_
               << "\n";
 
     print_motor_status(
@@ -931,6 +956,7 @@ private:
               << " | idle_writes_skipped=" << skipped_idle_write_count_
               << " | idle_stops_sent=" << idle_stop_count_
               << " | heartbeats=" << heartbeat_count_
+              << " | non_finite_commands=" << non_finite_command_count_
               << " | telemetry_reads_skipped=" << telemetry_read_count_
               << " | telemetry_hits=" << telemetry_hit_count_
               << " | can_frames_read=" << can_frames_read_count_
@@ -946,17 +972,17 @@ private:
     double velocity_rad_per_sec,
     const std::unique_ptr<SparkMax> & spark)
   {
-    const double deadbanded_command =
-      clamp_native_velocity(
-        apply_deadband(command_rad_per_sec, command_deadband_rad_per_sec_));
+    const double cleaned_command =
+      clean_command(command_rad_per_sec, command_deadband_rad_per_sec_);
 
     const double target_motor_rpm =
-      deadbanded_command * gear_ratio_ * 60.0 / TWO_PI;
+      cleaned_command * gear_ratio_ * 60.0 / TWO_PI;
 
     std::cout << label
               << " id=" << static_cast<int>(can_id)
               << " | raw cmd wheel rad/s=" << command_rad_per_sec
-              << " | db/clamped cmd wheel rad/s=" << deadbanded_command
+              << " | clean cmd wheel rad/s=" << cleaned_command
+              << " | gear_ratio=" << gear_ratio_
               << " | target motor rpm=" << target_motor_rpm
               << " | ros pos rad=" << position_rad
               << " | ros vel rad/s=" << velocity_rad_per_sec;
@@ -1075,6 +1101,7 @@ private:
   int can_frames_parsed_count_{0};
   int heartbeat_count_{0};
   int idle_stop_count_{0};
+  int non_finite_command_count_{0};
 
   bool motors_currently_commanded_{false};
 

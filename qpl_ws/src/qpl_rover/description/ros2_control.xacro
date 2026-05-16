@@ -20,7 +20,7 @@
               <param name="rear_left_can_id">3</param>
               <param name="rear_right_can_id">4</param>
 
-              <param name="enc_counts_per_rev">2048</param>
+              <param name="gear_ratio">100</param>
               <param name="loopback_mode">false</param>
 
               <param name="print_commands">false</param>
