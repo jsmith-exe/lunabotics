@@ -4,6 +4,8 @@ startup() {
   # Environment vars and helpful stuff
   export GAZEBO_MODEL_PATH=$QPL_PROJECT/qpl_ws/src/qpl_rover/worlds:$GAZEBO_MODEL_PATH
   alias reload='source "$QPL_PROJECT/process/startup.sh"'
+  alias rover='ros2 launch qpl_rover'
+  alias basestation='ros2 launch basestation'
 
   # Source ROS and workspace
   source /opt/ros/humble/setup.bash
@@ -14,7 +16,7 @@ startup() {
   source "$QPL_PROJECT/process/functions/executables.sh"
   source "$QPL_PROJECT/process/functions/install_packages.sh"
   source "$QPL_PROJECT/process/functions/networking.sh"
-  source "$QPL_PROJECT/process/functions/orbbec_sdk.sh"
+  source "$QPL_PROJECT/process/functions/cameras.sh"
   source "$QPL_PROJECT/process/functions/teleop.sh"
 
   # The ROS daemon sometimes doesn't start on WSL; run in background via &
