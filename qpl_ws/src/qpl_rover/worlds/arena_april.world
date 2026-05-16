@@ -179,6 +179,130 @@
       </link>
     </model>
 
+    <!-- Boulders are spheres: 0.15m and 0.18m radius (~30 to 36cm diameter) -->
+    <!-- Boulder 1 -->
+    <model name="boulder_1">
+      <pose>1.0 6.5 0.15 0 0 0</pose> <!-- x, y, z, roll, pitch, yaw -->
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.15</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.15</radius>
+            </sphere>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>5</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- Boulder 2 -->
+    <model name="boulder_2">
+      <pose>3.5 3.5 0.18 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.18</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.18</radius>
+            </sphere>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>6</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- Craters are cylinders with depth 0.215m (~21.5cm) to simulate sand depth -->
+    <!-- Crater 1 -->
+    <model name="crater_1">
+      <pose>3.5 1.5 0 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.215</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.25</radius>
+              <length>0.215</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>1</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- Crater 2 -->
+    <model name="crater_2">
+      <pose>1.5 4.0 0 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.3</radius>
+              <length>0.215</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.25 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.3</radius>
+              <length>0.215</length>
+            </cylinder>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>1</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- Positions are chosen inside the 7.9m by 4.4m arena. You can tweak pose for testing different obstacle layouts -->
+
     <!-- AprilTag -->
     <model name="apriltag_0">
     <static>true</static>
