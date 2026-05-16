@@ -131,7 +131,7 @@ export ROS_DOMAIN_ID=42
 _get_highest_eth_interface() {
   # Function for WSL; this returns the highest eth interface, which is typically the one connected to
   # the network (e.g. eth0 is often a virtual interface for WSL itself).
-  ip -brief addr show | grep -oP 'eth[1-9]\d*' | sort -t'h' -k2 -n | tail -1
+  ip -brief addr show | grep UP | grep -oP 'eth[1-9]\d*' | sort -t'h' -k2 -n | tail -1
 }
 export QPL_WSL_INTERFACE=$(_get_highest_eth_interface)
 
