@@ -3,7 +3,7 @@
   <Domain Id="any">
     <General>
       <Interfaces>
-        <NetworkInterface name="eth4" priority="default" multicast="false"/>
+        <NetworkInterface name="${QPL_WSL_INTERFACE}" priority="default" multicast="false"/>
       </Interfaces>
     </General>
     <Discovery>
@@ -14,8 +14,5 @@
       <ParticipantIndex>auto</ParticipantIndex>
       <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
     </Discovery>
-    <Internal>
-      <SocketReceiveBufferSize min="10MB"/>
-    </Internal>
   </Domain>
 </CycloneDDS>

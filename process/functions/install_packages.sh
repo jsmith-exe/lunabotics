@@ -29,7 +29,8 @@ qpl_packages() {
     ros-humble-tf-transformations \
     mesa-utils \
     libserial-dev \
-    ros-humble-rmw-cyclonedds-cpp
+    ros-humble-rmw-cyclonedds-cpp \
+    ros-humble-ffmpeg-image-transport
 }
 
 qpl_gazebo_packages() {
