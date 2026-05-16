@@ -1,5 +1,0 @@
-/camera/camera:
-  ros__parameters:
-  "camera.color.image_raw.ffmpeg.encoder": libx264
-  "camera.color.image_raw.ffmpeg.bit_rate": 1000000
-  "camera.color.image_raw.ffmpeg.qmax": 51

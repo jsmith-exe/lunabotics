@@ -100,9 +100,16 @@ ros2 run demo_nodes_cpp listener
 
 ---
 ## Camera
+**Some commands require V4L2**: ```sudo apt install v4l-utils```
+
 **List video feeds**:
 ```bash
 v4l2-ctl --list-devices
+```
+
+**List video formats for video interface**: replace video0 with required video interface
+```bash
+ffmpeg -f v4l2 -list_formats all -i /dev/video0
 ```
 
 **Take a picture**:
