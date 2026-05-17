@@ -3,11 +3,18 @@ controller_manager:
   ros__parameters:
     update_rate: 50
 
+    drum_lift_cont:
+      type: velocity_controllers/JointGroupVelocityController
+    
+    drum_cont:
+      type: velocity_controllers/JointGroupVelocityController
+
     diff_cont:
       type: diff_drive_controller/DiffDriveController 
 
     joint_broad:
       type: joint_state_broadcaster/JointStateBroadcaster
+    
 
 diff_cont:
   ros__parameters:
@@ -40,4 +47,12 @@ diff_cont:
         has_acceleration_limits: true
         max_acceleration: 2.0
 
-    
+drum_lift_cont:
+  ros__parameters:
+    joints:
+      - drum_joint
+
+drum_cont:
+  ros__parameters:
+    joints:
+      - drum_spin_joint

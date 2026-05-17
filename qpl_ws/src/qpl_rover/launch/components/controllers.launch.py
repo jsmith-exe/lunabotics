@@ -30,6 +30,30 @@ def generate_launch_description():
         remappings=[("cmd_vel_out", "/drum_cont/cmd_vel_unstamped")],
     )
 
+    drum_lift_mux_params = os.path.join(rover_pkg, "config", "drum_lift_mux.yaml")
+    drum_lift_mux = Node(
+        package="twist_mux",
+        executable="twist_mux",
+        name="drum_lift_mux",
+        output="screen",
+        parameters=[drum_lift_mux_params, {"use_sim_time": True}],
+        remappings=[("cmd_vel_out", "/drum_lift_cont/cmd_vel_unstamped")],
+    )
+
+    drum_lift_bridge = Node(
+        package="qpl_rover",
+        executable="drum_lift_twist_to_float",
+        name="drum_lift_twist_to_float",
+        output="screen",
+    )
+
+    drum_bridge = Node(
+        package="qpl_rover",
+        executable="drum_twist_to_float",
+        name="drum_twist_to_float",
+        output="screen",
+    )
+
     controller_spawners = TimerAction(
         period=4.0,
         actions=[
@@ -43,11 +67,24 @@ def generate_launch_description():
                 executable="spawner",
                 arguments=["diff_cont"],
             ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=["drum_lift_cont"],
+            ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=["drum_cont"],
+            ),
         ]
     )
 
     return LaunchDescription([
         drive_mux,
         drum_mux,
+        drum_lift_mux,
+        drum_lift_bridge,
+        drum_bridge,
         controller_spawners
     ])

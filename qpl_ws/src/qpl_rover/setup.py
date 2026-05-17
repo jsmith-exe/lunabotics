@@ -38,6 +38,8 @@ setup(
             'apriltag_map_odom = nodes.apriltag_map_odom:main',
             'apriltag_map_odom_3d = nodes.apriltag_map_odom_3d:main',
             'apriltag_tag_base = nodes.apriltag_tag_base:main',
+            'drum_lift_twist_to_float = nodes.drum_lift_twist_to_float:main',
+            'drum_twist_to_float = nodes.drum_twist_to_float:main',
         ],
     },
 )
