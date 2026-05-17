@@ -7,7 +7,7 @@ qpl_build() {
   previous_path=$(pwd)
   cd "$QPL_PROJECT/qpl_ws" || {
     echo "Could not find qpl_ws. Check QPL_PROJECT is set correctly."
-    exit 1
+    return
   }
 
   # Option for clean build

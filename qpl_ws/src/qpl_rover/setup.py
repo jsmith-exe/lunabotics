@@ -14,6 +14,7 @@ setup(
     (os.path.join("share",  package_name, "description"), glob("description/*")),
     (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
     (os.path.join("share", package_name, "launch"), glob("launch/components/*.py")),
+    (os.path.join("share", package_name, "launch"), glob("launch/hardware/*.py")),
     (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model'), glob('worlds/apriltag_model/model.config')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'scripts'), glob('worlds/apriltag_model/materials/scripts/*')),
@@ -34,10 +35,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'apriltag_pose_2d = qpl_rover.nodes.apriltag_pose_2d:main',
-            'apriltag_map_odom = nodes.apriltag_map_odom:main',
-            'apriltag_map_odom_3d = nodes.apriltag_map_odom_3d:main',
-            'apriltag_tag_base = nodes.apriltag_tag_base:main',
+            'apriltag_observer = nodes.apriltag_observer:main',
             'drum_lift_twist_to_float = nodes.drum_lift_twist_to_float:main',
             'drum_twist_to_float = nodes.drum_twist_to_float:main',
         ],

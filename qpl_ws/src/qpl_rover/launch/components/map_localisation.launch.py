@@ -9,64 +9,26 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     package_name = "qpl_rover"
-    rover_pkg: str = get_package_share_directory(package_name)
+    rover_pkg = get_package_share_directory(package_name)
+    ekf_global_params = os.path.join(rover_pkg, "config", "ekf_global_params.yaml")
 
-    apriltag_config_front = os.path.join(rover_pkg, "config", "apriltag_front.yaml")
-    apriltag_config_rear = os.path.join(rover_pkg, "config", "apriltag_rear.yaml")
-
-    apriltag_front = TimerAction(
-        period=7.0,
-        actions=[
-            Node(
-                package="apriltag_ros",
-                executable="apriltag_node",
-                name="apriltag_front",
-                output="screen",
-                remappings=[
-                    ("image_rect", "/depth_camera_front/image_raw"),
-                    ("camera_info", "/depth_camera_front/camera_info"),
-                ],
-                parameters=[apriltag_config_front, {"use_sim_time": True}],
-            )
-        ],
+    # 1. Static Anchor: Where the tag exists in the world
+    tag_to_map_static = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_map_to_tag',
+        arguments=['0.055', '0.2', '0.3', '0', '0', '0', 'map', 'tag_0']
     )
 
-    apriltag_rear = TimerAction(
-        period=7.0,
-        actions=[
-            Node(
-                package="apriltag_ros",
-                executable="apriltag_node",
-                name="apriltag_rear",
-                output="screen",
-                remappings=[
-                    ("image_rect", "/depth_camera_rear/image_raw"),
-                    ("camera_info", "/depth_camera_rear/camera_info"),
-                ],
-                parameters=[apriltag_config_rear, {"use_sim_time": True}],
-            )
-        ],
+    # 2. The Observer: Your new Pupil-AprilTags Python node
+    apriltag_observer = Node(
+        package=package_name,
+        executable='apriltag_observer',
+        name='apriltag_observer',
+        parameters=[{'use_sim_time': True}]
     )
 
-    apriltag_map_odom = TimerAction(
-        period=8.0,
-        actions=[
-            Node(
-                package=package_name,
-                executable="apriltag_map_odom_3d",
-                name="apriltag_map_odom_3d",
-                output="screen",
-                parameters=[{"use_sim_time": True}],
-            )
-        ],
-    )
-
-
-    # Delay EKF until after controllers are up (period=4.0) so the robot exists
-    # and /diff_cont/odom + /imu/data are already publishing before EKF initialises.
-    # Starting EKF too early causes a bad initial state that never recovers cleanly.
-    # TODO WIP
-    ekf_global_params = os.path.join(package_name, "config", "ekf_global_params.yaml")
+    # 3. Global EKF: Calculates Map -> Odom
     ekf_global_node = TimerAction(
         period=6.0,
         actions=[
@@ -74,17 +36,16 @@ def generate_launch_description():
                 package="robot_localization",
                 executable="ekf_node",
                 name="ekf_global",
-                output="screen",
                 parameters=[ekf_global_params, {"use_sim_time": True}],
-                remappings=[
-                    ("odometry/filtered", "/odometry/global"),
-                ],
+                remappings=[("odometry/filtered", "/odometry/global")],
             )
         ],
     )
 
+    # Note: Make sure to include your ekf_local_node here if it's defined elsewhere!
+
     return LaunchDescription([
-        apriltag_front,
-        apriltag_rear,
-        apriltag_map_odom,
+        tag_to_map_static,
+        apriltag_observer,
+        ekf_global_node,
     ])

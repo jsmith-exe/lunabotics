@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="${QPL_WSL_INTERFACE}" priority="default" multicast="false"/>
+      </Interfaces>
+    </General>
+    <Discovery>
+      <Peers>
+        <Peer address="192.168.1.94"/>
+        <Peer address="192.168.1.167"/>
+      </Peers>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
