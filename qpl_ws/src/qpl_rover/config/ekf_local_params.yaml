@@ -59,20 +59,6 @@ ekf_local:
     odom0_differential: false
     odom0_relative: false
 
-    # ------------------------------------------------------------------
-    # Optional visual odometry
-    # Leave disabled until frame consistency is confirmed.
-    # When enabled, start conservatively.
-    # ------------------------------------------------------------------
-    odom1: /rtabmap/visual_odom
-    odom1_config: [true,  true,  false,
-                   false, false, false,
-                   true,  true,  false,
-                   false, false, true,
-                   false, false, false]
-    odom1_differential: false
-    odom1_relative: false
-
     # If VO later fights wheel odom, try twist-only fusion instead:
     # odom1_config: [false, false, false,
     #                false, false, false,
