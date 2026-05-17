@@ -24,13 +24,16 @@ qpl_packages() {
     ros-humble-v4l2-camera \
     v4l-utils \
     ros-humble-rtabmap-ros \
-    ros-humble-apriltag-ros \
     ros-humble-image-pipeline \
     ros-humble-tf-transformations \
+    ros-humble-cv-bridge \
+    ros-humble-vision-opencv \
+    libopencv-dev \
     mesa-utils \
     libserial-dev \
     ros-humble-rmw-cyclonedds-cpp \
     ros-humble-ffmpeg-image-transport
+  python3 -m pip install --user pupil-apriltags
 }
 
 qpl_gazebo_packages() {

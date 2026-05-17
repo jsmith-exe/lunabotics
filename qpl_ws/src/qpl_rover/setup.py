@@ -35,10 +35,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'apriltag_pose_2d = qpl_rover.nodes.apriltag_pose_2d:main',
-            'apriltag_map_odom = nodes.apriltag_map_odom:main',
-            'apriltag_map_odom_3d = nodes.apriltag_map_odom_3d:main',
-            'apriltag_tag_base = nodes.apriltag_tag_base:main',
+            'apriltag_observer = nodes.apriltag_observer:main',
         ],
     },
 )
