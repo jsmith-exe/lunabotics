@@ -14,6 +14,7 @@ setup(
     (os.path.join("share",  package_name, "description"), glob("description/*")),
     (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
     (os.path.join("share", package_name, "launch"), glob("launch/components/*.py")),
+    (os.path.join("share", package_name, "launch"), glob("launch/hardware/*.py")),
     (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model'), glob('worlds/apriltag_model/model.config')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'scripts'), glob('worlds/apriltag_model/materials/scripts/*')),

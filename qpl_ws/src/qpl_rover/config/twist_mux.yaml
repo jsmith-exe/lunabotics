@@ -4,28 +4,28 @@ twist_mux:
     cmd_vel_out: cmd_vel_out
 
     # If no input is received for this long, output is set to zero
-    timeout: 0.5
+    timeout: 0.25
 
     # Optional: cap overall speeds (acts as a limiter)
     # You can remove these if you prefer limiting elsewhere
-    linear:
-      x: 0.8
-      y: 0.0
-      z: 0.0
-    angular:
-      x: 0.0
-      y: 0.0
-      z: 2.0
+    # linear:
+    #   x: 0.8
+    #   y: 0.0
+    #   z: 0.0
+    # angular:
+    #   x: 0.0
+    #   y: 0.0
+    #   z: 2.0
 
     # Inputs
     topics:
       teleop:
         topic: cmd_vel_teleop
-        timeout: 0.5
+        timeout: 0.15
         priority: 100
       nav2:
         topic: cmd_vel_nav
-        timeout: 0.5
+        timeout: 0.25
         priority: 50
       # Optional: an emergency stop topic (highest priority)
       # e_stop:

@@ -30,9 +30,10 @@ qpl_packages() {
     ros-humble-vision-opencv \
     libopencv-dev \
     mesa-utils \
-    libserial-dev
-
-    python3 -m pip install --user pupil-apriltags
+    libserial-dev \
+    ros-humble-rmw-cyclonedds-cpp \
+    ros-humble-ffmpeg-image-transport
+  python3 -m pip install --user pupil-apriltags
 }
 
 qpl_gazebo_packages() {
