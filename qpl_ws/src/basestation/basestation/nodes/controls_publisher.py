@@ -7,7 +7,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, Vector3
 
 from basestation.forwarding.tcp_receiver import TCPReceiver
-from basestation.constants import NAV_TOPIC, DRUM_TOPIC, PUBLISHER_UPDATE_RATE
+from basestation.constants import NAV_TOPIC, PUBLISHER_UPDATE_RATE, DRUM_ROTATION_TOPIC, DRUM_LIFT_TOPIC
 
 class ControlsPublisher(Node):
     def __init__(self):
@@ -15,7 +15,8 @@ class ControlsPublisher(Node):
 
         self.publishers_ = {
             NAV_TOPIC: self.create_publisher(Twist, NAV_TOPIC, 10),
-            DRUM_TOPIC: self.create_publisher(Twist, DRUM_TOPIC, 10),
+            DRUM_ROTATION_TOPIC: self.create_publisher(Twist, DRUM_ROTATION_TOPIC, 10),
+            DRUM_LIFT_TOPIC: self.create_publisher(Twist, DRUM_LIFT_TOPIC, 10)
         }
         topics = list(self.publishers_.keys())
         # Keep track of states for republishing

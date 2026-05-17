@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from ..control_maps import default_control_map
-from ...constants import NAV_TOPIC, DRUM_TOPIC
+from ...constants import NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC
 
 
 def generate_base_twist_state(topic):
@@ -14,7 +14,8 @@ def generate_base_twist_state(topic):
 def generate_topic_state():
     return {
         NAV_TOPIC: generate_base_twist_state(NAV_TOPIC),
-        DRUM_TOPIC: generate_base_twist_state(DRUM_TOPIC),
+        DRUM_LIFT_TOPIC: generate_base_twist_state(DRUM_LIFT_TOPIC),
+        DRUM_ROTATION_TOPIC: generate_base_twist_state(DRUM_ROTATION_TOPIC),
     }
 
 @dataclass
