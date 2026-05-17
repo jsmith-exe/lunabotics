@@ -28,9 +28,18 @@ namespace
 
 constexpr double TWO_PI = 2.0 * M_PI;
 
-constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
-constexpr auto STOP_TIME = std::chrono::milliseconds(350);
-constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(150);
+constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(120);
+
+// Slow active command traffic so the serial-to-CAN adapter is not flooded.
+// 50 ms = maximum 20 active velocity command updates per second.
+constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(50);
+
+// Gap between outgoing serial/CAN writes.
+// Increase to 10 or 15 ms if the bus is still jumpy.
+constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(8);
+
+constexpr auto STOP_TIME = std::chrono::milliseconds(50);
+constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(50);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
 
@@ -44,12 +53,12 @@ constexpr int INITIAL_FEEDBACK_FRAMES = 50;
 // Runaway watchdog.
 // These are deliberately conservative for catching obvious runaway,
 // not for doing normal closed-loop control.
-constexpr double RUNAWAY_MIN_MEASURED_RPM = 1000.0;
+constexpr double RUNAWAY_MIN_MEASURED_RPM = 8000.0;
 constexpr double RUNAWAY_ALLOWED_RPM_ERROR = 1500.0;
 constexpr double RUNAWAY_SMALL_TARGET_RPM = 500.0;
 constexpr double RUNAWAY_SIGN_TARGET_MIN_RPM = 50.0;
-constexpr double RUNAWAY_HIGH_APPLIED_OUTPUT = 0.80;
-constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(500);
+constexpr double RUNAWAY_HIGH_APPLIED_OUTPUT = 1.0;
+constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(100);
 
 bool string_to_bool(const std::string & value)
 {
@@ -113,6 +122,8 @@ public:
     RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE IS RUNNING IN SIMPLE NATIVE VELOCITY MODE");
     RCLCPP_WARN(logger_, "Runtime command path remains based on the best working version");
     RCLCPP_WARN(logger_, "Heartbeat is only sent while commanding or stopping");
+    RCLCPP_WARN(logger_, "Active command stream is slowed down for bus stability");
+    RCLCPP_WARN(logger_, "Heartbeat is sent immediately before every motor velocity command");
     RCLCPP_WARN(logger_, "Active commands use native SPARK MAX velocity setpoints");
     RCLCPP_WARN(logger_, "Shutdown/Ctrl+C uses zero-duty stop bursts");
     RCLCPP_WARN(logger_, "Velocity clamp removed");
@@ -123,6 +134,8 @@ public:
     RCLCPP_WARN(logger_, "Command logs include cached SPARK MAX readback when available");
     RCLCPP_WARN(logger_, "Runaway watchdog is enabled");
     RCLCPP_WARN(logger_, "Runaway stop time: %ld ms", RUNAWAY_STOP_TIME.count());
+    RCLCPP_WARN(logger_, "Command write period: %ld ms", COMMAND_WRITE_PERIOD.count());
+    RCLCPP_WARN(logger_, "Bus frame gap: %ld ms", BUS_FRAME_GAP.count());
     RCLCPP_WARN(logger_, "============================================================");
 
     RCLCPP_INFO(logger_, "Initialised DiffDriveCanbusHardware");
@@ -355,6 +368,7 @@ public:
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
     next_feedback_read_time_ = std::chrono::steady_clock::now();
+    next_command_write_time_ = std::chrono::steady_clock::now();
     last_print_time_ = std::chrono::steady_clock::now() + PRINT_PERIOD;
 
     RCLCPP_WARN(logger_, "Activated in simple native velocity mode");
@@ -363,6 +377,8 @@ public:
     RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
     RCLCPP_WARN(logger_, "Runaway latch reset");
     RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
+    RCLCPP_WARN(logger_, "Active velocity commands limited to one command batch every %ld ms", COMMAND_WRITE_PERIOD.count());
+    RCLCPP_WARN(logger_, "Each heartbeat/command frame is separated by %ld ms", BUS_FRAME_GAP.count());
 
     if (feedback_enabled_)
     {
@@ -531,7 +547,14 @@ public:
       return hardware_interface::return_type::OK;
     }
 
-    maybe_send_heartbeat();
+    const auto now = std::chrono::steady_clock::now();
+
+    if (now < next_command_write_time_)
+    {
+      return hardware_interface::return_type::OK;
+    }
+
+    next_command_write_time_ = now + COMMAND_WRITE_PERIOD;
 
     motors_currently_commanded_ = true;
 
@@ -810,6 +833,37 @@ private:
     }
   }
 
+  void sleep_bus_gap()
+  {
+    std::this_thread::sleep_for(BUS_FRAME_GAP);
+  }
+
+  void send_heartbeat_before_motor_command(const std::string & label)
+  {
+    if (!front_left_spark_)
+    {
+      return;
+    }
+
+    const bool ok = front_left_spark_->send_heartbeats(false);
+
+    if (ok)
+    {
+      ++heartbeat_count_;
+    }
+    else
+    {
+      RCLCPP_WARN_THROTTLE(
+        logger_,
+        *rclcpp::Clock::make_shared(),
+        1000,
+        "Failed to send heartbeat before %s motor command",
+        label.c_str());
+    }
+
+    sleep_bus_gap();
+  }
+
   void maybe_send_heartbeat()
   {
     const auto now = std::chrono::steady_clock::now();
@@ -1049,9 +1103,13 @@ private:
       return;
     }
 
+    send_heartbeat_before_motor_command(label);
+
     const bool ok = spark->set_velocity_rad_per_sec(
       static_cast<float>(command_rad_per_sec),
       print_commands_);
+
+    sleep_bus_gap();
 
     if (ok)
     {
@@ -1287,6 +1345,8 @@ private:
               << (motors_currently_commanded_ ? "ACTIVE_NATIVE_VELOCITY" : "PASSIVE_IDLE")
               << " | command_deadband_rad/s=" << command_deadband_rad_per_sec_
               << " | velocity_clamp=DISABLED"
+              << " | command_write_period_ms=" << COMMAND_WRITE_PERIOD.count()
+              << " | bus_frame_gap_ms=" << BUS_FRAME_GAP.count()
               << " | gear_ratio=" << gear_ratio_
               << " | feedback=" << (feedback_enabled_ ? "ENABLED" : "DISABLED")
               << " | runaway_latched=" << (runaway_latched_ ? "YES" : "NO")
@@ -1489,6 +1549,9 @@ private:
     std::chrono::steady_clock::now()};
 
   std::chrono::steady_clock::time_point next_feedback_read_time_{
+    std::chrono::steady_clock::now()};
+
+  std::chrono::steady_clock::time_point next_command_write_time_{
     std::chrono::steady_clock::now()};
 
   std::chrono::steady_clock::time_point last_print_time_{

@@ -11,6 +11,7 @@ def generate_launch_description():
         # 'color_qos': 'SENSOR_DATA',
         # 'depth_registration': 'true',
         # 'enable_colored_point_cloud': 'true',
+        'camera_name': 'orrbec'
     }.items()
 
     orbbec_pkg_path = get_package_share_directory('orbbec_camera')
