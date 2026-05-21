@@ -35,7 +35,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'apriltag_observer = nodes.apriltag_observer:main',
+            'apriltag_observer = qpl_rover.apriltag_observer:main',
         ],
     },
 )
