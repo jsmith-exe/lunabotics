@@ -42,7 +42,7 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: true
-    controller_frequency: 10.0
+    controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.0
     min_theta_velocity_threshold: 0.001
@@ -59,30 +59,30 @@ controller_server:
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
-      xy_goal_tolerance: 0.20
-      yaw_goal_tolerance: 0.20
+      xy_goal_tolerance: 0.30
+      yaw_goal_tolerance: 0.35
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: false
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.4
+      max_vel_x: 0.3
       max_vel_y: 0.0
       max_vel_theta: 0.8
       min_speed_xy: 0.0
-      max_speed_xy: 0.4
+      max_speed_xy: 0.3
       min_speed_theta: 0.0
-      acc_lim_x: 0.8
+      acc_lim_x: 0.6
       acc_lim_y: 0.0
       acc_lim_theta: 1.5
-      decel_lim_x: -0.8
+      decel_lim_x: -0.6
       decel_lim_y: 0.0
       decel_lim_theta: -1.5
       vx_samples: 20
       vy_samples: 1
       vtheta_samples: 20
-      sim_time: 1.5
+      sim_time: 1.2
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.5
@@ -163,8 +163,8 @@ local_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.45
+        cost_scaling_factor: 2.0
+        inflation_radius: 0.35
 
   local_costmap_client:
     ros__parameters:
@@ -230,8 +230,8 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+        cost_scaling_factor: 2.0
+        inflation_radius: 0.45
 
   global_costmap_client:
     ros__parameters:
@@ -315,3 +315,17 @@ lifecycle_manager_navigation:
       - bt_navigator
       - waypoint_follower
       - velocity_smoother
+
+recoveries_server:
+  ros__parameters:
+    use_sim_time: true
+    cycle_frequency: 10.0
+    recovery_plugins: ["spin", "backup", "wait", "clear_costmap"]
+    spin:
+      plugin: "nav2_behaviors/Spin"
+    backup:
+      plugin: "nav2_behaviors/BackUp"
+    wait:
+      plugin: "nav2_behaviors/Wait"
+    clear_costmap:
+      plugin: "nav2_behaviors/ClearCostmap"
