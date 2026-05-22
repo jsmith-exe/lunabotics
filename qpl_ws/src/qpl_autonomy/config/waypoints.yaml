@@ -3,7 +3,7 @@ excavation_zone:
   y: 7.0
   yaw: 0.0
 
-deposition_zone:
+construction_zone:
   x: 3.5
   y: 0.5
   yaw: 0.0

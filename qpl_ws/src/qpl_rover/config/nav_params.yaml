@@ -42,7 +42,7 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: true
-    controller_frequency: 20.0
+    controller_frequency: 10.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.0
     min_theta_velocity_threshold: 0.001
@@ -59,30 +59,30 @@ controller_server:
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
-      xy_goal_tolerance: 0.30
-      yaw_goal_tolerance: 0.35
+      xy_goal_tolerance: 0.20
+      yaw_goal_tolerance: 0.20
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: false
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.3
+      max_vel_x: 0.4
       max_vel_y: 0.0
       max_vel_theta: 0.8
       min_speed_xy: 0.0
-      max_speed_xy: 0.3
+      max_speed_xy: 0.4
       min_speed_theta: 0.0
-      acc_lim_x: 0.6
+      acc_lim_x: 0.8
       acc_lim_y: 0.0
       acc_lim_theta: 1.5
-      decel_lim_x: -0.6
+      decel_lim_x: -0.8
       decel_lim_y: 0.0
       decel_lim_theta: -1.5
       vx_samples: 20
       vy_samples: 1
       vtheta_samples: 20
-      sim_time: 1.2
+      sim_time: 1.5
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.5
@@ -98,13 +98,13 @@ controller_server:
         - PathAlign
         - PathDist
         - GoalDist
-      BaseObstacle.scale: 0.02
-      PathAlign.scale: 24.0
+      BaseObstacle.scale: 1.0
+      PathAlign.scale: 12.0
       PathAlign.forward_point_distance: 0.10
-      GoalAlign.scale: 18.0
+      GoalAlign.scale: 10.0
       GoalAlign.forward_point_distance: 0.10
-      PathDist.scale: 24.0
-      GoalDist.scale: 18.0
+      PathDist.scale: 12.0
+      GoalDist.scale: 10.0
       RotateToGoal.scale: 20.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
@@ -121,7 +121,7 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      robot_radius: 0.30
+      robot_radius: 0.35
       transform_tolerance: 0.5
       always_send_full_costmap: true
       plugins: ["obstacle_layer", "inflation_layer"]
@@ -145,7 +145,7 @@ local_costmap:
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
+          raytrace_max_range: 5.0
           min_obstacle_height: 0.04   # Drop slightly to 4cm to catch lower parts of obstacles
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785   # Helps Nav2 know the camera's vertical boundaries for clearing
@@ -156,15 +156,15 @@ local_costmap:
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
+          raytrace_max_range: 5.0
           min_obstacle_height: 0.04
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.0
-        inflation_radius: 0.35
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.80
 
   local_costmap_client:
     ros__parameters:
@@ -186,7 +186,7 @@ global_costmap:
       width: 30
       height: 30
       resolution: 0.05
-      robot_radius: 0.30
+      robot_radius: 0.35
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
@@ -212,7 +212,7 @@ global_costmap:
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
+          raytrace_max_range: 5.0
           min_obstacle_height: 0.04   # Drop slightly to 4cm to catch lower parts of obstacles
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785   # Helps Nav2 know the camera's vertical boundaries for clearing
@@ -223,15 +223,15 @@ global_costmap:
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
+          raytrace_max_range: 5.0
           min_obstacle_height: 0.04
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.0
-        inflation_radius: 0.45
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.90
 
   global_costmap_client:
     ros__parameters:
@@ -315,17 +315,3 @@ lifecycle_manager_navigation:
       - bt_navigator
       - waypoint_follower
       - velocity_smoother
-
-recoveries_server:
-  ros__parameters:
-    use_sim_time: true
-    cycle_frequency: 10.0
-    recovery_plugins: ["spin", "backup", "wait", "clear_costmap"]
-    spin:
-      plugin: "nav2_behaviors/Spin"
-    backup:
-      plugin: "nav2_behaviors/BackUp"
-    wait:
-      plugin: "nav2_behaviors/Wait"
-    clear_costmap:
-      plugin: "nav2_behaviors/ClearCostmap"
