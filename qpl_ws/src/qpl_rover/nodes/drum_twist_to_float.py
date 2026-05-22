@@ -8,23 +8,22 @@ joint is continuous.
 """
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64, Float64MultiArray
 
 
 class DrumTwistToFloat(Node):
     def __init__(self):
         super().__init__("drum_twist_to_float")
         self.sub = self.create_subscription(
-            Twist, "/drum_cont/cmd_vel_unstamped", self.cb, 10
+            Float64, "/drum_cont/cmd_vel_unstamped", self.cb, 10
         )
         self.pub = self.create_publisher(
             Float64MultiArray, "/drum_cont/commands", 10
         )
 
-    def cb(self, msg: Twist):
+    def cb(self, msg: Float64):
         out = Float64MultiArray()
-        out.data = [msg.angular.y]
+        out.data = [msg.data]
         self.pub.publish(out)
 
 

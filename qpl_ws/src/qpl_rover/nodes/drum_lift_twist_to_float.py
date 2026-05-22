@@ -6,8 +6,7 @@ command for drum_joint, clamping to zero when the joint is at a limit.
 """
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64, Float64MultiArray
 from sensor_msgs.msg import JointState
 
 DRUM_JOINT_NAME = "drum_joint"
@@ -25,7 +24,7 @@ class DrumLiftTwistToFloat(Node):
         self.drum_pos = UPPER_LIMIT
 
         self.cmd_sub = self.create_subscription(
-            Twist, "/drum_lift_cont/cmd_vel_unstamped", self.cmd_cb, 10
+            Float64, "/drum_lift_cont/cmd_vel_unstamped", self.cmd_cb, 10
         )
         self.js_sub = self.create_subscription(
             JointState, "/joint_states", self.js_cb, 10
@@ -41,8 +40,8 @@ class DrumLiftTwistToFloat(Node):
             return
         self.drum_pos = msg.position[idx]
 
-    def cmd_cb(self, msg: Twist):
-        velocity = msg.linear.z
+    def cmd_cb(self, msg: Float64):
+        velocity = msg.data
 
         if self.drum_pos >= UPPER_LIMIT - DEADBAND and velocity > 0.0:
             velocity = 0.0
