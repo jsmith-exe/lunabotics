@@ -8,6 +8,7 @@ alias qpl_rover='ros2 launch qpl_rover rover.launch.py'
 alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'
 alias qpl_components='ros2 launch qpl_rover components.launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
+alias qpl_restart_daemon="ros2 daemon stop && ros2 daemon start"
 
 
 # -------------------- Simulation + RViz --------------------
