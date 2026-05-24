@@ -17,7 +17,7 @@ class AprilTagObserver(Node):
         self.bridge = CvBridge()
         self.cam_params = {'front': None, 'rear': None}
         self.tag_id = 0
-        self.tag_size = 0.24 # Tag size is measured between edges of tag's BLACK OUTLINE
+        self.tag_size = 0.4 # Tag size is measured between edges of tag's BLACK OUTLINE
 
         # 2. CONFIGURE DETECTOR
         # quad_decimate=2.0 and nthreads=4 to prevent EKF "Failed to meet update rate" errors
@@ -32,7 +32,7 @@ class AprilTagObserver(Node):
 
         # 3. CALCULATE STATIC TRANSFORMS
         # Tag pose in MAP frame
-        tag_pos = [0.055, 0.2, 0.3]
+        tag_pos = [0.055, 0.3, 0.3]
         tag_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
         self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
 
