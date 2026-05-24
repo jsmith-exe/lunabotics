@@ -36,6 +36,8 @@ setup(
     entry_points={
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
+            'uwb_simulator = qpl_rover.uwb_simulator:main',
+            'uwb_position_estimator = qpl_rover.uwb_position_estimator:main',
         ],
     },
 )

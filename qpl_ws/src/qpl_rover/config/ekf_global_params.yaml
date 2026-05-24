@@ -37,3 +37,16 @@ ekf_global:
 
     pose0_differential: false
     pose0_relative: false
+
+    # INPUT 3: UWB position (x, y only — no yaw)
+    # Less precise than AprilTags (covariance 0.1 vs 0.001) so AprilTags dominate
+    # when visible. UWB provides a continuous fallback when the tag is out of view.
+    pose1: /uwb/pose
+    pose1_config: [true,  true,  false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+    pose1_differential: false
+    pose1_relative: false
+    pose1_mahalanobis_distance: 5.0

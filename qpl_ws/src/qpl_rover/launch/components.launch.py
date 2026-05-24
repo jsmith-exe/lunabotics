@@ -20,9 +20,11 @@ def generate_launch_description():
     controllers = IncludeLaunchDescription(get_component_python_launch("controllers"))
     odom_localisation = IncludeLaunchDescription(get_component_python_launch("odom_localisation"))
     map_localisation = IncludeLaunchDescription(get_component_python_launch("map_localisation"))
+    uwb_localisation = IncludeLaunchDescription(get_component_python_launch("uwb_localisation"))
 
     return LaunchDescription([
         controllers,
         odom_localisation,
         map_localisation,
+        uwb_localisation,
     ])
