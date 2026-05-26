@@ -35,8 +35,14 @@ def setup_components(context):
         return []
 
     components = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "components.launch.py"))
+        PythonLaunchDescriptionSource(
+            path.join(rover_pkg, "launch", "components.launch.py")
+        ),
+        launch_arguments={
+            "use_sim_time": "true"
+        }.items()
     )
+    
     return [components]
 
 def generate_launch_description():
