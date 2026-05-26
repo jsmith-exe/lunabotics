@@ -4,11 +4,15 @@ from launch_ros.actions import Node
 def generate_launch_description():
     direction = 'front' # front or rear
 
+    profile = '1280x720x30'
+
     namespace = 'rover'
     name = 'realsense'
     camera_params = {
         'camera_namespace': namespace,
         'camera_name': name,
+        'color_profile': profile,
+        'depth_profile': profile,
         f'{name}.color.image_raw.ffmpeg.encoder': 'libx264',
         f'{name}.color.image_raw.ffmpeg.bit_rate': 1000000,
         f'{name}.color.image_raw.ffmpeg.qmax': 51,

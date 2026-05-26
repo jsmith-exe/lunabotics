@@ -6,7 +6,15 @@ from ament_index_python.packages import get_package_share_directory
 import os
 
 def generate_launch_description():
+    width = "1920"
+    height = "1080"
     camera_params = {
+        # 'color_width': "1920",
+        # 'color_height': "1080",
+        'depth_width': "1280",
+        'depth_height': "1024",
+        'depth_fps': '7',
+        
         # 'color_format': 'MJPG',
         # 'color_qos': 'SENSOR_DATA',
         # 'depth_registration': 'true',
