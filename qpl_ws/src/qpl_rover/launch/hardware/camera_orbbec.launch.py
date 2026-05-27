@@ -57,6 +57,8 @@ def get_camera_params(use_low_quality: bool):
      For MJPG, RGB888, BGRA
     """
 
+    direction = 'rear' # front or rear
+
     color_width = '1920'
     color_height = '1080'
     color_format = 'RGB888'
@@ -75,7 +77,7 @@ def get_camera_params(use_low_quality: bool):
         depth_format = 'Y11'
 
     camera_params = {
-        'camera_name': 'orbbec',
+        'camera_name': f'depth_camera_{direction}',
 
         'color_width': color_width,
         'color_height': color_height,
