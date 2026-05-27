@@ -47,8 +47,16 @@ def generate_launch_description():
         }.items()
     )
 
+    use_low_quality = "true"
+    realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
+    orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
+    realsense_launch = IncludeLaunchDescription(realsense_launch_source, launch_arguments={"use_low_quality": use_low_quality}.items())
+    orbbec_launch = IncludeLaunchDescription(orbbec_launch_path_source, launch_arguments={"use_low_quality": use_low_quality}.items())
+
     return LaunchDescription([
         run_components_parameter,
         rsp,
         OpaqueFunction(function=setup_components),
+        realsense_launch,
+        orbbec_launch,
     ])

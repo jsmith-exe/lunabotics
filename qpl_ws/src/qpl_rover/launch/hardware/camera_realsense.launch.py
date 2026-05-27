@@ -153,7 +153,7 @@ def get_camera_params(use_low_quality: bool):
 
     if use_low_quality:
         profile = '424x240x15'
-        color_fmt = 'YUYV'
+        color_fmt = 'BGR8'
         infra_fmt = 'UYVY'
 
     camera_params = {
