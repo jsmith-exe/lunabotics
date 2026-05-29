@@ -33,7 +33,9 @@ qpl_packages() {
     libserial-dev \
     ros-humble-rmw-cyclonedds-cpp \
     ros-humble-ffmpeg-image-transport
-  python3 -m pip install --user pupil-apriltags
+  python3 -m pip install --user \
+    pupil-apriltags \
+    imageio
 }
 
 qpl_gazebo_packages() {
