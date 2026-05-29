@@ -2,6 +2,7 @@
 <sdf version="1.6">
   <world name="lunabotics_uk_arena">
 
+    <!-- PHYSICS -->
     <physics type="ode">
       <gravity>0 0 -9.81</gravity>
     </physics>
@@ -11,10 +12,13 @@
       <direction>-0.5 0.1 -0.9</direction>
     </light>
 
+    <!-- PHYSICAL ARENA -->
+    <!-- Terrain -->
     <include>
       <uri>model://terrain_heightmap</uri>
     </include>
 
+    <!-- Walls -->
     <model name="wall_south">
       <static>true</static>
       <link name="link">
@@ -83,9 +87,147 @@
       </link>
     </model>
 
+    <!-- VISUAL ZONE MARKERS -->
+    <!-- Starting zone -->
+    <model name="starting_zone">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>2.0 2.0 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.3</ambient>
+            <diffuse>0 1 0 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>-1.2 -2.95 0.13 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Excavation zone -->
+    <model name="excavation_zone">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>4.4 2.75 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>0 0 1 0.3</ambient>
+            <diffuse>0 0 1 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>0 2.7 0.13 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Construction zone -->
+    <model name="construction_zone">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>1.5 2.6 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.3</ambient>
+            <diffuse>1 0 0 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>1.45 -2.65 0.13 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- BOULDER OBSTACLES -->
+    <model name="boulder_1">
+      <pose>0.4 1.2 0.3 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.2</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.2</radius>
+            </sphere>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>5</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <model name="boulder_2">
+      <pose>0.3 -2.95 0.15 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.15</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.15</radius>
+            </sphere>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>5</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <model name="boulder_3">
+      <pose>0.9 -1.0 0.1 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.1</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.1</radius>
+            </sphere>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>5</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- APRILTAG -->
     <model name="apriltag_0">
       <static>true</static>
-      <pose>-2.145 -3.65 0.8 0 0 0</pose>
+      <pose>-2.145 -3.65 0.6 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry><box><size>0.01 0.5 0.5</size></box></geometry>
