@@ -176,6 +176,7 @@ def get_camera_params(use_low_quality: bool):
         'unite_imu_method': 2,
 
         'initial_reset': True,
+        'base_frame_id': 'camera_link_front',
     }
 
     print(camera_params)
