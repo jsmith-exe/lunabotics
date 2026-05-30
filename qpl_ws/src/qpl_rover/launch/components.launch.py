@@ -31,7 +31,7 @@ def opaque_generate_launch_description(context):
     map_localisation = IncludeLaunchDescription(get_component_python_launch("map_localisation"))
 
     return [
-        SetParameter(name='use_sim_time', value='false'),
+        SetParameter(name='use_sim_time', value=False), # Comment out to default to using sim time.
         controllers,
         odom_localisation,
         map_localisation,
