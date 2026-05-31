@@ -72,6 +72,10 @@ def generate_launch_description():
                 'camera_camera_link_front'],
     )
 
+
+
+
+
     return LaunchDescription([
         run_components_parameter,
         rsp,

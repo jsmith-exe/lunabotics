@@ -28,7 +28,7 @@ def opaque_generate_launch_description(context):
     twist_mux_params = os.path.join(rover_pkg, "config", "twist_mux.yaml")
 
     # Used only for real rover launch because controller_manager is skipped in sim
-    controller_params_file = os.path.join(rover_pkg, "config", "my_controllers_real.yaml")
+    controller_params_file = os.path.join(rover_pkg, "config", "my_controllers.yaml")
 
     controller_manager = Node(
         package="controller_manager",
