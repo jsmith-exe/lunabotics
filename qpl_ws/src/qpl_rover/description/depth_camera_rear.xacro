@@ -96,7 +96,6 @@
         <depth_image_topic_name>depth_camera_rear/image_raw</depth_image_topic_name>
         <depth_camera_info_topic_name>depth_camera_rear/camera_info</depth_camera_info_topic_name>
         <point_cloud_topic_name>depth_camera_rear/points</point_cloud_topic_name>
-        <point_cloud_cutoff>0.05</point_cloud_cutoff>
       </plugin>
     </sensor>
 
