@@ -63,7 +63,7 @@
         <noise>
           <type>gaussian</type>
           <mean>0.0</mean>
-          <stddev>0.07</stddev>
+          <stddev>0.15</stddev>
         </noise>
       </camera>
 
@@ -75,7 +75,6 @@
       </plugin>
     </sensor>
 
-    <!-- ── Depth sensor (no RGB noise concern here) ── -->
     <sensor name="depth_camera_front" type="depth">
       <always_on>true</always_on>
       <visualize>false</visualize>
@@ -95,19 +94,17 @@
         <noise>
           <type>gaussian</type>
           <mean>0.0</mean>
-          <stddev>0.07</stddev>
+          <stddev>0.15</stddev>
         </noise>
       </camera>
 
-      <plugin name="depth_camera_front_controller" filename="libgazebo_ros_camera.so">
+      <plugin name="depth_camera_front_controller" filename="libgazebo_ros_depth_camera.so">
         <frame_name>camera_link_optical_front</frame_name>
         <camera_name>depth_camera_front</camera_name>
-        <!-- Don't re-publish rgb here to avoid topic conflicts -->
-        <image_topic_name>depth_camera_front/rgb_raw</image_topic_name>
-        <camera_info_topic_name>depth_camera_front/camera_info</camera_info_topic_name>
         <depth_image_topic_name>depth_camera_front/image_raw</depth_image_topic_name>
-        <depth_camera_info_topic_name>depth_camera_front/depth_camera_info</depth_camera_info_topic_name>
+        <depth_camera_info_topic_name>depth_camera_front/camera_info</depth_camera_info_topic_name>
         <point_cloud_topic_name>depth_camera_front/points</point_cloud_topic_name>
+        <point_cloud_cutoff>0.05</point_cloud_cutoff>
       </plugin>
     </sensor>
 
