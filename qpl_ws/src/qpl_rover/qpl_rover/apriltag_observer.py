@@ -52,15 +52,15 @@ class AprilTagObserver(Node):
 
         # 5. CREATE SUBSCRIPTIONS LAST
         # Front Camera
-        self.create_subscription(CameraInfo, '/depth_camera_front/camera_info',
+        self.create_subscription(CameraInfo, '/depth_camera_front/color/camera_info',
                                  lambda msg: self.info_cb(msg, 'front'), 10)
-        self.create_subscription(Image, '/depth_camera_front/image_raw',
+        self.create_subscription(Image, '/depth_camera_front/color/image_raw',
                                  lambda msg: self.image_cb(msg, 'front'), 10)
 
         # Rear Camera
-        self.create_subscription(CameraInfo, '/depth_camera_rear/camera_info',
+        self.create_subscription(CameraInfo, '/depth_camera_rear/color/camera_info',
                                  lambda msg: self.info_cb(msg, 'rear'), 10)
-        self.create_subscription(Image, '/depth_camera_rear/image_raw',
+        self.create_subscription(Image, '/depth_camera_rear/color/image_raw',
                                  lambda msg: self.image_cb(msg, 'rear'), 10)
 
         self.get_logger().info("AprilTag Observer Initialized. Listening to Front & Rear.")
