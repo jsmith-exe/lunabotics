@@ -1,104 +1,83 @@
-import os
-
-from ament_index_python.packages import get_package_share_directory
-
 from launch import LaunchDescription
-from launch.actions import TimerAction
-from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
+from ament_index_python.packages import get_package_share_directory
+from os import path
 
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
-from launch_ros.parameter_descriptions import ParameterValue
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+
+
+rover_pkg: str = get_package_share_directory("qpl_rover")
+
+
+def setup_components(context):
+    """Separate function to evaluate whether to launch components."""
+    run_components = LaunchConfiguration('run_components').perform(context)
+
+    if run_components != "true":
+        return []
+
+    components = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            path.join(rover_pkg, "launch", "components.launch.py")
+        ),
+        launch_arguments={
+            "use_sim_time": "false"
+        }.items()
+    )
+
+    return [components]
 
 
 def generate_launch_description():
 
-    package_name = "qpl_rover"
-
-    robot_description_content = Command(
-        [
-            PathJoinSubstitution([FindExecutable(name="xacro")]),
-            " ",
-            PathJoinSubstitution(
-                [FindPackageShare(package_name), "description", "rover.urdf.xacro"]
-            ),
-            " ",
-            "use_ros2_control:=true",
-            " ",
-            "sim_mode:=false",
-        ]
+    run_components_parameter = DeclareLaunchArgument(
+        'run_components',
+        default_value='true',
+        description='Whether to run the rover with components.'
     )
 
-    robot_description = {
-        "robot_description": ParameterValue(robot_description_content, value_type=str)}
-
-    twist_mux_params = os.path.join(
-        get_package_share_directory(package_name),
-        "config",
-        "twist_mux.yaml"
+    rsp = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            path.join(rover_pkg, "launch", "rsp.launch.py")
+        ),
+        launch_arguments={
+            "use_sim_time": "false",
+            "use_ros2_control": "true"
+        }.items()
     )
 
-    twist_mux = Node(
-        package="twist_mux",
-        executable="twist_mux",
-        parameters=[twist_mux_params, {"use_sim_time": False}],
-        remappings=[("/cmd_vel_out", "/diff_cont/cmd_vel_unstamped")],
-        output="screen",
+    # Cameras
+    use_low_quality = "false"
+    realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
+    orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
+    realsense_launch = IncludeLaunchDescription(realsense_launch_source, launch_arguments={"use_low_quality": use_low_quality}.items())
+    orbbec_launch = IncludeLaunchDescription(orbbec_launch_path_source, launch_arguments={"use_low_quality": use_low_quality}.items())
+    delayed_orbbec_launch = TimerAction(period=20.0, actions=[orbbec_launch])
+
+    rear_camera_tf_transform = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0','0','0', '0','0','0',
+                'camera_link_rear',
+                'depth_camera_rear_link'],
     )
 
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        parameters=[robot_description, {"use_sim_time": False}],
-        output="screen",
-    )
-
-    controller_params_file = os.path.join(
-        get_package_share_directory(package_name),
-        "config",
-        "my_controllers.yaml"
-    )
-
-    controller_manager = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        parameters=[robot_description, controller_params_file],
-        output="screen",
-    )
-
-    joint_broad_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_broad"],
-        output="screen",
-    )
-
-    diff_drive_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["diff_cont"],
-        output="screen",
-    )
-
-    delayed_controller_manager = TimerAction(
-        period=2.0,
-        actions=[controller_manager]
-    )
-
-    delayed_joint_broad_spawner = TimerAction(
-        period=4.0,
-        actions=[joint_broad_spawner]
-    )
-
-    delayed_diff_drive_spawner = TimerAction(
-        period=5.0,
-        actions=[diff_drive_spawner]
+    front_camera_tf_transform = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0','0','0', '0','0','0',
+                'camera_link_front',
+                'camera_camera_link_front'],
     )
 
     return LaunchDescription([
-        robot_state_publisher,
-        twist_mux,
-        delayed_controller_manager,
-        delayed_joint_broad_spawner,
-        delayed_diff_drive_spawner,
+        run_components_parameter,
+        rsp,
+        OpaqueFunction(function=setup_components),
+        realsense_launch,
+        delayed_orbbec_launch,
+        rear_camera_tf_transform,
+        front_camera_tf_transform,
     ])

@@ -3,14 +3,29 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction, OpaqueFunction, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-
+from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
-    package_name = "qpl_rover"
+    use_sim_time_parameter = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Enable if using simulation'
+    )
+
+    return LaunchDescription([
+        use_sim_time_parameter,
+        OpaqueFunction(function=opaque_generate_launch_description),
+    ])
+
+def opaque_generate_launch_description(context):
+    use_sim_time = LaunchConfiguration('use_sim_time').perform(context) == 'true'
+    print(f'use_sim_time: {use_sim_time}')
+
+    package_name = 'qpl_rover'
     rover_pkg = get_package_share_directory(package_name)
-    ekf_global_params = os.path.join(rover_pkg, "config", "ekf_global_params.yaml")
+    ekf_global_params = os.path.join(rover_pkg, 'config', 'ekf_global_params.yaml')
 
     # 1. Static Anchor: Where the tag exists in the world
     tag_to_map_static = Node(
@@ -25,7 +40,7 @@ def generate_launch_description():
         package=package_name,
         executable='apriltag_observer',
         name='apriltag_observer',
-        parameters=[{'use_sim_time': True}]
+        parameters=[{'use_sim_time': use_sim_time}]
     )
 
     # 3. Global EKF: Calculates Map -> Odom
@@ -33,19 +48,17 @@ def generate_launch_description():
         period=6.0,
         actions=[
             Node(
-                package="robot_localization",
-                executable="ekf_node",
-                name="ekf_global",
-                parameters=[ekf_global_params, {"use_sim_time": True}],
-                remappings=[("odometry/filtered", "/odometry/global")],
+                package='robot_localization',
+                executable='ekf_node',
+                name='ekf_global',
+                parameters=[ekf_global_params, {'use_sim_time': use_sim_time}],
+                remappings=[('odometry/filtered', '/odometry/global')],
             )
         ],
     )
 
-    # Note: Make sure to include your ekf_local_node here if it's defined elsewhere!
-
-    return LaunchDescription([
+    return [
         tag_to_map_static,
         apriltag_observer,
         ekf_global_node,
-    ])
+    ]

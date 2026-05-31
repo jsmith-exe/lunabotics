@@ -3,11 +3,14 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, OpaqueFunction, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 
+def opaque_generate_launch_description(context):
+    use_sim_time = LaunchConfiguration('use_sim_time').perform(context) == 'true'
+    print(f'use_sim_time: {use_sim_time}')
 
-def generate_launch_description():
     rover_pkg: str = get_package_share_directory('qpl_rover')
 
     # Delay EKF until after controllers are up (period=4.0) so the robot exists
@@ -22,11 +25,23 @@ def generate_launch_description():
                 executable="ekf_node",
                 name="ekf_local",
                 output="screen",
-                parameters=[ekf_local_params, {"use_sim_time": True}],
+                parameters=[ekf_local_params, {"use_sim_time": use_sim_time}],
             )
         ],
     )
 
-    return LaunchDescription([
+    return [
         ekf_local_node,
+    ]
+
+def generate_launch_description():
+    use_sim_time_parameter = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Enable if using simulation'
+    )
+
+    return LaunchDescription([
+        use_sim_time_parameter,
+        OpaqueFunction(function=opaque_generate_launch_description),
     ])
