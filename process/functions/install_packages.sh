@@ -32,7 +32,9 @@ qpl_packages() {
     mesa-utils \
     libserial-dev \
     ros-humble-rmw-cyclonedds-cpp \
-    ros-humble-ffmpeg-image-transport
+    ros-humble-ffmpeg-image-transport \
+    ros-humble-nav2-common \
+    ros-humble-spatio-temporal-voxel-layer
   python3 -m pip install --user \
     pupil-apriltags \
     imageio
