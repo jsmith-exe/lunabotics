@@ -41,6 +41,15 @@ qpl_rviz() {
   fi
   qpl_print_renderer
 
+  ros2 launch basestation rviz.launch.py use_sim_time:=true"$@"
+}
+
+qpl_rviz_rover() {
+  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    qpl_use_gpu_render
+  fi
+  qpl_print_renderer
+
   ros2 launch basestation rviz.launch.py "$@"
 }
 
