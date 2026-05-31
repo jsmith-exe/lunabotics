@@ -24,14 +24,14 @@ def generate_launch_description():
     ])
 
 def opaque_generate_launch_description(context):
-    use_sim_time = LaunchConfiguration('use_sim_time').perform(context) == 'true'
+    use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
 
-    controllers = IncludeLaunchDescription(get_component_python_launch("controllers"))
-    odom_localisation = IncludeLaunchDescription(get_component_python_launch("odom_localisation"))
-    map_localisation = IncludeLaunchDescription(get_component_python_launch("map_localisation"))
+    launch_arguments = {"use_sim_time": use_sim_time}.items()
+    controllers = IncludeLaunchDescription(get_component_python_launch("controllers"), launch_arguments=launch_arguments)
+    odom_localisation = IncludeLaunchDescription(get_component_python_launch("odom_localisation"), launch_arguments=launch_arguments)
+    map_localisation = IncludeLaunchDescription(get_component_python_launch("map_localisation"), launch_arguments=launch_arguments)
 
     return [
-        SetParameter(name='use_sim_time', value=False), # Comment out to default to using sim time.
         controllers,
         odom_localisation,
         map_localisation,
