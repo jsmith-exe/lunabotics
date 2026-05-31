@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from ament_index_python.packages import get_package_share_directory
 from os import path
 
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, OpaqueFunction
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -49,11 +49,12 @@ def generate_launch_description():
     )
 
     # Cameras
-    use_low_quality = "true"
+    use_low_quality = "false"
     realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
     orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
     realsense_launch = IncludeLaunchDescription(realsense_launch_source, launch_arguments={"use_low_quality": use_low_quality}.items())
     orbbec_launch = IncludeLaunchDescription(orbbec_launch_path_source, launch_arguments={"use_low_quality": use_low_quality}.items())
+    delayed_orbbec_launch = TimerAction(period=20.0, actions=[orbbec_launch])
 
     rear_camera_tf_transform = Node(
         package='tf2_ros',
@@ -76,7 +77,7 @@ def generate_launch_description():
         rsp,
         OpaqueFunction(function=setup_components),
         realsense_launch,
-        orbbec_launch,
+        delayed_orbbec_launch,
         rear_camera_tf_transform,
         front_camera_tf_transform,
     ])
