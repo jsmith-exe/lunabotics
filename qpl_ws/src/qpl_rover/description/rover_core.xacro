@@ -9,31 +9,67 @@
   <material name="red"><color rgba="0.8 0.1 0.1 1.0"/></material>
   <material name="blue"><color rgba="0.2 0.2 1.0 1.0"/></material>
 
-  <!-- Base dimensions -->
-  <xacro:property name="base_x" value="0.50"/>
-  <xacro:property name="base_y" value="0.30"/>
-  <xacro:property name="base_z" value="0.18"/>
+  <!-- ========================================================= -->
+  <!-- Main dimensions                                           -->
+  <!-- ========================================================= -->
+
+  <!-- Bottom cuboid -->
+  <xacro:property name="base_x" value="0.875"/>
+  <xacro:property name="base_y" value="0.599"/>
+  <xacro:property name="base_z" value="0.135"/>
+
+  <!-- Top trapezoid section -->
+  <!-- top_x smaller than base_x gives the trapezoid side profile -->
+  <xacro:property name="top_x" value="0.475"/>
+  <xacro:property name="top_y" value="${base_y}"/>
+  <xacro:property name="top_z" value="0.05"/>
+  <xacro:property name="trap_height" value="0.225"/>
+
+  <!-- Frame/support thickness -->
+  <xacro:property name="frame_t" value="0.04"/>
 
   <!-- Wheel dimensions -->
   <xacro:property name="wheel_r" value="0.15"/>
+  <xacro:property name="wheel_w" value="0.15"/>
 
-  <xacro:property name="wheel_w" value="0.03"/>
+  <!-- Wheel placement -->
+  <xacro:property name="wheel_x_offset" value="${base_x / 2}"/>
+  <xacro:property name="wheel_side_clearance" value="0.00"/>
 
-  <!-- Frame heights -->
-  <!-- base_footprint is on the ground -->
-  <!-- base_link is at chassis centre -->
-  <xacro:property name="base_link_z" value="${wheel_r + base_z/2}"/>
+  <!-- ========================================================= -->
+  <!-- Derived values                                            -->
+  <!-- ========================================================= -->
 
-  <!-- Wheel positions relative to base_link -->
-  <xacro:property name="wheel_x_front" value="0.18"/>
-  <xacro:property name="wheel_x_rear"  value="-0.18"/>
-  <xacro:property name="wheel_y" value="${base_y/2 + wheel_w/2}"/>
-  <xacro:property name="wheel_z" value="${-base_z/2}"/>
+  <!-- Base lift -->
+  <xacro:property name="base_link_z" value="${wheel_r + base_z / 2}"/>
 
-  <!-- Ground-projected frame -->
+  <!-- Wheel positions -->
+  <xacro:property name="wheel_x_front" value="${wheel_x_offset}"/>
+  <xacro:property name="wheel_x_rear" value="${-wheel_x_offset}"/>
+  <xacro:property name="wheel_y" value="${base_y / 2 + wheel_w / 2 + wheel_side_clearance}"/>
+  <xacro:property name="wheel_z" value="${-base_z / 2}"/>
+
+  <!-- Top deck position -->
+  <xacro:property name="top_deck_z" value="${base_z / 2 + trap_height + top_z / 2}"/>
+
+  <!-- Slanted support geometry -->
+  <xacro:property name="support_dx" value="${(base_x - top_x) / 2}"/>
+  <xacro:property name="support_len" value="${math.sqrt(support_dx * support_dx + trap_height * trap_height)}"/>
+  <xacro:property name="support_pitch" value="${math.atan2(trap_height, support_dx)}"/>
+
+  <!-- Centres of support beams -->
+  <xacro:property name="support_front_x" value="${(base_x + top_x) / 4}"/>
+  <xacro:property name="support_rear_x" value="${-support_front_x}"/>
+  <xacro:property name="support_y" value="${base_y / 2 - frame_t / 2}"/>
+  <xacro:property name="support_z" value="${base_z / 2 + trap_height / 2}"/>
+
+  <!-- ========================================================= -->
+  <!-- Base frames                                               -->
+  <!-- ========================================================= -->
+
   <link name="base_footprint"/>
 
-  <!-- Main body frame -->
+  <!-- Bottom cuboid -->
   <link name="base_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -55,7 +91,6 @@
     </xacro:inertial_box>
   </link>
 
-  <!-- Lift base_link above the ground -->
   <joint name="base_footprint_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
@@ -66,11 +101,90 @@
     <material>Gazebo/Grey</material>
   </gazebo>
 
-  <!-- Wheel macro -->
+  <!-- ========================================================= -->
+  <!-- Generic box member macro                                  -->
+  <!-- ========================================================= -->
+
+  <xacro:macro name="box_member" params="name sx sy sz mass colour">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${sx} ${sy} ${sz}"/>
+        </geometry>
+        <material name="${colour}"/>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${sx} ${sy} ${sz}"/>
+        </geometry>
+      </collision>
+
+      <xacro:inertial_box mass="${mass}" x="${sx}" y="${sy}" z="${sz}">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+      </xacro:inertial_box>
+    </link>
+
+    <gazebo reference="${name}">
+      <material>Gazebo/Grey</material>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- ========================================================= -->
+  <!-- Upper trapezoid section                                   -->
+  <!-- ========================================================= -->
+
+  <!-- Top deck -->
+  <xacro:box_member name="top_deck" sx="${top_x}" sy="${top_y}" sz="${top_z}" mass="2.0" colour="blue"/>
+
+  <joint name="top_deck_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="top_deck"/>
+    <origin xyz="0 0 ${top_deck_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Front supports -->
+  <xacro:box_member name="front_left_support"  sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
+  <xacro:box_member name="front_right_support" sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
+
+  <joint name="front_left_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_left_support"/>
+    <origin xyz="${support_front_x} ${support_y} ${support_z}" rpy="0 ${support_pitch} 0"/>
+  </joint>
+
+  <joint name="front_right_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_right_support"/>
+    <origin xyz="${support_front_x} -${support_y} ${support_z}" rpy="0 ${support_pitch} 0"/>
+  </joint>
+
+  <!-- Rear supports -->
+  <xacro:box_member name="rear_left_support"  sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
+  <xacro:box_member name="rear_right_support" sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
+
+  <joint name="rear_left_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_left_support"/>
+    <origin xyz="${support_rear_x} ${support_y} ${support_z}" rpy="0 -${support_pitch} 0"/>
+  </joint>
+
+  <joint name="rear_right_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_right_support"/>
+    <origin xyz="${support_rear_x} -${support_y} ${support_z}" rpy="0 -${support_pitch} 0"/>
+  </joint>
+
+  <!-- ========================================================= -->
+  <!-- Wheel macro                                               -->
+  <!-- ========================================================= -->
+
   <xacro:macro name="wheel_link" params="name">
     <link name="${name}">
       <visual>
-        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
         <geometry>
           <cylinder radius="${wheel_r}" length="${wheel_w}"/>
         </geometry>
@@ -78,9 +192,9 @@
       </visual>
 
       <collision>
-        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
         <geometry>
-          <cylinder radius="${wheel_r*0.98}" length="${wheel_w*0.95}"/>
+          <cylinder radius="${wheel_r * 0.98}" length="${wheel_w * 0.95}"/>
         </geometry>
       </collision>
 
@@ -102,13 +216,19 @@
     </gazebo>
   </xacro:macro>
 
-  <!-- Wheels -->
+  <!-- ========================================================= -->
+  <!-- Wheels                                                    -->
+  <!-- ========================================================= -->
+
   <xacro:wheel_link name="front_left_wheel"/>
   <xacro:wheel_link name="front_right_wheel"/>
   <xacro:wheel_link name="rear_left_wheel"/>
   <xacro:wheel_link name="rear_right_wheel"/>
 
-  <!-- Wheel joints -->
+  <!-- ========================================================= -->
+  <!-- Wheel joints                                              -->
+  <!-- ========================================================= -->
+
   <joint name="front_left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="front_left_wheel"/>
