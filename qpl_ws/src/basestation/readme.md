@@ -19,6 +19,55 @@ The core source code is in basestation (luna_ws/src/basestation/basestation). Th
 - **nodes**: contains ROS nodes that the basestation uses.
 - **main.py**: Runs on the native OS to gather input and send it to the ROS publisher.
 
+## Prerequisites
+Verify you can run powershell in wsl.
+```bash
+powershell.exe
+```
+
+If it fails, the following steps copied from [a comment on reddit](https://www.reddit.com/r/bashonubuntuonwindows/comments/11vx61n/wsl2_error_cannot_execute_binary_file_exec_format/) may help.
+
+---
+1. Create binformat config file in WSL (https://github.com/microsoft/WSL/issues/8986#issuecomment-1332413859)
+```bash
+sudo nano /usr/lib/binfmt.d/WSLInterop.conf
+```
+With contents:
+```
+:WSLInterop:M::MZ::/init:PF
+```
+2. install binformat systemd support
+```bash
+sudo apt update
+sudo apt install binfmt-support
+```
+
+3. Restart binformat related systemd services (https://github.com/microsoft/WSL/issues/8986#issuecomment-1332452012)
+```bash
+sudo systemctl restart systemd-binfmt
+sudo systemctl restart binfmt-support
+```
+
+4. Verify: run `sudo ls -Fal /proc/sys/fs/binfmt_misc`, you should see something like:
+```
+total 0
+drwxr-xr-x 2 root root 0 Mar 24 11:11 ./
+dr-xr-xr-x 1 root root 0 Mar 24 11:11 ../
+-rw-r--r-- 1 root root 0 Mar 24 11:35 WSLInterop
+-rw-r--r-- 1 root root 0 Mar 24 11:35 jar
+-rw-r--r-- 1 root root 0 Mar 24 11:35 python3.11
+--w------- 1 root root 0 Mar 24 11:35 register
+-rw-r--r-- 1 root root 0 Mar 24 11:35 status
+```
+And run: `sudo cat /proc/sys/fs/binfmt_misc/WSLInterop`, should see something like:
+```
+enabled
+interpreter /init
+flags: PF
+offset 0
+magic 4d5a
+```
+
 ## Setup
 > Note: you can just run the following in powershell:
 > ```powershell
