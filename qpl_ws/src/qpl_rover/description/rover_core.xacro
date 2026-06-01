@@ -9,6 +9,11 @@
   <material name="red"><color rgba="0.8 0.1 0.1 1.0"/></material>
   <material name="blue"><color rgba="0.2 0.2 1.0 1.0"/></material>
 
+  <!-- ========================================================= -->
+  <!-- Robot Dimensions                                          -->
+  <!-- Change these values and the rest of the robot updates      -->
+  <!-- ========================================================= -->
+
   <!-- Base dimensions -->
   <xacro:property name="base_x" value="0.50"/>
   <xacro:property name="base_y" value="0.30"/>
@@ -16,24 +21,41 @@
 
   <!-- Wheel dimensions -->
   <xacro:property name="wheel_r" value="0.15"/>
-
   <xacro:property name="wheel_w" value="0.03"/>
 
-  <!-- Frame heights -->
+  <!-- Wheel placement scaling -->
+  <!-- How far from centre the wheels are along the robot length -->
+  <xacro:property name="wheel_x_offset" value="${base_x * 0.36}"/>
+
+  <!-- Small side clearance between chassis and wheel -->
+  <xacro:property name="wheel_side_clearance" value="0.00"/>
+
+  <!-- ========================================================= -->
+  <!-- Derived dimensions                                        -->
+  <!-- Do not usually need to edit these                         -->
+  <!-- ========================================================= -->
+
   <!-- base_footprint is on the ground -->
   <!-- base_link is at chassis centre -->
-  <xacro:property name="base_link_z" value="${wheel_r + base_z/2}"/>
+  <xacro:property name="base_link_z" value="${wheel_r + base_z / 2}"/>
 
   <!-- Wheel positions relative to base_link -->
-  <xacro:property name="wheel_x_front" value="0.18"/>
-  <xacro:property name="wheel_x_rear"  value="-0.18"/>
-  <xacro:property name="wheel_y" value="${base_y/2 + wheel_w/2}"/>
-  <xacro:property name="wheel_z" value="${-base_z/2}"/>
+  <xacro:property name="wheel_x_front" value="${wheel_x_offset}"/>
+  <xacro:property name="wheel_x_rear" value="${-wheel_x_offset}"/>
 
-  <!-- Ground-projected frame -->
+  <!-- Wheels sit outside the chassis in Y -->
+  <xacro:property name="wheel_y" value="${base_y / 2 + wheel_w / 2 + wheel_side_clearance}"/>
+
+  <!-- Wheel centre is level with bottom of chassis -->
+  <!-- This means wheel bottom touches ground because base_link is lifted by wheel_r + base_z/2 -->
+  <xacro:property name="wheel_z" value="${-base_z / 2}"/>
+
+  <!-- ========================================================= -->
+  <!-- Base frames                                               -->
+  <!-- ========================================================= -->
+
   <link name="base_footprint"/>
 
-  <!-- Main body frame -->
   <link name="base_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -66,11 +88,15 @@
     <material>Gazebo/Grey</material>
   </gazebo>
 
-  <!-- Wheel macro -->
+  <!-- ========================================================= -->
+  <!-- Wheel macro                                               -->
+  <!-- ========================================================= -->
+
   <xacro:macro name="wheel_link" params="name">
     <link name="${name}">
       <visual>
-        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <!-- Cylinder is rotated so its axle runs along Y -->
+        <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
         <geometry>
           <cylinder radius="${wheel_r}" length="${wheel_w}"/>
         </geometry>
@@ -78,9 +104,9 @@
       </visual>
 
       <collision>
-        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
         <geometry>
-          <cylinder radius="${wheel_r*0.98}" length="${wheel_w*0.95}"/>
+          <cylinder radius="${wheel_r * 0.98}" length="${wheel_w * 0.95}"/>
         </geometry>
       </collision>
 
@@ -102,13 +128,19 @@
     </gazebo>
   </xacro:macro>
 
-  <!-- Wheels -->
+  <!-- ========================================================= -->
+  <!-- Wheels                                                    -->
+  <!-- ========================================================= -->
+
   <xacro:wheel_link name="front_left_wheel"/>
   <xacro:wheel_link name="front_right_wheel"/>
   <xacro:wheel_link name="rear_left_wheel"/>
   <xacro:wheel_link name="rear_right_wheel"/>
 
-  <!-- Wheel joints -->
+  <!-- ========================================================= -->
+  <!-- Wheel joints                                              -->
+  <!-- ========================================================= -->
+
   <joint name="front_left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="front_left_wheel"/>
