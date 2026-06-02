@@ -265,9 +265,9 @@
   <xacro:property name="drum_mass"   value="1.0"/>
 
   <!-- Mount at middle of chassis -->
-  <xacro:property name="drum_x" value="${base_x/2}"/>
+  <xacro:property name="drum_x" value="${base_x/2 - 0.5}"/>
   <xacro:property name="drum_y" value="0.0"/>
-  <xacro:property name="drum_z" value="${base_z/2 + drum_radius +0.25}"/>
+  <xacro:property name="drum_z" value="${base_z/2 + drum_radius + 0.8}"/>
 
   <!-- Drum lift travel: 0 = up (rest), -0.1 = lowered -->
   <xacro:property name="drum_lift_lower" value="-0.1"/>

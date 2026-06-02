@@ -124,10 +124,10 @@ local_costmap:
       robot_radius: 0.35
       transform_tolerance: 0.5
       always_send_full_costmap: true
-      plugins: ["stvl_layer", "inflation_layer"]
+      plugins: ["voxel_layer", "inflation_layer"]
 
-      stvl_layer:
-        plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
         publish_voxel_grid: false
         origin_z: -0.5
@@ -136,13 +136,7 @@ local_costmap:
         unknown_threshold: 15
         mark_threshold: 2
         combination_method: 1
-
-        voxel_decay: 1.0
-        decay_model: 0
-        model_type: 0
-
-        # STVL Rule: Sources must be formatted as a formal YAML array list
-        observation_sources: "front_camera_raw rear_camera_raw"
+        observation_sources: front_camera_raw rear_camera_raw
 
         front_camera_raw:
           topic: /depth_camera_front/depth/points
@@ -153,11 +147,6 @@ local_costmap:
           raytrace_max_range: 5.0
           min_obstacle_height: -0.5
           max_obstacle_height: 1.2
-          # STVL specific clearing extensions
-          vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
 
         rear_camera_raw:
           topic: /depth_camera_rear/depth/points
@@ -168,10 +157,6 @@ local_costmap:
           raytrace_max_range: 5.0
           min_obstacle_height: -0.5
           max_obstacle_height: 1.2
-          vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -194,10 +179,10 @@ global_costmap:
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
-      plugins: ["stvl_layer", "inflation_layer"]
+      plugins: ["voxel_layer", "inflation_layer"]
 
-      stvl_layer:
-        plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
         publish_voxel_grid: false
         origin_z: -0.5
@@ -206,12 +191,7 @@ global_costmap:
         unknown_threshold: 15
         mark_threshold: 2
         combination_method: 1
-
-        voxel_decay: 2.0
-        decay_model: 0
-        model_type: 0
-
-        observation_sources: "front_camera_raw rear_camera_raw"
+        observation_sources: front_camera_raw rear_camera_raw
 
         front_camera_raw:
           topic: /depth_camera_front/depth/points
@@ -222,10 +202,6 @@ global_costmap:
           raytrace_max_range: 5.0
           min_obstacle_height: -0.5
           max_obstacle_height: 1.2
-          vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
 
         rear_camera_raw:
           topic: /depth_camera_rear/depth/points
@@ -236,10 +212,6 @@ global_costmap:
           raytrace_max_range: 5.0
           min_obstacle_height: -0.5
           max_obstacle_height: 1.2
-          vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
