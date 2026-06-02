@@ -3,17 +3,33 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
 
-from launch.actions import IncludeLaunchDescription, TimerAction
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import TimerAction, OpaqueFunction, DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 
 
-def generate_launch_description():
-    rover_pkg: str = get_package_share_directory('qpl_rover')
+def opaque_generate_launch_description(context):
+    use_sim_time_str = LaunchConfiguration("use_sim_time").perform(context).lower()
+    use_sim_time = use_sim_time_str in ["true", "1", "yes"]
 
-    # Delay EKF until after controllers are up (period=4.0) so the robot exists
-    # and /diff_cont/odom + /imu/data are already publishing before EKF initialises.
-    # Starting EKF too early causes a bad initial state that never recovers cleanly.
-    ekf_local_params = os.path.join(rover_pkg, "config", "ekf_local_params.yaml")
+    print(f"use_sim_time: {use_sim_time}")
+
+    rover_pkg = get_package_share_directory("qpl_rover")
+
+    if use_sim_time:
+        ekf_local_params = os.path.join(
+            rover_pkg,
+            "config",
+            "ekf_local_params.yaml"
+        )
+    else:
+        ekf_local_params = os.path.join(
+            rover_pkg,
+            "config",
+            "ekf_local_params_rover.yaml"
+        )
+
+    print(f"Using EKF params: {ekf_local_params}")
+
     ekf_local_node = TimerAction(
         period=6.0,
         actions=[
@@ -22,11 +38,27 @@ def generate_launch_description():
                 executable="ekf_node",
                 name="ekf_local",
                 output="screen",
-                parameters=[ekf_local_params, {"use_sim_time": True}],
+                parameters=[
+                    ekf_local_params,
+                    {"use_sim_time": use_sim_time},
+                ],
             )
         ],
     )
 
-    return LaunchDescription([
+    return [
         ekf_local_node,
+    ]
+
+
+def generate_launch_description():
+    use_sim_time_parameter = DeclareLaunchArgument(
+        "use_sim_time",
+        default_value="false",
+        description="Enable if using simulation"
+    )
+
+    return LaunchDescription([
+        use_sim_time_parameter,
+        OpaqueFunction(function=opaque_generate_launch_description),
     ])

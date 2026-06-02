@@ -5,8 +5,10 @@ alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r
 alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
 alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias qpl_rover='ros2 launch qpl_rover rover.launch.py'
+alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'
 alias qpl_components='ros2 launch qpl_rover components.launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
+alias qpl_restart_daemon="ros2 daemon stop && ros2 daemon start"
 
 
 # -------------------- Simulation + RViz --------------------
@@ -35,6 +37,15 @@ qpl_sim_minimal() {
 }
 
 qpl_rviz() {
+  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    qpl_use_gpu_render
+  fi
+  qpl_print_renderer
+
+  ros2 launch basestation rviz.launch.py use_sim_time:=true"$@"
+}
+
+qpl_rviz_rover() {
   if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
     qpl_use_gpu_render
   fi

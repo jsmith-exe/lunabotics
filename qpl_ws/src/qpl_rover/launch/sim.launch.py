@@ -35,9 +35,47 @@ def setup_components(context):
         return []
 
     components = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "components.launch.py"))
+        PythonLaunchDescriptionSource(
+            path.join(rover_pkg, "launch", "components.launch.py")
+        ),
+        launch_arguments={
+            "use_sim_time": "true"
+        }.items()
     )
+    
     return [components]
+
+def make_relay(name: str, source: str, destination: str):
+    return Node(
+        package="topic_tools",
+        executable="relay",
+        name=name,
+        arguments=[source, destination]
+    )
+
+def make_camera_relays(camera_name):
+    return [
+        make_relay(
+            f"relay_{camera_name}_color",
+            f"/{camera_name}/image_raw",
+            f"/{camera_name}/color/image_raw"
+        ),
+        make_relay(
+            f"relay_{camera_name}_info",
+            f"/{camera_name}/camera_info",
+            f"/{camera_name}/color/camera_info"
+        ),
+        make_relay(
+            f"relay_{camera_name}_compressed_color",
+            f"/{camera_name}/image_raw/compressed",
+            f"/{camera_name}/color/image_raw/compressed"
+        ),
+        make_relay(
+        f"relay_{camera_name}_depth_points",
+        f"/{camera_name}/points",
+        f"/{camera_name}/depth/points"
+        ),
+    ]
 
 def generate_launch_description():
     headless_parameter = DeclareLaunchArgument(
@@ -76,8 +114,8 @@ def generate_launch_description():
                 arguments=[
                     "-topic", "robot_description",
                     "-entity", "rover",
-                    "-x", "1.0", # set to 0 (default) if not using april_arena.world
-                    "-y", "0.5", # set to 0 (default) if not using april_arena.world
+                    "-x", "-1.2", # set to 0 (default) if not using april_arena.world
+                    "-y", "-2.95", # set to 0 (default) if not using april_arena.world
                     "-z", "0.2"], # set to 0 (default) if not using april_arena.world
                 output="screen",
             )
@@ -92,4 +130,6 @@ def generate_launch_description():
         OpaqueFunction(function=setup_gazebo),
         spawn_entity,
         OpaqueFunction(function=setup_components),
+        *make_camera_relays("depth_camera_front"),
+        *make_camera_relays("depth_camera_rear"),
     ])

@@ -19,6 +19,9 @@ setup(
     (os.path.join('share', package_name, 'worlds', 'apriltag_model'), glob('worlds/apriltag_model/model.config')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'scripts'), glob('worlds/apriltag_model/materials/scripts/*')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'textures'), glob('worlds/apriltag_model/materials/textures/*')),
+    (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/model.sdf')),
+    (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/model.config')),
+    (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/*.png')),
     (os.path.join('share', package_name, 'config'), glob('config/*')),
     (os.path.join("share", package_name, "rviz"), glob("rviz/*")), 
     ],
@@ -35,9 +38,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'apriltag_observer = nodes.apriltag_observer:main',
-            'drum_lift_twist_to_float = nodes.drum_lift_twist_to_float:main',
-            'drum_twist_to_float = nodes.drum_twist_to_float:main',
+            'apriltag_observer = qpl_rover.apriltag_observer:main',
+            'drum_lift_twist_to_float = qpl_rover.drum_lift_twist_to_float:main',
+            'drum_twist_to_float = qpl_rover.drum_twist_to_float:main',
         ],
     },
 )

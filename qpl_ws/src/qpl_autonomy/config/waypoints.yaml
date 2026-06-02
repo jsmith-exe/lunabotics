@@ -1,0 +1,9 @@
+excavation_zone:
+  x: 1.7
+  y: 3.0
+  yaw: 0.0
+
+construction_zone:
+  x: 1.2
+  y: -2.5
+  yaw: 0.0

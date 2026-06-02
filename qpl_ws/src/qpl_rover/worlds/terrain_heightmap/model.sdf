@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="terrain_heightmap">
+    <static>true</static>
+    <link name="terrain_link">
+      <pose>0 0 0 0 0 0</pose>
+
+      <collision name="collision">
+        <geometry>
+          <heightmap>
+            <uri>model://terrain_heightmap/heightmap.png</uri>
+            <size>7.9 7.9 0.15</size>
+          </heightmap>
+        </geometry>
+      </collision>
+
+      <visual name="visual">
+        <geometry>
+          <heightmap>
+            <uri>model://terrain_heightmap/heightmap.png</uri>
+            <size>7.9 7.9 0.15</size>
+
+            <texture>
+              <size>7.9</size>
+              <diffuse>model://terrain_heightmap/heightmap.png</diffuse>
+              <normal>model://terrain_heightmap/heightmap.png</normal>
+            </texture>
+          </heightmap>
+        </geometry>
+
+        <material>
+          <script>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+            <name>Gazebo/Grey</name>
+          </script>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>
