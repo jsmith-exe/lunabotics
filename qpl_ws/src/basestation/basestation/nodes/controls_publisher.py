@@ -4,6 +4,7 @@ import json
 import rclpy
 from rclpy.node import Node
 
+from std_msgs.msg import Float64
 from geometry_msgs.msg import Twist, Vector3
 
 from basestation.forwarding.tcp_receiver import TCPReceiver
@@ -15,8 +16,8 @@ class ControlsPublisher(Node):
 
         self.publishers_ = {
             NAV_TOPIC: self.create_publisher(Twist, NAV_TOPIC, 10),
-            DRUM_ROTATION_TOPIC: self.create_publisher(Twist, DRUM_ROTATION_TOPIC, 10),
-            DRUM_LIFT_TOPIC: self.create_publisher(Twist, DRUM_LIFT_TOPIC, 10)
+            DRUM_ROTATION_TOPIC: self.create_publisher(Float64, DRUM_ROTATION_TOPIC, 10),
+            DRUM_LIFT_TOPIC: self.create_publisher(Float64, DRUM_LIFT_TOPIC, 10)
         }
         topics = list(self.publishers_.keys())
         # Keep track of states for republishing
@@ -28,7 +29,7 @@ class ControlsPublisher(Node):
         self.tcp_receiver_thread.start()
         self.get_logger().info('TCP Receiver thread started')
 
-        self.timer = self.create_timer(1 / PUBLISHER_UPDATE_RATE, self.republish_twist)
+        self.timer = self.create_timer(1 / PUBLISHER_UPDATE_RATE, self.republish)
 
     def handle_data(self, received_data: str, receiver) -> None:
         """
@@ -38,13 +39,20 @@ class ControlsPublisher(Node):
         """
         try:
             self.get_logger().info(f'Received: {received_data}')
-            split_data = received_data.split(';')
+            split_data = received_data.split(';') # May be multiple JSON messages, split by ';'
             target_state = json.loads(split_data[len(split_data) - 2]) # second last item is the most recent json data
             topic = target_state['topic']
+            type_ = target_state['type']
 
-            twist = self.twist_from_target_state_dict(target_state)
-            self.topic_states[topic] = twist
-            self.publishers_[topic].publish(twist)
+            if type_ == 'float':
+                message_data = Float64(data=float(target_state['value']))
+            elif type_ == 'twist':
+                message_data = self.twist_from_target_state_dict(target_state)
+            else:
+                raise ValueError(f"Unsupported message type: {type_}")
+
+            self.topic_states[topic] = message_data
+            self.publishers_[topic].publish(message_data)
         except Exception as e:
             self.get_logger().error(f'Error handling data: {e}')
 
@@ -62,12 +70,12 @@ class ControlsPublisher(Node):
             angular=Vector3(x=float(angular['x']), y=float(angular['y']), z=float(angular['z']))
         )
 
-    def republish_twist(self):
-        """ Republish the most recent Twist messages for each topic at a fixed rate.
+    def republish(self):
+        """ Republish the most recent messages for each topic at a fixed rate.
         Rover mux are set to stop if they don't receive messages for a while. """
-        for topic, twist in self.topic_states.items():
-            if twist is None: continue
-            self.publishers_[topic].publish(twist)
+        for topic, msg in self.topic_states.items():
+            if msg is None: continue
+            self.publishers_[topic].publish(msg)
 
     def destroy_node(self):
         super().destroy_node()

@@ -1,4 +1,4 @@
-$controller_fwd = Start-Process wsl -ArgumentList 'bash -i -c "qpl_controller_fwd"' -PassThru
+$controller_fwd = Start-Process wsl -ArgumentList 'bash -i -c "qpl_controller_fwd; read -p \"Press Enter to close...\""' -PassThru
 .\venv\Scripts\activate
 $controller = Start-Process python -ArgumentList '-m basestation.main' -NoNewWindow -PassThru
 

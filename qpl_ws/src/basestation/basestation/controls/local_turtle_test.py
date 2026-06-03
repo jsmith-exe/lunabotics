@@ -3,7 +3,7 @@ A simple turtle graphics simulation to test controller inputs without a physical
 """
 import turtle
 
-from ..constants import TwistOptions
+from ..constants import MessageOptions
 from .controllers.base_station_state import BaseStationState
 from .controllers.desktop_controller import DesktopController
 from .controllers.physical_controller import PhysicalController
@@ -54,9 +54,9 @@ def mock_publish(topic_name: str, twist_option, throttle: float):
     rover = TurtleRover.instance
     if rover is None:
         return
-    if twist_option == TwistOptions.LINEAR_X:
+    if twist_option == MessageOptions.TWIST_LINEAR_X:
         rover.thrust = throttle
-    elif twist_option == TwistOptions.ANGULAR_X:
+    elif twist_option == MessageOptions.TWIST_ANGULAR_X:
         rover.turning_thrust = throttle
 
 def get_index(args, index, default):

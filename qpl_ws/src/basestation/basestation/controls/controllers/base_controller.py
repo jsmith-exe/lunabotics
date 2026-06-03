@@ -32,10 +32,10 @@ class BaseController:
             return
 
         if pressed:
-            self.publish_function(command.topic_name, command.twist_option, 1 * command.scale)
+            self.publish_function(command.topic_name, command.message_option, 1 * command.scale)
         else:
             # On release, send a STOP signal for that command.
-            self.publish_function(command.topic_name, command.twist_option, 0)
+            self.publish_function(command.topic_name, command.message_option, 0)
 
     def handle_analogue_input(self, input_: str | ControllerInputs, normalised_value: float, control_map: dict) -> None:
         """
@@ -52,4 +52,4 @@ class BaseController:
             return
 
         self.previous_analogue_values[input_] = normalised_value
-        self.publish_function(command.topic_name, command.twist_option, normalised_value * command.scale)
+        self.publish_function(command.topic_name, command.message_option, normalised_value * command.scale)
