@@ -93,5 +93,6 @@ log/
 .use_server_sim
 .current_dds
 OrbbecSDK_ROS2/
+apriltags/
 Log/
 *:Zone.Identifier
