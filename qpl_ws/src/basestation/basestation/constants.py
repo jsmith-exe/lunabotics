@@ -1,3 +1,4 @@
+import dataclasses
 from enum import Enum
 
 class ControlMode(Enum):
@@ -6,14 +7,19 @@ class ControlMode(Enum):
     TEST = 'test'
     STANDARD = 'standard'
 
-class TwistOptions(Enum):
+class MessageOptions(Enum):
     """ Commands that can be sent to the robot. """
-    LINEAR_X = 'linear_x'
-    LINEAR_Y = 'linear_y'
-    LINEAR_Z = 'linear_z'
-    ANGULAR_X = 'angular_x'
-    ANGULAR_Y = 'angular_y'
-    ANGULAR_Z = 'angular_z'
+    FLOAT = 'float'
+    TWIST_LINEAR_X = 'twist_linear_x'
+    TWIST_LINEAR_Y = 'twist_linear_y'
+    TWIST_LINEAR_Z = 'twist_linear_z'
+    TWIST_ANGULAR_X = 'twist_angular_x'
+    TWIST_ANGULAR_Y = 'twist_angular_y'
+    TWIST_ANGULAR_Z = 'twist_angular_z'
+
+    def get_topic_type(self):
+        """ Gets the type of the message option, either 'twist' or 'float'. """
+        return self.value[:5]
 
 class ControllerInputs:
     """ Controller inputs for defining control maps. """
@@ -46,5 +52,7 @@ class ControllerInputs:
     TOUCHPAD_BUTTON = 'touchpad_button'
 
 NAV_TOPIC = '/cmd_vel_teleop'
+DRUM_ROTATION_TOPIC = '/drum_cont/cmd_vel_unstamped'
+DRUM_LIFT_TOPIC = '/drum_lift_cont/cmd_vel_unstamped'
 PUBLISHER_UPDATE_RATE = 2
 INVERT_BACKWARDS_STEERING = True

@@ -25,7 +25,7 @@ def opaque_generate_launch_description(context):
     use_sim_time_str = LaunchConfiguration('use_sim_time').perform(context).lower()
     use_sim_time_bool = use_sim_time_str == 'true'
 
-    twist_mux_params = os.path.join(rover_pkg, "config", "twist_mux.yaml")
+    drive_mux_params = os.path.join(rover_pkg, "config", "drive_mux.yaml")
 
     # Used only for real rover launch because controller_manager is skipped in sim
     controller_params_file = os.path.join(rover_pkg, "config", "my_controllers.yaml")
@@ -47,15 +47,29 @@ def opaque_generate_launch_description(context):
     twist_mux = Node(
         package="twist_mux",
         executable="twist_mux",
-        name="twist_mux",
+        name="drive_mux",
         output="screen",
         parameters=[
-            twist_mux_params,
+            drive_mux_params,
             {"use_sim_time": use_sim_time_bool}
         ],
         remappings=[
             ("/cmd_vel_out", "/diff_cont/cmd_vel_unstamped")
         ],
+    )
+
+    drum_lift_bridge = Node(
+        package="qpl_rover",
+        executable="drum_lift_twist_to_float",
+        name="drum_lift_twist_to_float",
+        output="screen",
+    )
+
+    drum_bridge = Node(
+        package="qpl_rover",
+        executable="drum_twist_to_float",
+        name="drum_twist_to_float",
+        output="screen",
     )
 
     joint_broad_spawner = Node(
@@ -74,23 +88,43 @@ def opaque_generate_launch_description(context):
         output="screen",
     )
 
+    drum_lift_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["drum_lift_cont"],
+        parameters=[{"use_sim_time": use_sim_time_bool}],
+        output="screen",
+    )
+
+    drum_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["drum_cont"],
+        parameters=[{"use_sim_time": use_sim_time_bool}],
+        output="screen",
+    )
+
     delayed_joint_broad_spawner = TimerAction(
         period=4.0,
-        actions=[
-            joint_broad_spawner
-        ]
+        actions=[joint_broad_spawner]
     )
 
     delayed_diff_drive_spawner = TimerAction(
         period=5.0,
-        actions=[
-            diff_drive_spawner
-        ]
+        actions=[diff_drive_spawner]
+    )
+
+    delayed_drum_spawners = TimerAction(
+        period=5.0,
+        actions=[drum_lift_spawner, drum_spawner]
     )
 
     return [
         controller_manager,
         twist_mux,
+        drum_lift_bridge,
+        drum_bridge,
         delayed_joint_broad_spawner,
         delayed_diff_drive_spawner,
+        delayed_drum_spawners,
     ]

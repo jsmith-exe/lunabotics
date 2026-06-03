@@ -1,31 +1,31 @@
-twist_mux:
+drum_mux:
   ros__parameters:
     use_stamped: false
     cmd_vel_out: cmd_vel_out
 
     # If no input is received for this long, output is set to zero
-    timeout: 0.25
+    timeout: 0.5
 
     # Optional: cap overall speeds (acts as a limiter)
     # You can remove these if you prefer limiting elsewhere
-    # linear:
-    #   x: 0.8
-    #   y: 0.0
-    #   z: 0.0
-    # angular:
-    #   x: 0.0
-    #   y: 0.0
-    #   z: 2.0
+    linear:
+      x: 1.0
+      y: 0.0
+      z: 0.0
+    angular:
+      x: 0.0
+      y: 1.0
+      z: 0.0
 
     # Inputs
     topics:
       teleop:
-        topic: cmd_vel_teleop
-        timeout: 0.15
+        topic: cmd_drum_teleop
+        timeout: 0.5
         priority: 100
       nav2:
-        topic: cmd_vel_nav
-        timeout: 0.25
+        topic: cmd_drum_auto
+        timeout: 0.5
         priority: 50
       # Optional: an emergency stop topic (highest priority)
       # e_stop:
