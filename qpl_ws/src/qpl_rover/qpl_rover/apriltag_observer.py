@@ -101,10 +101,14 @@ class AprilTagObserver(Node):
         cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='mono8')
 
         # 2. Run Detection
-        results = self.detector.detect(cv_image,
-                                       estimate_tag_pose=True,
-                                       camera_params=self.cam_params[cam_id],
-                                       tag_size=self.tag_size)
+        try:
+            results = self.detector.detect(cv_image,
+                                        estimate_tag_pose=True,
+                                        camera_params=self.cam_params[cam_id],
+                                        tag_size=self.tag_size)
+        except ValueError as e:
+            print(e)
+            return
 
         if len(results) > 0:
             # Diagnostic: Tell us what IDs are actually being seen

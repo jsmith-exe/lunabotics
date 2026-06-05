@@ -25,10 +25,18 @@
 
               <param name="feedback_enabled">true</param>
 
+              <!-- Linear actuator test mode: keep ros2_control actuator interface disabled -->
+              <param name="linear_actuator_ros2_control_interface_enabled">false</param>
+              <param name="linear_actuator_can_id">5</param>
+
+              <!-- Test command: 0.0 = retract, 0.5 = stop, 1.0 = extend -->
+              <param name="linear_actuator_test_position_command">0.0</param>
+
               <param name="print_commands">false</param>
               <param name="print_status">false</param>
               <param name="debug_printing_enabled">false</param>
           </hardware>
+
       <joint name="front_left_wheel_joint">
         <command_interface name="velocity">
             <param name="min_velocity">-10</param>
@@ -111,9 +119,8 @@
     </ros2_control>
   </xacro:if>
 
-
   <gazebo>
-    <plugin  name="gazebo_ros2_control"  filename="libgazebo_ros2_control.so">
+    <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
       <parameters>$(find qpl_rover)/config/my_controllers.yaml</parameters>
       <parameters>$(find qpl_rover)/config/gaz_ros2_ctl_use_sim.yaml</parameters>
     </plugin>
