@@ -87,6 +87,7 @@ def get_camera_params(use_low_quality: bool):
         depth_fps = '30'
         depth_format = 'Y11'
 
+    calibration_folder = '/home/qpl/lunabotics/qpl_ws/src/qpl_rover/calibration'
     camera_params = {
         'camera_name': f'depth_camera_{direction}',
 
@@ -103,7 +104,9 @@ def get_camera_params(use_low_quality: bool):
         'ir_height': depth_height,
         'ir_fps': depth_fps,
         'ir_format': 'Y10',
-        
+
+        'color_info_url': f'file://{calibration_folder}/rear_calib_{color_width}_cam_info.yaml',
+
         # 'color_qos': 'SENSOR_DATA',
         # 'depth_registration': 'true',
         # 'enable_colored_point_cloud': 'true',
