@@ -6,6 +6,8 @@
 
     <xacro:include filename="rover_core.xacro" />
 
+    <xacro:include filename="drum_bucket.xacro" />
+
     <xacro:if value="$(arg use_ros2_control)">
         <xacro:include filename="ros2_control.xacro" />
     </xacro:if>

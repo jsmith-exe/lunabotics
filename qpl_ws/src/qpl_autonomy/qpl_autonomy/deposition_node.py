@@ -19,7 +19,7 @@ class DepositionNode(Node):
         super().__init__("deposition_node")
 
         self._drum_pub = self.create_publisher(
-            Float64, "/drum_cont/cmd_vel_unstamped", 10
+            Float64, "/drum_cmd", 10
         )
 
         self._nav = NavigationManager(self)

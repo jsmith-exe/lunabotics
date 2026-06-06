@@ -12,7 +12,7 @@ controller_manager:
       type: forward_command_controller/ForwardCommandController
 
     drum_lift_cont:
-      type: forward_command_controller/ForwardCommandController
+      type: position_controllers/JointGroupPositionController
 
 diff_cont:
   ros__parameters:
@@ -54,4 +54,3 @@ drum_lift_cont:
   ros__parameters:
     joints:
       - drum_joint
-    interface_name: velocity
