@@ -2,17 +2,17 @@ controller_manager:
   ros__parameters:
     update_rate: 100
 
-    drum_lift_cont:
-      type: position_controllers/JointGroupPositionController
-
-    drum_cont:
-      type: velocity_controllers/JointGroupVelocityController
-
     diff_cont:
-      type: diff_drive_controller/DiffDriveController 
+      type: diff_drive_controller/DiffDriveController
 
     joint_broad:
       type: joint_state_broadcaster/JointStateBroadcaster
+
+    drum_cont:
+      type: forward_command_controller/ForwardCommandController
+
+    drum_lift_cont:
+      type: position_controllers/JointGroupPositionController
 
 diff_cont:
   ros__parameters:
@@ -44,12 +44,13 @@ diff_cont:
         max_velocity: 1.0
         has_acceleration_limits: false
 
-drum_lift_cont:
-  ros__parameters:
-    joints:
-      - drum_joint
-
 drum_cont:
   ros__parameters:
     joints:
       - drum_spin_joint
+    interface_name: velocity
+
+drum_lift_cont:
+  ros__parameters:
+    joints:
+      - drum_joint

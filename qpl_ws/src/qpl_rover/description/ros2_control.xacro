@@ -116,6 +116,23 @@
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
+
+
+      <joint name="drum_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+      </joint>
+
+            <joint name="drum_spin_joint">
+        <command_interface name="velocity"/>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+      </joint>
+
     </ros2_control>
   </xacro:if>
 
@@ -125,5 +142,7 @@
       <parameters>$(find qpl_rover)/config/gaz_ros2_ctl_use_sim.yaml</parameters>
     </plugin>
   </gazebo>
+
+  
 
 </robot>

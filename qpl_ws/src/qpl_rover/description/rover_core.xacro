@@ -15,7 +15,7 @@
 
   <!-- Bottom cuboid -->
   <xacro:property name="base_x" value="0.875"/>
-  <xacro:property name="base_y" value="0.599"/>
+  <xacro:property name="base_y" value="0.5806"/>
   <xacro:property name="base_z" value="0.135"/>
 
   <!-- Top trapezoid section -->

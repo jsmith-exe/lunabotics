@@ -1,0 +1,20 @@
+image_width: 1920
+image_height: 1080
+camera_name: depth_camera_rear_color
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [1307.7385, 0.0, 1004.15904, 0.0, 1294.70982, 516.09641, 0.0, 0.0, 1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.067568, -0.208438, 0.003336, 0.008850, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1255.8999, 0.0, 1041.12125, 0.0, 0.0, 1304.77075, 517.94334, 0.0, 0.0, 0.0, 1.0, 0.0]

@@ -39,6 +39,8 @@ setup(
     entry_points={
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
+            'drum_lift_float_bridge = qpl_rover.drum_lift_twist_to_float:main',
+            'drum_float_bridge = qpl_rover.drum_twist_to_float:main',
         ],
     },
 )

@@ -150,11 +150,24 @@ def get_camera_params(use_low_quality: bool):
     color_fmt = 'BGR8'
     depth_fmt = 'Z16'
     infra_fmt = 'BGR8'
+    ffmpeg_cfg = {
+        'camera.color.image_raw.ffmpeg.encoder': 'libx264',
+        'camera.color.image_raw.ffmpeg.bit_rate': 1000000,
+        'camera.color.image_raw.ffmpeg.qmax': 40,
+        'camera.color.image_raw.ffmpeg.gop_size': 10,
+    }
 
     if use_low_quality:
         profile = '424x240x15'
         color_fmt = 'BGR8'
         infra_fmt = 'UYVY'
+        ffmpeg_cfg = {
+            'camera.color.image_raw.ffmpeg.encoder': 'libx264rgb',
+            'camera.color.image_raw.ffmpeg.bit_rate': 1000000,
+            'camera.color.image_raw.ffmpeg.qmax': 40,
+            'camera.color.image_raw.ffmpeg.gop_size': 1,
+            'camera.color.image_raw.ffmpeg.encoder_av_options': 'tune:zerolatency,preset:ultrafast',
+        }
 
     camera_params = {
         'rgb_camera.color_profile': profile,
@@ -164,9 +177,7 @@ def get_camera_params(use_low_quality: bool):
         'depth_module.depth_format': depth_fmt,
         'depth_module.infra_format': infra_fmt,
 
-        f'camera.color.image_raw.ffmpeg.encoder': 'libx264',
-        f'camera.color.image_raw.ffmpeg.bit_rate': 1000000,
-        f'camera.color.image_raw.ffmpeg.qmax': 51,
+        **ffmpeg_cfg,
 
         'pointcloud__neon_.enable': True,
         # 'align_depth.enable': True,
@@ -177,6 +188,9 @@ def get_camera_params(use_low_quality: bool):
 
         'initial_reset': True,
         'base_frame_id': 'camera_link_front',
+        
+        '.camera.color.image_raw.format': 'jpeg',
+        '.camera.color.image_raw.jpeg_quality': 10,
     }
 
     print(camera_params)
