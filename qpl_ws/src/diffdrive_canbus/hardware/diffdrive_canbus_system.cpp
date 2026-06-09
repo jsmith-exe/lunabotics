@@ -66,7 +66,7 @@ constexpr int RX_DRAIN_FRAMES_PER_READ = 20;
 constexpr int RX_DRAIN_EMPTY_READ_RETRIES = 2;
 
 // Linear actuator feedback/status readback.
-// This is read-only telemetry for CAN ID 5. It does not control the actuator yet.
+// This is read-only telemetry for both actuators. It does not control the actuators yet.
 constexpr auto LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD = std::chrono::milliseconds(500);
 
 // SPARK MAX Periodic Status 3 contains analogue sensor information.
@@ -150,7 +150,7 @@ uint8_t get_frc_api_index_from_can_id(uint32_t can_id)
   return static_cast<uint8_t>((can_id >> 6) & 0x0F);
 }
 
-bool is_linear_actuator_status3_id(uint32_t can_id, uint8_t device_id)
+bool is_actuator_status3_id(uint32_t can_id, uint8_t device_id)
 {
   const uint32_t clean_id = can_id & 0x1FFFFFFF;
   return clean_id == (SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(device_id));
@@ -221,11 +221,14 @@ public:
     RCLCPP_WARN(logger_, "Active command stream is refreshed quickly for SPARK MAX keepalive stability");
     RCLCPP_WARN(logger_, "Heartbeat is handled globally by maybe_send_heartbeat()");
     RCLCPP_WARN(logger_, "Active commands use native SPARK MAX velocity setpoints");
-    RCLCPP_WARN(logger_, "Linear actuator on CAN ID %u uses direct duty-cycle/throttle output", linear_actuator_can_id_);
-    RCLCPP_WARN(logger_, "Linear actuator command interface requested: %s/%s", linear_actuator_joint_name_.c_str(), hardware_interface::HW_IF_POSITION);
-    RCLCPP_WARN(logger_, "Linear actuator ros2_control interface enabled: %s", linear_actuator_ros2_control_interface_enabled_ ? "true" : "false");
-    RCLCPP_WARN(logger_, "If disabled, actuator command comes from linear_actuator_test_position_command_ only");
-    RCLCPP_WARN(logger_, "Linear actuator uses direct open-loop duty-cycle output at the top of every write() cycle");
+    RCLCPP_WARN(logger_, "Left linear actuator on CAN ID %u uses direct duty-cycle/throttle output", left_actuator_.can_id);
+    RCLCPP_WARN(logger_, "Right linear actuator on CAN ID %u uses direct duty-cycle/throttle output", right_actuator_.can_id);
+    RCLCPP_WARN(logger_, "Left linear actuator command interface: %s/%s", left_actuator_.joint_name.c_str(), hardware_interface::HW_IF_POSITION);
+    RCLCPP_WARN(logger_, "Right linear actuator command interface: %s/%s", right_actuator_.joint_name.c_str(), hardware_interface::HW_IF_POSITION);
+    RCLCPP_WARN(logger_, "Left linear actuator ros2_control interface enabled: %s", left_actuator_.ros2_control_interface_enabled ? "true" : "false");
+    RCLCPP_WARN(logger_, "Right linear actuator ros2_control interface enabled: %s", right_actuator_.ros2_control_interface_enabled ? "true" : "false");
+    RCLCPP_WARN(logger_, "If disabled, actuator command comes from test_position_command only");
+    RCLCPP_WARN(logger_, "Linear actuators use direct open-loop duty-cycle output at the top of every write() cycle");
     RCLCPP_WARN(logger_, "When feedback is disabled, CAN RX frames are still lightly drained for serial adapter stability");
     RCLCPP_WARN(logger_, "Linear actuator raw CAN frames are sniffed for analogue-voltage feedback without editing spark_max.cpp");
     RCLCPP_WARN(logger_, "Linear actuator ros2_control command is position: 0.0 retract, 0.5 stop, 1.0 extend");
@@ -261,8 +264,13 @@ public:
 
     RCLCPP_INFO(
       logger_,
-      "Linear actuator ros2_control interface enabled: %s",
-      linear_actuator_ros2_control_interface_enabled_ ? "true" : "false");
+      "Left linear actuator ros2_control interface enabled: %s",
+      left_actuator_.ros2_control_interface_enabled ? "true" : "false");
+
+    RCLCPP_INFO(
+      logger_,
+      "Right linear actuator ros2_control interface enabled: %s",
+      right_actuator_.ros2_control_interface_enabled ? "true" : "false");
 
     if (timeout_ms_ > 10)
     {
@@ -320,12 +328,20 @@ public:
       hardware_interface::HW_IF_VELOCITY,
       &rear_right_velocity_);
 
-    if (linear_actuator_ros2_control_interface_enabled_)
+    if (left_actuator_.ros2_control_interface_enabled)
     {
       state_interfaces.emplace_back(
-        linear_actuator_joint_name_,
+        left_actuator_.joint_name,
         hardware_interface::HW_IF_POSITION,
-        &linear_actuator_position_);
+        &left_actuator_.position);
+    }
+
+    if (right_actuator_.ros2_control_interface_enabled)
+    {
+      state_interfaces.emplace_back(
+        right_actuator_.joint_name,
+        hardware_interface::HW_IF_POSITION,
+        &right_actuator_.position);
     }
 
     return state_interfaces;
@@ -356,12 +372,20 @@ public:
       hardware_interface::HW_IF_VELOCITY,
       &rear_right_command_);
 
-    if (linear_actuator_ros2_control_interface_enabled_)
+    if (left_actuator_.ros2_control_interface_enabled)
     {
       command_interfaces.emplace_back(
-        linear_actuator_joint_name_,
+        left_actuator_.joint_name,
         hardware_interface::HW_IF_POSITION,
-        &linear_actuator_command_);
+        &left_actuator_.command);
+    }
+
+    if (right_actuator_.ros2_control_interface_enabled)
+    {
+      command_interfaces.emplace_back(
+        right_actuator_.joint_name,
+        hardware_interface::HW_IF_POSITION,
+        &right_actuator_.command);
     }
 
     return command_interfaces;
@@ -418,9 +442,14 @@ public:
         rear_right_can_id_,
         static_cast<float>(gear_ratio_));
 
-      linear_actuator_spark_ = std::make_unique<SparkMax>(
+      left_actuator_.spark = std::make_unique<SparkMax>(
         can_,
-        linear_actuator_can_id_,
+        left_actuator_.can_id,
+        static_cast<float>(gear_ratio_));
+
+      right_actuator_.spark = std::make_unique<SparkMax>(
+        can_,
+        right_actuator_.can_id,
         static_cast<float>(gear_ratio_));
 
       front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
@@ -433,12 +462,16 @@ public:
       RCLCPP_INFO(logger_, "Front right SPARK MAX ID: %u", front_right_can_id_);
       RCLCPP_INFO(logger_, "Rear left SPARK MAX ID: %u", rear_left_can_id_);
       RCLCPP_INFO(logger_, "Rear right SPARK MAX ID: %u", rear_right_can_id_);
-    RCLCPP_INFO(logger_, "Linear actuator SPARK MAX ID: %u", linear_actuator_can_id_);
-    RCLCPP_INFO(logger_, "Linear actuator test position command starts at: %.3f", linear_actuator_test_position_command_);
-    RCLCPP_INFO(logger_, "Linear actuator ros2_control position command starts at: %.3f", linear_actuator_command_);
-    RCLCPP_INFO(logger_, "Linear actuator command is resent every write() cycle, independent of wheel commands");
+      RCLCPP_INFO(logger_, "Left linear actuator SPARK MAX ID: %u", left_actuator_.can_id);
+      RCLCPP_INFO(logger_, "Right linear actuator SPARK MAX ID: %u", right_actuator_.can_id);
+      RCLCPP_INFO(logger_, "Left linear actuator test position command starts at: %.3f", left_actuator_.test_position_command);
+      RCLCPP_INFO(logger_, "Right linear actuator test position command starts at: %.3f", right_actuator_.test_position_command);
+      RCLCPP_INFO(logger_, "Left linear actuator ros2_control position command starts at: %.3f", left_actuator_.command);
+      RCLCPP_INFO(logger_, "Right linear actuator ros2_control position command starts at: %.3f", right_actuator_.command);
+      RCLCPP_INFO(logger_, "Actuator commands are resent every write() cycle, independent of wheel commands");
 
-      request_linear_actuator_status3_period();
+      request_actuator_status3_period(left_actuator_, "left");
+      request_actuator_status3_period(right_actuator_, "right");
     }
     catch (const std::exception & e)
     {
@@ -476,13 +509,8 @@ public:
     rear_left_position_ = 0.0;
     rear_right_position_ = 0.0;
 
-    // Easy manual test variable: set linear_actuator_test_position_command_ near the
-    // member variables to 0.0, 0.5, or 1.0 before launching.
-    // ros2_control can still overwrite linear_actuator_command_ at runtime.
-    linear_actuator_command_ = std::clamp(linear_actuator_test_position_command_, 0.0, 1.0);
-    linear_actuator_position_ = 0.0;
-    linear_actuator_voltage_ = 0.0;
-    linear_actuator_has_voltage_ = false;
+    reset_actuator_state(left_actuator_);
+    reset_actuator_state(right_actuator_);
 
     front_left_position_offset_ = 0.0;
     front_right_position_offset_ = 0.0;
@@ -506,23 +534,8 @@ public:
     feedback_cycle_count_ = 0;
     feedback_empty_count_ = 0;
     runaway_count_ = 0;
-    linear_actuator_command_count_ = 0;
-
-    linear_actuator_last_sent_output_ = 999.0;
-    linear_actuator_has_raw_can_frame_ = false;
-    linear_actuator_has_status3_frame_ = false;
-    linear_actuator_has_analog_voltage_candidate_ = false;
-    linear_actuator_raw_can_frame_count_ = 0;
-    linear_actuator_status3_frame_count_ = 0;
-    linear_actuator_last_raw_can_id_ = 0;
-    linear_actuator_last_raw_dlc_ = 0;
-    linear_actuator_last_raw_data_.fill(0);
-    linear_actuator_last_status3_can_id_ = 0;
-    linear_actuator_last_status3_dlc_ = 0;
-    linear_actuator_last_status3_data_.fill(0);
 
     motors_currently_commanded_ = false;
-    linear_actuator_currently_commanded_ = false;
     runaway_latched_ = false;
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
@@ -530,15 +543,14 @@ public:
     next_rx_drain_time_ = std::chrono::steady_clock::now();
     next_command_write_time_ = std::chrono::steady_clock::now();
     last_print_time_ = std::chrono::steady_clock::now() + PRINT_PERIOD;
-    last_linear_actuator_feedback_print_time_ =
-      std::chrono::steady_clock::now() + LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
 
     RCLCPP_WARN(logger_, "Activated in simple native velocity mode");
     RCLCPP_WARN(logger_, "No SPARK MAX command frames sent during activate()");
     RCLCPP_WARN(logger_, "Gear ratio active: %.3f motor rev / wheel rev", gear_ratio_);
     RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
     RCLCPP_WARN(logger_, "Runaway latch reset");
-    RCLCPP_WARN(logger_, "Linear actuator CAN ID %u position command starts at %.3f", linear_actuator_can_id_, linear_actuator_command_);
+    RCLCPP_WARN(logger_, "Left linear actuator CAN ID %u position command starts at %.3f", left_actuator_.can_id, left_actuator_.command);
+    RCLCPP_WARN(logger_, "Right linear actuator CAN ID %u position command starts at %.3f", right_actuator_.can_id, right_actuator_.command);
     RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
     RCLCPP_WARN(logger_, "Active velocity commands limited to one command batch every %ld ms", COMMAND_WRITE_PERIOD.count());
     RCLCPP_WARN(logger_, "Each heartbeat/command frame is separated by %ld ms", BUS_FRAME_GAP.count());
@@ -561,7 +573,7 @@ public:
     const rclcpp_lifecycle::State &) override
   {
     RCLCPP_WARN(logger_, "Deactivating DiffDriveCanbusHardware");
-    RCLCPP_WARN(logger_, "Sending guaranteed zero-duty stop burst to all 4 motors");
+    RCLCPP_WARN(logger_, "Sending guaranteed zero-duty stop burst to all motors and actuators");
 
     try
     {
@@ -587,9 +599,14 @@ public:
         rear_right_spark_->stop(false);
       }
 
-      if (linear_actuator_spark_)
+      if (left_actuator_.spark)
       {
-        linear_actuator_spark_->stop(false);
+        left_actuator_.spark->stop(false);
+      }
+
+      if (right_actuator_.spark)
+      {
+        right_actuator_.spark->stop(false);
       }
 
       send_stop_for_duration(EXTRA_STOP_TIME);
@@ -626,7 +643,8 @@ public:
       maybe_drain_can_rx_without_feedback();
     }
 
-    maybe_print_linear_actuator_feedback();
+    maybe_print_actuator_feedback(left_actuator_, "left");
+    maybe_print_actuator_feedback(right_actuator_, "right");
 
     if (debug_printing_enabled_)
     {
@@ -656,14 +674,11 @@ public:
     }
 
     // Global non-RIO heartbeat. Keep this independent from individual motor writes.
-    // This avoids sending a heartbeat+duty pair for the actuator every loop, which
-    // can overload some serial-to-CAN adapters and make the actuator output pulse.
     maybe_send_heartbeat();
 
-    // Open-loop actuator command is intentionally independent of the wheels.
-    // It sends the current linear_actuator_command_ as an open-loop duty direction every write() cycle.
-    // Feedback is only used for state; command remains open-loop and independent of wheel state.
-    write_linear_actuator_open_loop();
+    // Open-loop actuator commands are intentionally independent of the wheels.
+    write_actuator_open_loop(left_actuator_, "left");
+    write_actuator_open_loop(right_actuator_, "right");
 
     const double front_left_command =
       clean_command(front_left_command_, command_deadband_rad_per_sec_);
@@ -774,13 +789,60 @@ public:
   }
 
 private:
+  // All per-actuator state bundled so left and right share identical logic.
+  struct LinearActuatorHW
+  {
+    std::string joint_name{"linear_actuator_joint"};
+    uint8_t can_id{5};
+
+    double test_position_command{0.5};
+    double command{0.5};
+    double position{0.0};
+    double voltage{0.0};
+    bool has_voltage{false};
+
+    double feedback_min_voltage{0.279};
+    double feedback_max_voltage{1.85};
+    double deadband{0.02};
+    double last_sent_output{999.0};
+
+    std::unique_ptr<SparkMax> spark;
+
+    int command_count{0};
+    bool has_raw_can_frame{false};
+    bool has_status3_frame{false};
+    bool has_analog_voltage_candidate{false};
+    double analog_voltage_candidate{0.0};
+    std::string analog_voltage_source{"NONE"};
+
+    uint32_t last_raw_can_id{0};
+    uint8_t last_raw_dlc{0};
+    std::array<uint8_t, 8> last_raw_data{};
+
+    uint32_t last_status3_can_id{0};
+    uint8_t last_status3_dlc{0};
+    std::array<uint8_t, 8> last_status3_data{};
+
+    int raw_can_frame_count{0};
+    int status3_frame_count{0};
+
+    bool currently_commanded{false};
+    bool ros2_control_interface_enabled{false};
+
+    std::chrono::steady_clock::time_point last_feedback_print_time{};
+  };
+
   void parse_hardware_parameters()
   {
     front_left_wheel_name_ = get_required_string("front_left_wheel_name");
     front_right_wheel_name_ = get_required_string("front_right_wheel_name");
     rear_left_wheel_name_ = get_required_string("rear_left_wheel_name");
     rear_right_wheel_name_ = get_required_string("rear_right_wheel_name");
-    linear_actuator_joint_name_ = get_string("linear_actuator_joint_name", linear_actuator_joint_name_);
+
+    left_actuator_.joint_name =
+      get_string("left_linear_actuator_joint_name", "left_linear_actuator_joint");
+    right_actuator_.joint_name =
+      get_string("right_linear_actuator_joint_name", "right_linear_actuator_joint");
 
     serial_device_ = get_required_string("serial_device");
 
@@ -794,26 +856,40 @@ private:
     rear_left_can_id_ = get_can_id("rear_left_can_id");
     rear_right_can_id_ = get_can_id("rear_right_can_id");
 
-    linear_actuator_can_id_ = static_cast<uint8_t>(get_int("linear_actuator_can_id", 5));
-    if (linear_actuator_can_id_ <= 0 || linear_actuator_can_id_ > 63)
+    left_actuator_.can_id = static_cast<uint8_t>(get_int("left_linear_actuator_can_id", 5));
+    if (left_actuator_.can_id <= 0 || left_actuator_.can_id > 63)
     {
-      throw std::runtime_error("linear_actuator_can_id must be between 1 and 63");
+      throw std::runtime_error("left_linear_actuator_can_id must be between 1 and 63");
     }
 
-    // Optional initial actuator command. Runtime control should normally come from ros2_control.
-    // This is also copied into the explicit test variable so the first command is predictable.
-    linear_actuator_test_position_command_ =
-      std::clamp(get_double("linear_actuator_initial_position_command", linear_actuator_test_position_command_), 0.0, 1.0);
-    linear_actuator_command_ = linear_actuator_test_position_command_;
+    right_actuator_.can_id = static_cast<uint8_t>(get_int("right_linear_actuator_can_id", 6));
+    if (right_actuator_.can_id <= 0 || right_actuator_.can_id > 63)
+    {
+      throw std::runtime_error("right_linear_actuator_can_id must be between 1 and 63");
+    }
 
-    linear_actuator_deadband_ =
-      std::clamp(get_double("linear_actuator_deadband", linear_actuator_deadband_), 0.0, 0.5);
+    left_actuator_.test_position_command = std::clamp(
+      get_double("left_linear_actuator_initial_position_command", 0.5), 0.0, 1.0);
+    left_actuator_.command = left_actuator_.test_position_command;
 
-    linear_actuator_feedback_min_voltage_ =
-      get_double("linear_actuator_feedback_min_voltage", linear_actuator_feedback_min_voltage_);
+    right_actuator_.test_position_command = std::clamp(
+      get_double("right_linear_actuator_initial_position_command", 0.5), 0.0, 1.0);
+    right_actuator_.command = right_actuator_.test_position_command;
 
-    linear_actuator_feedback_max_voltage_ =
-      get_double("linear_actuator_feedback_max_voltage", linear_actuator_feedback_max_voltage_);
+    left_actuator_.deadband =
+      std::clamp(get_double("left_linear_actuator_deadband", 0.02), 0.0, 0.5);
+    right_actuator_.deadband =
+      std::clamp(get_double("right_linear_actuator_deadband", 0.02), 0.0, 0.5);
+
+    left_actuator_.feedback_min_voltage =
+      get_double("left_linear_actuator_feedback_min_voltage", 0.279);
+    left_actuator_.feedback_max_voltage =
+      get_double("left_linear_actuator_feedback_max_voltage", 1.85);
+
+    right_actuator_.feedback_min_voltage =
+      get_double("right_linear_actuator_feedback_min_voltage", 0.279);
+    right_actuator_.feedback_max_voltage =
+      get_double("right_linear_actuator_feedback_max_voltage", 1.85);
 
     enc_counts_per_rev_ = get_int("enc_counts_per_rev", 2048);
     loopback_mode_ = get_bool("loopback_mode", false);
@@ -828,10 +904,10 @@ private:
 
     feedback_enabled_ = get_bool("feedback_enabled", false);
 
-    // Optional: set true only after linear_actuator_joint exists in your ros2_control URDF.
-    // If false, the actuator still runs from linear_actuator_test_position_command_.
-    linear_actuator_ros2_control_interface_enabled_ =
-      get_bool("linear_actuator_ros2_control_interface_enabled", false);
+    left_actuator_.ros2_control_interface_enabled =
+      get_bool("left_linear_actuator_ros2_control_interface_enabled", false);
+    right_actuator_.ros2_control_interface_enabled =
+      get_bool("right_linear_actuator_ros2_control_interface_enabled", false);
 
     command_deadband_rad_per_sec_ =
       get_double("command_deadband_rad_per_sec", 0.001);
@@ -841,10 +917,16 @@ private:
       throw std::runtime_error("gear_ratio must be greater than zero");
     }
 
-    if (linear_actuator_feedback_max_voltage_ <= linear_actuator_feedback_min_voltage_)
+    if (left_actuator_.feedback_max_voltage <= left_actuator_.feedback_min_voltage)
     {
       throw std::runtime_error(
-        "linear_actuator_feedback_max_voltage must be greater than linear_actuator_feedback_min_voltage");
+        "left_linear_actuator_feedback_max_voltage must be greater than left_linear_actuator_feedback_min_voltage");
+    }
+
+    if (right_actuator_.feedback_max_voltage <= right_actuator_.feedback_min_voltage)
+    {
+      throw std::runtime_error(
+        "right_linear_actuator_feedback_max_voltage must be greater than right_linear_actuator_feedback_min_voltage");
     }
 
     if (pid_slot_ > 3)
@@ -890,10 +972,16 @@ private:
     validate_joint_interfaces(rear_left_wheel_name_);
     validate_joint_interfaces(rear_right_wheel_name_);
 
-    if (linear_actuator_ros2_control_interface_enabled_)
+    if (left_actuator_.ros2_control_interface_enabled)
     {
-      validate_joint_exists(linear_actuator_joint_name_);
-      validate_linear_actuator_interfaces(linear_actuator_joint_name_);
+      validate_joint_exists(left_actuator_.joint_name);
+      validate_linear_actuator_interfaces(left_actuator_.joint_name);
+    }
+
+    if (right_actuator_.ros2_control_interface_enabled)
+    {
+      validate_joint_exists(right_actuator_.joint_name);
+      validate_linear_actuator_interfaces(right_actuator_.joint_name);
     }
   }
 
@@ -1128,6 +1216,32 @@ private:
     }
   }
 
+  void reset_actuator_state(LinearActuatorHW & act)
+  {
+    act.command = std::clamp(act.test_position_command, 0.0, 1.0);
+    act.position = 0.0;
+    act.voltage = 0.0;
+    act.has_voltage = false;
+    act.command_count = 0;
+    act.last_sent_output = 999.0;
+    act.has_raw_can_frame = false;
+    act.has_status3_frame = false;
+    act.has_analog_voltage_candidate = false;
+    act.analog_voltage_candidate = 0.0;
+    act.analog_voltage_source = "NONE";
+    act.last_raw_can_id = 0;
+    act.last_raw_dlc = 0;
+    act.last_raw_data.fill(0);
+    act.last_status3_can_id = 0;
+    act.last_status3_dlc = 0;
+    act.last_status3_data.fill(0);
+    act.raw_can_frame_count = 0;
+    act.status3_frame_count = 0;
+    act.currently_commanded = false;
+    act.last_feedback_print_time =
+      std::chrono::steady_clock::now() + LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
+  }
+
   void sleep_bus_gap()
   {
     std::this_thread::sleep_for(BUS_FRAME_GAP);
@@ -1229,9 +1343,14 @@ private:
       rear_right_spark_->set_duty_cycle(0.0f, print);
     }
 
-    if (linear_actuator_spark_)
+    if (left_actuator_.spark)
     {
-      linear_actuator_spark_->set_duty_cycle(0.0f, print);
+      left_actuator_.spark->set_duty_cycle(0.0f, print);
+    }
+
+    if (right_actuator_.spark)
+    {
+      right_actuator_.spark->set_duty_cycle(0.0f, print);
     }
   }
 
@@ -1449,11 +1568,10 @@ private:
     }
   }
 
-
-  void request_linear_actuator_status3_period()
+  void request_actuator_status3_period(LinearActuatorHW & act, const std::string & label)
   {
     const uint32_t status3_id =
-      SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(linear_actuator_can_id_);
+      SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(act.can_id);
 
     std::vector<uint8_t> data(2, 0x00);
     data[0] = static_cast<uint8_t>(LINEAR_ACTUATOR_STATUS3_PERIOD_MS & 0xFF);
@@ -1465,8 +1583,9 @@ private:
     {
       RCLCPP_WARN(
         logger_,
-        "Requested SPARK MAX Status 3 period for linear actuator: id=%u can_id=0x%08X period=%u ms",
-        linear_actuator_can_id_,
+        "Requested SPARK MAX Status 3 period for %s linear actuator: id=%u can_id=0x%08X period=%u ms",
+        label.c_str(),
+        act.can_id,
         status3_id,
         LINEAR_ACTUATOR_STATUS3_PERIOD_MS);
     }
@@ -1474,30 +1593,32 @@ private:
     {
       RCLCPP_WARN(
         logger_,
-        "Failed to request SPARK MAX Status 3 period for linear actuator: id=%u can_id=0x%08X",
-        linear_actuator_can_id_,
+        "Failed to request SPARK MAX Status 3 period for %s linear actuator: id=%u can_id=0x%08X",
+        label.c_str(),
+        act.can_id,
         status3_id);
     }
 
     sleep_bus_gap();
   }
 
-  void write_linear_actuator_open_loop()
+  void write_actuator_open_loop(LinearActuatorHW & act, const std::string & label)
   {
-    if (!linear_actuator_spark_)
+    if (!act.spark)
     {
       RCLCPP_WARN_THROTTLE(
         logger_,
         *rclcpp::Clock::make_shared(),
         1000,
-        "Cannot write to linear actuator because SparkMax object is null");
+        "Cannot write to %s linear actuator because SparkMax object is null",
+        label.c_str());
 
       return;
     }
 
     const double safe_position_command =
       std::clamp(
-        std::isfinite(linear_actuator_command_) ? linear_actuator_command_ : 0.5,
+        std::isfinite(act.command) ? act.command : 0.5,
         0.0,
         1.0);
 
@@ -1511,9 +1632,9 @@ private:
     safe_throttle =
       apply_throttle_deadband(
         clamp_throttle(safe_throttle),
-        linear_actuator_deadband_);
+        act.deadband);
 
-    if (std::fabs(safe_throttle) <= linear_actuator_deadband_)
+    if (std::fabs(safe_throttle) <= act.deadband)
     {
       safe_throttle = 0.0;
     }
@@ -1522,16 +1643,13 @@ private:
       logger_,
       *rclcpp::Clock::make_shared(),
       500,
-      "LINEAR ACTUATOR POSITION CMD: id=%u target_pos=%.3f duty_sent=%.3f",
-      linear_actuator_can_id_,
+      "%s LINEAR ACTUATOR POSITION CMD: id=%u target_pos=%.3f duty_sent=%.3f",
+      label.c_str(),
+      act.can_id,
       safe_position_command,
       safe_throttle);
 
-    // Do not send a dedicated heartbeat here. The non-RIO heartbeat is sent
-    // globally from write() using maybe_send_heartbeat(). When feedback is disabled,
-    // read() still drains incoming CAN frames so the serial adapter RX buffer does
-    // not fill with SPARK MAX status traffic.
-    const bool ok = linear_actuator_spark_->set_duty_cycle(
+    const bool ok = act.spark->set_duty_cycle(
       static_cast<float>(safe_throttle),
       print_commands_);
 
@@ -1539,9 +1657,9 @@ private:
 
     if (ok)
     {
-      ++linear_actuator_command_count_;
-      linear_actuator_last_sent_output_ = safe_throttle;
-      linear_actuator_currently_commanded_ = std::fabs(safe_throttle) > 0.0;
+      ++act.command_count;
+      act.last_sent_output = safe_throttle;
+      act.currently_commanded = std::fabs(safe_throttle) > 0.0;
     }
     else
     {
@@ -1549,91 +1667,96 @@ private:
         logger_,
         *rclcpp::Clock::make_shared(),
         1000,
-        "Failed to send open-loop duty command to linear actuator on CAN ID %u",
-        linear_actuator_can_id_);
+        "Failed to send open-loop duty command to %s linear actuator on CAN ID %u",
+        label.c_str(),
+        act.can_id);
     }
   }
 
-  void maybe_print_linear_actuator_feedback()
+  void maybe_print_actuator_feedback(LinearActuatorHW & act, const std::string & label)
   {
     const auto now = std::chrono::steady_clock::now();
 
-    if (now < last_linear_actuator_feedback_print_time_)
+    if (now < act.last_feedback_print_time)
     {
       return;
     }
 
-    last_linear_actuator_feedback_print_time_ += LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
+    act.last_feedback_print_time += LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
 
-    if (last_linear_actuator_feedback_print_time_ < now - LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD)
+    if (act.last_feedback_print_time < now - LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD)
     {
-      last_linear_actuator_feedback_print_time_ = now + LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
+      act.last_feedback_print_time = now + LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
     }
 
-    if (!linear_actuator_spark_)
+    if (!act.spark)
     {
       RCLCPP_WARN_THROTTLE(
         logger_,
         *rclcpp::Clock::make_shared(),
         1000,
-        "LINEAR ACTUATOR FEEDBACK: spark=NULL");
+        "%s LINEAR ACTUATOR FEEDBACK: spark=NULL",
+        label.c_str());
 
       return;
     }
 
-    const auto & tel = linear_actuator_spark_->telemetry();
+    const auto & tel = act.spark->telemetry();
 
-    if (linear_actuator_has_analog_voltage_candidate_)
+    if (act.has_analog_voltage_candidate)
     {
       RCLCPP_WARN(
         logger_,
-        "LINEAR ACTUATOR ANALOG: id=%u cmd=%.3f voltage=%.4f V position=%.4f source=%s status3_frames=%d raw_frames=%d status3_can_id=0x%08X dlc=%u data=[%s] applied=%s%.3f",
-        linear_actuator_can_id_,
-        std::clamp(linear_actuator_command_, 0.0, 1.0),
-        linear_actuator_analog_voltage_candidate_,
-        linear_actuator_position_,
-        linear_actuator_analog_voltage_source_.c_str(),
-        linear_actuator_status3_frame_count_,
-        linear_actuator_raw_can_frame_count_,
-        linear_actuator_last_status3_can_id_,
-        linear_actuator_last_status3_dlc_,
-        can_data_to_hex_string(linear_actuator_last_status3_data_.data(), linear_actuator_last_status3_dlc_).c_str(),
+        "%s LINEAR ACTUATOR ANALOG: id=%u cmd=%.3f voltage=%.4f V position=%.4f source=%s status3_frames=%d raw_frames=%d status3_can_id=0x%08X dlc=%u data=[%s] applied=%s%.3f",
+        label.c_str(),
+        act.can_id,
+        std::clamp(act.command, 0.0, 1.0),
+        act.analog_voltage_candidate,
+        act.position,
+        act.analog_voltage_source.c_str(),
+        act.status3_frame_count,
+        act.raw_can_frame_count,
+        act.last_status3_can_id,
+        act.last_status3_dlc,
+        can_data_to_hex_string(act.last_status3_data.data(), act.last_status3_dlc).c_str(),
         tel.has_applied_output ? "" : "NO_",
         tel.has_applied_output ? static_cast<double>(tel.applied_output) : 0.0);
 
       return;
     }
 
-    if (linear_actuator_has_status3_frame_)
+    if (act.has_status3_frame)
     {
       RCLCPP_WARN(
         logger_,
-        "LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f STATUS3_SEEN_BUT_NO_VOLTAGE_CANDIDATE status3_frames=%d raw_frames=%d last_can_id=0x%08X dlc=%u data=[%s] applied=%s%.3f",
-        linear_actuator_can_id_,
-        std::clamp(linear_actuator_command_, 0.0, 1.0),
-        linear_actuator_status3_frame_count_,
-        linear_actuator_raw_can_frame_count_,
-        linear_actuator_last_raw_can_id_,
-        linear_actuator_last_raw_dlc_,
-        can_data_to_hex_string(linear_actuator_last_raw_data_.data(), linear_actuator_last_raw_dlc_).c_str(),
+        "%s LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f STATUS3_SEEN_BUT_NO_VOLTAGE_CANDIDATE status3_frames=%d raw_frames=%d last_can_id=0x%08X dlc=%u data=[%s] applied=%s%.3f",
+        label.c_str(),
+        act.can_id,
+        std::clamp(act.command, 0.0, 1.0),
+        act.status3_frame_count,
+        act.raw_can_frame_count,
+        act.last_raw_can_id,
+        act.last_raw_dlc,
+        can_data_to_hex_string(act.last_raw_data.data(), act.last_raw_dlc).c_str(),
         tel.has_applied_output ? "" : "NO_",
         tel.has_applied_output ? static_cast<double>(tel.applied_output) : 0.0);
 
       return;
     }
 
-    if (linear_actuator_has_raw_can_frame_)
+    if (act.has_raw_can_frame)
     {
       RCLCPP_WARN(
         logger_,
-        "LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f NO_STATUS3_ANALOG_FRAME_YET raw_frames=%d last_can_id=0x%08X api_index=%u dlc=%u data=[%s] applied=%s%.3f",
-        linear_actuator_can_id_,
-        std::clamp(linear_actuator_command_, 0.0, 1.0),
-        linear_actuator_raw_can_frame_count_,
-        linear_actuator_last_raw_can_id_,
-        get_frc_api_index_from_can_id(linear_actuator_last_raw_can_id_),
-        linear_actuator_last_raw_dlc_,
-        can_data_to_hex_string(linear_actuator_last_raw_data_.data(), linear_actuator_last_raw_dlc_).c_str(),
+        "%s LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f NO_STATUS3_ANALOG_FRAME_YET raw_frames=%d last_can_id=0x%08X api_index=%u dlc=%u data=[%s] applied=%s%.3f",
+        label.c_str(),
+        act.can_id,
+        std::clamp(act.command, 0.0, 1.0),
+        act.raw_can_frame_count,
+        act.last_raw_can_id,
+        get_frc_api_index_from_can_id(act.last_raw_can_id),
+        act.last_raw_dlc,
+        can_data_to_hex_string(act.last_raw_data.data(), act.last_raw_dlc).c_str(),
         tel.has_applied_output ? "" : "NO_",
         tel.has_applied_output ? static_cast<double>(tel.applied_output) : 0.0);
 
@@ -1642,38 +1765,39 @@ private:
 
     RCLCPP_WARN(
       logger_,
-      "LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f no CAN frames from actuator decoded yet",
-      linear_actuator_can_id_,
-      std::clamp(linear_actuator_command_, 0.0, 1.0));
+      "%s LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f no CAN frames from actuator decoded yet",
+      label.c_str(),
+      act.can_id,
+      std::clamp(act.command, 0.0, 1.0));
   }
 
-  void print_linear_actuator_status()
+  void print_actuator_status(LinearActuatorHW & act, const std::string & label)
   {
-    const double safe_position_command = std::clamp(linear_actuator_command_, 0.0, 1.0);
+    const double safe_position_command = std::clamp(act.command, 0.0, 1.0);
     const double safe_throttle = (2.0 * safe_position_command) - 1.0;
 
-    std::cout << "linear_actuator"
-              << " id=" << static_cast<int>(linear_actuator_can_id_)
+    std::cout << label << "_linear_actuator"
+              << " id=" << static_cast<int>(act.can_id)
               << " | command position=" << safe_position_command
               << " | duty=" << safe_throttle
-              << " | position=" << linear_actuator_position_;
+              << " | position=" << act.position;
 
-    if (linear_actuator_has_voltage_)
+    if (act.has_voltage)
     {
-      std::cout << " | voltage=" << linear_actuator_voltage_;
+      std::cout << " | voltage=" << act.voltage;
     }
     else
     {
       std::cout << " | voltage=NO_ANALOG";
     }
 
-    if (!linear_actuator_spark_)
+    if (!act.spark)
     {
       std::cout << " | spark=NULL\n";
       return;
     }
 
-    const auto & tel = linear_actuator_spark_->telemetry();
+    const auto & tel = act.spark->telemetry();
 
     if (tel.has_applied_output)
     {
@@ -1730,9 +1854,9 @@ private:
     }
   }
 
-  double normalise_linear_actuator_voltage(double voltage) const
+  double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage) const
   {
-    const double span = linear_actuator_feedback_max_voltage_ - linear_actuator_feedback_min_voltage_;
+    const double span = max_voltage - min_voltage;
 
     if (!std::isfinite(voltage) || std::fabs(span) < 1e-9)
     {
@@ -1740,40 +1864,40 @@ private:
     }
 
     return std::clamp(
-      (voltage - linear_actuator_feedback_min_voltage_) / span,
+      (voltage - min_voltage) / span,
       0.0,
       1.0);
   }
 
-  void observe_linear_actuator_raw_frame(const CANFrame & frame)
+  void observe_actuator_raw_frame(LinearActuatorHW & act, const CANFrame & frame)
   {
-    if (get_frc_device_id_from_can_id(frame.id) != linear_actuator_can_id_)
+    if (get_frc_device_id_from_can_id(frame.id) != act.can_id)
     {
       return;
     }
 
-    linear_actuator_has_raw_can_frame_ = true;
-    ++linear_actuator_raw_can_frame_count_;
+    act.has_raw_can_frame = true;
+    ++act.raw_can_frame_count;
 
-    linear_actuator_last_raw_can_id_ = frame.id;
-    linear_actuator_last_raw_dlc_ = static_cast<uint8_t>(std::min<int>(frame.dlc, 8));
-    linear_actuator_last_raw_data_.fill(0);
+    act.last_raw_can_id = frame.id;
+    act.last_raw_dlc = static_cast<uint8_t>(std::min<int>(frame.dlc, 8));
+    act.last_raw_data.fill(0);
 
-    for (uint8_t i = 0; i < linear_actuator_last_raw_dlc_; ++i)
+    for (uint8_t i = 0; i < act.last_raw_dlc; ++i)
     {
-      linear_actuator_last_raw_data_[i] = frame.data[i];
+      act.last_raw_data[i] = frame.data[i];
     }
 
     // SPARK MAX analogue sensor data is expected on Periodic Status 3.
     // Use the exact Status 3 CAN ID instead of only the API index so Status 0/1/2
     // frames cannot be mistaken for analogue feedback.
-    if (!is_linear_actuator_status3_id(frame.id, linear_actuator_can_id_))
+    if (!is_actuator_status3_id(frame.id, act.can_id))
     {
       return;
     }
 
-    linear_actuator_has_status3_frame_ = true;
-    ++linear_actuator_status3_frame_count_;
+    act.has_status3_frame = true;
+    ++act.status3_frame_count;
 
     // Per the non-FRC SPARK MAX CAN reference, Periodic Status 3 starts with
     // adcVoltage in 2q8 fixed-point format. That means the raw 16-bit
@@ -1781,23 +1905,22 @@ private:
     const uint16_t raw_adc_voltage_2q8 = le_u16_from_frame_data(frame.data, 0);
     const double analog_voltage = static_cast<double>(raw_adc_voltage_2q8) / 256.0;
 
-    linear_actuator_has_analog_voltage_candidate_ = true;
-    linear_actuator_analog_voltage_candidate_ = analog_voltage;
-    linear_actuator_analog_voltage_source_ = "status3 adcVoltage 2q8 bytes0-1 /256";
+    act.has_analog_voltage_candidate = true;
+    act.analog_voltage_candidate = analog_voltage;
+    act.analog_voltage_source = "status3 adcVoltage 2q8 bytes0-1 /256";
 
-    linear_actuator_voltage_ = analog_voltage;
-    linear_actuator_has_voltage_ = true;
-    linear_actuator_position_ = normalise_linear_actuator_voltage(analog_voltage);
+    act.voltage = analog_voltage;
+    act.has_voltage = true;
+    act.position =
+      normalise_actuator_voltage(analog_voltage, act.feedback_min_voltage, act.feedback_max_voltage);
 
-    linear_actuator_last_status3_can_id_ = frame.id;
-    linear_actuator_last_status3_dlc_ = static_cast<uint8_t>(std::min<int>(frame.dlc, 8));
-    linear_actuator_last_status3_data_.fill(0);
-    for (uint8_t i = 0; i < linear_actuator_last_status3_dlc_; ++i)
+    act.last_status3_can_id = frame.id;
+    act.last_status3_dlc = static_cast<uint8_t>(std::min<int>(frame.dlc, 8));
+    act.last_status3_data.fill(0);
+    for (uint8_t i = 0; i < act.last_status3_dlc; ++i)
     {
-      linear_actuator_last_status3_data_[i] = frame.data[i];
+      act.last_status3_data[i] = frame.data[i];
     }
-
-    return;
   }
 
   void maybe_read_feedback_like_test_script()
@@ -1869,7 +1992,8 @@ private:
       ++can_frames_read_count_;
       drained_any = true;
 
-      observe_linear_actuator_raw_frame(frame);
+      observe_actuator_raw_frame(left_actuator_, frame);
+      observe_actuator_raw_frame(right_actuator_, frame);
 
       // Parse status frames into cached telemetry if they happen to match, but
       // do not update ros2_control joint state when feedback is disabled.
@@ -1899,8 +2023,14 @@ private:
         parsed_this_frame = true;
       }
 
-      if (linear_actuator_spark_ &&
-          linear_actuator_spark_->handle_status_frame(frame, print_status_frames))
+      if (left_actuator_.spark &&
+          left_actuator_.spark->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
+      if (right_actuator_.spark &&
+          right_actuator_.spark->handle_status_frame(frame, print_status_frames))
       {
         parsed_this_frame = true;
       }
@@ -1943,7 +2073,8 @@ private:
       ++frames_read;
       ++can_frames_read_count_;
 
-      observe_linear_actuator_raw_frame(frame);
+      observe_actuator_raw_frame(left_actuator_, frame);
+      observe_actuator_raw_frame(right_actuator_, frame);
 
       bool parsed_this_frame = false;
 
@@ -1971,8 +2102,14 @@ private:
         parsed_this_frame = true;
       }
 
-      if (linear_actuator_spark_ &&
-          linear_actuator_spark_->handle_status_frame(frame, print_status_frames))
+      if (left_actuator_.spark &&
+          left_actuator_.spark->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
+      if (right_actuator_.spark &&
+          right_actuator_.spark->handle_status_frame(frame, print_status_frames))
       {
         parsed_this_frame = true;
       }
@@ -2131,10 +2268,12 @@ private:
               << " | feedback_empty=" << feedback_empty_count_
               << " | can_frames_read=" << can_frames_read_count_
               << " | can_frames_parsed=" << can_frames_parsed_count_
-              << " | actuator_commands_sent=" << linear_actuator_command_count_
+              << " | left_actuator_commands_sent=" << left_actuator_.command_count
+              << " | right_actuator_commands_sent=" << right_actuator_.command_count
               << "\n";
 
-    print_linear_actuator_status();
+    print_actuator_status(left_actuator_, "left");
+    print_actuator_status(right_actuator_, "right");
   }
 
   void print_motor_status(
@@ -2212,7 +2351,6 @@ private:
   std::string front_right_wheel_name_{"front_right_wheel_joint"};
   std::string rear_left_wheel_name_{"rear_left_wheel_joint"};
   std::string rear_right_wheel_name_{"rear_right_wheel_joint"};
-  std::string linear_actuator_joint_name_{"left_linear_actuator_joint"};
 
   std::string serial_device_{"/dev/ttyUSB0"};
 
@@ -2227,7 +2365,6 @@ private:
   bool print_status_frames_{false};
   bool debug_printing_enabled_{false};
   bool feedback_enabled_{false};
-  bool linear_actuator_ros2_control_interface_enabled_{true};
 
   double gear_ratio_{1.0};
   double command_deadband_rad_per_sec_{0.001};
@@ -2238,41 +2375,14 @@ private:
   uint8_t front_right_can_id_{2};
   uint8_t rear_left_can_id_{3};
   uint8_t rear_right_can_id_{4};
-  uint8_t linear_actuator_can_id_{5};
 
-  // Easy manual test command. Set this to one of:
-  //   0.0 = retract target  -> -1.0 duty internally
-  //   0.5 = neutral/stop    ->  0.0 duty internally
-  //   1.0 = extend target   ->  1.0 duty internally
-  // This sets the startup value of linear_actuator_command_. ros2_control can still
-  // overwrite linear_actuator_command_ at runtime through the position command interface.
-  double linear_actuator_test_position_command_{1.0};
-
-  // ros2_control position command for the linear actuator:
-  //   0.0 = retract target  -> -1.0 duty internally
-  //   0.5 = neutral/stop    ->  0.0 duty internally
-  //   1.0 = extend target   ->  1.0 duty internally
-  double linear_actuator_command_{0.5};
-
-  // ros2_control position state for the linear actuator, scaled from analogue voltage.
-  // 0.0 corresponds to linear_actuator_feedback_min_voltage_.
-  // 1.0 corresponds to linear_actuator_feedback_max_voltage_.
-  double linear_actuator_position_{0.0};
-  double linear_actuator_voltage_{0.0};
-  bool linear_actuator_has_voltage_{false};
-
-  double linear_actuator_feedback_min_voltage_{0.279};
-  double linear_actuator_feedback_max_voltage_{1.85};
-
-  // Small deadband to treat tiny accidental values as explicit stop.
-  double linear_actuator_deadband_{0.02};
-  double linear_actuator_last_sent_output_{999.0};
+  LinearActuatorHW left_actuator_;
+  LinearActuatorHW right_actuator_;
 
   std::unique_ptr<SparkMax> front_left_spark_;
   std::unique_ptr<SparkMax> front_right_spark_;
   std::unique_ptr<SparkMax> rear_left_spark_;
   std::unique_ptr<SparkMax> rear_right_spark_;
-  std::unique_ptr<SparkMax> linear_actuator_spark_;
 
   double front_left_command_{0.0};
   double front_right_command_{0.0};
@@ -2311,26 +2421,8 @@ private:
   int feedback_cycle_count_{0};
   int feedback_empty_count_{0};
   int runaway_count_{0};
-  int linear_actuator_command_count_{0};
-
-  bool linear_actuator_has_raw_can_frame_{false};
-  bool linear_actuator_has_status3_frame_{false};
-  bool linear_actuator_has_analog_voltage_candidate_{false};
-  double linear_actuator_analog_voltage_candidate_{0.0};
-  std::string linear_actuator_analog_voltage_source_{"NONE"};
-  uint32_t linear_actuator_last_raw_can_id_{0};
-  uint8_t linear_actuator_last_raw_dlc_{0};
-  std::array<uint8_t, 8> linear_actuator_last_raw_data_{};
-
-  uint32_t linear_actuator_last_status3_can_id_{0};
-  uint8_t linear_actuator_last_status3_dlc_{0};
-  std::array<uint8_t, 8> linear_actuator_last_status3_data_{};
-
-  int linear_actuator_raw_can_frame_count_{0};
-  int linear_actuator_status3_frame_count_{0};
 
   bool motors_currently_commanded_{false};
-  bool linear_actuator_currently_commanded_{false};
   bool runaway_latched_{false};
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{
@@ -2340,9 +2432,6 @@ private:
     std::chrono::steady_clock::now()};
 
   std::chrono::steady_clock::time_point next_rx_drain_time_{
-    std::chrono::steady_clock::now()};
-
-  std::chrono::steady_clock::time_point last_linear_actuator_feedback_print_time_{
     std::chrono::steady_clock::now()};
 
   std::chrono::steady_clock::time_point next_command_write_time_{
