@@ -2212,7 +2212,7 @@ private:
   std::string front_right_wheel_name_{"front_right_wheel_joint"};
   std::string rear_left_wheel_name_{"rear_left_wheel_joint"};
   std::string rear_right_wheel_name_{"rear_right_wheel_joint"};
-  std::string linear_actuator_joint_name_{"linear_actuator_joint"};
+  std::string linear_actuator_joint_name_{"left_linear_actuator_joint"};
 
   std::string serial_device_{"/dev/ttyUSB0"};
 
@@ -2227,7 +2227,7 @@ private:
   bool print_status_frames_{false};
   bool debug_printing_enabled_{false};
   bool feedback_enabled_{false};
-  bool linear_actuator_ros2_control_interface_enabled_{false};
+  bool linear_actuator_ros2_control_interface_enabled_{true};
 
   double gear_ratio_{1.0};
   double command_deadband_rad_per_sec_{0.001};
