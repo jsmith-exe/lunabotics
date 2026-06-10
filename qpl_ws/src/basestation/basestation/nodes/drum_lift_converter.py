@@ -17,7 +17,8 @@ class DrumLiftBridge(Node):
 
     def callback(self, msg):
         out = Float64MultiArray()
-        out.data = [msg.data / 2 + 0.5]  # [msg.data, msg.data] when second actuator added
+        normalised_for_weird_convention = msg.data / 2 + 0.5
+        out.data = [normalised_for_weird_convention, normalised_for_weird_convention]  # [msg.data, msg.data] when second actuator added
         self.pub.publish(out)
         self.get_logger().info(f'Converted {msg.data} to {out.data}')
 

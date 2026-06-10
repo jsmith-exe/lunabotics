@@ -35,7 +35,7 @@ constexpr double TWO_PI = 2.0 * M_PI;
 
 // Keep heartbeats fast. If this is too slow, SPARK MAX duty commands can feel
 // jumpy because the controller may briefly drop back into its neutral behaviour.
-constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(20);
+constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
 
 // Active command traffic. 20 ms keeps the SPARK MAX refreshed often enough
 // that it should not repeatedly fall back into neutral/brake behaviour.
@@ -739,6 +739,17 @@ public:
           1000,
           "Commands returned to zero. Sending immediate zero-duty stop frames to drive motors only.");
 
+        if (front_left_spark_)
+        {
+            front_left_spark_->send_heartbeats(false);
+            sleep_bus_gap();
+        }
+        // Send several stop frames to improve reliability
+        for (int i = 0; i < 3; ++i)
+        {
+            send_zero_duty_wheels_only(false);
+            sleep_bus_gap();
+        }
         maybe_send_heartbeat();
         send_zero_duty_wheels_only(false);
       }

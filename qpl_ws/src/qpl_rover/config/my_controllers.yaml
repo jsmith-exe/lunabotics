@@ -49,7 +49,7 @@ drum_lift_cont:
     joints:
 #      - drum_joint
       - left_linear_actuator_joint
-#      - right_linear_actuator_joint
+      - right_linear_actuator_joint
 
 drum_cont:
   ros__parameters:
