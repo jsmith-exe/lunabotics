@@ -35,7 +35,8 @@ qpl_packages() {
     ros-humble-ffmpeg-image-transport \
     ros-humble-nav2-common \
     ros-humble-spatio-temporal-voxel-layer \
-    ros-humble-imu-tools
+    ros-humble-imu-tools \
+    ros-humble-ament-cmake-vendor-package
   python3 -m pip install --user \
     pupil-apriltags \
     imageio \
