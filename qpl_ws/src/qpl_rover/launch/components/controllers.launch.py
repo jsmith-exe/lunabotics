@@ -58,17 +58,10 @@ def opaque_generate_launch_description(context):
         ],
     )
 
-    drum_lift_bridge = Node(
+    drum_command_interface = Node(
         package="qpl_rover",
-        executable="drum_lift_float_bridge",
-        name="drum_lift_float_bridge",
-        output="screen",
-    )
-
-    drum_bridge = Node(
-        package="qpl_rover",
-        executable="drum_float_bridge",
-        name="drum_float_bridge",
+        executable="drum_command_interface",
+        name="drum_command_interface",
         output="screen",
     )
 
@@ -122,8 +115,9 @@ def opaque_generate_launch_description(context):
     return [
         controller_manager,
         twist_mux,
-        drum_lift_bridge,
-        drum_bridge,
+        # drum_lift_bridge,
+        # drum_bridge,
+        drum_command_interface,
         delayed_joint_broad_spawner,
         delayed_diff_drive_spawner,
         delayed_drum_spawners,
