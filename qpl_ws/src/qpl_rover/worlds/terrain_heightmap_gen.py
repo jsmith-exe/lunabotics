@@ -79,6 +79,7 @@ def draw_crater_sharp(cx_m, cy_m, diameter_m):
 # -----------------------------
 # GENERATE RIGID MECHANICAL DUNES
 # -----------------------------
+"""
 y_indices, x_indices = np.indices((SIZE, SIZE), dtype=np.float32)
 
 # Wave System 1: Broad rolling dunes slanting across the field (15cm high peaks)
@@ -101,16 +102,19 @@ dune_modifier[crater_mask_accumulated] = 0.20  # Scale down noise around the rim
 
 # Layer the actual physical dunes onto our baseline ground mesh
 terrain += (dune_field_meters * dune_modifier) * METRIC_TO_GRAYSCALE
+"""
 
 # -----------------------------
 # PLACEMENT OF MULTI-SCALE HAZARDS
 # -----------------------------
+"""
 # Test Case 1: Strict Rulebook Compliant Craters (Zone 1)
 draw_crater_sharp(cx_m=0.8, cy_m=5.5, diameter_m=0.50)
 draw_crater_sharp(cx_m=2.2, cy_m=6.5, diameter_m=0.40)
 
 # Test Case 2: Massive Photo-Realistic Anomaly Crater (Zone 2)
 draw_crater_sharp(cx_m=1.2, cy_m=2.5, diameter_m=1.00)
+"""
 
 # -----------------------------
 # EXPORT ASSET

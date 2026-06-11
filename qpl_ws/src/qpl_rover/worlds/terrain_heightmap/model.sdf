@@ -9,7 +9,7 @@
         <geometry>
           <heightmap>
             <uri>model://terrain_heightmap/heightmap.png</uri>
-            <size>7.9 7.9 0.15</size>
+            <size>7.9 7.9 0</size>
           </heightmap>
         </geometry>
       </collision>
@@ -18,7 +18,7 @@
         <geometry>
           <heightmap>
             <uri>model://terrain_heightmap/heightmap.png</uri>
-            <size>7.9 7.9 0.15</size>
+            <size>7.9 7.9 0</size>
 
             <texture>
               <size>7.9</size>
