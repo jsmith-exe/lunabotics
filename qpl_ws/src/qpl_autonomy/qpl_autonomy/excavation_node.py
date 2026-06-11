@@ -22,10 +22,10 @@ class ExcavationNode(Node):
         super().__init__("excavation_node")
 
         self._drum_pub = self.create_publisher(
-            Float64, "/drum_cmd", 10
+            Float64, "/drum_spin_control/autonomy", 10
         )
         self._lift_pub = self.create_publisher(
-            Float64, "/drum_lift_cont/cmd_pos", 10
+            Float64, "/drum_lift_control/autonomy", 10
         )
 
         self._nav = NavigationManager(self)
