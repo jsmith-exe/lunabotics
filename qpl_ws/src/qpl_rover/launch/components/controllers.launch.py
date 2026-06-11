@@ -72,6 +72,13 @@ def opaque_generate_launch_description(context):
     #     output="screen",
     # )
 
+    drum_command_interface = Node(
+        package="qpl_rover",
+        executable="drum_command_interface",
+        name="drum_command_interface",
+        output="screen",
+    )
+
     joint_broad_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -124,6 +131,7 @@ def opaque_generate_launch_description(context):
         twist_mux,
         # drum_lift_bridge,
         # drum_bridge,
+        drum_command_interface,
         delayed_joint_broad_spawner,
         delayed_diff_drive_spawner,
         delayed_drum_spawners,
