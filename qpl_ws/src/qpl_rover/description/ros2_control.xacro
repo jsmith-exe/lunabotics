@@ -36,6 +36,8 @@
                 <param name="left_linear_actuator_initial_position_command">0.5</param>
                 <param name="right_linear_actuator_initial_position_command">0.5</param>
 
+                <param name="drum_can_id">7</param>
+
                 <param name="print_commands">false</param>
                 <param name="print_status">false</param>
                 <param name="debug_printing_enabled">false</param>
@@ -92,6 +94,12 @@
                     <param name="max">1.0</param>
                 </command_interface>
                 <state_interface name="position"/>
+            </joint>
+
+            <joint name="drum_spin_joint">
+                <command_interface name="velocity"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
             </joint>
 
         </ros2_control>

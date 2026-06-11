@@ -206,6 +206,7 @@ public:
     try
     {
       parse_hardware_parameters();
+      drum_can_id_ = static_cast<uint8_t>(get_int("drum_can_id", 7));
       initialise_joint_storage();
     }
     catch (const std::exception & e)
@@ -344,6 +345,16 @@ public:
         &right_actuator_.position);
     }
 
+    state_interfaces.emplace_back(
+      "drum_spin_joint",
+      hardware_interface::HW_IF_POSITION,
+      &drum_position_);
+
+    state_interfaces.emplace_back(
+      "drum_spin_joint",
+      hardware_interface::HW_IF_VELOCITY,
+      &drum_velocity_);
+
     return state_interfaces;
   }
 
@@ -387,6 +398,11 @@ public:
         hardware_interface::HW_IF_POSITION,
         &right_actuator_.command);
     }
+
+    command_interfaces.emplace_back(
+      "drum_spin_joint",
+      hardware_interface::HW_IF_VELOCITY,
+      &drum_command_);
 
     return command_interfaces;
   }
@@ -452,6 +468,11 @@ public:
         right_actuator_.can_id,
         static_cast<float>(gear_ratio_));
 
+      drum_spark_ = std::make_unique<SparkMax>(
+        can_,
+        drum_can_id_,
+        static_cast<float>(gear_ratio_));
+
       front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
       front_right_spark_->set_native_velocity_pid_slot(pid_slot_);
       rear_left_spark_->set_native_velocity_pid_slot(pid_slot_);
@@ -462,6 +483,7 @@ public:
       RCLCPP_INFO(logger_, "Front right SPARK MAX ID: %u", front_right_can_id_);
       RCLCPP_INFO(logger_, "Rear left SPARK MAX ID: %u", rear_left_can_id_);
       RCLCPP_INFO(logger_, "Rear right SPARK MAX ID: %u", rear_right_can_id_);
+      RCLCPP_INFO(logger_, "Drum spin SPARK MAX ID: %u", drum_can_id_);
       RCLCPP_INFO(logger_, "Left linear actuator SPARK MAX ID: %u", left_actuator_.can_id);
       RCLCPP_INFO(logger_, "Right linear actuator SPARK MAX ID: %u", right_actuator_.can_id);
       RCLCPP_INFO(logger_, "Left linear actuator test position command starts at: %.3f", left_actuator_.test_position_command);
@@ -538,6 +560,13 @@ public:
     motors_currently_commanded_ = false;
     runaway_latched_ = false;
 
+    drum_command_ = 0.0;
+    drum_position_ = 0.0;
+    drum_velocity_ = 0.0;
+    drum_position_offset_ = 0.0;
+    drum_position_offset_valid_ = false;
+    next_drum_command_write_time_ = std::chrono::steady_clock::now();
+
     next_heartbeat_time_ = std::chrono::steady_clock::now();
     next_feedback_read_time_ = std::chrono::steady_clock::now();
     next_rx_drain_time_ = std::chrono::steady_clock::now();
@@ -607,6 +636,11 @@ public:
       if (right_actuator_.spark)
       {
         right_actuator_.spark->stop(false);
+      }
+
+      if (drum_spark_)
+      {
+        drum_spark_->stop(false);
       }
 
       send_stop_for_duration(EXTRA_STOP_TIME);
@@ -679,6 +713,7 @@ public:
     // Open-loop actuator commands are intentionally independent of the wheels.
     write_actuator_open_loop(left_actuator_, "left");
     write_actuator_open_loop(right_actuator_, "right");
+    write_drum_velocity();
 
     const double front_left_command =
       clean_command(front_left_command_, command_deadband_rad_per_sec_);
@@ -1363,6 +1398,11 @@ private:
     {
       right_actuator_.spark->set_duty_cycle(0.0f, print);
     }
+
+    if (drum_spark_)
+    {
+      drum_spark_->set_duty_cycle(0.0f, print);
+    }
   }
 
   bool detect_runaway(
@@ -1682,6 +1722,35 @@ private:
         label.c_str(),
         act.can_id);
     }
+  }
+
+  void write_drum_velocity()
+  {
+    if (!drum_spark_)
+    {
+      return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_drum_command_write_time_)
+    {
+      return;
+    }
+    next_drum_command_write_time_ = now + COMMAND_WRITE_PERIOD;
+
+    const double command = std::isfinite(drum_command_) ? drum_command_ : 0.0;
+    const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
+
+    RCLCPP_WARN_THROTTLE(
+      logger_,
+      *rclcpp::Clock::make_shared(),
+      500,
+      "DRUM: cmd=%.4f duty_sent=%.4f",
+      command,
+      duty);
+
+    drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
+    sleep_bus_gap();
   }
 
   void maybe_print_actuator_feedback(LinearActuatorHW & act, const std::string & label)
@@ -2046,6 +2115,12 @@ private:
         parsed_this_frame = true;
       }
 
+      if (drum_spark_ &&
+          drum_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
       if (parsed_this_frame)
       {
         ++can_frames_parsed_count_;
@@ -2125,6 +2200,12 @@ private:
         parsed_this_frame = true;
       }
 
+      if (drum_spark_ &&
+          drum_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
       if (parsed_this_frame)
       {
         parsed_any = true;
@@ -2169,6 +2250,13 @@ private:
       rear_right_velocity_,
       rear_right_position_offset_,
       rear_right_position_offset_valid_);
+
+    update_joint_state_from_telemetry(
+      drum_spark_,
+      drum_position_,
+      drum_velocity_,
+      drum_position_offset_,
+      drum_position_offset_valid_);
   }
 
   void update_joint_state_from_telemetry(
@@ -2390,6 +2478,12 @@ private:
   LinearActuatorHW left_actuator_;
   LinearActuatorHW right_actuator_;
 
+  std::unique_ptr<SparkMax> drum_spark_;
+  uint8_t drum_can_id_{7};
+  double drum_command_{0.0};
+  std::chrono::steady_clock::time_point next_drum_command_write_time_{
+    std::chrono::steady_clock::now()};
+
   std::unique_ptr<SparkMax> front_left_spark_;
   std::unique_ptr<SparkMax> front_right_spark_;
   std::unique_ptr<SparkMax> rear_left_spark_;
@@ -2435,6 +2529,11 @@ private:
 
   bool motors_currently_commanded_{false};
   bool runaway_latched_{false};
+
+  double drum_position_{0.0};
+  double drum_velocity_{0.0};
+  double drum_position_offset_{0.0};
+  bool drum_position_offset_valid_{false};
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{
     std::chrono::steady_clock::now()};
