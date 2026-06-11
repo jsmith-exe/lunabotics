@@ -52,7 +52,7 @@ class ControllerInputs:
     TOUCHPAD_BUTTON = 'touchpad_button'
 
 NAV_TOPIC = '/cmd_vel_teleop'
-DRUM_ROTATION_TOPIC = '/drum_cmd'
-DRUM_LIFT_TOPIC = 'cmd_drum_lift'
+DRUM_ROTATION_TOPIC = '/drum_spin_control/teleop'
+DRUM_LIFT_TOPIC = '/drum_lift_control/teleop'
 PUBLISHER_UPDATE_RATE = 2
 INVERT_BACKWARDS_STEERING = True
