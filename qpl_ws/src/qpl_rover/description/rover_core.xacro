@@ -14,15 +14,15 @@
   <!-- ========================================================= -->
 
   <!-- Bottom cuboid -->
-  <xacro:property name="base_x" value="0.875"/>
-  <xacro:property name="base_y" value="0.5806"/>
-  <xacro:property name="base_z" value="0.135"/>
+  <xacro:property name="base_x" value="0.925"/>
+  <xacro:property name="base_y" value="0.745"/>
+  <xacro:property name="base_z" value="0.025"/>
 
   <!-- Top trapezoid section -->
   <!-- top_x smaller than base_x gives the trapezoid side profile -->
-  <xacro:property name="top_x" value="0.475"/>
+  <xacro:property name="top_x" value="0.53"/>
   <xacro:property name="top_y" value="${base_y}"/>
-  <xacro:property name="top_z" value="0.05"/>
+  <xacro:property name="top_z" value="${base_z}"/>
   <xacro:property name="trap_height" value="0.225"/>
 
   <!-- Frame/support thickness -->
