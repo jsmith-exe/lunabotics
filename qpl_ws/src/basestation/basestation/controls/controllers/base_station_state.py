@@ -29,7 +29,6 @@ def generate_topic_state():
 @dataclass
 class BaseStationState:
     """ Stores the state of the base station, for communication between instances. """
-    desktop_controller_enabled: bool = False # Not yet used
-    physical_controller_enabled: bool = False # Not yet used
+    teleop_enabled: bool = True
     control_map: dict = field(default_factory=lambda: default_control_map)
     topic_target_states: dict = field(default_factory=generate_topic_state)
