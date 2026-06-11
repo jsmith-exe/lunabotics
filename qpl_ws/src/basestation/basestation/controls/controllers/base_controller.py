@@ -27,6 +27,7 @@ class BaseController:
         :param pressed: if the button was pressed (true) or released (false).
         :param control_map: the control map to use.
         """
+        if not self.state.teleop_enabled: return
         command: Command = control_map.get(button)
         if command is None:
             return
@@ -44,6 +45,7 @@ class BaseController:
         :param normalised_value: a value from -1 to 1 from the analogue input.
         :param control_map: the control map to use.
         """
+        if not self.state.teleop_enabled: return
         command: Command = control_map.get(input_)
         prev_value = self.previous_analogue_values.get(input_)
         if (command is None or
