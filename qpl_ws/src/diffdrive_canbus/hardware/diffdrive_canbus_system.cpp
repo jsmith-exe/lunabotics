@@ -471,7 +471,7 @@ public:
       drum_spark_ = std::make_unique<SparkMax>(
         can_,
         drum_can_id_,
-        static_cast<float>(gear_ratio_));
+        static_cast<float>(125.0));
 
       front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
       front_right_spark_->set_native_velocity_pid_slot(pid_slot_);
