@@ -58,20 +58,6 @@ def opaque_generate_launch_description(context):
         ],
     )
 
-    # drum_lift_bridge = Node(
-    #     package="qpl_rover",
-    #     executable="drum_lift_float_bridge",
-    #     name="drum_lift_float_bridge",
-    #     output="screen",
-    # )
-    #
-    # drum_bridge = Node(
-    #     package="qpl_rover",
-    #     executable="drum_float_bridge",
-    #     name="drum_float_bridge",
-    #     output="screen",
-    # )
-
     drum_command_interface = Node(
         package="qpl_rover",
         executable="drum_command_interface",
