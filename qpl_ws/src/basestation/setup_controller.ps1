@@ -10,10 +10,14 @@ if (Test-Path -Path "venv") {
     Remove-Item -Recurse -Force "venv"
 }
 
-# Create virtual environment and activate
+# Create virtual environment, activate, and ensure pip is installed
 python3.10 -m venv venv
-venv\Scripts\activate
+.\venv\Scripts\Activate.ps1
+.\venv\Scripts\python.exe -m ensurepip --upgrade
 
 # Install requirements
-pip install pynput==1.8.1
-pip install pydualsense==0.7.5
+uv pip install pynput==1.8.1
+uv pip install pydualsense==0.7.5
+
+Rename-Item -Path ".\venv\Lib" -NewName "libtemp"
+Rename-Item -Path ".\venv\libtemp" -NewName "lib"

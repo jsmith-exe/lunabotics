@@ -27,6 +27,13 @@ powershell.exe
 
 If it fails, the following steps copied from [a comment on reddit](https://www.reddit.com/r/bashonubuntuonwindows/comments/11vx61n/wsl2_error_cannot_execute_binary_file_exec_format/) may help.
 
+If successful, you will likely want to disable powershell execution restrictions. In powershell, run:
+```powershell
+Set-ExecutionPolicy Unrestricted
+```
+This will allow you to run any powershell script, at the cost of disabling a safeguard.
+It means you can run stuff that might not be safe, but that's just Tuesday.
+
 ---
 1. Create binformat config file in WSL (https://github.com/microsoft/WSL/issues/8986#issuecomment-1332413859)
 ```bash
