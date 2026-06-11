@@ -47,7 +47,6 @@ diff_cont:
 drum_lift_cont:
   ros__parameters:
     joints:
-#      - drum_joint
       - left_linear_actuator_joint
       - right_linear_actuator_joint
 
