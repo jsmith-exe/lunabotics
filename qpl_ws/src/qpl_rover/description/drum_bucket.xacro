@@ -61,6 +61,56 @@
     </xacro:inertial_cylinder>
   </link>
 
+  <link name="left_linear_actuator_link">
+    <visual>
+      <geometry>
+        <box size="0.05 0.05 0.20"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0 1 0 1"/>
+      </material>
+    </visual>
+
+    <collision>
+      <geometry>
+        <box size="0.05 0.05 0.20"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <mass value="0.1"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="0.001" ixy="0" ixz="0"
+               iyy="0.001" iyz="0"
+               izz="0.001"/>
+    </inertial>
+  </link>
+
+  <link name="right_linear_actuator_link">
+    <visual>
+      <geometry>
+        <box size="0.05 0.05 0.20"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+
+    <collision>
+      <geometry>
+        <box size="0.05 0.05 0.20"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <mass value="0.1"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="0.001" ixy="0" ixz="0"
+               iyy="0.001" iyz="0"
+               izz="0.001"/>
+    </inertial>
+  </link>
+
   <!-- ========================================================= -->
   <!-- Joints                                                     -->
   <!-- ========================================================= -->
@@ -68,8 +118,20 @@
   <!-- Prismatic lift along Z, anchored to chassis -->
   <joint name="left_linear_actuator_joint" type="prismatic">
     <parent link="base_link"/>
-    <child link="drum_lift_link"/>
-    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <child link="left_linear_actuator_link"/>
+    <origin xyz="0.0 0.2 0.30" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${drum_lift_lower}"
+           upper="${drum_lift_upper}"
+           effort="${drum_lift_effort}"
+           velocity="${drum_lift_velocity}"/>
+    <dynamics damping="5.0" friction="50.0"/>
+  </joint>
+
+  <joint name="right_linear_actuator_joint" type="prismatic">
+    <parent link="base_link"/>
+    <child link="right_linear_actuator_link"/>
+    <origin xyz="0.0 -0.2 0.30" rpy="0 0 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="${drum_lift_lower}"
            upper="${drum_lift_upper}"
@@ -86,6 +148,12 @@
     <axis xyz="0 1 0"/>
     <limit effort="${drum_spin_effort}" velocity="${drum_spin_velocity}"/>
     <dynamics damping="0.1" friction="0.05"/>
+  </joint>
+
+  <joint name="drum_mount_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="drum_lift_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
   <!-- ========================================================= -->
