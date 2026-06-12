@@ -26,7 +26,7 @@ class AprilTagObserver(Node):
         self.bridge = CvBridge()
         self.cam_params = {'front': None, 'rear': None}
         self.tag_id = 0
-        self.tag_size = 0.4 # Tag size is measured between edges of tag's BLACK OUTLINE
+        self.tag_size = 0.32 # Tag size is measured between edges of tag's BLACK OUTLINE
 
         # 2. CONFIGURE DETECTOR
         # quad_decimate=2.0 and nthreads=4 to prevent EKF "Failed to meet update rate" errors
@@ -45,16 +45,15 @@ class AprilTagObserver(Node):
         tag_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
         self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
 
-        # Front Camera: 25cm ahead, 4cm above base_link (which is 19cm above ground)
-        # Total height = 0.19 + 0.04 = 0.23m
-        self.T_footprint_cam_front = self.make_tf_matrix([0.25, 0, 0.23], [0, 0, 0, 1])
+        # Front Camera
+        self.T_footprint_cam_front = self.make_tf_matrix([0.465, 0, 0.1825], [0, 0, 0, 1])
 
-        # Rear Camera: 25cm behind, 0.23m high, rotated 180 deg
+        # Rear Camera
         r_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
-        self.T_footprint_cam_rear = self.make_tf_matrix([-0.25, 0, 0.23], r_q)
+        self.T_footprint_cam_rear = self.make_tf_matrix([-0.465, 0, 0.1825], r_q)
 
         # The vertical distance from base_footprint (ground) to base_link (chassis center)
-        self.footprint_to_link_z = 0.19
+        self.footprint_to_link_z = 0.1625
 
         # 4. SETUP PUBLISHER
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/apriltag/pose', 10)

@@ -98,13 +98,13 @@ controller_server:
         - PathAlign
         - PathDist
         - GoalDist
-      BaseObstacle.scale: 1.0
-      PathAlign.scale: 12.0
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 24.0
       PathAlign.forward_point_distance: 0.10
-      GoalAlign.scale: 10.0
+      GoalAlign.scale: 18.0
       GoalAlign.forward_point_distance: 0.10
-      PathDist.scale: 12.0
-      GoalDist.scale: 10.0
+      PathDist.scale: 24.0
+      GoalDist.scale: 18.0
       RotateToGoal.scale: 20.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
@@ -121,62 +121,58 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      robot_radius: 0.35
+      robot_radius: 0.30
       transform_tolerance: 0.5
       always_send_full_costmap: true
-      plugins: ["stvl_layer", "inflation_layer"]
+      plugins: ["obstacle_layer", "inflation_layer"]
 
-      stvl_layer:
-        plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
         publish_voxel_grid: false
-        origin_z: -0.5
-        z_resolution: 0.05
-        z_voxels: 32
+        origin_z: -0.15
+        z_resolution: 0.05           # Return to 5cm for fine geometry
+        z_voxels: 16
         unknown_threshold: 15
-        mark_threshold: 2
+        mark_threshold: 2            # Requires at least 2 consecutive hits (filters noise)
         combination_method: 1
 
-        voxel_decay: 1.0
-        decay_model: 0
-        model_type: 0
-
-        # STVL Rule: Sources must be formatted as a formal YAML array list
-        observation_sources: "front_camera_raw rear_camera_raw"
+        observation_sources: front_camera_raw rear_camera_raw
 
         front_camera_raw:
-          topic: /depth_camera_front/depth/points
+          topic: /depth_camera_front/points
           data_type: "PointCloud2"
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 5.0
-          min_obstacle_height: -0.5
+          raytrace_max_range: 2.5
+          min_obstacle_height: 0.04   # Drop slightly to 4cm to catch lower parts of obstacles
           max_obstacle_height: 1.2
-          # STVL specific clearing extensions
-          vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
+          vertical_fov_angle: 0.785   # Helps Nav2 know the camera's vertical boundaries for clearing
 
         rear_camera_raw:
-          topic: /depth_camera_rear/depth/points
+          topic: /depth_camera_rear/points
           data_type: "PointCloud2"
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 5.0
-          min_obstacle_height: -0.5
+          raytrace_max_range: 2.5
+          min_obstacle_height: 0.04
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.80
+        inflation_radius: 0.45
+
+  local_costmap_client:
+    ros__parameters:
+      use_sim_time: true
+
+  local_costmap_rclcpp_node:
+    ros__parameters:
+      use_sim_time: true
 
 global_costmap:
   global_costmap:
@@ -186,65 +182,64 @@ global_costmap:
       publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_footprint
-      rolling_window: true
+      rolling_window: true                   # Allows mapping without a static map server
       width: 30
       height: 30
       resolution: 0.05
-      robot_radius: 0.35
+      robot_radius: 0.30
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
-      plugins: ["stvl_layer", "inflation_layer"]
 
-      stvl_layer:
-        plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+      plugins: ["obstacle_layer", "inflation_layer"]
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
         publish_voxel_grid: false
-        origin_z: -0.5
-        z_resolution: 0.05
-        z_voxels: 32
+        origin_z: -0.15
+        z_resolution: 0.05           # Return to 5cm for fine geometry
+        z_voxels: 16
         unknown_threshold: 15
-        mark_threshold: 2
+        mark_threshold: 2            # Requires at least 2 consecutive hits (filters noise)
         combination_method: 1
 
-        voxel_decay: 2.0
-        decay_model: 0
-        model_type: 0
-
-        observation_sources: "front_camera_raw rear_camera_raw"
+        observation_sources: front_camera_raw rear_camera_raw
 
         front_camera_raw:
-          topic: /depth_camera_front/depth/points
+          topic: /depth_camera_front/points
           data_type: "PointCloud2"
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 5.0
-          min_obstacle_height: -0.5
+          raytrace_max_range: 2.5
+          min_obstacle_height: 0.04   # Drop slightly to 4cm to catch lower parts of obstacles
           max_obstacle_height: 1.2
-          vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
+          vertical_fov_angle: 0.785   # Helps Nav2 know the camera's vertical boundaries for clearing
 
         rear_camera_raw:
-          topic: /depth_camera_rear/depth/points
+          topic: /depth_camera_rear/points
           data_type: "PointCloud2"
           clearing: true
           marking: true
           obstacle_max_range: 2.0
-          raytrace_max_range: 5.0
-          min_obstacle_height: -0.5
+          raytrace_max_range: 2.5
+          min_obstacle_height: 0.04
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785
-          vertical_fov_padding: 0.05
-          horizontal_fov_angle: 1.047
-          decay_acceleration: 0.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.90
+        inflation_radius: 0.55
+
+  global_costmap_client:
+    ros__parameters:
+      use_sim_time: true
+
+  global_costmap_rclcpp_node:
+    ros__parameters:
+      use_sim_time: true
 
 planner_server:
   ros__parameters:
