@@ -14,7 +14,7 @@ buffer = 0.20  # 20cm buffer to allow for jitter and edge-driving
 
 x_min, x_max = 0.0 - buffer, 4.4 + buffer
 y_min, y_max = 0.0 - buffer, 7.9 + buffer
-z_limit = 0.20  # Z is usually the noisiest; give it a little more room
+z_limit = 0.50  # Z is usually the noisiest; give it a little more room
 
 
 class AprilTagObserver(Node):
@@ -46,14 +46,11 @@ class AprilTagObserver(Node):
         self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
 
         # Front Camera
-        self.T_footprint_cam_front = self.make_tf_matrix([0.465, 0, 0.1825], [0, 0, 0, 1])
+        self.T_footprint_cam_front = self.make_tf_matrix([0.465, 0, 0.02], [0, 0, 0, 1])
 
         # Rear Camera
         r_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
-        self.T_footprint_cam_rear = self.make_tf_matrix([-0.465, 0, 0.1825], r_q)
-
-        # The vertical distance from base_footprint (ground) to base_link (chassis center)
-        self.footprint_to_link_z = 0.1625
+        self.T_footprint_cam_rear = self.make_tf_matrix([-0.465, 0, 0.02], r_q)
 
         # 4. SETUP PUBLISHER
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/apriltag/pose', 10)
@@ -162,9 +159,8 @@ class AprilTagObserver(Node):
             in_z = abs(pos[2]) <= z_limit
 
             if not (in_x and in_y and in_z):
-                # Log it so you can see if you're being too strict
-                self.get_logger().warn(f"Ghost Rejected at X:{pos[0]:.2f}")
-                # continue
+                self.get_logger().warn(f"Ghost Rejected at X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}; in_x={in_x}, in_y={in_y}, in_z={in_z}")
+                continue
 
             # If we passed the fence, publish to EKF
             self.publish_pose(T_map_footprint, msg.header.stamp)
