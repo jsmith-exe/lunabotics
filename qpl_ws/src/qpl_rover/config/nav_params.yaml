@@ -46,7 +46,8 @@ controller_server:
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.0
     min_theta_velocity_threshold: 0.001
-    failure_tolerance: 0.5
+    # Reduce failure tolerance to force a costmap clear quicker when stuck
+    failure_tolerance: 0.3 # Default is 0.5. Lower means faster recovery trigger.
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["goal_checker"]
     controller_plugins: ["FollowPath"]
@@ -59,7 +60,8 @@ controller_server:
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
-      xy_goal_tolerance: 0.20
+      # TOLERANCE NOTE: If robot oscillates at the goal, increase these slightly.
+      xy_goal_tolerance: 0.15 # Tightened slightly if precision is needed, match with DWB
       yaw_goal_tolerance: 0.20
 
     FollowPath:
@@ -79,10 +81,12 @@ controller_server:
       decel_lim_x: -0.8
       decel_lim_y: 0.0
       decel_lim_theta: -1.5
-      vx_samples: 20
-      vy_samples: 1
-      vtheta_samples: 20
-      sim_time: 1.5
+
+      # Trajectory Sampling - Reduce if CPU utilization spikes:
+      vx_samples: 5
+      vy_samples: 1 # Keep at 1 for differential drive (no strafing)
+      vtheta_samples: 5
+      sim_time: 1.5 # How many seconds into the future the planner simulates
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.5
@@ -90,6 +94,11 @@ controller_server:
       trans_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: true
       stateful: true
+
+      # CRITIC TUNING NOTES:
+      # High PathAlign/PathDist = strictly stays on global path.
+      # High GoalAlign/GoalDist = rushes toward the goal shortcutting the path.
+      # High BaseObstacle = prioritizes safety around obstacles.
       critics:
         - RotateToGoal
         - Oscillation
@@ -98,13 +107,13 @@ controller_server:
         - PathAlign
         - PathDist
         - GoalDist
-      BaseObstacle.scale: 0.02
-      PathAlign.scale: 24.0
+      BaseObstacle.scale: 25.0
+      PathAlign.scale: 5.0
       PathAlign.forward_point_distance: 0.10
-      GoalAlign.scale: 18.0
+      GoalAlign.scale: 5.0
       GoalAlign.forward_point_distance: 0.10
-      PathDist.scale: 24.0
-      GoalDist.scale: 18.0
+      PathDist.scale: 5.0
+      GoalDist.scale: 5.0
       RotateToGoal.scale: 20.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
@@ -121,7 +130,7 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      robot_radius: 0.30
+      robot_radius: 0.70
       transform_tolerance: 0.5
       always_send_full_costmap: true
       plugins: ["obstacle_layer", "inflation_layer"]
@@ -131,10 +140,10 @@ local_costmap:
         enabled: true
         publish_voxel_grid: false
         origin_z: -0.15
-        z_resolution: 0.05           # Return to 5cm for fine geometry
+        z_resolution: 0.05
         z_voxels: 16
         unknown_threshold: 15
-        mark_threshold: 2            # Requires at least 2 consecutive hits (filters noise)
+        mark_threshold: 2
         combination_method: 1
 
         observation_sources: front_camera_raw rear_camera_raw
@@ -144,27 +153,33 @@ local_costmap:
           data_type: "PointCloud2"
           clearing: true
           marking: true
-          obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
-          min_obstacle_height: 0.04   # Drop slightly to 4cm to catch lower parts of obstacles
+          obstacle_max_range: 1.5   # Only remember obstacles up to 1.5m
+          raytrace_max_range: 2.0   # Clear out memory up to 2.0m away
+          min_obstacle_height: 0.04
           max_obstacle_height: 1.2
-          vertical_fov_angle: 0.785   # Helps Nav2 know the camera's vertical boundaries for clearing
+          vertical_fov_angle: 0.785
 
         rear_camera_raw:
           topic: /depth_camera_rear/points
           data_type: "PointCloud2"
           clearing: true
           marking: true
-          obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
+          obstacle_max_range: 1.5
+          raytrace_max_range: 2.0
           min_obstacle_height: 0.04
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
+        # COST SCALING NOTE:
+        # Lower = smoother/wider turns around corners.
+        # Higher = tight, aggressive turns (closer to walls).
         cost_scaling_factor: 3.0
-        inflation_radius: 0.45
+
+        # INFLATION RADIUS NOTE:
+        # Must be > robot_radius. Anything inside this radius + robot_radius will receive a high-cost penalization.
+        inflation_radius: 0.90
 
   local_costmap_client:
     ros__parameters:
@@ -182,11 +197,11 @@ global_costmap:
       publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_footprint
-      rolling_window: true                   # Allows mapping without a static map server
+      rolling_window: true
       width: 30
       height: 30
       resolution: 0.05
-      robot_radius: 0.30
+      robot_radius: 0.70
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
@@ -198,10 +213,10 @@ global_costmap:
         enabled: true
         publish_voxel_grid: false
         origin_z: -0.15
-        z_resolution: 0.05           # Return to 5cm for fine geometry
+        z_resolution: 0.05
         z_voxels: 16
         unknown_threshold: 15
-        mark_threshold: 2            # Requires at least 2 consecutive hits (filters noise)
+        mark_threshold: 2
         combination_method: 1
 
         observation_sources: front_camera_raw rear_camera_raw
@@ -211,27 +226,33 @@ global_costmap:
           data_type: "PointCloud2"
           clearing: true
           marking: true
-          obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
-          min_obstacle_height: 0.04   # Drop slightly to 4cm to catch lower parts of obstacles
+          obstacle_max_range: 1.5
+          raytrace_max_range: 2.0
+          min_obstacle_height: 0.04
           max_obstacle_height: 1.2
-          vertical_fov_angle: 0.785   # Helps Nav2 know the camera's vertical boundaries for clearing
+          vertical_fov_angle: 0.785
 
         rear_camera_raw:
           topic: /depth_camera_rear/points
           data_type: "PointCloud2"
           clearing: true
           marking: true
-          obstacle_max_range: 2.0
-          raytrace_max_range: 2.5
+          obstacle_max_range: 1.5
+          raytrace_max_range: 2.0
           min_obstacle_height: 0.04
           max_obstacle_height: 1.2
           vertical_fov_angle: 0.785
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
+        # COST SCALING NOTE:
+        # Lower = smoother/wider turns around corners.
+        # Higher = tight, aggressive turns (closer to walls).
         cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+
+        # INFLATION RADIUS NOTE:
+        # Must be > robot_radius. Anything inside this radius + robot_radius will receive a high-cost penalization.
+        inflation_radius: 0.90
 
   global_costmap_client:
     ros__parameters:
@@ -250,8 +271,8 @@ planner_server:
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
       tolerance: 0.5
-      use_astar: false
-      allow_unknown: true
+      use_astar: true # Speeds up global path calculations dramatically.
+      allow_unknown: true # Allows planner to route through unmapped/unknown space
 
 planner_server_rclcpp_node:
   ros__parameters:
@@ -295,6 +316,7 @@ velocity_smoother:
     smoothing_frequency: 10.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
+    # SMOOTHER NOTE: Limits must be >= DWB Local Planner limits to prevent choking commands
     max_velocity: [0.8, 0.0, 0.8]
     min_velocity: [0.0, 0.0, -0.8]
     max_accel: [1.0, 0.0, 2.0]
