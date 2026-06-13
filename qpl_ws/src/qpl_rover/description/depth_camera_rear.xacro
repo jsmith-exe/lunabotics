@@ -49,7 +49,8 @@
       <update_rate>10</update_rate>
 
       <camera>
-        <horizontal_fov>1.5708</horizontal_fov>
+        <horizontal_fov>1.019272</horizontal_fov>
+        <vertical_fov>2</vertical_fov>
         <image>
           <format>B8G8R8</format>
           <width>320</width>
