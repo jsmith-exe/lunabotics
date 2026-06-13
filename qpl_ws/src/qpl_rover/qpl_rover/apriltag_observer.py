@@ -163,6 +163,7 @@ class AprilTagObserver(Node):
                 continue
 
             # If we passed the fence, publish to EKF
+            #self.get_logger().warn(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
             self.publish_pose(T_map_footprint, msg.header.stamp)
 
     def publish_pose(self, T, stamp):
