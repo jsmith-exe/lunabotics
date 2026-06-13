@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from ..constants import ControllerInputs, ControlMode, MessageOptions, NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, \
-    BUTTON_FACTOR
+    MOTOR_THROTTLE_BUTTON_FACTOR
 
 
 @dataclass
@@ -19,25 +19,25 @@ Con = ControllerInputs
 
 default_control_map = {
     'mode': ControlMode.STANDARD,
-    Con.DPAD_UP: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, BUTTON_FACTOR),
-    Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -BUTTON_FACTOR),
-    Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -BUTTON_FACTOR),
-    Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, BUTTON_FACTOR),
+    Con.DPAD_UP: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, MOTOR_THROTTLE_BUTTON_FACTOR),
+    Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -MOTOR_THROTTLE_BUTTON_FACTOR),
+    Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1),
+    Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, 1),
     # Con.LEFT_JOYSTICK_X: Command(NAV_TOPIC, TwistOptions.ANGULAR_Z, -1),
     # Con.LEFT_JOYSTICK_Y: Command(NAV_TOPIC, TwistOptions.LINEAR_X),
-    Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -BUTTON_FACTOR),
+    Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1),
     Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X),
 
     Con.L2_ANALOGUE_STICK: Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -1),
     Con.R2_ANALOGUE_STICK: Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT),
     Con.LEFT_JOYSTICK_Y: Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT),
 
-    'w': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, BUTTON_FACTOR),
-    'a': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, BUTTON_FACTOR),
-    's': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -BUTTON_FACTOR),
-    'd': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -BUTTON_FACTOR),
-    'left': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -BUTTON_FACTOR),
-    'right': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, BUTTON_FACTOR),
-    'up': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, BUTTON_FACTOR),
-    'down': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, -BUTTON_FACTOR),
+    'w': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, MOTOR_THROTTLE_BUTTON_FACTOR),
+    'a': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, 1),
+    's': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -MOTOR_THROTTLE_BUTTON_FACTOR),
+    'd': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1),
+    'left': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -MOTOR_THROTTLE_BUTTON_FACTOR),
+    'right': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, MOTOR_THROTTLE_BUTTON_FACTOR),
+    'up': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, 1),
+    'down': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, -1),
 }
