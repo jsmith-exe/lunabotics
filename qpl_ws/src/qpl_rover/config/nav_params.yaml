@@ -133,8 +133,16 @@ local_costmap:
       robot_radius: 0.70
       transform_tolerance: 0.5
       always_send_full_costmap: true
-      plugins: ["obstacle_layer", "inflation_layer"]
 
+      ### Costmap mask addition - comment out if need be ###
+      filters: ["keepout_filter"]
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: "/costmap_filter_info"
+      ### end of costmap mask addition ###
+
+      plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
@@ -145,7 +153,6 @@ local_costmap:
         unknown_threshold: 15
         mark_threshold: 2
         combination_method: 1
-
         observation_sources: front_camera_raw rear_camera_raw
 
         front_camera_raw:
@@ -206,8 +213,15 @@ global_costmap:
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
-      plugins: ["obstacle_layer", "inflation_layer"]
+      ### Costmap mask addition - comment out if need be ###
+      filters: [ "keepout_filter" ]
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: true
+        filter_info_topic: "/costmap_filter_info"
+      ### end of costmap mask addition ###
 
+      plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
         enabled: true
@@ -218,7 +232,6 @@ global_costmap:
         unknown_threshold: 15
         mark_threshold: 2
         combination_method: 1
-
         observation_sources: front_camera_raw rear_camera_raw
 
         front_camera_raw:
@@ -245,13 +258,7 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        # COST SCALING NOTE:
-        # Lower = smoother/wider turns around corners.
-        # Higher = tight, aggressive turns (closer to walls).
         cost_scaling_factor: 3.0
-
-        # INFLATION RADIUS NOTE:
-        # Must be > robot_radius. Anything inside this radius + robot_radius will receive a high-cost penalization.
         inflation_radius: 0.90
 
   global_costmap_client:
@@ -287,10 +294,17 @@ behavior_server:
     behavior_plugins: ["spin", "backup", "wait"]
     spin:
       plugin: "nav2_behaviors/Spin"
+      spin_dist: 3.14 # Distance to spin in radians (180 degrees to fully clear/sweep camera views)
+      time_allowance: 5.0 # Max time allowed to complete execution before timing out
+      max_rotational_vel: 0.4 # Target angular speed
     backup:
       plugin: "nav2_behaviors/BackUp"
+      backup_dist: 0.30 # Distance to reverse in meters
+      time_allowance: 4.0
+      speed: 0.10 # Target linear speed (m/s) for backing up
     wait:
       plugin: "nav2_behaviors/Wait"
+      time_allowance: 0.5 # Minimal wait; just a brief pause to let the controllers reset
     global_frame: map
     robot_base_frame: base_footprint
     transform_tolerance: 0.5
@@ -326,6 +340,17 @@ velocity_smoother:
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 1.0
 
+### Costmap mask addition - comment out if need be ###
+costmap_filter_info_server:
+  ros__parameters:
+    use_sim_time: true
+    type: 0
+    filter_info_topic: "/costmap_filter_info"
+    mask_topic: "/keepout_filter_mask"
+    base_frame: "map"
+    flip_y: false
+### end of costmap mask addition ###
+
 lifecycle_manager_navigation:
   ros__parameters:
     use_sim_time: true
@@ -337,3 +362,4 @@ lifecycle_manager_navigation:
       - bt_navigator
       - waypoint_follower
       - velocity_smoother
+      - costmap_filter_info_server

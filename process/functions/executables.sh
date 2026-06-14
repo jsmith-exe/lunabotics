@@ -11,6 +11,11 @@ alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 alias qpl_restart_daemon="ros2 daemon stop && ros2 daemon start"
 alias qpl_bro="qpl_build && qpl_rover"
 
+alias qpl_logs_rec="ros2 run basestation log_recorder"
+alias qpl_logs_cat="cat ~/rosout_combined.log"
+alias qpl_logs_clear="rm ~/rosout_combined.log"
+
+
 # -------------------- Simulation + RViz --------------------
 # Add 'export LIBGL_ALWAYS_SOFTWARE=true' to bashrc if problems with rendering
 qpl_sim() {

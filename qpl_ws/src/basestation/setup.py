@@ -28,6 +28,7 @@ setup(
             'nav_sub = basestation.nodes.controls_subscriber_test:main',
             'log_stress_test = basestation.testing.log_stress_test:main',
             'drum_lift_converter = basestation.nodes.drum_lift_converter:main',
+            'log_recorder = basestation.nodes.log_recorder:main',
         ],
     },
 )
