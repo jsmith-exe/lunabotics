@@ -29,6 +29,7 @@ def generate_launch_description():
     autostart = LaunchConfiguration('autostart')
     params_file = LaunchConfiguration('params_file')
     default_bt_xml_filename = LaunchConfiguration('default_bt_xml_filename')
+    mask_yaml_file = os.path.join(bringup_dir, 'config', 'keepout_mask.yaml')
 
     lifecycle_nodes = [
         'controller_server',
@@ -37,6 +38,8 @@ def generate_launch_description():
         'bt_navigator',
         'waypoint_follower',
         'velocity_smoother',
+        'filter_mask_server',
+        'costmap_filter_info_server',
     ]
 
     common_remappings = [
@@ -151,6 +154,31 @@ def generate_launch_description():
                 ('/tf_static', 'tf_static'),
                 ('cmd_vel', 'cmd_vel_nav'),
                 ('cmd_vel_smoothed', 'cmd_vel'),
+            ],
+        ),
+
+        Node(
+            package='nav2_map_server',
+            executable='map_server',
+            name='filter_mask_server',
+            output='screen',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+                {'yaml_filename': mask_yaml_file},
+            ],
+            remappings=[
+                ('/map', '/keepout_filter_mask'),
+            ],
+        ),
+
+        Node(
+            package='nav2_map_server',
+            executable='costmap_filter_info_server',
+            name='costmap_filter_info_server',
+            output='screen',
+            parameters=[
+                params_file,
+                {'use_sim_time': use_sim_time},
             ],
         ),
 
