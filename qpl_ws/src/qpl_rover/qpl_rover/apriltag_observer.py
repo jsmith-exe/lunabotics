@@ -30,10 +30,14 @@ class AprilTagObserver(Node):
 
         # 2. CONFIGURE DETECTOR
         # quad_decimate=2.0 and nthreads=4 to prevent EKF "Failed to meet update rate" errors
+        # quad_decimate=2.0: color now streams at high res (1280x800 front /
+        # 1920x1080 rear), so decimate by 2 to keep detection real-time and avoid
+        # EKF "failed to meet update rate" errors. Effective res is still far above
+        # the old 320x240 image, so detection range improves.
         self.detector = Detector(
             families='tag36h11',
             nthreads=4,
-            quad_decimate=1.0,
+            quad_decimate=2.0,
             quad_sigma=0.0,
             refine_edges=1,
             decode_sharpening=0.25

@@ -146,7 +146,12 @@ def get_camera_params(use_low_quality: bool):
     Color        424x240       RGB8, BGRA8, RGBA8, BGR8, YUYV        @ 90/60/30/15/5 Hz
     """
 
-    profile = '1280x720x30'
+    # Color (visual) and depth/point-cloud streams are decoupled: the color stream
+    # runs at the sensor's full resolution for AprilTag detection, while depth runs
+    # at 480p (its point cloud only feeds the Nav2 voxel layer at <=1.5 m range).
+    # NOTE: this RealSense color sensor tops out at 1280x800 (see table above).
+    color_profile = '1280x800x30'
+    depth_profile = '848x480x30'
     color_fmt = 'BGR8'
     depth_fmt = 'Z16'
     infra_fmt = 'BGR8'
@@ -158,7 +163,8 @@ def get_camera_params(use_low_quality: bool):
     }
 
     if use_low_quality:
-        profile = '424x240x15'
+        color_profile = '424x240x15'
+        depth_profile = '424x240x15'
         color_fmt = 'BGR8'
         infra_fmt = 'UYVY'
         ffmpeg_cfg = {
@@ -170,9 +176,9 @@ def get_camera_params(use_low_quality: bool):
         }
 
     camera_params = {
-        'rgb_camera.color_profile': profile,
-        'depth_module.depth_profile': profile,
-        'depth_module.infra_profile': profile,
+        'rgb_camera.color_profile': color_profile,
+        'depth_module.depth_profile': depth_profile,
+        'depth_module.infra_profile': depth_profile,  # infra shares the depth module; must match depth
         'rgb_camera.color_format': color_fmt,
         'depth_module.depth_format': depth_fmt,
         'depth_module.infra_format': infra_fmt,
