@@ -70,13 +70,16 @@ def get_camera_params(use_low_quality: bool):
 
     direction = 'rear' # front or rear
 
+    # Color (visual) runs at full 1080p for AprilTag detection; depth runs at 480p@30
+    # (its point cloud only feeds the Nav2 voxel layer at <=1.5 m range). If the camera
+    # refuses 640x480@30 in Y11, fall back to Y12.
     color_width = '1920'
     color_height = '1080'
     color_format = 'RGB888'
-    depth_width = '1280'
-    depth_height = '1024'
-    depth_fps = '7'
-    depth_format = 'Y12'
+    depth_width = '640'
+    depth_height = '480'
+    depth_fps = '30'
+    depth_format = 'Y11'
 
     if use_low_quality:
         color_width = '640'

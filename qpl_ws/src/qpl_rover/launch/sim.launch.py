@@ -72,7 +72,7 @@ def make_camera_relays(camera_name):
         ),
         make_relay(
         f"relay_{camera_name}_depth_points",
-        f"/{camera_name}/points",
+        f"/{camera_name}_depth/points",  # 480p depth sensor publishes under its own camera_name
         f"/{camera_name}/depth/points"
         ),
     ]
