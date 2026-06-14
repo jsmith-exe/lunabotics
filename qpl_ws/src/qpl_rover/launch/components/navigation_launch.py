@@ -29,7 +29,7 @@ def generate_launch_description():
     autostart = LaunchConfiguration('autostart')
     params_file = LaunchConfiguration('params_file')
     default_bt_xml_filename = LaunchConfiguration('default_bt_xml_filename')
-    mask_yaml_file = os.path.join(bringup_dir, 'config', 'keepout_mask.yaml')
+    mask_yaml_file = os.path.join(bringup_dir, 'config', 'keepout_mask.yaml') # costmap mask addition
 
     lifecycle_nodes = [
         'controller_server',
@@ -38,8 +38,8 @@ def generate_launch_description():
         'bt_navigator',
         'waypoint_follower',
         'velocity_smoother',
-        'filter_mask_server',
-        'costmap_filter_info_server',
+        'filter_mask_server', # costmap mask addition
+        'costmap_filter_info_server', # costmap mask addition
     ]
 
     common_remappings = [
@@ -157,6 +157,7 @@ def generate_launch_description():
             ],
         ),
 
+        ### costmap mask addition start ###
         Node(
             package='nav2_map_server',
             executable='map_server',
@@ -181,6 +182,7 @@ def generate_launch_description():
                 {'use_sim_time': use_sim_time},
             ],
         ),
+        ### costmap mask addition end ###
 
         Node(
             package='nav2_lifecycle_manager',

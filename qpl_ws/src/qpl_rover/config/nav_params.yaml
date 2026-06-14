@@ -134,11 +134,13 @@ local_costmap:
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
+      ### Costmap mask addition - comment out if need be ###
       filters: ["keepout_filter"]
       keepout_filter:
         plugin: "nav2_costmap_2d::KeepoutFilter"
         enabled: true
         filter_info_topic: "/costmap_filter_info"
+      ### end of costmap mask addition ###
 
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
@@ -211,11 +213,13 @@ global_costmap:
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
+      ### Costmap mask addition - comment out if need be ###
       filters: [ "keepout_filter" ]
       keepout_filter:
         plugin: "nav2_costmap_2d::KeepoutFilter"
         enabled: true
         filter_info_topic: "/costmap_filter_info"
+      ### end of costmap mask addition ###
 
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
@@ -329,6 +333,7 @@ velocity_smoother:
     deadband_velocity: [0.0, 0.0, 0.0]
     velocity_timeout: 1.0
 
+### Costmap mask addition - comment out if need be ###
 costmap_filter_info_server:
   ros__parameters:
     use_sim_time: true
@@ -337,6 +342,7 @@ costmap_filter_info_server:
     mask_topic: "/keepout_filter_mask"
     base_frame: "map"
     flip_y: false
+### end of costmap mask addition ###
 
 lifecycle_manager_navigation:
   ros__parameters:
