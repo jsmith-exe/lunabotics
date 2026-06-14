@@ -287,10 +287,17 @@ behavior_server:
     behavior_plugins: ["spin", "backup", "wait"]
     spin:
       plugin: "nav2_behaviors/Spin"
+      spin_dist: 3.14 # Distance to spin in radians (180 degrees to fully clear/sweep camera views)
+      time_allowance: 5.0 # Max time allowed to complete execution before timing out
+      max_rotational_vel: 0.4 # Target angular speed
     backup:
       plugin: "nav2_behaviors/BackUp"
+      backup_dist: 0.30 # Distance to reverse in meters
+      time_allowance: 4.0
+      speed: 0.10 # Target linear speed (m/s) for backing up
     wait:
       plugin: "nav2_behaviors/Wait"
+      time_allowance: 0.5 # Minimal wait; just a brief pause to let the controllers reset
     global_frame: map
     robot_base_frame: base_footprint
     transform_tolerance: 0.5
