@@ -87,58 +87,6 @@
       </link>
     </model>
 
-    <!-- VISUAL ZONE MARKERS -->
-    <!-- Starting zone -->
-    <model name="starting_zone">
-      <static>true</static>
-      <link name="link">
-        <visual name="visual">
-          <geometry>
-            <box><size>2.0 2.0 0.01</size></box>
-          </geometry>
-          <material>
-            <ambient>0 1 0 0.3</ambient>
-            <diffuse>0 1 0 0.3</diffuse>
-          </material>
-        </visual>
-        <pose>-1.2 -2.95 0.13 0 0 0</pose>
-      </link>
-    </model>
-
-    <!-- Excavation zone -->
-    <model name="excavation_zone">
-      <static>true</static>
-      <link name="link">
-        <visual name="visual">
-          <geometry>
-            <box><size>4.4 2.75 0.01</size></box>
-          </geometry>
-          <material>
-            <ambient>0 0 1 0.3</ambient>
-            <diffuse>0 0 1 0.3</diffuse>
-          </material>
-        </visual>
-        <pose>0 2.7 0.13 0 0 0</pose>
-      </link>
-    </model>
-
-    <!-- Construction zone -->
-    <model name="construction_zone">
-      <static>true</static>
-      <link name="link">
-        <visual name="visual">
-          <geometry>
-            <box><size>1.5 2.6 0.01</size></box>
-          </geometry>
-          <material>
-            <ambient>1 0 0 0.3</ambient>
-            <diffuse>1 0 0 0.3</diffuse>
-          </material>
-        </visual>
-        <pose>1.45 -2.65 0.13 0 0 0</pose>
-      </link>
-    </model>
-
     <!-- BOULDER OBSTACLES -->
     <model name="boulder_1">
       <pose>0.4 1.2 0.2 0 0 0</pose>

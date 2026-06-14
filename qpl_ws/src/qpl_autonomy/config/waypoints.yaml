@@ -1,9 +1,29 @@
+# Mission waypoints (map frame). Edit coordinates here only — both the
+# high-level autonomy_node and the excavation/deposition task nodes read
+# from this file, so a change here propagates everywhere.
+#
+# *_zone  : navigation target / start of the dig or dump pass
+# *_finish: end of the dig (excavation) or dump (construction) pass; the
+#           task node drives from the zone to the finish while running the drum.
+# NOTE: the *_finish values below are best-guess in-bounds defaults — tune
+#       them against the real arena before relying on a mission run.
+
 excavation_zone:
   x: 2.5
   y: 7.0
   yaw: 0.0
 
+excavation_finish:
+  x: 2.5
+  y: 5.5
+  yaw: 0.0
+
 construction_zone:
   x: 3.5
   y: 0.5
+  yaw: 0.0
+
+construction_finish:
+  x: 3.5
+  y: 1.5
   yaw: 0.0
