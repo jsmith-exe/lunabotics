@@ -10,6 +10,7 @@ alias qpl_components='ros2 launch qpl_rover components.launch.py'
 alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 alias qpl_restart_daemon="ros2 daemon stop && ros2 daemon start"
 alias qpl_bro="qpl_build && qpl_rover"
+alias qpl_spare="ros2 launch qpl_rover spare.launch.py"
 
 alias qpl_logs_rec="ros2 run basestation log_recorder"
 alias qpl_logs_cat="cat ~/rosout_combined.log"
@@ -94,8 +95,18 @@ qpl_list_processes() {
   local n_colors=${#colors[@]}
   local i=0
 
-  pgrep -af ros | while read -r line; do
-    echo -e "\033[${colors[$((i % "$n_colors"))]}m${line}\033[0m"
-    (( i++ ))
-  done
+  # Gets the processes containing 'ros' to PID and rest of line as args, prints them as different colours
+  pgrep -af ros | while read -r pid args; do
+      local node_name
+      node_name=$(echo "$args" | grep -oP '(?<=__node:=)\S+')
+      color=${colors[$((i % n_colors))]}
+      [[ -z "$node_name" ]] && node_name="$args" # Fall back to using args directly
+      echo -e "\033[${color}m${pid} ${node_name}\033[0m"
+      (( i++ ))
+    done
+}
+
+qpl_kill_processes() {
+  pkill -f ros
+  pkill -f gazebo
 }
