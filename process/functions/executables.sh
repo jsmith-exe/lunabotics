@@ -101,7 +101,7 @@ qpl_list_processes() {
       node_name=$(echo "$args" | grep -oP '(?<=__node:=)\S+')
       color=${colors[$((i % n_colors))]}
       [[ -z "$node_name" ]] && node_name="$args" # Fall back to using args directly
-      echo -e "\033[${color}m${pid} ${node_name}\033[0m"
+      echo -e "\033[${color}m${pid} ${node_name:0:100}\033[0m"
       (( i++ ))
     done
 }

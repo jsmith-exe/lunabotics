@@ -54,7 +54,8 @@ def get_camera_launch(context):
             executable='realsense2_camera_node',
             parameters=[get_camera_params(use_low_quality)],
             output='screen',
-            remappings=get_remappings()
+            remappings=get_remappings(),
+            respawn=True,
         )
 
     return [camera_launch]
