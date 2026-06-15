@@ -101,8 +101,13 @@ class DrumInterface(Node):
 
     def send_zero_if_no_recent_messages(self):
         if time.time() - self.last_message_received_time >= self.zero_timer_threshold_seconds:
-            self.set_drum_lift_rate(0.5)
+            # Spin is a velocity command, so "no command" means stop spinning.
             self.set_drum_spin_rate(0.0)
+            # Lift is a closed-loop *position* on the hardware: re-publishing here
+            # would actively drive the drum (0.5 sends it to mid-travel, which would
+            # drop a raised bucket during deposition, where lift is never commanded).
+            # "No command" means hold position, so we leave the last lift target
+            # latched in the position controller / hardware servo and send nothing.
 
 # Unused, as clamped at control level
 def clamp(value, min_value, max_value):

@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+"""
+Full-autonomy mission orchestrator.
+
+Runs a complete excavation pass, then a deposition pass, and loops the cycle
+until the node is stopped (Ctrl-C / killed). It reuses the tuned per-phase
+parameters from excavation_node and deposition_node so there is a single source
+of truth, and drives the same drum/lift command topics and Nav2 waypoints those
+standalone nodes use.
+
+Sequence per cycle:
+  excavation: drive to dig start → lower drum → dig pass (drum spinning) → raise
+  deposition: drive to dump zone (drum held raised) → reverse-spin dump pass
+then repeat.
+"""
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
@@ -7,38 +21,25 @@ from sensor_msgs.msg import JointState
 from qpl_autonomy.navigation_manager import NavigationManager
 from qpl_autonomy.waypoint_manager import WaypointManager
 
-# ── Tunable parameters ────────────────────────────────────────────────────────
-DRUM_SPIN_SPEED  =  1.0   # spin command, -1..1 (forward)
-
-# Lift commands are in the -1..1 convention consumed by drum_command_interface
-# (normalised v/2+0.5 → position 0..1). -1 and +1 are the two extremes; 0 is mid.
-LIFT_DOWN        = -1.0   # drum fully lowered
-LIFT_UP          =  1.0   # drum fully raised
-
-# Measured lift positions reported on /joint_states (0..1), matching the
-# normalised LIFT_DOWN/LIFT_UP targets above: 0.0 = retracted/down, 1.0 = extended/up.
-LIFT_DOWN_POS    =  0.0
-LIFT_UP_POS      =  1.0
-LIFT_REACHED_TOL =  0.06  # treat the drum as "at" a target within this band
-
-# These act as timeout fallbacks: transitions normally fire on the measured
-# position above, but if feedback is missing the FSM still advances after this.
-LOWER_DURATION_S =  3.0   # seconds to wait for drum to reach down position
-RAISE_DURATION_S =  3.0   # seconds to wait for drum to reach up position
-
-# Linear-actuator joints whose positions we watch on /joint_states.
-LIFT_JOINTS = ("left_linear_actuator_joint", "right_linear_actuator_joint")
-
-# Start/finish poses come from config/waypoints.yaml (single source of truth).
-# excavation_zone   → start of the dig pass
-# excavation_finish → end of the dig pass
-# ─────────────────────────────────────────────────────────────────────────────
+# Single source of truth for the tuned per-phase parameters.
+from qpl_autonomy.excavation_node import (
+    DRUM_SPIN_SPEED as DIG_SPIN,     # forward spin while digging
+    LIFT_DOWN,
+    LIFT_UP,
+    LIFT_DOWN_POS,
+    LIFT_UP_POS,
+    LIFT_REACHED_TOL,
+    LOWER_DURATION_S,
+    RAISE_DURATION_S,
+    LIFT_JOINTS,
+)
+from qpl_autonomy.deposition_node import DRUM_SPIN_SPEED as DUMP_SPIN  # reverse spin while dumping
 
 
-class ExcavationNode(Node):
+class FullAutonomyNode(Node):
 
     def __init__(self):
-        super().__init__("excavation_node")
+        super().__init__("full_autonomy_node")
 
         self.declare_parameter("config_path", "")
         config_path = self.get_parameter(
@@ -46,8 +47,10 @@ class ExcavationNode(Node):
         ).get_parameter_value().string_value
 
         self._waypoints = WaypointManager(config_path)
-        self._start  = self._waypoints.get_waypoint("excavation_zone")
-        self._finish = self._waypoints.get_waypoint("excavation_finish")
+        self._exc_start  = self._waypoints.get_waypoint("excavation_zone")
+        self._exc_finish = self._waypoints.get_waypoint("excavation_finish")
+        self._dep_start  = self._waypoints.get_waypoint("construction_zone")
+        self._dep_finish = self._waypoints.get_waypoint("construction_finish")
 
         self._drum_pub = self.create_publisher(
             Float64, "/drum_spin_control/autonomy", 10
@@ -58,24 +61,27 @@ class ExcavationNode(Node):
 
         # Measured lift position per actuator joint, populated from /joint_states.
         self._lift_positions = {}
-        self._joint_state_sub = self.create_subscription(
+        self.create_subscription(
             JointState, "/joint_states", self._joint_state_cb, 10
         )
 
         self._nav = NavigationManager(self)
 
-        self._state = "NAVIGATE_TO_START"
-        self._state_entry = None
+        self._cycle = 1
+        self._state = "EXC_NAV_START"
+        self._state_entry = self.get_clock().now()
 
         self._timer = self.create_timer(0.1, self._loop)
-        self.get_logger().info("Excavation node started")
+        self.get_logger().info(
+            "Full autonomy node started — looping excavation → deposition until stopped"
+        )
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
     def _enter(self, state: str):
         self._state = state
         self._state_entry = self.get_clock().now()
-        self.get_logger().info(f"State: {state}")
+        self.get_logger().info(f"[cycle {self._cycle}] State: {state}")
 
     def _elapsed(self) -> float:
         return (self.get_clock().now() - self._state_entry).nanoseconds / 1e9
@@ -106,51 +112,77 @@ class ExcavationNode(Node):
 
     def _loop(self):
 
-        if self._state == "NAVIGATE_TO_START":
-            self._nav.navigate_to(self._start)
-            self._enter("WAIT_START")
+        # ── Excavation phase ────────────────────────────────────────────────
+        if self._state == "EXC_NAV_START":
+            self._nav.navigate_to(self._exc_start)
+            self._enter("EXC_WAIT_START")
 
-        elif self._state == "WAIT_START":
+        elif self._state == "EXC_WAIT_START":
             self._lift(LIFT_UP)  # hold up while navigating
             if self._nav.goal_complete:
                 self.get_logger().info("Reached excavation start — spinning up")
-                self._spin(DRUM_SPIN_SPEED)
-                self._enter("LOWERING")
+                self._spin(DIG_SPIN)
+                self._enter("EXC_LOWERING")
 
-        elif self._state == "LOWERING":
+        elif self._state == "EXC_LOWERING":
             self._lift(LIFT_DOWN)  # command fully down (servo stops at the end-stop)
             reached = self._lift_reached(LIFT_DOWN_POS)
             if reached or self._elapsed() >= LOWER_DURATION_S:
                 why = "drum down" if reached else "lower timeout"
                 self.get_logger().info(f"Starting dig pass ({why})")
-                self._nav.navigate_to(self._finish)
-                self._enter("EXCAVATING")
+                self._nav.navigate_to(self._exc_finish)
+                self._enter("EXC_EXCAVATING")
 
-        elif self._state == "EXCAVATING":
+        elif self._state == "EXC_EXCAVATING":
             self._lift(LIFT_DOWN)  # hold fully down while driving
             if self._nav.goal_complete:
                 self.get_logger().info("Reached excavation finish — stopping drum")
                 self._spin(0.0)
-                self._enter("RAISING")
+                self._enter("EXC_RAISING")
 
-        elif self._state == "RAISING":
+        elif self._state == "EXC_RAISING":
             self._lift(LIFT_UP)  # command fully up (servo stops at the end-stop)
             if self._lift_reached(LIFT_UP_POS) or self._elapsed() >= RAISE_DURATION_S:
-                self._enter("DONE")
+                self._enter("DEP_NAV_START")
 
-        elif self._state == "DONE":
-            self._lift(LIFT_UP)  # hold fully up
-            self.get_logger().info("Excavation complete")
-            self._timer.cancel()
+        # ── Deposition phase (drum held raised throughout) ──────────────────
+        elif self._state == "DEP_NAV_START":
+            self._lift(LIFT_UP)
+            self._spin(0.0)
+            self._nav.navigate_to(self._dep_start)
+            self._enter("DEP_WAIT_START")
+
+        elif self._state == "DEP_WAIT_START":
+            self._lift(LIFT_UP)
+            self._spin(0.0)
+            if self._nav.goal_complete:
+                self.get_logger().info("Reached construction zone — spinning reverse")
+                self._spin(DUMP_SPIN)
+                self._nav.navigate_to(self._dep_finish)
+                self._enter("DEP_DEPOSITING")
+
+        elif self._state == "DEP_DEPOSITING":
+            self._lift(LIFT_UP)
+            self._spin(DUMP_SPIN)
+            if self._nav.goal_complete:
+                self.get_logger().info("Reached deposition finish — stopping drum")
+                self._spin(0.0)
+                self.get_logger().info(f"=== Cycle {self._cycle} complete — looping ===")
+                self._cycle += 1
+                self._enter("EXC_NAV_START")
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ExcavationNode()
+    node = FullAutonomyNode()
     try:
         rclpy.spin(node)
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

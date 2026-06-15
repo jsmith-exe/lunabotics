@@ -9,21 +9,21 @@
 #       them against the real arena before relying on a mission run.
 
 excavation_zone:
-  x: 2.5
+  x: 1
   y: 7.0
   yaw: 0.0
 
 excavation_finish:
-  x: 2.5
-  y: 5.5
+  x: 2
+  y: 7
   yaw: 0.0
 
 construction_zone:
   x: 3.5
-  y: 0.5
-  yaw: 0.0
+  y: 3
+  yaw: π/2
 
 construction_finish:
   x: 3.5
-  y: 1.5
-  yaw: 0.0
+  y: 2
+  yaw: π/2

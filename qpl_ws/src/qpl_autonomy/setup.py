@@ -27,6 +27,7 @@ setup(
             'autonomy_node = qpl_autonomy.autonomy_node:main',
             'excavation_node = qpl_autonomy.excavation_node:main',
             'deposition_node = qpl_autonomy.deposition_node:main',
+            'full_autonomy_node = qpl_autonomy.full_autonomy_node:main',
         ],
     },
 )

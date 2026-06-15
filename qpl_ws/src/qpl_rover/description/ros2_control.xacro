@@ -36,6 +36,10 @@
                 <param name="left_linear_actuator_initial_position_command">0.5</param>
                 <param name="right_linear_actuator_initial_position_command">0.5</param>
 
+                <!-- Closed-loop servo stops within this band of the target position.
+                     Raise if the feedback calibration can't reach 0.0/1.0 cleanly. -->
+                <param name="linear_actuator_position_tolerance">0.03</param>
+
                 <param name="drum_can_id">7</param>
 
                 <param name="print_commands">false</param>
