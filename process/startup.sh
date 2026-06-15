@@ -23,6 +23,12 @@ startup() {
   ros2 daemon start >/dev/null 2>&1 &
 }
 
+# Run whatever comes after it with no stdout or stderr
+silent() {
+    "$@" >/dev/null 2>/dev/null
+}
+alias s=silent
+
 if [ -z "${QPL_PROJECT:-}" ]; then
   echo "ERROR: QPL_PROJECT is not set. Export it in bashrc."
 else
