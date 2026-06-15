@@ -98,6 +98,7 @@ constexpr double RUNAWAY_SMALL_TARGET_RPM = 500.0;
 constexpr double RUNAWAY_SIGN_TARGET_MIN_RPM = 50.0;
 constexpr double RUNAWAY_HIGH_APPLIED_OUTPUT = 1.0;
 constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(100);
+constexpr double DRUM_FREE_SPEED_RPM = 5700.0;
 
 bool string_to_bool(const std::string & value)
 {
@@ -774,7 +775,7 @@ public:
           "Runaway latch active. Blocking velocity commands and sending zero-duty stop frames.");
 
         maybe_send_heartbeat();
-        send_zero_duty_wheels_only(false);
+        send_zero_duty_all(false);
 
         return hardware_interface::return_type::OK;
       }
@@ -1875,7 +1876,20 @@ private:
     next_drum_command_write_time_ = now + COMMAND_WRITE_PERIOD;
 
     const double command = std::isfinite(drum_command_) ? drum_command_ : 0.0;
-    const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
+    const double duty = clamp_throttle(command);
+
+    const double target_motor_rpm = duty * DRUM_FREE_SPEED_RPM;
+
+    if (detect_runaway("drum", drum_spark_, target_motor_rpm))
+    {
+      latch_runaway_and_stop();
+      return;
+    }
+
+    if (runaway_latched_)
+    {
+      return;
+    }
 
     RCLCPP_WARN_THROTTLE(
       logger_,
