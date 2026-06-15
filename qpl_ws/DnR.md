@@ -3,12 +3,12 @@ A list of commands and processes to try and know when stuff goes wrong.
 
 ---
 ## General
-**Clean build**: in the linux environment, run```qpl_clean_build```.
+**Jetson: Clean build**: in the linux environment, run```qpl_clean_build```.
 This deletes the previous build output before rebuilding.
 
-**Install packages**: in the linux environment, run ```qpl_packages```.
+**Jetson and local: Install packages**: in the linux environment, run ```qpl_packages```.
 
-**Auto restart (NOT IMPLEMENTED)**: Nodes should be setup to automatically restart in launch files:
+**Jetson: Auto restart**: Nodes can be setup to automatically restart in launch files:
 ```python
 # Example
 test = Node(
@@ -20,7 +20,7 @@ test = Node(
 ```
 Any unforeseen crashes should therefore automatically restart.
 
-**Stopping nodes**: To kill a node, the following can be used to list ROS processes.
+**Jetson: Stopping nodes**: To kill a node, the following can be used to list ROS processes.
 ```bash
 qpl_list_processes
 ```
@@ -70,13 +70,22 @@ ros2 run rqt_tf_tree rqt_tf_tree --force-discover
 
 
 ---
-## Networking
+## ROS networking issues
 **Ping the target device**: use the `ping` command to check if the target device is reachable.
 Note that ping can fail yet the device can still be reachable, if the device just has ICMP disabled.
 
+**Disable (or enable and disable) firewall**: Turn off your Windows firewall, or if it's off, turn it on and off.
+Run powershell as administrator:
+```powershell
+Set-NetFirewallProfile -Profile Private -Enabled True
+# Wait maybe 5 seconds, then turn it off again:
+Set-NetFirewallProfile -Profile Private -Enabled False
+```
+
 **Restart ROS Daemon**: The ROS daemon discovers nodes and topics; restarting can force discovery.
 ```bash
-ros2 daemon stop && ros2 daemon start
+qpl_restart_daemon
+# Alternatively restart manually: ros2 daemon stop && ros2 daemon start
 ```
 
 **Test multicast**: ROS2 uses multicast for discovery by default; if this is unsupported, discovery will fail.
@@ -96,6 +105,53 @@ sudo apt-get install ros-humble-demo-nodes-cpp
 ros2 run demo_nodes_cpp talker
 # On the other device, run the listener:
 ros2 run demo_nodes_cpp listener
+```
+
+---
+## General networking issues
+Not fully tested.
+
+If the Jetson cannot see the network:
+```bash
+nmcli device status                  # Is the WiFi/eth device detected?
+nmcli radio wifi on                  # Make sure WiFi radio is enabled
+nmcli device wifi list               # Can it see any networks?
+ip link show                         # Is the interface up?
+sudo ip link set wlan0 up            # Bring it up if down
+dmesg | grep -i wlan                 # Check for driver/firmware errors
+```
+
+To try to view what's taking up bandwidth:
+```bash
+sudo nethogs
+sudo iftop -i wlP1p1s0
+```
+
+To set the Wi-Fi network:
+```bash
+nmcli device wifi list
+nmcli device wifi connect "SSID_NAME" password "your_password"
+nmcli connection up "SSID_NAME"
+
+# To make the connection auto-connect on boot:
+nmcli connection modify "SSID_NAME" connection.autoconnect yes
+```
+
+To set a static IP on the Jetson:
+```bash
+nmcli connection modify "SSID_NAME" ipv4.addresses 192.168.1.50/24 # Example IP
+nmcli connection modify "SSID_NAME" ipv4.gateway 192.168.1.1 # Example IP
+nmcli connection modify "SSID_NAME" ipv4.dns "8.8.8.8"
+nmcli connection modify "SSID_NAME" ipv4.method manual
+nmcli connection up "SSID_NAME" # Apply
+```
+
+Other helpful commands:
+```bash
+nmcli device status # List all devices and their state
+ifconfig # Show device details
+nmcli radio wifi on # enable wifi; replace on with off to disable
+sudo sudo ufw status # Check firewall
 ```
 
 ---
