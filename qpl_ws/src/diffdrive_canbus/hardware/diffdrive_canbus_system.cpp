@@ -725,8 +725,9 @@ public:
         "Non-finite ros2_control command detected. Forcing non-finite commands to zero.");
     }
 
-    // Global non-RIO heartbeat. Keep this independent from individual motor writes.
-    maybe_send_heartbeat();
+    // Keep the drivetrain heartbeat behaviour like the stable benchmark: no global
+    // heartbeat spam at the top of every write() cycle. Aux devices send a heartbeat
+    // immediately before their own duty command instead.
 
     // Closed-loop actuator position servos are intentionally independent of the wheels.
     write_actuator_closed_loop(left_actuator_, "left");
@@ -869,6 +870,7 @@ private:
     double feedback_max_voltage{1.85};
     double deadband{0.02};
     double last_sent_output{999.0};
+    std::chrono::steady_clock::time_point next_command_write_time{};
 
     std::unique_ptr<SparkMax> spark;
 
@@ -1305,6 +1307,7 @@ private:
     act.has_voltage = false;
     act.command_count = 0;
     act.last_sent_output = 999.0;
+    act.next_command_write_time = std::chrono::steady_clock::now();
     act.has_raw_can_frame = false;
     act.has_status3_frame = false;
     act.has_analog_voltage_candidate = false;
@@ -1823,6 +1826,19 @@ private:
       safe_throttle = 0.0;
     }
 
+    const auto now = std::chrono::steady_clock::now();
+    const bool duty_changed = std::fabs(safe_throttle - act.last_sent_output) > 1e-6;
+
+    // Stable actuator behaviour: do not blast the serial-to-CAN adapter every
+    // ros2_control write() tick. Send immediately on a duty change, otherwise
+    // refresh at the same conservative rate as the drivetrain command stream.
+    if (!duty_changed && now < act.next_command_write_time)
+    {
+      return;
+    }
+
+    act.next_command_write_time = now + COMMAND_WRITE_PERIOD;
+
     RCLCPP_WARN_THROTTLE(
       logger_,
       *rclcpp::Clock::make_shared(),
@@ -1833,6 +1849,8 @@ private:
       std::clamp(act.command, 0.0, 1.0),
       act.position,
       safe_throttle);
+
+    send_heartbeat_before_motor_command(label + " linear actuator");
 
     const bool ok = act.spark->set_duty_cycle(
       static_cast<float>(safe_throttle),
@@ -1883,6 +1901,7 @@ private:
       command,
       duty);
 
+    send_heartbeat_before_motor_command("drum");
     drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
     sleep_bus_gap();
   }
