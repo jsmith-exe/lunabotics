@@ -690,10 +690,6 @@ public:
       maybe_read_feedback_like_test_script();
       update_all_joint_states_from_telemetry();
     }
-    else
-    {
-      maybe_drain_can_rx_without_feedback();
-    }
 
     maybe_print_actuator_feedback(left_actuator_, "left");
     maybe_print_actuator_feedback(right_actuator_, "right");
@@ -726,12 +722,12 @@ public:
     }
 
     // Global non-RIO heartbeat. Keep this independent from individual motor writes.
-    maybe_send_heartbeat();
+//    maybe_send_heartbeat();
 
     // Closed-loop actuator position servos are intentionally independent of the wheels.
     write_actuator_closed_loop(left_actuator_, "left");
     write_actuator_closed_loop(right_actuator_, "right");
-    write_drum_velocity();
+//    write_drum_velocity();
 
     const double front_left_command =
       clean_command(front_left_command_, command_deadband_rad_per_sec_);
@@ -772,7 +768,7 @@ public:
           "Runaway latch active. Blocking velocity commands and sending zero-duty stop frames.");
 
         maybe_send_heartbeat();
-        send_zero_duty_wheels_only(false);
+        send_zero_duty_all(false);
 
         return hardware_interface::return_type::OK;
       }
@@ -790,7 +786,7 @@ public:
           logger_,
           *rclcpp::Clock::make_shared(),
           1000,
-          "Commands returned to zero. Sending immediate zero-duty stop frames to drive motors only.");
+          "Commands returned to zero. Sending immediate zero-duty stop frames.");
 
         if (front_left_spark_)
         {
@@ -800,11 +796,11 @@ public:
         // Send several stop frames to improve reliability
         for (int i = 0; i < 3; ++i)
         {
-            send_zero_duty_wheels_only(false);
+            send_zero_duty_all(false);
             sleep_bus_gap();
         }
         maybe_send_heartbeat();
-        send_zero_duty_wheels_only(false);
+        send_zero_duty_all(false);
       }
 
       motors_currently_commanded_ = false;
