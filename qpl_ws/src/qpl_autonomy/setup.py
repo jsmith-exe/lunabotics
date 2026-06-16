@@ -28,6 +28,8 @@ setup(
             'excavation_node = qpl_autonomy.excavation_node:main',
             'deposition_node = qpl_autonomy.deposition_node:main',
             'full_autonomy_node = qpl_autonomy.full_autonomy_node:main',
+            'blind_excavation_node = qpl_autonomy.blind_excavation_node:main',
+            'blind_construction_node = qpl_autonomy.blind_construction_node:main',
         ],
     },
 )
