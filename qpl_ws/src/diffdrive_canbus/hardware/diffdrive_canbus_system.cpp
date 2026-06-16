@@ -98,7 +98,6 @@ constexpr double RUNAWAY_SMALL_TARGET_RPM = 500.0;
 constexpr double RUNAWAY_SIGN_TARGET_MIN_RPM = 50.0;
 constexpr double RUNAWAY_HIGH_APPLIED_OUTPUT = 1.0;
 constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(100);
-constexpr double DRUM_FREE_SPEED_RPM = 5700.0;
 
 bool string_to_bool(const std::string & value)
 {
@@ -586,7 +585,6 @@ public:
     drum_velocity_ = 0.0;
     drum_position_offset_ = 0.0;
     drum_position_offset_valid_ = false;
-    next_drum_command_write_time_ = std::chrono::steady_clock::now();
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
     next_feedback_read_time_ = std::chrono::steady_clock::now();
@@ -734,7 +732,6 @@ public:
     // Closed-loop actuator position servos are intentionally independent of the wheels.
     write_actuator_closed_loop(left_actuator_, "left");
     write_actuator_closed_loop(right_actuator_, "right");
-    write_drum_velocity();
 
     const double front_left_command =
       clean_command(front_left_command_, command_deadband_rad_per_sec_);
@@ -835,22 +832,32 @@ public:
     write_one_motor_native_velocity(
       "front_left",
       front_left_spark_,
-      front_left_command);
+      front_left_command,
+      gear_ratio_);
 
     write_one_motor_native_velocity(
       "front_right",
       front_right_spark_,
-      front_right_command);
+      front_right_command,
+      gear_ratio_);
 
     write_one_motor_native_velocity(
       "rear_left",
       rear_left_spark_,
-      rear_left_command);
+      rear_left_command,
+      gear_ratio_);
 
     write_one_motor_native_velocity(
       "rear_right",
       rear_right_spark_,
-      rear_right_command);
+      rear_right_command,
+      gear_ratio_);
+
+    write_one_motor_native_velocity(
+      "drum",
+      drum_spark_,
+      drum_command_,
+      125.0);
 
     return hardware_interface::return_type::OK;
   }
@@ -1540,7 +1547,8 @@ private:
   void write_one_motor_native_velocity(
     const std::string & label,
     const std::unique_ptr<SparkMax> & spark,
-    double command_rad_per_sec)
+    double command_rad_per_sec,
+    double gear_ratio__)
   {
     if (!spark)
     {
@@ -1567,7 +1575,7 @@ private:
     }
 
     const double target_motor_rpm =
-      command_rad_per_sec * gear_ratio_ * 60.0 / TWO_PI;
+      command_rad_per_sec * gear_ratio__ * 60.0 / TWO_PI;
 
     const auto & tel = spark->telemetry();
 
@@ -1583,7 +1591,7 @@ private:
         "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=%.3f measured_wheel_rad/s=%.6f applied=%.3f",
         label.c_str(),
         command_rad_per_sec,
-        gear_ratio_,
+        gear_ratio__,
         target_motor_rpm,
         static_cast<double>(tel.encoder_velocity_rpm),
         static_cast<double>(tel.wheel_rad_per_sec),
@@ -1598,7 +1606,7 @@ private:
         "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=%.3f measured_wheel_rad/s=%.6f applied=NO_FEEDBACK",
         label.c_str(),
         command_rad_per_sec,
-        gear_ratio_,
+        gear_ratio__,
         target_motor_rpm,
         static_cast<double>(tel.encoder_velocity_rpm),
         static_cast<double>(tel.wheel_rad_per_sec));
@@ -1612,7 +1620,7 @@ private:
         "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=NO_FEEDBACK measured_wheel_rad/s=NO_FEEDBACK applied=%.3f",
         label.c_str(),
         command_rad_per_sec,
-        gear_ratio_,
+        gear_ratio__,
         target_motor_rpm,
         static_cast<double>(tel.applied_output));
     }
@@ -1625,7 +1633,7 @@ private:
         "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=NO_FEEDBACK measured_wheel_rad/s=NO_FEEDBACK applied=NO_FEEDBACK",
         label.c_str(),
         command_rad_per_sec,
-        gear_ratio_,
+        gear_ratio__,
         target_motor_rpm);
     }
 
@@ -1859,48 +1867,6 @@ private:
         label.c_str(),
         act.can_id);
     }
-  }
-
-  void write_drum_velocity()
-  {
-    if (!drum_spark_)
-    {
-      return;
-    }
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now < next_drum_command_write_time_)
-    {
-      return;
-    }
-    next_drum_command_write_time_ = now + COMMAND_WRITE_PERIOD;
-
-    const double command = std::isfinite(drum_command_) ? drum_command_ : 0.0;
-    const double duty = clamp_throttle(command);
-
-    const double target_motor_rpm = duty * DRUM_FREE_SPEED_RPM;
-
-    if (detect_runaway("drum", drum_spark_, target_motor_rpm))
-    {
-      latch_runaway_and_stop();
-      return;
-    }
-
-    if (runaway_latched_)
-    {
-      return;
-    }
-
-    RCLCPP_WARN_THROTTLE(
-      logger_,
-      *rclcpp::Clock::make_shared(),
-      500,
-      "DRUM: cmd=%.4f duty_sent=%.4f",
-      command,
-      duty);
-
-    drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
-    sleep_bus_gap();
   }
 
   void maybe_print_actuator_feedback(LinearActuatorHW & act, const std::string & label)
@@ -2468,7 +2434,6 @@ private:
               << " | velocity_clamp=DISABLED"
               << " | command_write_period_ms=" << COMMAND_WRITE_PERIOD.count()
               << " | bus_frame_gap_ms=" << BUS_FRAME_GAP.count()
-              << " | gear_ratio=" << gear_ratio_
               << " | feedback=" << (feedback_enabled_ ? "ENABLED" : "DISABLED")
               << " | runaway_latched=" << (runaway_latched_ ? "YES" : "NO")
               << "\n";
@@ -2479,7 +2444,8 @@ private:
       front_left_command_,
       front_left_position_,
       front_left_velocity_,
-      front_left_spark_);
+      front_left_spark_,
+      gear_ratio_);
 
     print_motor_status(
       "front_right",
@@ -2487,7 +2453,8 @@ private:
       front_right_command_,
       front_right_position_,
       front_right_velocity_,
-      front_right_spark_);
+      front_right_spark_,
+      gear_ratio_);
 
     print_motor_status(
       "rear_left",
@@ -2495,7 +2462,8 @@ private:
       rear_left_command_,
       rear_left_position_,
       rear_left_velocity_,
-      rear_left_spark_);
+      rear_left_spark_,
+      gear_ratio_);
 
     print_motor_status(
       "rear_right",
@@ -2503,7 +2471,8 @@ private:
       rear_right_command_,
       rear_right_position_,
       rear_right_velocity_,
-      rear_right_spark_);
+      rear_right_spark_,
+      gear_ratio_);
 
     std::cout << "commands_sent=" << command_count_
               << " | idle_writes_skipped=" << skipped_idle_write_count_
@@ -2531,19 +2500,20 @@ private:
     double command_rad_per_sec,
     double position_rad,
     double velocity_rad_per_sec,
-    const std::unique_ptr<SparkMax> & spark)
+    const std::unique_ptr<SparkMax> & spark,
+    double gear_ratio__)
   {
     const double cleaned_command =
       clean_command(command_rad_per_sec, command_deadband_rad_per_sec_);
 
     const double target_motor_rpm =
-      cleaned_command * gear_ratio_ * 60.0 / TWO_PI;
+      cleaned_command * gear_ratio__ * 60.0 / TWO_PI;
 
     std::cout << label
               << " id=" << static_cast<int>(can_id)
               << " | raw cmd wheel rad/s=" << command_rad_per_sec
               << " | clean cmd wheel rad/s=" << cleaned_command
-              << " | gear_ratio=" << gear_ratio_
+              << " | gear_ratio=" << gear_ratio__
               << " | target motor rpm=" << target_motor_rpm
               << " | ros pos rad=" << position_rad
               << " | ros vel rad/s=" << velocity_rad_per_sec;
@@ -2631,8 +2601,6 @@ private:
   std::unique_ptr<SparkMax> drum_spark_;
   uint8_t drum_can_id_{7};
   double drum_command_{0.0};
-  std::chrono::steady_clock::time_point next_drum_command_write_time_{
-    std::chrono::steady_clock::now()};
 
   std::unique_ptr<SparkMax> front_left_spark_;
   std::unique_ptr<SparkMax> front_right_spark_;
