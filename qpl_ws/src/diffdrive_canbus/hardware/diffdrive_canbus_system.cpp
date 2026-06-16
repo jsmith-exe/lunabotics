@@ -33,17 +33,15 @@ namespace
 
 constexpr double TWO_PI = 2.0 * M_PI;
 
-// Keep heartbeats fast. If this is too slow, SPARK MAX duty commands can feel
-// jumpy because the controller may briefly drop back into its neutral behaviour.
-constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
+constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(120);
 
-// Active command traffic. 20 ms keeps the SPARK MAX refreshed often enough
-// that it should not repeatedly fall back into neutral/brake behaviour.
+// Slow active command traffic so the serial-to-CAN adapter is not flooded.
+// 50 ms = maximum 20 active velocity command updates per second.
 constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(50);
 
 // Gap between outgoing serial/CAN writes.
 // Increase to 10 or 15 ms if the bus is still jumpy.
-constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(20);
+constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(8);
 
 constexpr auto STOP_TIME = std::chrono::milliseconds(50);
 constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(50);
@@ -51,9 +49,9 @@ constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
 
 // Feedback copied closer to spark_max_test behaviour.
-constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(10);
-constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 10;
-constexpr int FEEDBACK_EMPTY_READ_RETRIES = 4;
+constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
+constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 20;
+constexpr int FEEDBACK_EMPTY_READ_RETRIES = 8;
 constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 constexpr int INITIAL_FEEDBACK_FRAMES = 50;
 
