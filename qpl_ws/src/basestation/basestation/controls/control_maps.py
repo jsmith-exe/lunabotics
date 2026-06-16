@@ -23,6 +23,8 @@ default_control_map = {
     Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -MOTOR_THROTTLE_BUTTON_FACTOR),
     Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1),
     Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, 1),
+    Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1),
+    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X),
 
     Con.TRIANGLE: Command(DRUM_LIFT_TOPIC, MessageOptions.TWIST_ANGULAR_Z),
     Con.CROSS: Command(DRUM_LIFT_TOPIC, MessageOptions.TWIST_LINEAR_X, -1),
