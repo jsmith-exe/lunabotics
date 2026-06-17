@@ -663,7 +663,6 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-  bool stage_lower_drum{false};
     now = time(NULL);
     if (difftime(now, time_since_start) >= 5.0 && !stage_lower_drum) {
       RCLCPP_INFO(logger_, "DO SOME COMMAND 1");
