@@ -26,6 +26,10 @@ LIFT_REACHED_TOL =  0.06  # treat the drum as "at" a target within this band
 LOWER_DURATION_S =  3.0   # seconds to wait for drum to reach down position
 RAISE_DURATION_S =  3.0   # seconds to wait for drum to reach up position
 
+# How many times to re-issue a failed/aborted nav goal before giving up and
+# holding safe (drum stopped) rather than digging at the wrong spot.
+MAX_NAV_RETRIES  =  3
+
 # Linear-actuator joints whose positions we watch on /joint_states.
 LIFT_JOINTS = ("left_linear_actuator_joint", "right_linear_actuator_joint")
 
@@ -63,6 +67,7 @@ class ExcavationNode(Node):
         )
 
         self._nav = NavigationManager(self)
+        self._nav_retry = 0
 
         self._state = "NAVIGATE_TO_START"
         self._state_entry = None
@@ -102,6 +107,28 @@ class ExcavationNode(Node):
             for j in LIFT_JOINTS
         )
 
+    def _nav_done(self, waypoint) -> bool:
+        """True only once navigation to `waypoint` SUCCEEDED (FSM may advance).
+        On a failed/aborted/rejected/timed-out goal, re-issues it up to
+        MAX_NAV_RETRIES times, then stops the drum and enters HOLD instead of
+        digging at the wrong spot. Returns False while navigating/retrying/held."""
+        if not self._nav.goal_complete:
+            return False
+        if self._nav.goal_succeeded:
+            self._nav_retry = 0
+            return True
+        self._nav_retry += 1
+        if self._nav_retry <= MAX_NAV_RETRIES:
+            self.get_logger().warn(
+                f"Navigation failed — retry {self._nav_retry}/{MAX_NAV_RETRIES}"
+            )
+            self._nav.navigate_to(waypoint)
+        else:
+            self.get_logger().error("Navigation failed after retries — holding (drum stopped)")
+            self._spin(0.0)
+            self._enter("HOLD")
+        return False
+
     # ── FSM ───────────────────────────────────────────────────────────────────
 
     def _loop(self):
@@ -112,7 +139,7 @@ class ExcavationNode(Node):
 
         elif self._state == "WAIT_START":
             self._lift(LIFT_UP)  # hold up while navigating
-            if self._nav.goal_complete:
+            if self._nav_done(self._start):
                 self.get_logger().info("Reached excavation start — spinning up")
                 self._spin(DRUM_SPIN_SPEED)
                 self._enter("LOWERING")
@@ -128,7 +155,7 @@ class ExcavationNode(Node):
 
         elif self._state == "EXCAVATING":
             self._lift(LIFT_DOWN)  # hold fully down while driving
-            if self._nav.goal_complete:
+            if self._nav_done(self._finish):
                 self.get_logger().info("Reached excavation finish — stopping drum")
                 self._spin(0.0)
                 self._enter("RAISING")
@@ -142,6 +169,15 @@ class ExcavationNode(Node):
             self._lift(LIFT_UP)  # hold fully up
             self.get_logger().info("Excavation complete")
             self._timer.cancel()
+
+        elif self._state == "HOLD":
+            # Navigation failed past its retries — stay put with the drum stopped.
+            # Nav2's cancel + the drive mux timeout keep the wheels stopped.
+            self._spin(0.0)
+            self.get_logger().error(
+                "Excavation aborted — holding for operator intervention",
+                throttle_duration_sec=5.0,
+            )
 
 
 # ── entry point ───────────────────────────────────────────────────────────────

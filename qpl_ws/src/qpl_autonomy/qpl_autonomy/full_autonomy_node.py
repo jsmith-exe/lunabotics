@@ -32,6 +32,7 @@ from qpl_autonomy.excavation_node import (
     LOWER_DURATION_S,
     RAISE_DURATION_S,
     LIFT_JOINTS,
+    MAX_NAV_RETRIES,
 )
 from qpl_autonomy.deposition_node import DRUM_SPIN_SPEED as DUMP_SPIN  # reverse spin while dumping
 
@@ -66,6 +67,7 @@ class FullAutonomyNode(Node):
         )
 
         self._nav = NavigationManager(self)
+        self._nav_retry = 0
 
         self._cycle = 1
         self._state = "EXC_NAV_START"
@@ -108,6 +110,28 @@ class FullAutonomyNode(Node):
             for j in LIFT_JOINTS
         )
 
+    def _nav_done(self, waypoint) -> bool:
+        """True only once navigation to `waypoint` SUCCEEDED (FSM may advance).
+        On a failed/aborted/rejected/timed-out goal, re-issues it up to
+        MAX_NAV_RETRIES times, then stops the drum and enters HOLD instead of
+        looping into a blind dig/dump. Returns False while navigating/retrying/held."""
+        if not self._nav.goal_complete:
+            return False
+        if self._nav.goal_succeeded:
+            self._nav_retry = 0
+            return True
+        self._nav_retry += 1
+        if self._nav_retry <= MAX_NAV_RETRIES:
+            self.get_logger().warn(
+                f"[cycle {self._cycle}] Navigation failed — retry {self._nav_retry}/{MAX_NAV_RETRIES}"
+            )
+            self._nav.navigate_to(waypoint)
+        else:
+            self.get_logger().error("Navigation failed after retries — holding (drum stopped)")
+            self._spin(0.0)
+            self._enter("HOLD")
+        return False
+
     # ── FSM ───────────────────────────────────────────────────────────────────
 
     def _loop(self):
@@ -119,7 +143,7 @@ class FullAutonomyNode(Node):
 
         elif self._state == "EXC_WAIT_START":
             self._lift(LIFT_UP)  # hold up while navigating
-            if self._nav.goal_complete:
+            if self._nav_done(self._exc_start):
                 self.get_logger().info("Reached excavation start — spinning up")
                 self._spin(DIG_SPIN)
                 self._enter("EXC_LOWERING")
@@ -135,7 +159,7 @@ class FullAutonomyNode(Node):
 
         elif self._state == "EXC_EXCAVATING":
             self._lift(LIFT_DOWN)  # hold fully down while driving
-            if self._nav.goal_complete:
+            if self._nav_done(self._exc_finish):
                 self.get_logger().info("Reached excavation finish — stopping drum")
                 self._spin(0.0)
                 self._enter("EXC_RAISING")
@@ -155,7 +179,7 @@ class FullAutonomyNode(Node):
         elif self._state == "DEP_WAIT_START":
             self._lift(LIFT_UP)
             self._spin(0.0)
-            if self._nav.goal_complete:
+            if self._nav_done(self._dep_start):
                 self.get_logger().info("Reached construction zone — spinning reverse")
                 self._spin(DUMP_SPIN)
                 self._nav.navigate_to(self._dep_finish)
@@ -164,12 +188,23 @@ class FullAutonomyNode(Node):
         elif self._state == "DEP_DEPOSITING":
             self._lift(LIFT_UP)
             self._spin(DUMP_SPIN)
-            if self._nav.goal_complete:
+            if self._nav_done(self._dep_finish):
                 self.get_logger().info("Reached deposition finish — stopping drum")
                 self._spin(0.0)
                 self.get_logger().info(f"=== Cycle {self._cycle} complete — looping ===")
                 self._cycle += 1
                 self._enter("EXC_NAV_START")
+
+        # ── Safe hold (navigation failed past its retries) ──────────────────
+        elif self._state == "HOLD":
+            # Stay put with the drum stopped rather than looping into a blind
+            # dig/dump. Nav2's cancel + the drive mux timeout keep the wheels
+            # stopped.
+            self._spin(0.0)
+            self.get_logger().error(
+                "Mission aborted — holding for operator intervention",
+                throttle_duration_sec=5.0,
+            )
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
