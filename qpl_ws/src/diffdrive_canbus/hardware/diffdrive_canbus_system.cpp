@@ -663,17 +663,11 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-      bool stage_rotate_drum{false};
-      bool stage_lower_drum{false};
-      bool stage_stop_lower_drum{false};
-      bool stage_raise_drum{false};
-      bool stage_stop_raise_drum{false};
-      bool stage_stop_rotate_drum{false};
     now = time(NULL);
     if (difftime(now, time_since_start) >= 10.0 && !stage_rotate_drum) {
       RCLCPP_INFO(logger_, "SPIN DRUM");
       stage_rotate_drum = true;
-      staged_drum_speed = -0.3;
+      staged_drum_speed = 0.3;
     }
     if (difftime(now, time_since_start) >= 11.0 && !stage_lower_drum) {
       RCLCPP_INFO(logger_, "LOWER DRUM");
