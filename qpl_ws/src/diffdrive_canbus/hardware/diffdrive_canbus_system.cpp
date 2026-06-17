@@ -732,7 +732,8 @@ public:
 
     // Closed-loop actuator position servos are intentionally independent of the wheels.
     const double target = std::clamp(std::isfinite(act.command) ? act.command : 0.5, 0.0, 1.0);
-    // TODO print out target
+    RCLCPP_INFO(logger_, "-- Target data: %.3f", target);
+
 //    send_actuator_duty(left_actuator_, duty, "left");
 //    send_actuator_duty(right_actuator_, duty, "right");
 
