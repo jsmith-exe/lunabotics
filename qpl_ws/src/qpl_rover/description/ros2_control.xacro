@@ -26,11 +26,11 @@
               <param name="feedback_enabled">true</param>
 
               <!-- Linear actuator test mode: keep ros2_control actuator interface disabled -->
-              <param name="linear_actuator_ros2_control_interface_enabled">false</param>
+              <param name="linear_actuator_ros2_control_interface_enabled">true</param>
               <param name="linear_actuator_can_id">5</param>
 
               <!-- Test command: 0.0 = retract, 0.5 = stop, 1.0 = extend -->
-              <param name="linear_actuator_test_position_command">0.0</param>
+              <param name="linear_actuator_test_position_command">0.5</param>
 
               <param name="print_commands">false</param>
               <param name="print_status">false</param>
@@ -71,6 +71,14 @@
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
+      </joint>
+
+      <joint name="linear_actuator_joint">
+          <command_interface name="position">
+              <param name="min">0.0</param>
+              <param name="max">1.0</param>
+          </command_interface>
+          <state_interface name="position"/>
       </joint>
     </ros2_control>
   </xacro:unless>

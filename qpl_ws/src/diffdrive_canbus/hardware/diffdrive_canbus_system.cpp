@@ -2365,7 +2365,7 @@ private:
   bool print_status_frames_{false};
   bool debug_printing_enabled_{false};
   bool feedback_enabled_{false};
-  bool linear_actuator_ros2_control_interface_enabled_{false};
+  bool linear_actuator_ros2_control_interface_enabled_{true};
 
   double gear_ratio_{1.0};
   double command_deadband_rad_per_sec_{0.001};
@@ -2391,7 +2391,7 @@ private:
   //   0.0 = retract target  -> -1.0 duty internally
   //   0.5 = neutral/stop    ->  0.0 duty internally
   //   1.0 = extend target   ->  1.0 duty internally
-  double linear_actuator_command_{0.0};
+  double linear_actuator_command_{0.5};
 
   // ros2_control position state for the linear actuator, scaled from analogue voltage.
   // 0.0 corresponds to linear_actuator_feedback_min_voltage_.

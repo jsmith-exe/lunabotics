@@ -2,6 +2,9 @@ controller_manager:
   ros__parameters:
     update_rate: 100
 
+    drum_lift_cont:
+      type: position_controllers/JointGroupPositionController
+
     diff_cont:
       type: diff_drive_controller/DiffDriveController 
 
@@ -37,3 +40,8 @@ diff_cont:
         has_velocity_limits: true
         max_velocity: 1.0
         has_acceleration_limits: false
+
+drum_lift_cont:
+  ros__parameters:
+    joints:
+      - linear_actuator_joint
