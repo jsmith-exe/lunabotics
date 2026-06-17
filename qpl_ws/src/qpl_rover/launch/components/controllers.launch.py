@@ -88,9 +88,22 @@ def opaque_generate_launch_description(context):
         ]
     )
 
+    drum_lift_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["drum_lift_cont"],
+        parameters=[{"use_sim_time": use_sim_time_bool}],
+        output="screen",
+    )
+    delayed_drum_spawners = TimerAction(
+        period=5.0,
+        actions=[drum_lift_spawner]
+    )
+
     return [
         controller_manager,
         twist_mux,
         delayed_joint_broad_spawner,
         delayed_diff_drive_spawner,
+        delayed_drum_spawners,
     ]
