@@ -1,38 +1,75 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+  <!-- ================= REAL ROVER ROS2_CONTROL ================= -->
   <xacro:unless value="$(arg sim_mode)">
-      <ros2_control name="RealRover" type="system">
-          <hardware>
-              <plugin>diffdrive_canbus/DiffDriveCanbusHardware</plugin>
-              <param name="front_left_wheel_name">front_left_wheel_joint</param>
-              <param name="front_right_wheel_name">front_right_wheel_joint</param>
-              <param name="rear_left_wheel_name">rear_left_wheel_joint</param>
-              <param name="rear_right_wheel_name">rear_right_wheel_joint</param>
+    <ros2_control name="RealRover" type="system">
+      <hardware>
+        <plugin>diffdrive_canbus/DiffDriveCanbusHardware</plugin>
 
-              <param name="serial_device">/dev/ttyUSB0</param>
-              <param name="serial_baud_rate">2000000</param>
-              <param name="can_baud_rate">1000000</param>
-              <param name="timeout_ms">5</param>
+        <!-- Wheel joint names -->
+        <param name="front_left_wheel_name">front_left_wheel_joint</param>
+        <param name="front_right_wheel_name">front_right_wheel_joint</param>
+        <param name="rear_left_wheel_name">rear_left_wheel_joint</param>
+        <param name="rear_right_wheel_name">rear_right_wheel_joint</param>
 
-              <param name="front_left_can_id">1</param>
-              <param name="front_right_can_id">2</param>
-              <param name="rear_left_can_id">3</param>
-              <param name="rear_right_can_id">4</param>
+        <!-- Serial / CAN -->
+        <param name="serial_device">/dev/ttyUSB0</param>
+        <param name="serial_baud_rate">2000000</param>
+        <param name="can_baud_rate">1000000</param>
+        <param name="timeout_ms">5</param>
 
-              <param name="gear_ratio">100</param>
-              <param name="loopback_mode">false</param>
+        <!-- Drive CAN IDs -->
+        <param name="front_left_can_id">1</param>
+        <param name="front_right_can_id">2</param>
+        <param name="rear_left_can_id">3</param>
+        <param name="rear_right_can_id">4</param>
 
-              <param name="feedback_enabled">true</param>
+        <!-- Drive settings -->
+        <param name="gear_ratio">100</param>
+        <param name="pid_slot">1</param>
+        <param name="command_deadband_rad_per_sec">0.001</param>
+        <param name="loopback_mode">false</param>
+        <param name="feedback_enabled">true</param>
 
-              <param name="print_commands">false</param>
-              <param name="print_status">false</param>
-              <param name="debug_printing_enabled">false</param>
-          </hardware>
+        <!-- Drum -->
+        <param name="drum_can_id">7</param>
+
+        <!-- Linear actuators -->
+        <param name="left_linear_actuator_joint_name">left_linear_actuator_joint</param>
+        <param name="right_linear_actuator_joint_name">right_linear_actuator_joint</param>
+
+        <param name="left_linear_actuator_can_id">5</param>
+        <param name="right_linear_actuator_can_id">6</param>
+
+        <!-- THIS ENABLES THE ACTUATOR ROS2_CONTROL INTERFACES -->
+        <param name="left_linear_actuator_ros2_control_interface_enabled">true</param>
+        <param name="right_linear_actuator_ros2_control_interface_enabled">true</param>
+
+        <!-- Start stopped / middle -->
+        <param name="left_linear_actuator_initial_position_command">0.5</param>
+        <param name="right_linear_actuator_initial_position_command">0.5</param>
+
+        <!-- Analog feedback calibration -->
+        <param name="left_linear_actuator_feedback_min_voltage">0.279</param>
+        <param name="left_linear_actuator_feedback_max_voltage">1.85</param>
+        <param name="right_linear_actuator_feedback_min_voltage">0.279</param>
+        <param name="right_linear_actuator_feedback_max_voltage">1.85</param>
+
+        <!-- Closed-loop actuator tolerance -->
+        <param name="linear_actuator_position_tolerance">0.03</param>
+
+        <!-- Debug -->
+        <param name="print_commands">false</param>
+        <param name="print_status">false</param>
+        <param name="debug_printing_enabled">false</param>
+      </hardware>
+
+      <!-- Diff-drive wheel joints -->
       <joint name="front_left_wheel_joint">
         <command_interface name="velocity">
-            <param name="min_velocity">-10</param>
-            <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -40,8 +77,8 @@
 
       <joint name="front_right_wheel_joint">
         <command_interface name="velocity">
-            <param name="min_velocity">-10</param>
-            <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -49,8 +86,8 @@
 
       <joint name="rear_left_wheel_joint">
         <command_interface name="velocity">
-              <param name="min_velocity">-10</param>
-              <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -58,15 +95,45 @@
 
       <joint name="rear_right_wheel_joint">
         <command_interface name="velocity">
-              <param name="min_velocity">-10</param>
-              <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
+
+      <!-- Real linear actuator joints -->
+      <joint name="left_linear_actuator_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position"/>
+      </joint>
+
+      <joint name="right_linear_actuator_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position"/>
+      </joint>
+
+      <!-- Drum spin motor -->
+      <joint name="drum_spin_joint">
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
     </ros2_control>
   </xacro:unless>
 
+
+  <!-- ================= SIM / GAZEBO ROS2_CONTROL ================= -->
   <xacro:if value="$(arg sim_mode)">
     <ros2_control name="GazeboSystem" type="system">
       <hardware>
@@ -75,8 +142,8 @@
 
       <joint name="front_left_wheel_joint">
         <command_interface name="velocity">
-            <param name="min_velocity">-10</param>
-            <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -84,8 +151,8 @@
 
       <joint name="front_right_wheel_joint">
         <command_interface name="velocity">
-            <param name="min_velocity">-10</param>
-            <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -93,8 +160,8 @@
 
       <joint name="rear_left_wheel_joint">
         <command_interface name="velocity">
-              <param name="min_velocity">-10</param>
-              <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
@@ -102,40 +169,53 @@
 
       <joint name="rear_right_wheel_joint">
         <command_interface name="velocity">
-              <param name="min_velocity">-10</param>
-              <param name="max_velocity">10</param>
+          <param name="min">-10</param>
+          <param name="max">10</param>
         </command_interface>
         <state_interface name="position"/>
         <state_interface name="velocity"/>
       </joint>
 
-
-      <joint name="drum_joint">
+      <!-- Sim actuator joints -->
+      <joint name="left_linear_actuator_joint">
         <command_interface name="position">
           <param name="min">0.0</param>
           <param name="max">1.0</param>
         </command_interface>
-          <state_interface name="position"/>
-          <state_interface name="velocity"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
       </joint>
 
-            <joint name="drum_spin_joint">
-        <command_interface name="velocity"/>
-          <state_interface name="position"/>
-          <state_interface name="velocity"/>
+      <joint name="right_linear_actuator_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <joint name="drum_spin_joint">
+        <command_interface name="velocity">
+          <param name="min">-1.0</param>
+          <param name="max">1.0</param>
+        </command_interface>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
       </joint>
 
     </ros2_control>
   </xacro:if>
 
 
-  <gazebo>
-    <plugin  name="gazebo_ros2_control"  filename="libgazebo_ros2_control.so">
-      <parameters>$(find qpl_rover)/config/my_controllers.yaml</parameters>
-      <parameters>$(find qpl_rover)/config/gaz_ros2_ctl_use_sim.yaml</parameters>
-    </plugin>
-  </gazebo>
-
-  
+  <!-- Only load Gazebo plugin in sim -->
+  <xacro:if value="$(arg sim_mode)">
+    <gazebo>
+      <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
+        <parameters>$(find qpl_rover)/config/my_controllers.yaml</parameters>
+        <parameters>$(find qpl_rover)/config/gaz_ros2_ctl_use_sim.yaml</parameters>
+      </plugin>
+    </gazebo>
+  </xacro:if>
 
 </robot>

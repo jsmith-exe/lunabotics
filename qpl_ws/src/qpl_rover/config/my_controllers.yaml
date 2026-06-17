@@ -2,35 +2,41 @@ controller_manager:
   ros__parameters:
     update_rate: 100
 
+    joint_broad:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    diff_cont:
+      type: diff_drive_controller/DiffDriveController
+
     drum_lift_cont:
       type: position_controllers/JointGroupPositionController
 
     drum_cont:
       type: velocity_controllers/JointGroupVelocityController
 
-    diff_cont:
-      type: diff_drive_controller/DiffDriveController 
-
-    joint_broad:
-      type: joint_state_broadcaster/JointStateBroadcaster
 
 diff_cont:
   ros__parameters:
-
     publish_rate: 100.0
-    base_frame_id: base_footprint
-    publish_tf: false
 
-    left_wheel_names:  ["front_left_wheel_joint", "rear_left_wheel_joint"]
-    right_wheel_names: ["front_right_wheel_joint", "rear_right_wheel_joint"]
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+
+    publish_tf: false
+    enable_odom_tf: false
+
+    left_wheel_names:
+      - front_left_wheel_joint
+      - rear_left_wheel_joint
+
+    right_wheel_names:
+      - front_right_wheel_joint
+      - rear_right_wheel_joint
 
     wheel_separation: 0.5836
     wheel_radius: 0.15
 
     use_stamped_vel: false
-
-    odom_frame_id: odom
-    enable_odom_tf: false
 
     linear:
       x:
@@ -44,10 +50,13 @@ diff_cont:
         max_velocity: 1.0
         has_acceleration_limits: false
 
+
 drum_lift_cont:
   ros__parameters:
     joints:
-      - drum_joint
+      - left_linear_actuator_joint
+      - right_linear_actuator_joint
+
 
 drum_cont:
   ros__parameters:
