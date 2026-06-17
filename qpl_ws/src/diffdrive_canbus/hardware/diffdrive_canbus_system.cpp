@@ -2376,7 +2376,7 @@ private:
   //   1.0 = extend target   ->  1.0 duty internally
   // This sets the startup value of linear_actuator_command_. ros2_control can still
   // overwrite linear_actuator_command_ at runtime through the position command interface.
-  double linear_actuator_test_position_command_{0.5};
+  double linear_actuator_test_position_command_{1.0};
 
   // ros2_control position command for the linear actuator:
   //   0.0 = retract target  -> -1.0 duty internally
