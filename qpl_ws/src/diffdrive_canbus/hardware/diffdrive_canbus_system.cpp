@@ -664,32 +664,12 @@ public:
     const rclcpp::Duration &) override
   {
     now = time(NULL);
-    if (difftime(now, time_since_start) >= 10.0 && !stage_rotate_drum) {
+    if (difftime(now, time_since_start) >= 7.0 && !stage_rotate_drum) {
       RCLCPP_INFO(logger_, "SPIN DRUM");
       stage_rotate_drum = true;
-      staged_drum_speed = 0.3;
+      staged_drum_speed = -0.3;
     }
-    if (difftime(now, time_since_start) >= 11.0 && !stage_lower_drum) {
-      RCLCPP_INFO(logger_, "LOWER DRUM");
-      stage_lower_drum = true;
-      linear_actuator_command_ = 0.0;
-    }
-    if (difftime(now, time_since_start) >= 15.0 && !stage_stop_lower_drum) {
-      RCLCPP_INFO(logger_, "STOP LOWER DRUM");
-      stage_stop_lower_drum = true;
-      linear_actuator_command_ = 0.5;
-    }
-    if (difftime(now, time_since_start) >= 25.0 && !stage_raise_drum) {
-      RCLCPP_INFO(logger_, "RAISE DRUM");
-      stage_raise_drum = true;
-      linear_actuator_command_ = 1.0;
-    }
-    if (difftime(now, time_since_start) >= 28.5 && !stage_stop_raise_drum) {
-      RCLCPP_INFO(logger_, "STOP RAISE DRUM");
-      stage_stop_raise_drum = true;
-      linear_actuator_command_ = 0.5;
-    }
-    if (difftime(now, time_since_start) >= 29.5 && !stage_stop_rotate_drum) {
+    if (difftime(now, time_since_start) >= 27.0 && !stage_stop_rotate_drum) {
       RCLCPP_INFO(logger_, "STOP SPIN DRUM");
       stage_stop_rotate_drum = true;
       staged_drum_speed = 0.0;
