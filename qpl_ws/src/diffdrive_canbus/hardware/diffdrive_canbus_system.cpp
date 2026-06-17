@@ -24,6 +24,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <time.h>
+#include <stdio.h>
 
 namespace diffdrive_canbus
 {
@@ -471,6 +473,8 @@ public:
   hardware_interface::CallbackReturn on_activate(
     const rclcpp_lifecycle::State &) override
   {
+    time_since_start = time(NULL);
+
     front_left_command_ = 0.0;
     front_right_command_ = 0.0;
     rear_left_command_ = 0.0;
@@ -659,6 +663,19 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
+  bool stage_lower_drum{false};
+    now = time(NULL);
+    if (difftime(now, time_since_start) >= 5.0 && !stage_lower_drum) {
+      RCLCPP_INFO(logger_, "DO SOME COMMAND 1");
+      stage_lower_drum = true;
+//      linear_actuator_command_ = 0.0
+    }
+    if (difftime(now, time_since_start) >= 10.0 && !stage_raise_drum) {
+      RCLCPP_INFO(logger_, "DO SOME COMMAND 2");
+      stage_raise_drum = true;
+//      linear_actuator_command_ = 0.0
+    }
+
     if (
       !std::isfinite(front_left_command_) ||
       !std::isfinite(front_right_command_) ||
@@ -2484,6 +2501,12 @@ private:
 
   std::chrono::steady_clock::time_point last_print_time_{
     std::chrono::steady_clock::now()};
+
+  time_t time_since_start;
+  time_t now;
+
+  bool stage_lower_drum{false};
+  bool stage_raise_drum{false};
 };
 
 }  // namespace diffdrive_canbus
