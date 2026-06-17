@@ -674,23 +674,23 @@ public:
       stage_lower_drum = true;
       linear_actuator_command_ = 0.0;
     }
-    if (difftime(now, time_since_start) >= 13.0 && !stage_stop_lower_drum) {
+    if (difftime(now, time_since_start) >= 15.0 && !stage_stop_lower_drum) {
       RCLCPP_INFO(logger_, "STOP LOWER DRUM");
       stage_stop_lower_drum = true;
       linear_actuator_command_ = 0.5;
     }
-    if (difftime(now, time_since_start) >= 23.0 && !stage_raise_drum) {
+    if (difftime(now, time_since_start) >= 25.0 && !stage_raise_drum) {
       RCLCPP_INFO(logger_, "RAISE DRUM");
       stage_raise_drum = true;
       linear_actuator_command_ = 1.0;
     }
-    if (difftime(now, time_since_start) >= 25.5 && !stage_stop_raise_drum) {
+    if (difftime(now, time_since_start) >= 28.5 && !stage_stop_raise_drum) {
       RCLCPP_INFO(logger_, "STOP RAISE DRUM");
       stage_stop_raise_drum = true;
       linear_actuator_command_ = 0.5;
     }
-    if (difftime(now, time_since_start) >= 26.5 && !stage_stop_rotate_drum) {
-      RCLCPP_INFO(logger_, "SPIN DRUM");
+    if (difftime(now, time_since_start) >= 29.5 && !stage_stop_rotate_drum) {
+      RCLCPP_INFO(logger_, "STOP SPIN DRUM");
       stage_stop_rotate_drum = true;
       staged_drum_speed = 0.0;
     }
