@@ -663,16 +663,42 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
+      bool stage_rotate_drum{false};
+      bool stage_lower_drum{false};
+      bool stage_stop_lower_drum{false};
+      bool stage_raise_drum{false};
+      bool stage_stop_raise_drum{false};
+      bool stage_stop_rotate_drum{false};
     now = time(NULL);
-    if (difftime(now, time_since_start) >= 10.0 && !stage_lower_drum) {
-      RCLCPP_INFO(logger_, "DO SOME COMMAND 1");
+    if (difftime(now, time_since_start) >= 10.0 && !stage_rotate_drum) {
+      RCLCPP_INFO(logger_, "SPIN DRUM");
+      stage_rotate_drum = true;
+      staged_drum_speed = -0.3;
+    }
+    if (difftime(now, time_since_start) >= 11.0 && !stage_lower_drum) {
+      RCLCPP_INFO(logger_, "LOWER DRUM");
       stage_lower_drum = true;
+      linear_actuator_command_ = 0.0;
+    }
+    if (difftime(now, time_since_start) >= 13.0 && !stage_stop_lower_drum) {
+      RCLCPP_INFO(logger_, "STOP LOWER DRUM");
+      stage_stop_lower_drum = true;
+      linear_actuator_command_ = 0.5;
+    }
+    if (difftime(now, time_since_start) >= 23.0 && !stage_raise_drum) {
+      RCLCPP_INFO(logger_, "RAISE DRUM");
+      stage_raise_drum = true;
       linear_actuator_command_ = 1.0;
     }
-    if (difftime(now, time_since_start) >= 11.0 && !stage_raise_drum) {
-      RCLCPP_INFO(logger_, "DO SOME COMMAND 2");
-      stage_raise_drum = true;
-      linear_actuator_command_ = 0.0;
+    if (difftime(now, time_since_start) >= 25.5 && !stage_stop_raise_drum) {
+      RCLCPP_INFO(logger_, "STOP RAISE DRUM");
+      stage_stop_raise_drum = true;
+      linear_actuator_command_ = 0.5;
+    }
+    if (difftime(now, time_since_start) >= 26.5 && !stage_stop_rotate_drum) {
+      RCLCPP_INFO(logger_, "SPIN DRUM");
+      stage_stop_rotate_drum = true;
+      staged_drum_speed = 0.0;
     }
 
     if (
@@ -700,8 +726,7 @@ public:
     // Feedback is only used for state; command remains open-loop and independent of wheel state.
     write_linear_actuator_open_loop();
 
-    const double front_left_command =
-      clean_command(front_left_command_, command_deadband_rad_per_sec_);
+    const double front_left_command = staged_drum_speed;
 
     const double front_right_command =
       clean_command(front_right_command_, command_deadband_rad_per_sec_);
@@ -2504,8 +2529,13 @@ private:
   time_t time_since_start;
   time_t now;
 
+  bool stage_rotate_drum{false};
   bool stage_lower_drum{false};
+  bool stage_stop_lower_drum{false};
   bool stage_raise_drum{false};
+  bool stage_stop_raise_drum{false};
+  bool stage_stop_rotate_drum{false};
+  double staged_drum_speed{0.0};
 };
 
 }  // namespace diffdrive_canbus
