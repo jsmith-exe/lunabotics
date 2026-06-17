@@ -9,7 +9,7 @@ controller_manager:
       type: diff_drive_controller/DiffDriveController
 
     drum_lift_cont:
-      type: position_controllers/JointGroupPositionController
+      type: velocity_controllers/JointGroupVelocityController
 
     drum_cont:
       type: velocity_controllers/JointGroupVelocityController
