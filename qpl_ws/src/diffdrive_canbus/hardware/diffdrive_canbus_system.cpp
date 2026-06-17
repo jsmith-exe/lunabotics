@@ -774,20 +774,20 @@ public:
       front_left_spark_,
       front_left_command);
 
-    write_one_motor_native_velocity(
-      "front_right",
-      front_right_spark_,
-      front_right_command);
-
-    write_one_motor_native_velocity(
-      "rear_left",
-      rear_left_spark_,
-      rear_left_command);
-
-    write_one_motor_native_velocity(
-      "rear_right",
-      rear_right_spark_,
-      rear_right_command);
+//    write_one_motor_native_velocity(
+//      "front_right",
+//      front_right_spark_,
+//      front_right_command);
+//
+//    write_one_motor_native_velocity(
+//      "rear_left",
+//      rear_left_spark_,
+//      rear_left_command);
+//
+//    write_one_motor_native_velocity(
+//      "rear_right",
+//      rear_right_spark_,
+//      rear_right_command);
 
     return hardware_interface::return_type::OK;
   }
@@ -2363,7 +2363,7 @@ private:
 
   uint8_t pid_slot_{0};
 
-  uint8_t front_left_can_id_{1};
+  uint8_t front_left_can_id_{7};
   uint8_t front_right_can_id_{2};
   uint8_t rear_left_can_id_{3};
   uint8_t rear_right_can_id_{4};
@@ -2376,7 +2376,7 @@ private:
   //   1.0 = extend target   ->  1.0 duty internally
   // This sets the startup value of linear_actuator_command_. ros2_control can still
   // overwrite linear_actuator_command_ at runtime through the position command interface.
-  double linear_actuator_test_position_command_{1.0};
+  double linear_actuator_test_position_command_{0.5};
 
   // ros2_control position command for the linear actuator:
   //   0.0 = retract target  -> -1.0 duty internally

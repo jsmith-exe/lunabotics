@@ -15,7 +15,7 @@
               <param name="can_baud_rate">1000000</param>
               <param name="timeout_ms">5</param>
 
-              <param name="front_left_can_id">1</param>
+              <param name="front_left_can_id">7</param>
               <param name="front_right_can_id">2</param>
               <param name="rear_left_can_id">3</param>
               <param name="rear_right_can_id">4</param>
