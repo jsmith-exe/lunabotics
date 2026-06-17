@@ -356,13 +356,10 @@ public:
       hardware_interface::HW_IF_VELOCITY,
       &rear_right_command_);
 
-    if (linear_actuator_ros2_control_interface_enabled_)
-    {
-      command_interfaces.emplace_back(
-        linear_actuator_joint_name_,
-        hardware_interface::HW_IF_POSITION,
-        &linear_actuator_command_);
-    }
+    command_interfaces.emplace_back(
+      linear_actuator_joint_name_,
+      hardware_interface::HW_IF_VELOCITY,
+      &linear_actuator_command_);
 
     return command_interfaces;
   }

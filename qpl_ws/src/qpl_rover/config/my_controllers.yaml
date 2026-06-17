@@ -3,7 +3,7 @@ controller_manager:
     update_rate: 100
 
     drum_lift_cont:
-      type: position_controllers/JointGroupPositionController
+      type: velocity_controllers/JointGroupVelocityController
 
     diff_cont:
       type: diff_drive_controller/DiffDriveController 
