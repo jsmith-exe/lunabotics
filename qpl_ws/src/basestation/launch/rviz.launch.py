@@ -36,7 +36,18 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Arena zone + mission-waypoint overlay (/zone_overlay MarkerArray) to help
+    # the teleoperator see the zones and the autonomy targets in the map frame.
+    zone_overlay = Node(
+        package="basestation",
+        executable="zone_overlay",
+        name="zone_overlay",
+        parameters=[{"use_sim_time": use_sim_time}],
+        output="screen",
+    )
+
     return LaunchDescription([
         use_sim_time_arg,
         rviz,
+        zone_overlay,
     ])

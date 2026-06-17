@@ -19,11 +19,11 @@ excavation_finish:
   yaw: 0.0
 
 construction_zone:
-  x: 3.5
-  y: 3
+  x: 3.65
+  y: 1.3
   yaw: π/2
 
 construction_finish:
-  x: 3.5
-  y: 2
+  x: 3.65
+  y: 1
   yaw: π/2
