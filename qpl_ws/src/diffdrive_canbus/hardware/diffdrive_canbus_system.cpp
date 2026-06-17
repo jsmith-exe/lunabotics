@@ -229,7 +229,7 @@ public:
     }
 
     RCLCPP_WARN(logger_, "============================================================");
-    RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE IS RUNNING IN SIMPLE NATIVE VELOCITY MODE");
+    RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE MASTER: WORKING DRIVETRAIN PATH + ACTUATOR CLOSED-LOOP PATH");
     RCLCPP_WARN(logger_, "Runtime command path remains based on the best working version");
     RCLCPP_WARN(logger_, "Heartbeat is only sent while commanding or stopping");
     RCLCPP_WARN(logger_, "Active command stream is refreshed quickly for SPARK MAX keepalive stability");
@@ -583,6 +583,7 @@ public:
     drum_velocity_ = 0.0;
     drum_position_offset_ = 0.0;
     drum_position_offset_valid_ = false;
+    last_drum_sent_output_ = 999.0;
     next_drum_command_write_time_ = std::chrono::steady_clock::now();
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
@@ -690,10 +691,6 @@ public:
       maybe_read_feedback_like_test_script();
       update_all_joint_states_from_telemetry();
     }
-    else
-    {
-      maybe_drain_can_rx_without_feedback();
-    }
 
     maybe_print_actuator_feedback(left_actuator_, "left");
     maybe_print_actuator_feedback(right_actuator_, "right");
@@ -725,8 +722,10 @@ public:
         "Non-finite ros2_control command detected. Forcing non-finite commands to zero.");
     }
 
-    // Global non-RIO heartbeat. Keep this independent from individual motor writes.
-    maybe_send_heartbeat();
+    // Keep the drivetrain-working behaviour: do NOT send a global heartbeat at
+    // the top of every write() cycle. Each wheel command still sends heartbeat
+    // immediately before its native velocity setpoint.
+//    maybe_send_heartbeat();
 
     // Closed-loop actuator position servos are intentionally independent of the wheels.
     write_actuator_closed_loop(left_actuator_, "left");
@@ -772,7 +771,7 @@ public:
           "Runaway latch active. Blocking velocity commands and sending zero-duty stop frames.");
 
         maybe_send_heartbeat();
-        send_zero_duty_wheels_only(false);
+        send_zero_duty_all(false);
 
         return hardware_interface::return_type::OK;
       }
@@ -790,7 +789,7 @@ public:
           logger_,
           *rclcpp::Clock::make_shared(),
           1000,
-          "Commands returned to zero. Sending immediate zero-duty stop frames to drive motors only.");
+          "Commands returned to zero. Sending immediate zero-duty stop frames.");
 
         if (front_left_spark_)
         {
@@ -800,11 +799,11 @@ public:
         // Send several stop frames to improve reliability
         for (int i = 0; i < 3; ++i)
         {
-            send_zero_duty_wheels_only(false);
+            send_zero_duty_all(false);
             sleep_bus_gap();
         }
         maybe_send_heartbeat();
-        send_zero_duty_wheels_only(false);
+        send_zero_duty_all(false);
       }
 
       motors_currently_commanded_ = false;
@@ -1865,15 +1864,24 @@ private:
       return;
     }
 
+    const double command = std::isfinite(drum_command_) ? drum_command_ : 0.0;
+    const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
+
+    // Master-file behaviour:
+    // Keep drum support enabled, but do not spam zero-duty drum frames forever.
+    // The drivetrain-working file had drum writes commented out, so this keeps
+    // the bus quiet when the drum is idle while still allowing commanded drum spin.
+    if (std::fabs(duty) <= 1e-6 && std::fabs(last_drum_sent_output_) <= 1e-6)
+    {
+      return;
+    }
+
     const auto now = std::chrono::steady_clock::now();
     if (now < next_drum_command_write_time_)
     {
       return;
     }
     next_drum_command_write_time_ = now + COMMAND_WRITE_PERIOD;
-
-    const double command = std::isfinite(drum_command_) ? drum_command_ : 0.0;
-    const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
 
     RCLCPP_WARN_THROTTLE(
       logger_,
@@ -1884,6 +1892,7 @@ private:
       duty);
 
     drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
+    last_drum_sent_output_ = duty;
     sleep_bus_gap();
   }
 
@@ -2615,6 +2624,7 @@ private:
   std::unique_ptr<SparkMax> drum_spark_;
   uint8_t drum_can_id_{7};
   double drum_command_{0.0};
+  double last_drum_sent_output_{999.0};
   std::chrono::steady_clock::time_point next_drum_command_write_time_{
     std::chrono::steady_clock::now()};
 
