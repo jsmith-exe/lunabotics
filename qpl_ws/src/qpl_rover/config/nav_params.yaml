@@ -61,7 +61,7 @@ controller_server:
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
       # TOLERANCE NOTE: If robot oscillates at the goal, increase these slightly.
-      xy_goal_tolerance: 0.15 # Tightened slightly if precision is needed, match with DWB
+      xy_goal_tolerance: 0.20 # Tighten slightly if precision is needed, match with DWB
       yaw_goal_tolerance: 0.20
 
     FollowPath:
@@ -303,7 +303,7 @@ behavior_server:
     spin:
       plugin: "nav2_behaviors/Spin"
       spin_dist: 3.14 # Distance to spin in radians (180 degrees to fully clear/sweep camera views)
-      time_allowance: 5.0 # Max time allowed to complete execution before timing out
+      time_allowance: 10.0 # Max time allowed to complete execution before timing out
       max_rotational_vel: 0.4 # Target angular speed
     backup:
       plugin: "nav2_behaviors/BackUp"
