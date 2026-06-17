@@ -667,12 +667,12 @@ public:
     if (difftime(now, time_since_start) >= 10.0 && !stage_lower_drum) {
       RCLCPP_INFO(logger_, "DO SOME COMMAND 1");
       stage_lower_drum = true;
-      linear_actuator_command_ = 1.0
+      linear_actuator_command_ = 1.0;
     }
     if (difftime(now, time_since_start) >= 11.0 && !stage_raise_drum) {
       RCLCPP_INFO(logger_, "DO SOME COMMAND 2");
       stage_raise_drum = true;
-      linear_actuator_command_ = 0.0
+      linear_actuator_command_ = 0.0;
     }
 
     if (
