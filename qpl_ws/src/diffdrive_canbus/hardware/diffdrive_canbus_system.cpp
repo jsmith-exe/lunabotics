@@ -2380,9 +2380,9 @@ private:
   uint8_t pid_slot_{0};
 
   uint8_t front_left_can_id_{7};
-  uint8_t front_right_can_id_{2};
-  uint8_t rear_left_can_id_{3};
-  uint8_t rear_right_can_id_{4};
+  uint8_t front_right_can_id_{20};
+  uint8_t rear_left_can_id_{30};
+  uint8_t rear_right_can_id_{40};
   uint8_t linear_actuator_can_id_{5};
   uint8_t linear_actuator_6_can_id_{6};
 
