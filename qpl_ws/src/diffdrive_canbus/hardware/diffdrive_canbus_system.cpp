@@ -731,8 +731,13 @@ public:
     maybe_send_heartbeat();
 
     // Closed-loop actuator position servos are intentionally independent of the wheels.
-    write_actuator_closed_loop(left_actuator_, "left");
-    write_actuator_closed_loop(right_actuator_, "right");
+    const double target = std::clamp(std::isfinite(act.command) ? act.command : 0.5, 0.0, 1.0);
+    // TODO print out target
+//    send_actuator_duty(left_actuator_, duty, "left");
+//    send_actuator_duty(right_actuator_, duty, "right");
+
+//    write_actuator_closed_loop(left_actuator_, "left");
+//    write_actuator_closed_loop(right_actuator_, "right");
     write_drum_velocity();
 
     const double front_left_command =
