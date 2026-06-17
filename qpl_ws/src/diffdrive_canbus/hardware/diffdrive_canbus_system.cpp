@@ -865,7 +865,7 @@ private:
     // Optional: set true only after linear_actuator_joint exists in your ros2_control URDF.
     // If false, the actuator still runs from linear_actuator_test_position_command_.
     linear_actuator_ros2_control_interface_enabled_ =
-      get_bool("linear_actuator_ros2_control_interface_enabled", false);
+      get_bool("linear_actuator_ros2_control_interface_enabled", true);
 
     command_deadband_rad_per_sec_ =
       get_double("command_deadband_rad_per_sec", 0.001);
