@@ -725,8 +725,8 @@ public:
 //    maybe_send_heartbeat();
 
     // Closed-loop actuator position servos are intentionally independent of the wheels.
-    write_actuator_closed_loop(left_actuator_, "left");
-    write_actuator_closed_loop(right_actuator_, "right");
+//    write_actuator_closed_loop(left_actuator_, "left");
+//    write_actuator_closed_loop(right_actuator_, "right");
 //    write_drum_velocity();
 
     const double front_left_command =
@@ -1734,7 +1734,7 @@ private:
 
     if (!feedback_fresh)
     {
-      send_actuator_duty(act, 0.0, label);
+//      send_actuator_duty(act, 0.0, label);
       RCLCPP_WARN_THROTTLE(
         logger_,
         *rclcpp::Clock::make_shared(),
@@ -1805,7 +1805,7 @@ private:
       duty = 0.0;
     }
 
-    send_actuator_duty(act, duty, label);
+//    send_actuator_duty(act, duty, label);
   }
 
   // Clamp/deadband a duty command and send it to one actuator's SPARK MAX.
