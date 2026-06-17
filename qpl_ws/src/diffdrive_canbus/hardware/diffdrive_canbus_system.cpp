@@ -358,7 +358,7 @@ public:
 
     command_interfaces.emplace_back(
       linear_actuator_joint_name_,
-      hardware_interface::HW_IF_VELOCITY,
+      hardware_interface::HW_IF_POSITION,
       &linear_actuator_command_);
 
     return command_interfaces;

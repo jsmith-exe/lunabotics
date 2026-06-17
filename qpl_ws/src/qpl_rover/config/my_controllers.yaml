@@ -3,7 +3,7 @@ controller_manager:
     update_rate: 100
 
     drum_lift_cont:
-      type: velocity_controllers/JointGroupVelocityController
+      type: forward_command_controller/ForwardCommandController
 
     diff_cont:
       type: diff_drive_controller/DiffDriveController 
@@ -45,3 +45,4 @@ drum_lift_cont:
   ros__parameters:
     joints:
       - linear_actuator_joint
+    interface_name: position
