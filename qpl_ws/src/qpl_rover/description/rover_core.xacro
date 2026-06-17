@@ -32,6 +32,15 @@
   <xacro:property name="wheel_r" value="0.15"/>
   <xacro:property name="wheel_w" value="0.15"/>
 
+  <!-- Real-rover track (centre-to-centre of L/R wheels). Must match -->
+  <!-- diff_cont wheel_separation in config/my_controllers.yaml (0.5836), -->
+  <!-- otherwise sim odometry over-reports yaw and RViz turns faster than Gazebo. -->
+  <xacro:property name="wheel_separation" value="0.5836"/>
+
+  <!-- Vertical clearance between wheel top and chassis underside so the -->
+  <!-- wheels tuck fully under the base instead of clipping through it. -->
+  <xacro:property name="wheel_base_gap" value="0.01"/>
+
   <!-- Wheel placement -->
   <xacro:property name="wheel_x_offset" value="${base_x / 2}"/>
   <xacro:property name="wheel_side_clearance" value="0.00"/>
@@ -40,14 +49,18 @@
   <!-- Derived values                                            -->
   <!-- ========================================================= -->
 
-  <!-- Base lift -->
-  <xacro:property name="base_link_z" value="${wheel_r + base_z / 2}"/>
+  <!-- Base lift: raise the chassis so its underside clears the wheel tops -->
+  <!-- (wheel tops sit at 2*wheel_r above ground); wheels still touch ground. -->
+  <xacro:property name="base_link_z" value="${2 * wheel_r + wheel_base_gap + base_z / 2}"/>
 
   <!-- Wheel positions -->
   <xacro:property name="wheel_x_front" value="${wheel_x_offset}"/>
   <xacro:property name="wheel_x_rear" value="${-wheel_x_offset}"/>
-  <xacro:property name="wheel_y" value="${base_y / 2 + wheel_w / 2 + wheel_side_clearance}"/>
-  <xacro:property name="wheel_z" value="${-base_z / 2}"/>
+  <!-- Track set from the real wheel separation; wheels tuck under the base corners. -->
+  <xacro:property name="wheel_y" value="${wheel_separation / 2}"/>
+  <!-- Hang the wheels below the raised chassis so the wheel centre stays at -->
+  <!-- world z = wheel_r (ground contact): base_link_z + wheel_z = wheel_r. -->
+  <xacro:property name="wheel_z" value="${-(wheel_r + wheel_base_gap + base_z / 2)}"/>
 
   <!-- Top deck position -->
   <xacro:property name="top_deck_z" value="${base_z / 2 + trap_height + top_z / 2}"/>
