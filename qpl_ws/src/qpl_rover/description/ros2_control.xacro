@@ -47,8 +47,8 @@
         <param name="right_linear_actuator_ros2_control_interface_enabled">true</param>
 
         <!-- Start stopped / middle -->
-        <param name="left_linear_actuator_initial_position_command">0.5</param>
-        <param name="right_linear_actuator_initial_position_command">0.5</param>
+        <param name="left_linear_actuator_initial_position_command">0.0</param>
+        <param name="right_linear_actuator_initial_position_command">0.0</param>
 
         <!-- Analog feedback calibration -->
         <param name="left_linear_actuator_feedback_min_voltage">0.279</param>
