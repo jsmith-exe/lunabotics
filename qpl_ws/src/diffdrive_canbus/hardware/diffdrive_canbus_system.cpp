@@ -221,14 +221,16 @@ public:
     RCLCPP_WARN(logger_, "Active command stream is refreshed quickly for SPARK MAX keepalive stability");
     RCLCPP_WARN(logger_, "Heartbeat is handled globally by maybe_send_heartbeat()");
     RCLCPP_WARN(logger_, "Active commands use native SPARK MAX velocity setpoints");
-    RCLCPP_WARN(logger_, "Linear actuator on CAN ID %u uses direct duty-cycle/throttle output", linear_actuator_can_id_);
+    RCLCPP_WARN(logger_, "Linear actuator 5 on CAN ID %u uses direct duty-cycle/throttle output", linear_actuator_can_id_);
+    RCLCPP_WARN(logger_, "Linear actuator 6 on CAN ID %u mirrors the same position command variable", linear_actuator_6_can_id_);
     RCLCPP_WARN(logger_, "Linear actuator command interface requested: %s/%s", linear_actuator_joint_name_.c_str(), hardware_interface::HW_IF_POSITION);
     RCLCPP_WARN(logger_, "Linear actuator ros2_control interface enabled: %s", linear_actuator_ros2_control_interface_enabled_ ? "true" : "false");
-    RCLCPP_WARN(logger_, "If disabled, actuator command comes from linear_actuator_test_position_command_ only");
-    RCLCPP_WARN(logger_, "Linear actuator uses direct open-loop duty-cycle output at the top of every write() cycle");
+    RCLCPP_WARN(logger_, "If disabled, both actuators come from linear_actuator_test_position_command_ only");
+    RCLCPP_WARN(logger_, "Both linear actuators use direct open-loop duty-cycle output at the top of every write() cycle");
     RCLCPP_WARN(logger_, "When feedback is disabled, CAN RX frames are still lightly drained for serial adapter stability");
     RCLCPP_WARN(logger_, "Linear actuator raw CAN frames are sniffed for analogue-voltage feedback without editing spark_max.cpp");
-    RCLCPP_WARN(logger_, "Linear actuator ros2_control command is position: 0.0 retract, 0.5 stop, 1.0 extend");
+    RCLCPP_WARN(logger_, "Linear actuator command is position: 0.0 retract, 0.5 stop, 1.0 extend");
+    RCLCPP_WARN(logger_, "Actuator 5 and actuator 6 both use that same command variable");
     RCLCPP_WARN(logger_, "Shutdown/Ctrl+C uses zero-duty stop bursts");
     RCLCPP_WARN(logger_, "Velocity clamp removed");
     RCLCPP_WARN(logger_, "NaN/+inf/-inf commands are forced to zero before deadband");
@@ -423,6 +425,11 @@ public:
         linear_actuator_can_id_,
         static_cast<float>(gear_ratio_));
 
+      linear_actuator_6_spark_ = std::make_unique<SparkMax>(
+        can_,
+        linear_actuator_6_can_id_,
+        static_cast<float>(gear_ratio_));
+
       front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
       front_right_spark_->set_native_velocity_pid_slot(pid_slot_);
       rear_left_spark_->set_native_velocity_pid_slot(pid_slot_);
@@ -433,12 +440,15 @@ public:
       RCLCPP_INFO(logger_, "Front right SPARK MAX ID: %u", front_right_can_id_);
       RCLCPP_INFO(logger_, "Rear left SPARK MAX ID: %u", rear_left_can_id_);
       RCLCPP_INFO(logger_, "Rear right SPARK MAX ID: %u", rear_right_can_id_);
-    RCLCPP_INFO(logger_, "Linear actuator SPARK MAX ID: %u", linear_actuator_can_id_);
+    RCLCPP_INFO(logger_, "Linear actuator 5 SPARK MAX ID: %u", linear_actuator_can_id_);
+    RCLCPP_INFO(logger_, "Linear actuator 6 SPARK MAX ID: %u", linear_actuator_6_can_id_);
+    RCLCPP_INFO(logger_, "Both actuators use linear_actuator_test_position_command_ / linear_actuator_command_");
     RCLCPP_INFO(logger_, "Linear actuator test position command starts at: %.3f", linear_actuator_test_position_command_);
     RCLCPP_INFO(logger_, "Linear actuator ros2_control position command starts at: %.3f", linear_actuator_command_);
     RCLCPP_INFO(logger_, "Linear actuator command is resent every write() cycle, independent of wheel commands");
 
       request_linear_actuator_status3_period();
+      request_linear_actuator_6_status3_period();
     }
     catch (const std::exception & e)
     {
@@ -507,8 +517,10 @@ public:
     feedback_empty_count_ = 0;
     runaway_count_ = 0;
     linear_actuator_command_count_ = 0;
+    linear_actuator_6_command_count_ = 0;
 
     linear_actuator_last_sent_output_ = 999.0;
+    linear_actuator_6_last_sent_output_ = 999.0;
     linear_actuator_has_raw_can_frame_ = false;
     linear_actuator_has_status3_frame_ = false;
     linear_actuator_has_analog_voltage_candidate_ = false;
@@ -523,6 +535,7 @@ public:
 
     motors_currently_commanded_ = false;
     linear_actuator_currently_commanded_ = false;
+    linear_actuator_6_currently_commanded_ = false;
     runaway_latched_ = false;
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
@@ -538,7 +551,8 @@ public:
     RCLCPP_WARN(logger_, "Gear ratio active: %.3f motor rev / wheel rev", gear_ratio_);
     RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
     RCLCPP_WARN(logger_, "Runaway latch reset");
-    RCLCPP_WARN(logger_, "Linear actuator CAN ID %u position command starts at %.3f", linear_actuator_can_id_, linear_actuator_command_);
+    RCLCPP_WARN(logger_, "Linear actuator 5 CAN ID %u position command starts at %.3f", linear_actuator_can_id_, linear_actuator_command_);
+    RCLCPP_WARN(logger_, "Linear actuator 6 CAN ID %u mirrors the same position command", linear_actuator_6_can_id_);
     RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
     RCLCPP_WARN(logger_, "Active velocity commands limited to one command batch every %ld ms", COMMAND_WRITE_PERIOD.count());
     RCLCPP_WARN(logger_, "Each heartbeat/command frame is separated by %ld ms", BUS_FRAME_GAP.count());
@@ -590,6 +604,11 @@ public:
       if (linear_actuator_spark_)
       {
         linear_actuator_spark_->stop(false);
+      }
+
+      if (linear_actuator_6_spark_)
+      {
+        linear_actuator_6_spark_->stop(false);
       }
 
       send_stop_for_duration(EXTRA_STOP_TIME);
@@ -798,6 +817,12 @@ private:
     if (linear_actuator_can_id_ <= 0 || linear_actuator_can_id_ > 63)
     {
       throw std::runtime_error("linear_actuator_can_id must be between 1 and 63");
+    }
+
+    linear_actuator_6_can_id_ = static_cast<uint8_t>(get_int("linear_actuator_6_can_id", 6));
+    if (linear_actuator_6_can_id_ <= 0 || linear_actuator_6_can_id_ > 63)
+    {
+      throw std::runtime_error("linear_actuator_6_can_id must be between 1 and 63");
     }
 
     // Optional initial actuator command. Runtime control should normally come from ros2_control.
@@ -1233,6 +1258,11 @@ private:
     {
       linear_actuator_spark_->set_duty_cycle(0.0f, print);
     }
+
+    if (linear_actuator_6_spark_)
+    {
+      linear_actuator_6_spark_->set_duty_cycle(0.0f, print);
+    }
   }
 
   bool detect_runaway(
@@ -1482,19 +1512,40 @@ private:
     sleep_bus_gap();
   }
 
-  void write_linear_actuator_open_loop()
+  void request_linear_actuator_6_status3_period()
   {
-    if (!linear_actuator_spark_)
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Cannot write to linear actuator because SparkMax object is null");
+    const uint32_t status3_id =
+      SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(linear_actuator_6_can_id_);
 
-      return;
+    std::vector<uint8_t> data(2, 0x00);
+    data[0] = static_cast<uint8_t>(LINEAR_ACTUATOR_STATUS3_PERIOD_MS & 0xFF);
+    data[1] = static_cast<uint8_t>((LINEAR_ACTUATOR_STATUS3_PERIOD_MS >> 8) & 0xFF);
+
+    const bool ok = can_.send_extended_frame(status3_id, data, print_commands_);
+
+    if (ok)
+    {
+      RCLCPP_WARN(
+        logger_,
+        "Requested SPARK MAX Status 3 period for linear actuator 6: id=%u can_id=0x%08X period=%u ms",
+        linear_actuator_6_can_id_,
+        status3_id,
+        LINEAR_ACTUATOR_STATUS3_PERIOD_MS);
+    }
+    else
+    {
+      RCLCPP_WARN(
+        logger_,
+        "Failed to request SPARK MAX Status 3 period for linear actuator 6: id=%u can_id=0x%08X",
+        linear_actuator_6_can_id_,
+        status3_id);
     }
 
+    sleep_bus_gap();
+  }
+
+  void write_linear_actuator_open_loop()
+  {
     const double safe_position_command =
       std::clamp(
         std::isfinite(linear_actuator_command_) ? linear_actuator_command_ : 0.5,
@@ -1522,16 +1573,56 @@ private:
       logger_,
       *rclcpp::Clock::make_shared(),
       500,
-      "LINEAR ACTUATOR POSITION CMD: id=%u target_pos=%.3f duty_sent=%.3f",
-      linear_actuator_can_id_,
+      "LINEAR ACTUATORS POSITION CMD: target_pos=%.3f duty_sent=%.3f actuator5_id=%u actuator6_id=%u",
       safe_position_command,
-      safe_throttle);
+      safe_throttle,
+      linear_actuator_can_id_,
+      linear_actuator_6_can_id_);
 
     // Do not send a dedicated heartbeat here. The non-RIO heartbeat is sent
-    // globally from write() using maybe_send_heartbeat(). When feedback is disabled,
-    // read() still drains incoming CAN frames so the serial adapter RX buffer does
-    // not fill with SPARK MAX status traffic.
-    const bool ok = linear_actuator_spark_->set_duty_cycle(
+    // globally from write() using maybe_send_heartbeat(). Both actuators mirror
+    // the same command variable so they move together.
+    write_one_linear_actuator_duty(
+      "linear actuator 5",
+      linear_actuator_spark_,
+      linear_actuator_can_id_,
+      safe_throttle,
+      linear_actuator_command_count_,
+      linear_actuator_last_sent_output_,
+      linear_actuator_currently_commanded_);
+
+    write_one_linear_actuator_duty(
+      "linear actuator 6",
+      linear_actuator_6_spark_,
+      linear_actuator_6_can_id_,
+      safe_throttle,
+      linear_actuator_6_command_count_,
+      linear_actuator_6_last_sent_output_,
+      linear_actuator_6_currently_commanded_);
+  }
+
+  void write_one_linear_actuator_duty(
+    const std::string & label,
+    const std::unique_ptr<SparkMax> & spark,
+    uint8_t can_id,
+    double safe_throttle,
+    int & command_count,
+    double & last_sent_output,
+    bool & currently_commanded)
+  {
+    if (!spark)
+    {
+      RCLCPP_WARN_THROTTLE(
+        logger_,
+        *rclcpp::Clock::make_shared(),
+        1000,
+        "Cannot write to %s because SparkMax object is null",
+        label.c_str());
+
+      return;
+    }
+
+    const bool ok = spark->set_duty_cycle(
       static_cast<float>(safe_throttle),
       print_commands_);
 
@@ -1539,9 +1630,9 @@ private:
 
     if (ok)
     {
-      ++linear_actuator_command_count_;
-      linear_actuator_last_sent_output_ = safe_throttle;
-      linear_actuator_currently_commanded_ = std::fabs(safe_throttle) > 0.0;
+      ++command_count;
+      last_sent_output = safe_throttle;
+      currently_commanded = std::fabs(safe_throttle) > 0.0;
     }
     else
     {
@@ -1549,8 +1640,9 @@ private:
         logger_,
         *rclcpp::Clock::make_shared(),
         1000,
-        "Failed to send open-loop duty command to linear actuator on CAN ID %u",
-        linear_actuator_can_id_);
+        "Failed to send open-loop duty command to %s on CAN ID %u",
+        label.c_str(),
+        can_id);
     }
   }
 
@@ -1678,6 +1770,30 @@ private:
     if (tel.has_applied_output)
     {
       std::cout << " | applied=" << tel.applied_output;
+    }
+    else
+    {
+      std::cout << " | applied=NO_FEEDBACK";
+    }
+
+    std::cout << "\n";
+
+    std::cout << "linear_actuator_6"
+              << " id=" << static_cast<int>(linear_actuator_6_can_id_)
+              << " | mirrors command position=" << safe_position_command
+              << " | duty=" << safe_throttle;
+
+    if (!linear_actuator_6_spark_)
+    {
+      std::cout << " | spark=NULL\n";
+      return;
+    }
+
+    const auto & tel6 = linear_actuator_6_spark_->telemetry();
+
+    if (tel6.has_applied_output)
+    {
+      std::cout << " | applied=" << tel6.applied_output;
     }
     else
     {
@@ -1905,6 +2021,12 @@ private:
         parsed_this_frame = true;
       }
 
+      if (linear_actuator_6_spark_ &&
+          linear_actuator_6_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
       if (parsed_this_frame)
       {
         ++can_frames_parsed_count_;
@@ -1973,6 +2095,12 @@ private:
 
       if (linear_actuator_spark_ &&
           linear_actuator_spark_->handle_status_frame(frame, print_status_frames))
+      {
+        parsed_this_frame = true;
+      }
+
+      if (linear_actuator_6_spark_ &&
+          linear_actuator_6_spark_->handle_status_frame(frame, print_status_frames))
       {
         parsed_this_frame = true;
       }
@@ -2131,7 +2259,8 @@ private:
               << " | feedback_empty=" << feedback_empty_count_
               << " | can_frames_read=" << can_frames_read_count_
               << " | can_frames_parsed=" << can_frames_parsed_count_
-              << " | actuator_commands_sent=" << linear_actuator_command_count_
+              << " | actuator5_commands_sent=" << linear_actuator_command_count_
+              << " | actuator6_commands_sent=" << linear_actuator_6_command_count_
               << "\n";
 
     print_linear_actuator_status();
@@ -2239,6 +2368,7 @@ private:
   uint8_t rear_left_can_id_{3};
   uint8_t rear_right_can_id_{4};
   uint8_t linear_actuator_can_id_{5};
+  uint8_t linear_actuator_6_can_id_{6};
 
   // Easy manual test command. Set this to one of:
   //   0.0 = retract target  -> -1.0 duty internally
@@ -2252,7 +2382,7 @@ private:
   //   0.0 = retract target  -> -1.0 duty internally
   //   0.5 = neutral/stop    ->  0.0 duty internally
   //   1.0 = extend target   ->  1.0 duty internally
-  double linear_actuator_command_{0.5};
+  double linear_actuator_command_{0.0};
 
   // ros2_control position state for the linear actuator, scaled from analogue voltage.
   // 0.0 corresponds to linear_actuator_feedback_min_voltage_.
@@ -2267,12 +2397,14 @@ private:
   // Small deadband to treat tiny accidental values as explicit stop.
   double linear_actuator_deadband_{0.02};
   double linear_actuator_last_sent_output_{999.0};
+  double linear_actuator_6_last_sent_output_{999.0};
 
   std::unique_ptr<SparkMax> front_left_spark_;
   std::unique_ptr<SparkMax> front_right_spark_;
   std::unique_ptr<SparkMax> rear_left_spark_;
   std::unique_ptr<SparkMax> rear_right_spark_;
   std::unique_ptr<SparkMax> linear_actuator_spark_;
+  std::unique_ptr<SparkMax> linear_actuator_6_spark_;
 
   double front_left_command_{0.0};
   double front_right_command_{0.0};
@@ -2312,6 +2444,7 @@ private:
   int feedback_empty_count_{0};
   int runaway_count_{0};
   int linear_actuator_command_count_{0};
+  int linear_actuator_6_command_count_{0};
 
   bool linear_actuator_has_raw_can_frame_{false};
   bool linear_actuator_has_status3_frame_{false};
@@ -2331,6 +2464,7 @@ private:
 
   bool motors_currently_commanded_{false};
   bool linear_actuator_currently_commanded_{false};
+  bool linear_actuator_6_currently_commanded_{false};
   bool runaway_latched_{false};
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{
