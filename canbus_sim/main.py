@@ -47,6 +47,7 @@ class CANBusSim:
         self.can_id_to_state_mapping = can_id_to_state_mapping
         # Generate helper data structures
         self.can_ids = can_id_to_state_mapping.keys()
+        self.can_devices = can_id_to_state_mapping.values()
         self.velocity_can_ids = [can_id for can_id, device in self.can_id_to_state_mapping.items() if isinstance(device, VelocityDevice)]
         # Map raw binary representing CAN IDs for each device's setpoint commands - create for both duty cycle and velocity.
         # The raw CAN ID is different from the CAN ID - raw CAN ID refers the binary encoded ID directly from the serial port.
@@ -87,19 +88,19 @@ class CANBusSim:
             # Update motors
             now = time.monotonic()
             time_change = min(now - next_write + write_period, 0.1)
-            for device in self.can_id_to_state_mapping.values():
+            for device in self.can_devices:
                 device.update(time_change)
 
-            # Transmit status
+            # Transmit status TODO fix lag
             if now >= next_write:
                 next_write = now + write_period
-                for device in self.can_id_to_state_mapping.values():
+                for device in self.can_devices:
                     device.write(self.serial)
 
             # Log results
             if now >= next_log:
                 next_log = now + log_period
-                info = "  ".join(f"{device}" for device in self.can_id_to_state_mapping.values())
+                info = "  ".join(f"{device}" for device in self.can_devices)
                 self.logger.info(f"[{now:.1f}] {info}")
 
     def _parse_frame(self, frame):
