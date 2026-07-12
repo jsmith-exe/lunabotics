@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
-from sparkmax_definitions import *
+from .sparkmax_helpers import *
 
 
 class CANNode(ABC):

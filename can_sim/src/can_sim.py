@@ -1,25 +1,17 @@
-"""
-FoilBus is a SPARK MAX simulator - a stand in for the motor and actuator setup.
-Advantages:
- - No wiring
- - No access to physical rover needed
+import os, time, serial, logging, threading
 
-With socat installed, run:
-socat PTY,link=/dev/ttyUSB0,rawer PTY,link=/tmp/fake_can_rx,rawer
-This creates a fake USB /dev/ttyUSB0, which talks to /tmp/fake_can_rx, which will be written to by this script.
-The diffdrive canbus system will connect to the fake USB.
-"""
-import argparse, os, time, serial, logging, threading
 
-from sparkmax_definitions import *
-from classes import Motor, Actuator, VelocityDevice
+from src.can_helpers import create_packed_id, HEARTBEAT_ID
+from src.sparkmax_helpers import *
+from src.waveshare_helpers import read_waveshare_frame_from_serial
+from src.classes import Motor, Actuator, VelocityDevice
 
 
 def create_logger():
-    logger = logging.getLogger("CANBusSim")
+    logger = logging.getLogger("CANSim")
     console_handler = logging.StreamHandler()
     formatter = logging.Formatter(
-       "{asctime} {levelname}: {message}",
+        "{asctime} {levelname}: {message}",
         style="{",
         datefmt="%M:%S",
     )
@@ -30,7 +22,7 @@ def create_logger():
     return logger
 
 
-class CANBusSim:
+class CANSim:
     """
     Accepts a CAN network described as a dict, e.g.:
     {1: Motor(1), 5: Actuator(5)}
@@ -129,27 +121,3 @@ class CANBusSim:
             device = self.raw_vel_can_id_to_state_mapping[raw_can_id]
             commanded_vel = struct.unpack_from("<f", data)[0] # RPM as float32 LE
             device.set_velocity(commanded_vel)
-
-
-def main():
-    ap = argparse.ArgumentParser(description="SPARK MAX simulator for diffdrive_canbus")
-    ap.add_argument("--port", default="/tmp/fake_can_rx", help="Serial port (socat PTY end)")
-    ap.add_argument("--baud", type=int, default=2000000, help="Must match serial_baud_rate in ros2_control params")
-    args = ap.parse_args()
-
-    can_setup = {
-        1: Motor(1),
-        2: Motor(2),
-        3: Motor(3),
-        4: Motor(4),
-        5: Actuator(5),
-        6: Actuator(6),
-        7: Motor(7),
-    }
-
-    sim = CANBusSim(can_setup, args.port, args.baud)
-    sim.start()
-    input() # Block exection, otherwise main thread ends and kills other threads
-
-if __name__ == "__main__":
-    main()

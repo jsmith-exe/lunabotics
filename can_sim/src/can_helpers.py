@@ -1,10 +1,7 @@
-# =============================================================================
 # FRC CAN ID layout
-# =============================================================================
 #
 # SPARK MAX uses 29-bit extended CAN IDs following the FRC CAN specification.
 # The 29 bits are divided into fields:
-#
 #   bits 28-24  device type  (5 bits)  — what kind of device this is
 #   bits 23-16  manufacturer (8 bits)  — who made it
 #   bits 15-10  api class    (6 bits)  — command/status category
@@ -14,8 +11,6 @@
 # For all SPARK MAX frames:
 #   device type  = 0x02  (motor controller)
 #   manufacturer = 0x05  (REV Robotics)
-#
-# =============================================================================
 
 
 def create_frc_id(api_class, api_index, device_id):
