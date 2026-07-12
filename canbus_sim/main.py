@@ -9,7 +9,7 @@ socat PTY,link=/dev/ttyUSB0,rawer PTY,link=/tmp/fake_can_rx,rawer
 This creates a fake USB /dev/ttyUSB0, which talks to /tmp/fake_can_rx, which will be written to by this script.
 The diffdrive canbus system will connect to the fake USB.
 """
-import argparse, os, time, serial, logging
+import argparse, os, time, serial, logging, threading
 
 from sparkmax_definitions import *
 from classes import Motor, Actuator, VelocityDevice
@@ -55,9 +55,13 @@ class CANBusSim:
         self.raw_duty_can_id_to_state_mapping = {create_packed_id(0x02, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.can_ids}
         self.raw_vel_can_id_to_state_mapping = {create_packed_id(0x12, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.velocity_can_ids}
 
-        self.serial = serial.Serial(timeout=0.005) # Block for 5ms if no data
+        self.serial = serial.Serial(timeout=0.005) # Block for 5ms if no data - most stable at this
         self.serial.port = port
         self.serial.baudrate = baudrate
+
+        self.serial_lock = threading.Lock()
+        self.rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
+        self.tx_thread = threading.Thread(target=self._tx_loop, daemon=True)
 
     def start(self):
         """
@@ -68,34 +72,35 @@ class CANBusSim:
             time.sleep(0.1)
         self.serial.open()
         self.logger.info(f"Opened {self.serial.port} with {self.serial.baudrate}")
-        self._loop()
+        self.rx_thread.start()
+        self.tx_thread.start()
 
-    def _loop(self):
-        """
-        Simulation loop - reads and parses serial port updates nodes, updates CAN node states and
-        transmits updated states
-        """
+    def _rx_loop(self):
+        while True:
+            # Read frames
+            with self.serial_lock:
+                frame = read_waveshare_frame_from_serial(self.serial)
+            if frame: self._parse_frame(frame)
+
+    def _tx_loop(self):
         next_write = time.monotonic()
         next_log = time.monotonic()
         write_period = 1.0 / 50 # 50 Hz
         log_period = 1.0
 
         while True:
-            # Read frames
-            frame = read_waveshare_frame_from_serial(self.serial)
-            if frame: self._parse_frame(frame)
-
             # Update motors
             now = time.monotonic()
             time_change = min(now - next_write + write_period, 0.1)
             for device in self.can_devices:
                 device.update(time_change)
 
-            # Transmit status TODO fix lag
+            # Transmit status TODO fix minor lag during writing
             if now >= next_write:
                 next_write = now + write_period
-                for device in self.can_devices:
-                    device.write(self.serial)
+                with self.serial_lock:
+                    for device in self.can_devices:
+                        device.write(self.serial)
 
             # Log results
             if now >= next_log:
@@ -141,6 +146,7 @@ def main():
 
     sim = CANBusSim(can_setup, args.port, args.baud)
     sim.start()
+    input()
 
 if __name__ == "__main__":
     main()
