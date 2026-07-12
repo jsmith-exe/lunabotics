@@ -83,15 +83,18 @@ class CANBusSim:
             if frame: self._parse_frame(frame)
 
     def _tx_loop(self):
+        # Keep track of next write and log times because they're periodic
         next_write = time.monotonic()
         next_log = time.monotonic()
         write_period = 1.0 / 50 # 50 Hz
         log_period = 1.0
+        last_update = time.monotonic() # Keep track of last update, because updates are continuously happening
 
         while True:
             # Update motors
             now = time.monotonic()
-            time_change = min(now - next_write + write_period, 0.1)
+            time_change = min(now - last_update, 0.1)
+            last_update = now
             for device in self.can_devices:
                 device.update(time_change)
 
