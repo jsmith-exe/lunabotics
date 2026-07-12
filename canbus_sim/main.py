@@ -9,48 +9,30 @@ socat PTY,link=/dev/ttyUSB0,rawer PTY,link=/tmp/fake_can_rx,rawer
 This creates a fake USB /dev/ttyUSB0, which talks to /tmp/fake_can_rx, which will be written to by this script.
 The diffdrive canbus system will connect to the fake USB.
 """
-import argparse, os, time, serial, logging, dataclasses
+import argparse, os, time, serial, logging
 from sparkmax_definitions import *
-logging.basicConfig()
+from classes import Motor, Actuator
 
-# Device IDs present on this simulated bus, matching the robot's wiring.
-ALL_IDS      = [1, 2, 3, 4, 5, 6, 7]   # 1-4: wheels, 5-6: actuators, 7: drum
-ACTUATOR_IDS = {5, 6}                    # these also send analog voltage (Status 3)
 
-# TODO inheritance?
-@dataclasses.dataclass
-class Motor:
-    can_id: int
-    commanded_rpm: float = 0.0
-    measured_rpm: float = 0.0
-    position_rotations: float = 0.0
+def create_logger():
+    logger = logging.getLogger("CANBusSim")
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+       "{asctime} {levelname}: {message}",
+        style="{",
+        datefmt="%M:%S",
+    )
+    console_handler.setFormatter(formatter)
 
-    def update(self, dt: float):
-        """
-        Updates to move towards commanded value.
-        :param dt: change in time since last update.
-        """
-        cmd, meas, pos = self.commanded_rpm, self.measured_rpm, self.position_rotations
-        # Alpha: how far to step toward target this tick.
-        # Derived from e^(-dt/tau) where tau=0.15s is the time constant.
-        # At tau, the response reaches ~63% of the commanded value.
-        alpha = 1.0 - 2.718 ** (-dt / 0.15)
-        meas += alpha * (cmd - meas)
-        pos  += meas / 60.0 * dt   # RPM -> rotations/sec -> rotations
-        self.measured_rpm, self.position_rotations = meas, pos
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.INFO)
+    return logger
 
-@dataclasses.dataclass
-class Actuator:
-    can_id: int
-    commanded_duty: float = 0.0
-    position: float = 0.5
-
-    def update(self, dt):
-        # Full travel (0->1) takes 2 seconds at full duty (speed=0.5 pos/sec)
-        self.position = max(0.0, min(1.0, self.position + self.commanded_duty * 0.5 * dt))
 
 class CANBusSim:
     def __init__(self, can_id_to_state_mapping: dict[int, Motor | Actuator], port, baudrate):
+        self.logger = create_logger()
+
         self.can_id_to_state_mapping = can_id_to_state_mapping
         self.can_ids = can_id_to_state_mapping.keys()
         # Map raw binary representing CAN IDs for each device's setpoint commands - create for both duty cycle and velocity.
@@ -58,94 +40,73 @@ class CANBusSim:
         self.raw_duty_can_id_to_state_mapping = {create_packed_id(0x02, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.can_ids}
         self.raw_vel_can_id_to_state_mapping = {create_packed_id(0x12, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.can_ids}
 
-        self.port = port
-        self.baudrate = baudrate
-        self.serial = serial.Serial(timeout=0.005)
+        self.serial = serial.Serial(timeout=0.005) # Block for 5ms if no data
         self.serial.port = port
         self.serial.baudrate = baudrate
 
-        self.logger = logging.getLogger("CANBusSim")
-        self.logger.setLevel(logging.INFO)
-
     def start(self):
-        self.logger.info(f"Waiting for {self.port} ...")
-        while not os.path.exists(self.port):
+        """
+        Opens the configured serial port and starts the simulation loop.
+        """
+        self.logger.info(f"Waiting for {self.serial.port}")
+        while not os.path.exists(self.serial.port):
             time.sleep(0.1)
         self.serial.open()
-        self.logger.info(f"Opened {self.port} with {self.baudrate}")
+        self.logger.info(f"Opened {self.serial.port} with {self.serial.baudrate}")
+        self._loop()
 
-    def loop(self):
-        next_tx   = time.monotonic()
-        next_stat = time.monotonic()
-        TX_PERIOD = 1.0 / 50    # 50 Hz — fast enough to keep plugin feedback stable
+    def _loop(self):
+        """
+        Simulation loop - reads and parses serial port updates nodes, updates CAN node states and
+        transmits updated states
+        """
+        next_write = time.monotonic()
+        next_log = time.monotonic()
+        write_period = 1.0 / 50    # 50 Hz — fast enough to keep plugin feedback stable
+        log_period = 1.0
 
         while True:
-            # --- RX: decode one incoming frame per loop iteration ---
-            # The serial timeout (0.005s) means this blocks for at most 5ms
-            # when no data is available, which limits the loop rate under low load.
+            # Read frames
             frame = read_waveshare_frame_from_serial(self.serial)
-            if frame:
-                self.parse_frame(frame)
+            if frame: self._parse_frame(frame)
 
-            # --- Dynamics: first-order lag toward commanded value ---
-            # dt is capped at 0.1s to prevent large jumps after pauses.
+            # Update motors
             now = time.monotonic()
-            dt  = min(now - next_tx + TX_PERIOD, 0.1)
+            time_change = min(now - next_write + write_period, 0.1)
             for device in self.can_id_to_state_mapping.values():
-                device.update(dt)
+                device.update(time_change)
 
-            # --- TX: broadcast status frames at 50 Hz ---
-            if now >= next_tx:
-                next_tx = now + TX_PERIOD
-                for can_id, device in self.can_id_to_state_mapping.items():
-                    # cmd, meas, pos =
-                    if isinstance(device, Actuator):
-                        # Map actuator position (0-1) back to voltage range
-                        voltage = 0.279 + device.position * (1.85 - 0.279)
-                        self.serial.write(create_position_status(can_id, device.position))
-                        self.serial.write(create_analog_status(can_id, voltage))
-                    elif isinstance(device, Motor):
-                        applied = max(-1.0, min(1.0, device.measured_rpm / 5700.0))
-                        self.serial.write(create_applied_output_status(can_id, applied))
-                        self.serial.write(create_velocity_status(can_id, device.measured_rpm))
-                    else:
-                        raise ValueError(f"Invalid device class: {type(device)}")
+            # Transmit status
+            if now >= next_write:
+                next_write = now + write_period
+                for device in self.can_id_to_state_mapping.values():
+                    device.write(self.serial)
 
-            # --- Stats: print motor state every 5 seconds ---
-            if now >= next_stat:
-                next_stat = now + 5.0
-                info = "  ".join(
-                    (f"id={can_id} rpm={device.measured_rpm:+.0f}" if isinstance(device, Motor) else "") +
-                    (f" apos={device.position:.2f}" if isinstance(device, Actuator) else "")
-                    for can_id, device in self.can_id_to_state_mapping.items()
-                )
-                print(f"[{now:.1f}] {info}")
+            # Log results
+            if now >= next_log:
+                next_log = now + log_period
+                info = "  ".join(f"{device}" for device in self.can_id_to_state_mapping.values())
+                self.logger.info(f"[{now:.1f}] {info}")
 
-    def parse_frame(self, frame):
+    def _parse_frame(self, frame):
         raw_can_id, data = frame
         sufficient_data_to_decode = len(data) >= 4
 
         if raw_can_id == HEARTBEAT_ID:
             pass
 
+        # Handle duty commands
         elif raw_can_id in self.raw_duty_can_id_to_state_mapping and sufficient_data_to_decode:
             device = self.raw_duty_can_id_to_state_mapping[raw_can_id]
             duty = struct.unpack_from("<f", data)[0]   # float32 LE
-            if isinstance(device, Actuator):
-                device.commanded_duty = max(-1.0, min(1.0, duty))
-            elif isinstance(device, Motor):
-                # Approximate RPM from duty: NEO free-speed ~5700 RPM at full duty
-                device.commanded_rpm = duty * 5700.0
-            else:
-                raise ValueError(f"Invalid device class: {type(device)}")
+            device.set_duty(duty)
 
+        # Handle velocity commands
         elif raw_can_id in self.raw_vel_can_id_to_state_mapping:
             device = self.raw_vel_can_id_to_state_mapping[raw_can_id]
-            if isinstance(device, Actuator):
-                raise ValueError(f"Invalid device class: {type(device)}")
-            elif isinstance(device, Motor):
-                # Approximate RPM from duty: NEO free-speed ~5700 RPM at full duty
-                device.commanded_rpm = struct.unpack_from("<f", data)[0] # RPM as float32 LE
+            commanded_vel = struct.unpack_from("<f", data)[0] # RPM as float32 LE
+            if isinstance(device, Motor):
+                device.set_velocity(commanded_vel)
             else:
                 raise ValueError(f"Invalid device class: {type(device)}")
 
@@ -168,27 +129,6 @@ def main():
 
     sim = CANBusSim(can_setup, args.port, args.baud)
     sim.start()
-    sim.loop()
-    # ser = sim.serial
-    #
-    #
-    #
-    # ## Left off here - what are DUTY_IDS and VEL_IDS for?
-    # # TODO switch state and act to use can_setup.
-    # # TODO move DUTY_IDS and VEL_IDS if needed
-    #
-    # # Motor state per device: [commanded_rpm, measured_rpm, position_rotations]
-    # # Wheels and drum use RPM; actuators use duty cycle separately.
-    # state__ = {i: [0.0, 0.0, 0.0] for i in ALL_IDS}
-    #
-    # # Actuator state per device: [commanded_duty (-1 to 1), position (0 to 1)]
-    # # Position 0.0 = fully retracted, 1.0 = fully extended.
-    # act = {i: [0.0, 0.5] for i in ACTUATOR_IDS}
-    #
-    # # Pre-compute expected CAN IDs for each device's setpoint commands.
-    # # The plugin uses packed api_ids: 0x02 for duty cycle, 0x12 for velocity.
-    # DUTY_IDS = {create_packed_id(0x02, i): i for i in ALL_IDS}
-    # VEL_IDS  = {create_packed_id(0x12, i): i for i in ALL_IDS}
 
 if __name__ == "__main__":
     main()
