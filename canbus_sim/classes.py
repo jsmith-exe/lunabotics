@@ -7,15 +7,23 @@ from sparkmax_definitions import *
 class CANNode(ABC):
     def __init__(self, can_id: int):
         self.can_id = can_id
+        self.accepts_velocity = False
+        self.accepts_duty = False
 
     @abstractmethod
     def write(self, serial): ...
 
 class DutyCycleDevice(ABC):
+    def __init__(self):
+        self.accepts_velocity = True
+
     @abstractmethod
     def set_duty(self, duty: float): ...
 
 class VelocityDevice(ABC):
+    def __init__(self):
+        self.accepts_duty = True
+
     @abstractmethod
     def set_velocity(self, rpm: float): ...
 

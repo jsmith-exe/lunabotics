@@ -10,8 +10,9 @@ This creates a fake USB /dev/ttyUSB0, which talks to /tmp/fake_can_rx, which wil
 The diffdrive canbus system will connect to the fake USB.
 """
 import argparse, os, time, serial, logging
+
 from sparkmax_definitions import *
-from classes import Motor, Actuator
+from classes import Motor, Actuator, VelocityDevice
 
 
 def create_logger():
@@ -30,15 +31,28 @@ def create_logger():
 
 
 class CANBusSim:
+    """
+    Accepts a CAN network described as a dict, e.g.:
+    {1: Motor(1), 5: Actuator(5)}
+
+    When the start method is called, it will connect to provided serial port and start simulating the CAN network.
+    Motors will accept duty and velocity commands.
+    Linear actuators will accept duty commands.
+    Transmit functionality delegated to motor and actuator classes.
+    """
+
     def __init__(self, can_id_to_state_mapping: dict[int, Motor | Actuator], port, baudrate):
         self.logger = create_logger()
 
         self.can_id_to_state_mapping = can_id_to_state_mapping
+        # Generate helper data structures
         self.can_ids = can_id_to_state_mapping.keys()
+        self.velocity_can_ids = [can_id for can_id, device in self.can_id_to_state_mapping.items() if isinstance(device, VelocityDevice)]
         # Map raw binary representing CAN IDs for each device's setpoint commands - create for both duty cycle and velocity.
+        # The raw CAN ID is different from the CAN ID - raw CAN ID refers the binary encoded ID directly from the serial port.
         # Example of duty mapping: {33882241: 1, 33882242: 2, 33882243: 3}
         self.raw_duty_can_id_to_state_mapping = {create_packed_id(0x02, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.can_ids}
-        self.raw_vel_can_id_to_state_mapping = {create_packed_id(0x12, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.can_ids}
+        self.raw_vel_can_id_to_state_mapping = {create_packed_id(0x12, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.velocity_can_ids}
 
         self.serial = serial.Serial(timeout=0.005) # Block for 5ms if no data
         self.serial.port = port
@@ -62,7 +76,7 @@ class CANBusSim:
         """
         next_write = time.monotonic()
         next_log = time.monotonic()
-        write_period = 1.0 / 50    # 50 Hz — fast enough to keep plugin feedback stable
+        write_period = 1.0 / 50 # 50 Hz
         log_period = 1.0
 
         while True:
@@ -105,10 +119,7 @@ class CANBusSim:
         elif raw_can_id in self.raw_vel_can_id_to_state_mapping:
             device = self.raw_vel_can_id_to_state_mapping[raw_can_id]
             commanded_vel = struct.unpack_from("<f", data)[0] # RPM as float32 LE
-            if isinstance(device, Motor):
-                device.set_velocity(commanded_vel)
-            else:
-                raise ValueError(f"Invalid device class: {type(device)}")
+            device.set_velocity(commanded_vel)
 
 
 def main():
