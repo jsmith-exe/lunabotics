@@ -149,7 +149,7 @@ def main():
 
     sim = CANBusSim(can_setup, args.port, args.baud)
     sim.start()
-    input()
+    input() # Block exection, otherwise main thread ends and kills other threads
 
 if __name__ == "__main__":
     main()

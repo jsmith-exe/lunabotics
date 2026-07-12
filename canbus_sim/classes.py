@@ -88,4 +88,4 @@ class Actuator(CANNode, DutyCycleDevice):
         serial.write(create_analog_status(can_id, voltage))
 
     def __repr__(self):
-        return f"(ID={self.can_id} {self.commanded_duty}/{self.position})"
+        return f"(ID={self.can_id} {self.commanded_duty:.3f}/{self.position:.3f})"
