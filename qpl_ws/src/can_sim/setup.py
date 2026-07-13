@@ -6,7 +6,7 @@ package_name = 'can_sim'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='0.0.1',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -16,9 +16,9 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='root',
+    maintainer='Caleb Hair',
     maintainer_email='calebthair@outlook.com',
-    description='TODO: Package description',
+    description='CAN Simulation',
     license='TODO: License declaration',
     extras_require={
         'test': [
