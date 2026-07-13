@@ -1,5 +1,5 @@
-""" Simple test file for checking some class functionality. """
-from .core.classes import Motor, Actuator
+""" Simple test file for checking simulated device functionality, separate from serial port shenanigans. """
+from .core.devices import Motor, Actuator
 import threading
 from time import sleep
 

@@ -1,3 +1,7 @@
+"""
+Helper functions for generating sparkmax status messages.
+"""
+
 # SPARK MAX periodic status frame builders (firmware 24.x layout)
 # SPARK MAXs broadcast these automatically at a configurable rate.
 # api_class=6 (0x06) is the periodic status class for firmware 24.x.

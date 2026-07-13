@@ -1,5 +1,5 @@
 import argparse
-from .core.classes import Motor, Actuator
+from .core.devices import Motor, Actuator
 from .core.can_sim import CANSim
 from .ui import SimWindow
 
@@ -22,17 +22,7 @@ def main():
 
     sim = CANSim(can_setup, args.port, args.baud)
     sim.start()
-
-    layout = {
-        1: ("left",   "Front Left"),
-        2: ("right",  "Front Right"),
-        3: ("left",   "Rear Left"),
-        4: ("right",  "Rear Right"),
-        5: ("centre", "Left Actuator"),
-        6: ("centre", "Right Actuator"),
-        7: ("centre", "Drum"),
-    }
-    ui = SimWindow(can_setup, layout)
+    ui = SimWindow(can_setup)
     ui.start()
 
 if __name__ == "__main__":

@@ -1,3 +1,7 @@
+"""
+Defines how CAN nodes/devices should be used, e.g., how they should be updated, and what messages they should write to serial.
+"""
+
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 

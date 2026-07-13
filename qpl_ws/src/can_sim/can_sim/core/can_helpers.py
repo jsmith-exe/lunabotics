@@ -1,3 +1,7 @@
+"""
+Helper functions for generating CAN messages (FRC IDs)
+"""
+
 # FRC CAN ID layout
 #
 # SPARK MAX uses 29-bit extended CAN IDs following the FRC CAN specification.

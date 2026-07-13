@@ -1,16 +1,14 @@
 """
 FoilBus visualiser — live view of simulated SPARK MAX state.
 
-Usage: pass the same can_id_to_state_mapping dict used by CANBusSim,
+Usage: pass the same can_id_to_state_mapping dict used by CANSim,
 along with a layout mapping that assigns each CAN ID to a position.
 
 Layout positions:
     "left"   — left column  (e.g. left-side drive motors)
     "right"  — right column (e.g. right-side drive motors)
     "centre" — centre column (drum, actuators)
-
 Example:
-
     layout = {
         1: ("left",   "Front Left"),
         2: ("right",  "Front Right"),
@@ -26,9 +24,7 @@ Example:
 """
 
 import tkinter as tk
-import threading
-import time
-from .core.classes import Motor, Actuator
+from .core.devices import Motor, Actuator
 
 # --- Palette ---
 BG          = "#1a1a1a"   # window background
@@ -183,10 +179,19 @@ class SimWindow:
         layout = {can_id: (column, label), ...}
         column is one of "left", "centre", "right"
     """
+    default_layout = {
+        1: ("left",   "Front Left"),
+        2: ("right",  "Front Right"),
+        3: ("left",   "Rear Left"),
+        4: ("right",  "Rear Right"),
+        5: ("centre", "Left Actuator"),
+        6: ("centre", "Right Actuator"),
+        7: ("centre", "Drum"),
+    }
 
-    def __init__(self, can_id_to_state_mapping: dict, layout: dict):
+    def __init__(self, can_id_to_state_mapping: dict, layout: dict | None = None):
         self._devices = can_id_to_state_mapping
-        self._layout  = layout
+        self._layout  = layout or SimWindow.default_layout
         self._cards   = {}   # can_id -> card widget
 
         self._root = tk.Tk()

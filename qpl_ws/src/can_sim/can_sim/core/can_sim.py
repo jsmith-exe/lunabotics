@@ -1,10 +1,13 @@
-import os, time, serial, logging, threading
+"""
+The core simulation, interacting with the USB interface and calling simulated device update methods.
+"""
 
+import os, time, serial, logging, threading
 
 from .can_helpers import create_packed_id, HEARTBEAT_ID
 from .sparkmax_helpers import *
 from .waveshare_helpers import read_waveshare_frame_from_serial
-from .classes import Motor, Actuator
+from .devices import Motor, Actuator
 
 
 def create_logger():

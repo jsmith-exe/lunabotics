@@ -1,3 +1,7 @@
+"""
+Helper functions for interacting with the CAN-A protocol across the Waveshare adapter.
+"""
+
 # =============================================================================
 # Waveshare USB-CAN-A binary protocol
 # =============================================================================
