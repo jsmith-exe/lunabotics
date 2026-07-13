@@ -16,6 +16,7 @@ alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 alias qpl_restart_daemon="ros2 daemon stop && ros2 daemon start"
 alias qpl_bro="qpl_build && qpl_rover"
 alias qpl_spare="ros2 launch qpl_rover spare.launch.py"
+alias qpl_can_sim="ros2 launch can_sim can_sim.launch.py"
 
 alias qpl_logs_rec="ros2 run basestation log_recorder"
 alias qpl_logs_cat="cat ~/rosout_combined.log"
