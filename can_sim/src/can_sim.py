@@ -4,7 +4,7 @@ import os, time, serial, logging, threading
 from src.can_helpers import create_packed_id, HEARTBEAT_ID
 from src.sparkmax_helpers import *
 from src.waveshare_helpers import read_waveshare_frame_from_serial
-from src.classes import Motor, Actuator, VelocityDevice
+from src.classes import Motor, Actuator
 
 
 def create_logger():
@@ -40,7 +40,7 @@ class CANSim:
         # Generate helper data structures
         self.can_ids = can_id_to_state_mapping.keys()
         self.can_devices = can_id_to_state_mapping.values()
-        self.velocity_can_ids = [can_id for can_id, device in self.can_id_to_state_mapping.items() if isinstance(device, VelocityDevice)]
+        self.velocity_can_ids = [can_id for can_id, device in self.can_id_to_state_mapping.items() if isinstance(device, Motor)]
         # Map raw binary representing CAN IDs for each device's setpoint commands - create for both duty cycle and velocity.
         # The raw CAN ID is different from the CAN ID - raw CAN ID refers the binary encoded ID directly from the serial port.
         # Example of duty mapping: {33882241: 1, 33882242: 2, 33882243: 3}

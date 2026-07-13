@@ -7,28 +7,12 @@ from .sparkmax_helpers import *
 class CANNode(ABC):
     def __init__(self, can_id: int):
         self.can_id = can_id
-        self.accepts_velocity = False
-        self.accepts_duty = False
 
     @abstractmethod
     def write(self, serial): ...
 
-class DutyCycleDevice(ABC):
-    def __init__(self):
-        self.accepts_velocity = True
 
-    @abstractmethod
-    def set_duty(self, duty: float): ...
-
-class VelocityDevice(ABC):
-    def __init__(self):
-        self.accepts_duty = True
-
-    @abstractmethod
-    def set_velocity(self, rpm: float): ...
-
-
-class Motor(CANNode, DutyCycleDevice, VelocityDevice):
+class Motor(CANNode):
     def __init__(self, can_id: int, max_rpm: float = 5700.0):
         super().__init__(can_id)
         self.max_rpm = max_rpm
@@ -67,7 +51,7 @@ class Motor(CANNode, DutyCycleDevice, VelocityDevice):
         return f"(ID={self.can_id} rpm={self.measured_rpm:.0f}/{self.max_rpm:.0f})"
 
 @dataclass
-class Actuator(CANNode, DutyCycleDevice):
+class Actuator(CANNode):
     def __init__(self, can_id: int):
         super().__init__(can_id)
         self.commanded_duty = 0.0
