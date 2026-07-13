@@ -1,5 +1,5 @@
 """ Simple test file for checking some class functionality. """
-from .src.classes import Motor, Actuator
+from .core.classes import Motor, Actuator
 import threading
 from time import sleep
 
