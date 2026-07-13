@@ -1,12 +1,13 @@
 import argparse
-from src.classes import Motor, Actuator
-from src.can_sim import CANSim
+from .src.classes import Motor, Actuator
+from .src.can_sim import CANSim
 
 def main():
     ap = argparse.ArgumentParser(description="SPARK MAX simulator for diffdrive_canbus")
     ap.add_argument("--port", default="/tmp/fake_can_rx", help="Serial port (socat PTY end)")
     ap.add_argument("--baud", type=int, default=2000000, help="Must match serial_baud_rate in ros2_control params")
-    args = ap.parse_args()
+    args = ap.parse_known_args()[0]
+    print(f"Args: {args}")
 
     can_setup = {
         1: Motor(1),

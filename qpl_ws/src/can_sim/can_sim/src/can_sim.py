@@ -1,10 +1,10 @@
 import os, time, serial, logging, threading
 
 
-from src.can_helpers import create_packed_id, HEARTBEAT_ID
-from src.sparkmax_helpers import *
-from src.waveshare_helpers import read_waveshare_frame_from_serial
-from src.classes import Motor, Actuator
+from .can_helpers import create_packed_id, HEARTBEAT_ID
+from .sparkmax_helpers import *
+from .waveshare_helpers import read_waveshare_frame_from_serial
+from .classes import Motor, Actuator
 
 
 def create_logger():
