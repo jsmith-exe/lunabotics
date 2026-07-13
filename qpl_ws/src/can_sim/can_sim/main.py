@@ -1,7 +1,21 @@
-import argparse
+import argparse, logging
 from .core.devices import Motor, Actuator
 from .core.can_sim import CANSim
 from .ui import SimWindow
+
+def create_logger():
+    logger = logging.getLogger("CANSim")
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "{asctime} {levelname}: {message}",
+        style="{",
+        datefmt="%M:%S",
+    )
+    console_handler.setFormatter(formatter)
+
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.INFO)
+    return logger
 
 def main():
     ap = argparse.ArgumentParser(description="SPARK MAX simulator for diffdrive_canbus")
@@ -20,7 +34,7 @@ def main():
         7: Motor(7),
     }
 
-    sim = CANSim(can_setup, args.port, args.baud)
+    sim = CANSim(can_setup, args.port, args.baud, create_logger())
     sim.start()
     ui = SimWindow(can_setup)
     ui.start()

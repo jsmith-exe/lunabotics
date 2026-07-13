@@ -2,27 +2,12 @@
 The core simulation, interacting with the USB interface and calling simulated device update methods.
 """
 
-import os, time, serial, logging, threading
+import os, time, serial, threading
 
 from .can_helpers import create_packed_id, HEARTBEAT_ID
 from .sparkmax_helpers import *
 from .waveshare_helpers import read_waveshare_frame_from_serial
 from .devices import Motor, Actuator
-
-
-def create_logger():
-    logger = logging.getLogger("CANSim")
-    console_handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "{asctime} {levelname}: {message}",
-        style="{",
-        datefmt="%M:%S",
-    )
-    console_handler.setFormatter(formatter)
-
-    logger.addHandler(console_handler)
-    logger.setLevel(logging.INFO)
-    return logger
 
 
 class CANSim:
@@ -36,9 +21,8 @@ class CANSim:
     Transmit functionality delegated to motor and actuator classes.
     """
 
-    def __init__(self, can_id_to_state_mapping: dict[int, Motor | Actuator], port, baudrate):
-        self.logger = create_logger()
-
+    def __init__(self, can_id_to_state_mapping: dict[int, Motor | Actuator], port, baudrate, logger):
+        self.logger = logger
         self.can_id_to_state_mapping = can_id_to_state_mapping
         # Generate helper data structures
         self.can_ids = can_id_to_state_mapping.keys()
@@ -62,7 +46,7 @@ class CANSim:
         """
         Opens the configured serial port and starts the simulation loop.
         """
-        self.logger.info(f"Waiting for {self.serial.port}")
+        self.logger.info(f"Waiting for serial port: {self.serial.port}")
         while not os.path.exists(self.serial.port):
             time.sleep(0.1)
         self.serial.open()
@@ -120,7 +104,7 @@ class CANSim:
             device.set_duty(duty)
 
         # Handle velocity commands
-        elif raw_can_id in self.raw_vel_can_id_to_state_mapping:
+        elif raw_can_id in self.raw_vel_can_id_to_state_mapping: # Only motors should be in this dict
             device = self.raw_vel_can_id_to_state_mapping[raw_can_id]
             commanded_vel = struct.unpack_from("<f", data)[0] # RPM as float32 LE
             device.set_velocity(commanded_vel)
