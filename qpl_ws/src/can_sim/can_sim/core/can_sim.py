@@ -4,13 +4,15 @@ The core simulation, interacting with the USB interface and calling simulated de
 
 import os, time, serial, threading
 
+from rclpy.node import Node
+
 from .can_helpers import create_packed_id, HEARTBEAT_ID
 from .sparkmax_helpers import *
 from .waveshare_helpers import read_waveshare_frame_from_serial
 from .devices import Motor, Actuator
 
 
-class CANSim:
+class CANSim(Node):
     """
     Accepts a CAN network described as a dict, e.g.:
     {1: Motor(1), 5: Actuator(5)}
@@ -21,8 +23,9 @@ class CANSim:
     Transmit functionality delegated to motor and actuator classes.
     """
 
-    def __init__(self, can_id_to_state_mapping: dict[int, Motor | Actuator], port, baudrate, logger):
-        self.logger = logger
+    def __init__(self, can_id_to_state_mapping: dict[int, Motor | Actuator], port, baudrate):
+        super().__init__('CANSim')
+        self.logger = self.get_logger()
         self.can_id_to_state_mapping = can_id_to_state_mapping
         # Generate helper data structures
         self.can_ids = can_id_to_state_mapping.keys()
