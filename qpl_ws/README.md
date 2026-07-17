@@ -1,143 +1,122 @@
-# 🛰️ Lunabotics ROS 2 & RViz – Project Structure and Usage Guide
+# QPL ROS 2 workspace
 
-This README explains **how the ROS 2 workspace in this repo is organised**, **where to run commands from**, and **how to build, run, visualise, and drive the robot in RViz**.
+This directory is the ROS 2 Humble workspace for the rover. All packages are under `src`; generated `build`, `install`, and `log` directories must not be edited or committed.
 
-It is written to be **step-by-step and foolproof**.  
-If you follow this exactly, it will work.
+## Packages
 
----
+| Package | Build type | Purpose |
+| --- | --- | --- |
+| `qpl_rover` | `ament_python` | Rover description, configuration, launch, localization, cameras, simulation, and command arbitration |
+| `qpl_autonomy` | `ament_python` | Mission state machines and Nav2 action client |
+| `basestation` | `ament_python` | Operator control, TCP/ROS bridge, RViz, and logging |
+| `can_sim` | `ament_python` | CAN device simulator and UI |
+| `diffdrive_canbus` | `ament_cmake` | ros2_control hardware plugin and SPARK MAX protocol |
+| `serial` | `ament_cmake` | Vendored cross-platform serial library |
 
-## Repository Structure (What Lives Where)
+## Environment
 
-```
-lunabotics/
-├── qpl_ws/ ← ROS 2 WORKSPACE ROOT (IMPORTANT)
-│   └── src/ ← ALL ROS PACKAGES LIVE HERE
-│       └── qpl_rover/ ← Package Name 
-|           ├── config ← config/parameter files 
-|           ├── description ← Rover description, includes rover appearance, rover sensors, sensor pipeline (ros2_control)
-|           ├── launch ← Launch files for the rover
-|           ├── maps ← Slam maps 
-|           └── worlds ← Gazebo worlds  
-│
-├── Media/
-└── README.md              
-```
+The repository helper functions require:
 
-- **All ROS packages must live inside `qpl_ws/src/`**
-- Never edit `build/`, `install/`, or `log/`
-
----
-
-## Setup
-Ensure your ~/.bashrc file contains the following, replacing the value of `QPL_PROJECT`
-with the path to your local copy of the repo:
 ```bash
-# ---------- Lunabotics ----------
 export QPL_PROJECT="$HOME/lunabotics"
-source "$QPL_PROJECT"/process/startup.sh
-# --------------------------------
+source "$QPL_PROJECT/process/startup.sh"
 ```
 
-### Verify setup
-If you've built before:
+`startup.sh` sources ROS 2 Humble, sources this workspace if it has been built, loads helper functions, sets the Gazebo model path, and starts the ROS daemon.
+
+## Install and build
+
 ```bash
-ros2 run basestation nav_pub
+qpl_packages
+qpl_gazebo_packages  # simulation only
+qpl_build
 ```
-- This should run a simple publisher; you should see some logs indicating that it's publishing messages. 
-Ctrl+C to stop it. This means 1) ROS is sourced and 2) the workspace is sourced.
 
-If you haven't built before, run ```qpl_build```.
+Equivalent manual build:
 
-You'll now able to use a number of commands to build and run parts of the project, such as:
 ```bash
-qpl_packages # Run to ensure all packages are installed
-qpl_build # Build the ROS workspace
-qpl_sim # This runs Gazebo (simulation) with GUI and processes using GPU
-qpl_headless # This runs Gazebo (simulation) with no GUI and processes using CPU
-qpl_rviz # This runs RViz with preset settings
-luna_kb # See next section
+source /opt/ros/humble/setup.bash
+cd "$QPL_PROJECT/qpl_ws"
+colcon build --symlink-install
+source install/setup.bash
 ```
->**Important!**
->- After any code changes in ROS packages, run ```qpl_build```.
->- If you rely on any new package, add it to the **process/install_packages.sh**
 
----
-## Driving the rover via luna_kb
-```qpl_kb``` runs a keyboard teleoperation node; this was not made by us and is for testing only.
-A more user-friendly node will be accessible soon.
+Use `qpl_clean_build` when generated build state must be discarded.
 
-**Default controls**
-- `i` → forward
-- `k` → stop
-- `j` / `l` → rotate left / right
-- `,` → reverse
-- `q` / `z` → increase / decrease speed
+## Launch
 
-📌 **Important**
-- Click inside the terminal before pressing keys
-- Keep this terminal open while driving
+### Simulation
 
----
-## Working with SLAM
 ```bash
-qpl_slam
+qpl_sim
+qpl_rviz
+qpl_kb       # optional testing teleop
 ```
-This node starts the SLAM system (*Simulateous Localisation and Mapping*).
-The rover uses 2D LiDAR data to build a 2D map of the environment while estimating its own position inside that map.
-### SLAM Visualisation
-<p align="left">
-  <img src="../Media/slam.gif" alt="SLAM Demo" width="800">
-</p>
 
-## Launch Navigation (Nav2)
-```bash 
-nav2
-```
-This node starts ROS2 Navigation Stack (Nav2).
-The rover uses the previously built map to plan paths and autonomously drive to goal positions that you click in RViz.
+### Physical rover
 
-**Nav2 Visualisation**
-<p align="left">
-  <img src="../Media/nav2.gif" alt="Nav2 Demo" width="800">
-</p>
-
----
-## Helpful ROS commands
-
-List all available topics,
 ```bash
+qpl_rover
+qpl_rviz_rover
+```
+
+Complete the root `docs/safety.md` checklist before energizing hardware.
+
+### Mission nodes
+
+```bash
+qpl_autonomy
+qpl_excavate
+qpl_construct
+qpl_full_auto
+```
+
+The `qpl_blind_excavate` and `qpl_blind_construct` routines are open-loop tests and require a controlled area and independent stop mechanism.
+
+### CAN simulator
+
+```bash
+qpl_can_sim
+```
+
+This requires `socat` and creates `/dev/ttyUSB0`; do not use it while a real adapter occupies that path.
+
+## Controller flow
+
+- Teleop publishes `cmd_vel_teleop`.
+- Nav2 and blind mission nodes publish `cmd_vel_nav`.
+- `twist_mux` prioritizes teleop and outputs to `/diff_cont/cmd_vel_unstamped`.
+- `diff_cont` exposes four velocity command interfaces.
+- Drum and lift commands pass through `drum_command_interface` to joint-group controllers.
+
+The complete interface inventory is in the root `docs/ros-interfaces.md`.
+
+## Navigation and localization
+
+`components.launch.py` starts controllers, local odometry fusion, and global map localization. Nav2 configuration is in `qpl_rover/config/nav_params.yaml`. AprilTag global pose observations are published on `/apriltag/pose`.
+
+Use the runtime graph to diagnose target-specific differences:
+
+```bash
+ros2 node list
 ros2 topic list
+ros2 action list
+ros2 control list_controllers
 ```
-Listen to a specific topic,
+
+## Tests
+
 ```bash
-ros2 topic echo /topic_name
+colcon test
+colcon test-result --verbose
 ```
 
-Test node communication (if you're having trouble with node communication)
-```bash
-# On some terminal, set up for receiving
-ros2 multicast receive
-# On another terminal, send multicast message
-ros2 multicast send
-```
+Only the vendored serial package currently has automated tests. See the root `docs/testing.md` for coverage and the recommended backlog.
 
----
-## How to Run Python Files
+## Adding dependencies
 
-- If you use relative imports (from . / from ..) you must run with -m.
-- Don't mix "run as a file path" with relative imports.
+Add ROS dependencies to the package's `package.xml`, Python package dependencies to its packaging metadata where appropriate, and system installation requirements to `process/functions/install_packages.sh`. Rebuild from a clean environment to verify that the declaration is complete.
 
-From your home directory,
-```bash
-cd $LUNA_PROJECT/../
-python3 -m lunabotics
-```
+## Further documentation
 
----
-## Remote simulation
-Jamie has a server running the simulation. This has two advantages: it reduces the load on our
-local machines, and is slightly more accurate to the real rover in terms of communication structure.
-1. Install Tailscale from https://tailscale.com/download; this is a VPN so that you can treat the server as a local device.
-2. Ask Jamie for access to his Tailscale network and the username and password; once connected, you will be able to SSH in.
-3. On Windows, you can view Tailscale in the system tray; click Network devices > Jamie Smith > server to copy the server IP.
+Start at the repository root [README](../README.md) and the files under [docs](../docs).

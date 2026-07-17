@@ -1,161 +1,108 @@
-# Autonomous Robotics Platform – Software Architecture
+# QPL Lunabotics Rover
 
-This repository contains the software stack for the **QPL autonomous robotics platform**, designed around a clear separation of low-level control, high-level autonomy, and operator interaction.
+ROS 2 software for the QPL Lunabotics rover. The repository contains the rover model and bring-up, custom CAN hardware integration, mission autonomy, operator controls, and a CAN simulator.
 
-The system is built on three main compute layers:
+The supported development target is **ROS 2 Humble on Ubuntu 22.04 or WSL 2**. Hardware operation additionally requires the configured cameras and a serial-to-CAN adapter at `/dev/ttyUSB0`.
 
-- **Microcontroller (C++)** – real-time, low-level hardware control  
-- **Jetson Nano (Python + ROS2)** – perception, autonomy, and control  
-- **Base Station Laptop (Python)** – telemetry, visualisation, and manual control  
+## Repository layout
 
-The diagram below (stored in `Media/software_system_diagram_revB.png`) illustrates the complete data and control flow across the system:
+| Path | Purpose |
+| --- | --- |
+| `qpl_ws/src/qpl_rover` | Rover URDF, Gazebo worlds, ros2_control configuration, localization, cameras, Nav2 configuration, and launch files |
+| `qpl_ws/src/diffdrive_canbus` | Custom ros2_control hardware plugin for SPARK MAX wheel, actuator, and drum controllers |
+| `qpl_ws/src/qpl_autonomy` | Navigation, excavation, deposition, and full-mission state machines |
+| `qpl_ws/src/basestation` | Operator UI, controller input, TCP forwarding, ROS command publisher, RViz, and logging |
+| `qpl_ws/src/can_sim` | Virtual serial/CAN network and device simulator |
+| `qpl_ws/src/serial` | Vendored C++ serial library |
+| `process` | Environment setup, dependency installation, build helpers, launch aliases, networking, and camera utilities |
+| `dds` | Cyclone DDS profiles |
+| `docs` | Architecture, interfaces, operation, safety, and testing documentation |
 
-![System Architecture](Media/software_system_diagram_revB.png)
+## Quick start
 
----
+Clone the repository and add the following to `~/.bashrc`, replacing the path if necessary:
 
-## 1. System Overview
+```bash
+export QPL_PROJECT="$HOME/lunabotics"
+source "$QPL_PROJECT/process/startup.sh"
+```
 
-The architecture follows a **hierarchical robotics design**:
+Start a new shell, then install dependencies and build:
 
-1. **Microcontroller layer** handles time-critical I/O and actuator control.  
-2. **Jetson Nano layer** performs sensor fusion, autonomy, and ROS2-based coordination.  
-3. **Base Station layer** provides monitoring, logging, and human-in-the-loop control.
+```bash
+qpl_packages
+qpl_gazebo_packages   # required for simulation
+qpl_build
+```
 
-Each layer communicates using clearly defined interfaces (UART, ROS2 topics, and network links), allowing components to be developed and tested independently.
+Run the simulator and RViz in separate terminals:
 
----
+```bash
+qpl_sim
+qpl_rviz
+```
 
-## 2. Microcontroller (C++)
+Drive the simulator using the testing keyboard teleop:
 
-The microcontroller is responsible for all **hard real-time tasks** and direct hardware interaction.
+```bash
+qpl_kb
+```
 
-### 2.1 Sensor Inputs
+For the physical rover:
 
-- **Encoders**  
-  Raw encoder signals are read by the *Encoder Driver Code* to compute wheel/shaft position and velocity.
+```bash
+qpl_rover
+qpl_rviz_rover
+```
 
-- **IMU**  
-  The *IMU Driver Code* acquires inertial data such as orientation, angular velocity, and acceleration.
+Do not run physical hardware until the pre-operation safety checks in [docs/safety.md](docs/safety.md) have been completed.
 
-- **Actuator Sensors**  
-  The *Actuator Sensors Driver Code* monitors feedback from actuators (position, limits, or load feedback).
+## Common commands
 
-### 2.2 Internal Processing
+| Command | Result |
+| --- | --- |
+| `qpl_build` | Build the workspace using `colcon build --symlink-install` |
+| `qpl_clean_build` | Remove generated workspace output and rebuild |
+| `qpl_packages` | Install core ROS and system dependencies |
+| `qpl_gazebo_packages` | Install Gazebo dependencies |
+| `qpl_sim` | Start Gazebo with rover components |
+| `qpl_headless` | Start Gazebo without its GUI |
+| `qpl_sim_minimal` | Start headless Gazebo without rover components |
+| `qpl_rover` | Launch the physical rover stack |
+| `qpl_components` | Launch controllers and localization components |
+| `qpl_rviz` | Start RViz using simulation time |
+| `qpl_rviz_rover` | Start RViz using wall time |
+| `qpl_kb` | Keyboard teleop remapped to `cmd_vel_teleop` |
+| `qpl_autonomy` | Navigate between excavation and construction zones |
+| `qpl_excavate` / `qpl_construct` | Run one mission stage |
+| `qpl_full_auto` | Run the combined mission state machine |
+| `qpl_blind_excavate` / `qpl_blind_construct` | Run open-loop test routines; see safety documentation |
+| `qpl_can_sim` | Start the virtual serial port and CAN simulator |
+| `qpl_logs_rec` | Record `/rosout` to `~/rosout_combined.log` |
 
-- **Data Parser**  
-  Aggregates all sensor data into structured packets.  
-  Handles encoding and decoding of commands and telemetry exchanged with the Jetson Nano.
+These commands are shell functions or aliases loaded by `process/startup.sh`; they are not standalone executables.
 
-### 2.3 Actuation Outputs
+## Documentation
 
-- **Motor Driver Code → Motors**  
-  Converts high-level commands into low-level motor signals (PWM, direction, enable, etc.).
+- [System architecture](docs/architecture.md)
+- [ROS 2 nodes and interfaces](docs/ros-interfaces.md)
+- [Installation and operation](docs/setup-and-operation.md)
+- [Safety and failure behavior](docs/safety.md)
+- [Testing and simulation](docs/testing.md)
+- [ROS workspace guide](qpl_ws/README.md)
+- [Base-station guide](qpl_ws/src/basestation/readme.md)
+- [CAN hardware guide](qpl_ws/src/diffdrive_canbus/README.md)
+- [CAN simulator guide](qpl_ws/src/can_sim/readme.md)
 
-- **Actuator Driver Code → Actuator Motors**  
-  Controls additional actuators such as steering, mechanisms, or end-effectors.
+## Current limitations
 
-### 2.4 Communication
+- The repository does not contain a verified physical E-stop implementation or electrical wiring documentation.
+- The base-station TCP command path currently republishes the last received command; loss-of-link handling must be treated as a known safety limitation.
+- Safety-critical autonomy and CAN hardware behavior currently lacks automated test coverage.
+- Camera, actuator calibration, motor-controller flash configuration, and mechanical limits must be verified on the physical rover.
 
-- **UART ↔ Jetson Nano**  
-  A bidirectional serial link used to:
-  - transmit sensor data upstream  
-  - receive motor and actuator commands downstream  
+See [docs/safety.md](docs/safety.md) for the full operational implications.
 
----
+## License and ownership
 
-## 3. Jetson Nano (Python + ROS2)
-
-The Jetson Nano acts as the **central compute node** and runs the ROS2 ecosystem.
-
-### 3.1 Core ROS2 Architecture
-
-- **ROS2 Nodes & Topics**  
-  Modular ROS2 nodes encapsulate sensing, control, and communication functionality.
-
-- **ROS2 Topic Subscribers**  
-  Consume:
-  - parsed UART data from the microcontroller  
-  - sensor data from cameras and LiDAR  
-
-- **Main Control Algorithm**  
-  Implements the robot’s high-level behaviour, including:
-  - state estimation and sensor fusion  
-  - navigation and path following  
-  - generation of motor and actuator setpoints  
-
-- **ROS2 Topic Publishers**  
-  Publish control commands that are forwarded to the microcontroller via the serial interface.
-
-### 3.2 Perception & Sensors
-
-- **Stereo Camera Driver**  
-  Produces stereo image streams and depth information for perception tasks.
-
-- **Mono Camera Drivers (Camera 1 & 2)**  
-  Provide additional vision inputs for object detection, tracking, or redundancy.
-
-- **LiDAR Driver (SLAM)**  
-  Acquires LiDAR scans and feeds SLAM modules for mapping and localisation.
-
-### 3.3 Serial & Networking
-
-- **Serial Driver + Data Parser**  
-  Translates between UART packets and ROS2 messages.
-
-- **Wi-Fi (TP-Link Network)**  
-  Primary communication channel between the Jetson and the base station for telemetry and control.
-
-- **Ethernet (Development / Testing)**  
-  Optional wired link used for debugging, testing, and high-bandwidth development tasks.
-
----
-
-## 4. Base Station Laptop (Python)
-
-The base station provides **human-in-the-loop interaction** and system visibility.
-
-### 4.1 Telemetry & Communication
-
-- **ROS2 Topic Subscriber**  
-  Receives telemetry streams from the Jetson Nano.
-
-- **Local Host Telemetry Viewer**  
-  Displays:
-  - live sensor values  
-  - robot state and diagnostics  
-  - control outputs  
-  - (optionally) SLAM maps and camera feeds  
-
-### 4.2 Operator Input
-
-- **Controller Driver Code → Xbox Controller**  
-  Converts gamepad inputs into command messages (velocity, steering, mode selection).
-
-- **Keyboard Driver Code → Keyboard**  
-  Enables manual overrides, shortcuts, and emergency commands.
-
-- **ROS2 Topic Publisher**  
-  Publishes operator commands to the Jetson over the network.
-
----
-
-## 5. Communication Summary
-
-| Link | Direction | Purpose |
-|-----|----------|---------|
-| **UART** | Microcontroller ↔ Jetson | Sensor data and actuator commands |
-| **Wi-Fi (TP-Link)** | Jetson ↔ Base Station | Telemetry, control, monitoring |
-| **Ethernet** | Jetson ↔ Base Station | Development and debugging |
-| **Gamepad / Keyboard** | Base Station → Jetson | Manual operator commands |
-
----
-
-## 6. Design Philosophy
-
-- **Layered architecture** separates real-time control from high-level autonomy  
-- **ROS2 modularity** enables scalable development and testing  
-- **Clear interfaces** (UART, topics, network links) reduce coupling  
-- **Human-in-the-loop support** ensures safe testing and operation  
-
-This structure allows the platform to scale from manual tele-operation to fully autonomous operation with minimal architectural changes.
+Several packages still contain placeholder or upstream metadata. Confirm project ownership and licensing before redistribution.
