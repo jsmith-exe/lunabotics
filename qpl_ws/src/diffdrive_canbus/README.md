@@ -52,6 +52,8 @@ Limitations:
 
 See the repository `docs/safety.md` before hardware use.
 
+The field reports of unpredictable actuator behavior and uncommanded wheel motion, together with a code-level root-cause analysis and closure criteria, are recorded in the repository `docs/problem-log-hardware-control.md`.
+
 ## Build
 
 The package uses CMake, C++17, pluginlib, ros2_control, and system `libserial`:

@@ -88,6 +88,7 @@ These commands are shell functions or aliases loaded by `process/startup.sh`; th
 - [ROS 2 nodes and interfaces](docs/ros-interfaces.md)
 - [Installation and operation](docs/setup-and-operation.md)
 - [Safety and failure behavior](docs/safety.md)
+- [Open hardware-control problem log](docs/problem-log-hardware-control.md)
 - [Testing and simulation](docs/testing.md)
 - [ROS workspace guide](qpl_ws/README.md)
 - [Base-station guide](qpl_ws/src/basestation/readme.md)
@@ -98,6 +99,7 @@ These commands are shell functions or aliases loaded by `process/startup.sh`; th
 
 - The repository does not contain a verified physical E-stop implementation or electrical wiring documentation.
 - The base-station TCP command path currently republishes the last received command; loss-of-link handling must be treated as a known safety limitation.
+- Linear-actuator command semantics, startup targets, feedback assumptions, and the CAN heartbeat sequence contain unresolved hazards documented in the [hardware-control problem log](docs/problem-log-hardware-control.md).
 - Safety-critical autonomy and CAN hardware behavior currently lacks automated test coverage.
 - Camera, actuator calibration, motor-controller flash configuration, and mechanical limits must be verified on the physical rover.
 

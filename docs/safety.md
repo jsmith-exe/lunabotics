@@ -4,6 +4,8 @@
 
 The repository supports simulation and supervised development. It does not by itself establish that the rover is safe for unattended or competition operation.
 
+The reported incidents of unpredictable linear-actuator behavior and wheel motors spinning without a current operator command are tracked in [the hardware-control problem log](problem-log-hardware-control.md). That problem remains open.
+
 ## Confirmed software protections
 
 - `twist_mux` times out missing teleop and navigation messages.
@@ -41,6 +43,8 @@ Blind excavation and construction drive at a fixed speed for a fixed time withou
 ### Actuator assumptions
 
 Linear actuators use analog position feedback and software stall detection. Code comments state that physical end-stop limit switches are not used. Incorrect calibration, wiring, or feedback polarity can therefore produce hazardous motion.
+
+The current command path also converts a released/default lift value of zero into a position target of 0.5. In the position controller this means move to half travel, not stop. Both actuator targets initialize to 0.5 at hardware activation.
 
 ## Pre-operation checklist
 
