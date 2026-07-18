@@ -18,10 +18,7 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 
-# -------------------------------------------------------------------
 # Find system LibSerial
-# -------------------------------------------------------------------
-
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBSERIAL REQUIRED libserial)
 
@@ -118,7 +115,7 @@ target_compile_options(
 )
 
 # -------------------------------------------------------------------
-# Install headers
+# Install headers and plugin XML
 # -------------------------------------------------------------------
 
 install(
@@ -126,26 +123,8 @@ install(
   DESTINATION include
 )
 
-# -------------------------------------------------------------------
-# Install plugin XML
-# -------------------------------------------------------------------
-
 install(
   FILES diffdrive_canbus.xml
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# -------------------------------------------------------------------
-# Install descriptions / bringup files
-# -------------------------------------------------------------------
-
-install(
-  DIRECTORY description/ros2_control description/urdf
-  DESTINATION share/${PROJECT_NAME}
-)
-
-install(
-  DIRECTORY bringup/launch bringup/config
   DESTINATION share/${PROJECT_NAME}
 )
 

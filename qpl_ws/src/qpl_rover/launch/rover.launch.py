@@ -76,8 +76,8 @@ def generate_launch_description():
         run_components_parameter,
         rsp,
         OpaqueFunction(function=setup_components),
-        realsense_launch,
-        delayed_orbbec_launch,
-        rear_camera_tf_transform,
-        front_camera_tf_transform,
+        # realsense_launch,
+        # delayed_orbbec_launch,
+        # rear_camera_tf_transform,
+        # front_camera_tf_transform,
     ])
