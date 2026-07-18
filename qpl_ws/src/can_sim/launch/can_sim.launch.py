@@ -6,7 +6,7 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     example_command = ExecuteProcess(
-        cmd=["socat", "PTY,link=/dev/ttyUSB0,rawer", "PTY,link=/tmp/fake_can_rx,rawer"],
+        cmd=["sudo", "socat", "PTY,link=/dev/ttyUSB0,rawer", "PTY,link=/tmp/fake_can_rx,rawer"],
         output="screen",
     )
 
