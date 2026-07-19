@@ -81,37 +81,6 @@ public:
 
   bool read_frame(CANFrame & frame, bool print_output = false);
 
-  // Compatibility wrappers for older code paths
-  bool send_can_frame(const CANFrame & frame, bool print_output = false);
-  bool read_can_frame(CANFrame & frame, bool print_output = false);
-  bool read_can_frame_for_id(
-    uint32_t expected_id,
-    CANFrame & frame,
-    bool print_output = false,
-    int max_attempts = 100);
-
-  // Temporary legacy helper so diffbot_system.cpp still builds.
-  bool write_motor_command(int can_id, int command, bool print_output = false);
-
-  // Temporary legacy helper so diffbot_system.cpp still builds.
-  bool read_motor_encoder(int can_id, int & encoder_count, bool print_output = false);
-
-  bool read_frame_for_id(
-    uint32_t expected_id,
-    CANFrame & frame,
-    bool print_output = false,
-    int max_attempts = 100);
-
-  bool read_frame_matching(
-    const std::function<bool(const CANFrame &)> & matcher,
-    CANFrame & frame,
-    bool print_output = false,
-    int max_attempts = 100);
-
-  std::vector<CANFrame> drain_frames(
-    std::size_t max_frames = 256,
-    bool print_output = false);
-
   static std::string frame_to_string(const CANFrame & frame);
 
 private:

@@ -328,7 +328,7 @@ bool SparkMax::read_telemetry(int max_frames, bool print_status_frames)
   {
     CANFrame frame;
 
-    if (!can_.read_can_frame(frame, false))
+    if (!can_.read_frame(frame, false))
     {
       ++empty_reads;
       std::this_thread::sleep_for(TELEMETRY_EMPTY_READ_DELAY);

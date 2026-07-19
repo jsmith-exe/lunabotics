@@ -101,6 +101,7 @@ void CANComms::connect(
   {
     if (serial_conn_.IsOpen())
     {
+      std::cout << "Warning: Serial connection already open. Closing and reopening." << std::endl;
       serial_conn_.Close();
     }
 
@@ -161,7 +162,7 @@ bool CANComms::configure_adapter(
 
     if (print_output)
     {
-      std::cerr << "Sent config: " << bytes_to_hex(packet) << std::endl;
+      std::cout << "Sent config: " << bytes_to_hex(packet) << std::endl;
     }
 
     return true;
@@ -223,6 +224,7 @@ bool CANComms::send_extended_frame(
   frame.dlc = static_cast<uint8_t>(data.size());
   frame.extended = true;
   frame.remote = false;
+  // TODO Do we need this?
   std::fill(std::begin(frame.data), std::end(frame.data), 0);
 
   for (size_t i = 0; i < data.size(); ++i)
@@ -267,122 +269,6 @@ bool CANComms::read_frame(CANFrame & frame, bool print_output)
     std::cerr << "Failed reading CAN frame from adapter: " << e.what() << std::endl;
     return false;
   }
-}
-
-bool CANComms::send_can_frame(const CANFrame & frame, bool print_output)
-{
-  return send_frame(frame, print_output);
-}
-
-bool CANComms::read_can_frame(CANFrame & frame, bool print_output)
-{
-  return read_frame(frame, print_output);
-}
-
-bool CANComms::read_can_frame_for_id(
-  uint32_t expected_id,
-  CANFrame & frame,
-  bool print_output,
-  int max_attempts)
-{
-  return read_frame_for_id(expected_id, frame, print_output, max_attempts);
-}
-
-bool CANComms::write_motor_command(int can_id, int command, bool print_output)
-{
-  CANFrame frame;
-  frame.id = static_cast<uint32_t>(can_id);
-  frame.dlc = 4;
-  frame.extended = true;
-  frame.remote = false;
-
-  std::fill(std::begin(frame.data), std::end(frame.data), 0);
-  frame.data[0] = static_cast<uint8_t>(command & 0xFF);
-  frame.data[1] = static_cast<uint8_t>((command >> 8) & 0xFF);
-  frame.data[2] = static_cast<uint8_t>((command >> 16) & 0xFF);
-  frame.data[3] = static_cast<uint8_t>((command >> 24) & 0xFF);
-
-  return send_frame(frame, print_output);
-}
-
-bool CANComms::read_motor_encoder(int can_id, int & encoder_count, bool print_output)
-{
-  CANFrame response;
-  if (!read_frame_for_id(static_cast<uint32_t>(can_id), response, print_output))
-  {
-    return false;
-  }
-
-  if (response.dlc < 4)
-  {
-    std::cerr << "Encoder response too short for CAN ID " << can_id << std::endl;
-    return false;
-  }
-
-  encoder_count =
-    static_cast<int>(response.data[0]) |
-    (static_cast<int>(response.data[1]) << 8) |
-    (static_cast<int>(response.data[2]) << 16) |
-    (static_cast<int>(response.data[3]) << 24);
-
-  return true;
-}
-
-bool CANComms::read_frame_for_id(
-  uint32_t expected_id,
-  CANFrame & frame,
-  bool print_output,
-  int max_attempts)
-{
-  return read_frame_matching(
-    [&](const CANFrame & f) { return f.id == expected_id; },
-    frame,
-    print_output,
-    max_attempts);
-}
-
-bool CANComms::read_frame_matching(
-  const std::function<bool(const CANFrame &)> & matcher,
-  CANFrame & frame,
-  bool print_output,
-  int max_attempts)
-{
-  for (int i = 0; i < max_attempts; ++i)
-  {
-    CANFrame temp;
-    if (!read_frame(temp, print_output))
-    {
-      continue;
-    }
-
-    if (matcher(temp))
-    {
-      frame = temp;
-      return true;
-    }
-  }
-
-  return false;
-}
-
-std::vector<CANFrame> CANComms::drain_frames(
-  std::size_t max_frames,
-  bool print_output)
-{
-  std::vector<CANFrame> frames;
-  frames.reserve(max_frames);
-
-  for (std::size_t i = 0; i < max_frames; ++i)
-  {
-    CANFrame frame;
-    if (!read_frame(frame, print_output))
-    {
-      break;
-    }
-    frames.push_back(frame);
-  }
-
-  return frames;
 }
 
 std::string CANComms::frame_to_string(const CANFrame & frame)
