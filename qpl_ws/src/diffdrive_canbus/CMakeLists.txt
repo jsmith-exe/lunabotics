@@ -30,8 +30,11 @@ add_library(
   diffdrive_canbus
   SHARED
   hardware/diffdrive_canbus_system.cpp
-  hardware/CAN_comms.cpp
   hardware/spark_max.cpp
+  hardware/can_comms/can_comms.cpp
+  hardware/can_comms/can_utils.cpp
+  hardware/can_comms/serial_utils.cpp
+  hardware/can_comms/waveshare_codec.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)
