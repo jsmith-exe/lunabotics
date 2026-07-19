@@ -42,6 +42,32 @@
 
 namespace diffdrive_canbus {
 
+/// Convert a CAN bus baud rate (Hz) to the single-byte code the Waveshare
+/// USB-CAN-A config packet expects at byte [3].
+/// These codes are specific to this adapter model and are not standard CAN.
+uint8_t can_baud_to_waveshare_code(int32_t can_baud_rate)
+{
+  switch (can_baud_rate)
+  {
+    case 1000000: return 0x01;
+    case 800000:  return 0x02;
+    case 500000:  return 0x03;
+    case 400000:  return 0x04;
+    case 250000:  return 0x05;
+    case 200000:  return 0x06;
+    case 125000:  return 0x07;
+    case 100000:  return 0x08;
+    case 50000:   return 0x09;
+    case 20000:   return 0x0A;
+    case 10000:   return 0x0B;
+    case 5000:    return 0x0C;
+    default:
+      throw std::runtime_error(
+        "Unsupported CAN baud rate for Waveshare USB-CAN-A: " +
+        std::to_string(can_baud_rate));
+  }
+}
+
 /// Build the 20-byte Waveshare config packet.
 /// The checksum covers bytes [2..18] (inclusive) as a simple sum, truncated
 /// to 8 bits — it does not include the 0xAA/0x55 framing bytes.
