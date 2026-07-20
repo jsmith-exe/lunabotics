@@ -1,4 +1,4 @@
-#include "diffdrive_canbus/CAN_comms.hpp"
+#include "diffdrive_canbus/can_comms.hpp"
 #include "diffdrive_canbus/spark_max.hpp"
 
 #include "hardware_interface/system_interface.hpp"

@@ -10,7 +10,7 @@
 // Useful feedback test:
 // ros2 run diffdrive_canbus spark_max_test /dev/ttyUSB0 1 rpm 2000 --timeout 20 --print-status
 
-#include "diffdrive_canbus/CAN_comms.hpp"
+#include "diffdrive_canbus/can_comms.hpp"
 #include "diffdrive_canbus/spark_max.hpp"
 
 #include <atomic>

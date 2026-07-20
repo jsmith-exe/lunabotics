@@ -1,6 +1,6 @@
-/// Helper functions for waveshare parsing
+/// Helper functions for Waveshare adapter parsing
 
-#include "diffdrive_canbus/CAN_comms.hpp"
+#include "diffdrive_canbus/can_comms.hpp"
 
 #include <algorithm>
 #include <filesystem>

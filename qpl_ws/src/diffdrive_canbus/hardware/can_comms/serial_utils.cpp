@@ -1,6 +1,6 @@
 /// Helper functions for reading and parsing bytes from the serial port
 
-#include "diffdrive_canbus/CAN_comms.hpp"
+#include "diffdrive_canbus/can_comms.hpp"
 
 #include <filesystem>
 #include <iomanip>

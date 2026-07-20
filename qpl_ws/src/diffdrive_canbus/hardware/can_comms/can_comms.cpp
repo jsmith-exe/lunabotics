@@ -1,6 +1,6 @@
 /// Handles the lifecycle of the CAN serial communication
 
-#include "diffdrive_canbus/CAN_comms.hpp"
+#include "diffdrive_canbus/can_comms.hpp"
 
 #include <algorithm>
 #include <filesystem>
