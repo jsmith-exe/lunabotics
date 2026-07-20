@@ -4,9 +4,7 @@
 #include "diffdrive_canbus/CAN_comms.hpp"
 #include "diffdrive_canbus/spark_max.hpp"
 #include "diffdrive_canbus/visibility_control.h"
-#include "diffdrive_canbus/wheel.hpp"
 
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -80,11 +78,6 @@ private:
   static double sign(bool inverted);
 
   Config cfg_;
-
-  Wheel front_left_wheel_;
-  Wheel front_right_wheel_;
-  Wheel rear_left_wheel_;
-  Wheel rear_right_wheel_;
 
   CANComms can_;
 
