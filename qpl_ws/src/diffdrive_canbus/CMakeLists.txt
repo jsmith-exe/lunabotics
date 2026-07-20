@@ -78,46 +78,6 @@ pluginlib_export_plugin_description_file(
 )
 
 # -------------------------------------------------------------------
-# Test executable
-# -------------------------------------------------------------------
-
-add_executable(
-  spark_max_test
-  hardware/spark_max_test.cpp
-)
-
-target_compile_features(spark_max_test PUBLIC cxx_std_17)
-
-target_include_directories(spark_max_test PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/hardware/include>
-  $<INSTALL_INTERFACE:include>
-  ${LIBSERIAL_INCLUDE_DIRS}
-)
-
-ament_target_dependencies(
-  spark_max_test
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
-
-target_link_directories(
-  spark_max_test
-  PUBLIC
-  ${LIBSERIAL_LIBRARY_DIRS}
-)
-
-target_link_libraries(
-  spark_max_test
-  diffdrive_canbus
-  ${LIBSERIAL_LIBRARIES}
-)
-
-target_compile_options(
-  spark_max_test
-  PUBLIC
-  ${LIBSERIAL_CFLAGS_OTHER}
-)
-
-# -------------------------------------------------------------------
 # Install headers and plugin XML
 # -------------------------------------------------------------------
 
@@ -141,15 +101,6 @@ install(
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
-)
-
-# -------------------------------------------------------------------
-# Install executable
-# -------------------------------------------------------------------
-
-install(
-  TARGETS spark_max_test
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 # -------------------------------------------------------------------
