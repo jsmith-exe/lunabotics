@@ -1,5 +1,6 @@
 #include "diffdrive_canbus/can_comms.hpp"
 #include "diffdrive_canbus/spark_max.hpp"
+#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
@@ -14,7 +15,6 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -98,108 +98,6 @@ constexpr double RUNAWAY_SMALL_TARGET_RPM = 500.0;
 constexpr double RUNAWAY_SIGN_TARGET_MIN_RPM = 50.0;
 constexpr double RUNAWAY_HIGH_APPLIED_OUTPUT = 1.0;
 constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(100);
-
-bool string_to_bool(const std::string & value)
-{
-  return value == "true" ||
-         value == "True" ||
-         value == "TRUE" ||
-         value == "1" ||
-         value == "yes" ||
-         value == "on";
-}
-
-double apply_deadband(double value, double deadband)
-{
-  if (std::fabs(value) <= deadband)
-  {
-    return 0.0;
-  }
-
-  return value;
-}
-
-double clean_command(double value, double deadband)
-{
-  if (!std::isfinite(value))
-  {
-    return 0.0;
-  }
-
-  return apply_deadband(value, deadband);
-}
-
-// Clamp duty-cycle/throttle commands to the safe SPARK MAX range.
-double clamp_throttle(double value)
-{
-  if (!std::isfinite(value))
-  {
-    return 0.0;
-  }
-
-  return std::clamp(value, -1.0, 1.0);
-}
-
-double apply_throttle_deadband(double value, double deadband)
-{
-  const double safe_deadband = std::max(0.0, deadband);
-
-  if (std::fabs(value) <= safe_deadband)
-  {
-    return 0.0;
-  }
-
-  return value;
-}
-
-
-uint8_t get_frc_device_id_from_can_id(uint32_t can_id)
-{
-  // FRC extended CAN IDs store the device ID in the lowest 6 bits.
-  return static_cast<uint8_t>(can_id & 0x3F);
-}
-
-uint8_t get_frc_api_index_from_can_id(uint32_t can_id)
-{
-  // The API index is the nibble immediately above the 6-bit device ID.
-  return static_cast<uint8_t>((can_id >> 6) & 0x0F);
-}
-
-bool is_actuator_status3_id(uint32_t can_id, uint8_t device_id)
-{
-  const uint32_t clean_id = can_id & 0x1FFFFFFF;
-  return clean_id == (SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(device_id));
-}
-
-uint16_t le_u16_from_frame_data(const uint8_t data[8], size_t offset)
-{
-  if (offset + sizeof(uint16_t) > 8)
-  {
-    return 0;
-  }
-
-  uint16_t value = 0;
-  std::memcpy(&value, data + offset, sizeof(uint16_t));
-  return value;
-}
-
-std::string can_data_to_hex_string(const uint8_t data[8], uint8_t dlc)
-{
-  std::ostringstream oss;
-  oss << std::hex << std::uppercase << std::setfill('0');
-
-  for (uint8_t i = 0; i < dlc && i < 8; ++i)
-  {
-    if (i > 0)
-    {
-      oss << ' ';
-    }
-
-    oss << "0x" << std::setw(2) << static_cast<int>(data[i]);
-  }
-
-  return oss.str();
-}
 
 }  // namespace
 
@@ -1664,8 +1562,7 @@ private:
 
   void request_actuator_status3_period(LinearActuatorHW & act, const std::string & label)
   {
-    const uint32_t status3_id =
-      SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(act.can_id);
+    const uint32_t status3_id = SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(act.can_id);
 
     std::vector<uint8_t> data(2, 0x00);
     data[0] = static_cast<uint8_t>(LINEAR_ACTUATOR_STATUS3_PERIOD_MS & 0xFF);
