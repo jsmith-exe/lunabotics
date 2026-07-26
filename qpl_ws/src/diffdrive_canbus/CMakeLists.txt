@@ -36,8 +36,8 @@ add_library(
   hardware/can_comms/serial_utils.cpp
   hardware/can_comms/waveshare_codec.cpp
   hardware/diffdrive_interface/helpers.cpp
-        hardware/diffdrive_interface/can_comms_helpers.cpp
-        #  hardware/include/devices.hpp
+  hardware/diffdrive_interface/can_comms_helpers.cpp
+  hardware/diffdrive_interface/actuator.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)

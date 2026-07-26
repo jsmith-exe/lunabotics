@@ -28,79 +28,6 @@
 namespace diffdrive_canbus
 {
 
-namespace
-{
-
-constexpr double TWO_PI = 2.0 * M_PI;
-
-// Keep heartbeats fast. If this is too slow, SPARK MAX duty commands can feel
-// jumpy because the controller may briefly drop back into its neutral behaviour.
-constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
-
-// Active command traffic. 20 ms keeps the SPARK MAX refreshed often enough
-// that it should not repeatedly fall back into neutral/brake behaviour.
-constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(100);
-
-// Gap between outgoing serial/CAN writes.
-// Increase to 10 or 15 ms if the bus is still jumpy.
-constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(10);
-
-constexpr auto STOP_TIME = std::chrono::milliseconds(50);
-constexpr auto EXTRA_STOP_TIME = std::chrono::milliseconds(50);
-constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
-constexpr auto PRINT_PERIOD = std::chrono::milliseconds(250);
-
-// Feedback copied closer to spark_max_test behaviour.
-constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
-constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 20;
-constexpr int FEEDBACK_EMPTY_READ_RETRIES = 8;
-constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
-constexpr int INITIAL_FEEDBACK_FRAMES = 50;
-
-// Even when feedback_enabled is false, keep draining a small number of incoming
-// CAN frames. Some serial-to-CAN adapters behave badly if the RX buffer fills
-// with SPARK MAX status frames, and actuator duty commands can then appear
-// jumpy or fail to register unless feedback is enabled.
-constexpr auto RX_DRAIN_PERIOD = std::chrono::milliseconds(10);
-constexpr int RX_DRAIN_FRAMES_PER_READ = 20;
-constexpr int RX_DRAIN_EMPTY_READ_RETRIES = 2;
-
-// Linear actuator feedback/status readback.
-// The analog position feedback is used to close the loop on the actuator
-// position command (see write_actuator_closed_loop), not just for telemetry.
-constexpr auto LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD = std::chrono::milliseconds(500);
-
-// Closed-loop linear-actuator servo limits. The actuators are open-loop duty
-// devices, so we close the loop on the analog position feedback: a held position
-// command drives toward the target and then stops, instead of stalling at an
-// end-stop. This is bang-bang (full drive or stop), not a PID controller.
-//   ACTUATOR_FEEDBACK_TIMEOUT      - if no fresh position feedback within this
-//                                    window, hold the motor stopped (never drive blind).
-//   ACTUATOR_STALL_TIMEOUT         - if commanding motion but the measured
-//                                    position stops progressing for this long
-//                                    (jam, hard end-stop, frozen feedback), latch off.
-//   ACTUATOR_STALL_MOTION_EPSILON  - position change that counts as "still moving".
-constexpr auto ACTUATOR_FEEDBACK_TIMEOUT = std::chrono::milliseconds(500);
-constexpr auto ACTUATOR_STALL_TIMEOUT = std::chrono::milliseconds(1500);
-constexpr double ACTUATOR_STALL_MOTION_EPSILON = 0.02;
-
-// SPARK MAX Periodic Status 3 contains analogue sensor information.
-// The non-FRC CAN reference uses base ID 0x020518C0 + device_id for Status 3.
-constexpr uint32_t SPARKMAX_PERIODIC_STATUS_3_BASE_ID = 0x020518C0;
-constexpr uint16_t LINEAR_ACTUATOR_STATUS3_PERIOD_MS = 20;
-
-// Runaway watchdog.
-// These are deliberately conservative for catching obvious runaway,
-// not for doing normal closed-loop control.
-constexpr double RUNAWAY_MIN_MEASURED_RPM = 8000.0;
-constexpr double RUNAWAY_ALLOWED_RPM_ERROR = 1500.0;
-constexpr double RUNAWAY_SMALL_TARGET_RPM = 500.0;
-constexpr double RUNAWAY_SIGN_TARGET_MIN_RPM = 50.0;
-constexpr double RUNAWAY_HIGH_APPLIED_OUTPUT = 1.0;
-constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(100);
-
-}  // namespace
-
 class DiffDriveCanbusHardware : public hardware_interface::SystemInterface
 {
 public:
@@ -174,7 +101,6 @@ public:
     RCLCPP_INFO(logger_, "PID slot: %u", pid_slot_);
     RCLCPP_INFO(logger_, "Loopback mode: %s", loopback_mode_ ? "true" : "false");
 
-    RCLCPP_INFO(logger_, "Debug flag print_commands: %s", print_commands_ ? "true" : "false");
     RCLCPP_INFO(logger_, "Debug flag print_status: %s", print_status_frames_ ? "true" : "false");
     RCLCPP_INFO(
       logger_,
@@ -410,8 +336,8 @@ public:
       RCLCPP_INFO(logger_, "Right linear actuator ros2_control position command starts at: %.3f", right_actuator_.command);
       RCLCPP_INFO(logger_, "Actuator commands are resent every write() cycle, independent of wheel commands");
 
-      request_actuator_status3_period(left_actuator_, "left");
-      request_actuator_status3_period(right_actuator_, "right");
+      request_actuator_status3_period(left_actuator_, "left", can_);
+      request_actuator_status3_period(right_actuator_, "right", can_);
     }
     catch (const std::exception & e)
     {
@@ -449,8 +375,8 @@ public:
     rear_left_position_ = 0.0;
     rear_right_position_ = 0.0;
 
-    reset_actuator_state(left_actuator_);
-    reset_actuator_state(right_actuator_);
+    reset_actuator_state(left_actuator_, logger_);
+    reset_actuator_state(right_actuator_, logger_);
 
     front_left_position_offset_ = 0.0;
     front_right_position_offset_ = 0.0;
@@ -753,58 +679,6 @@ public:
   }
 
 private:
-  // All per-actuator state bundled so left and right share identical logic.
-  struct LinearActuatorHW
-  {
-    std::string joint_name{"linear_actuator_joint"};
-    uint8_t can_id{5};
-
-    double test_position_command{0.5};
-    double command{0.5};
-    double position{0.0};
-    double voltage{0.0};
-    bool has_voltage{false};
-
-    double feedback_min_voltage{0.279};
-    double feedback_max_voltage{1.85};
-    double deadband{0.02};
-    double last_sent_output{999.0};
-
-    std::unique_ptr<SparkMax> spark;
-
-    int command_count{0};
-    bool has_raw_can_frame{false};
-    bool has_status3_frame{false};
-    bool has_analog_voltage_candidate{false};
-    double analog_voltage_candidate{0.0};
-    std::string analog_voltage_source{"NONE"};
-
-    uint32_t last_raw_can_id{0};
-    uint8_t last_raw_dlc{0};
-    std::array<uint8_t, 8> last_raw_data{};
-
-    uint32_t last_status3_can_id{0};
-    uint8_t last_status3_dlc{0};
-    std::array<uint8_t, 8> last_status3_data{};
-
-    int raw_can_frame_count{0};
-    int status3_frame_count{0};
-
-    bool currently_commanded{false};
-    bool ros2_control_interface_enabled{false};
-
-    std::chrono::steady_clock::time_point last_feedback_print_time{};
-
-    // Closed-loop position servo state (bang-bang on analog feedback).
-    double position_tolerance{0.03};
-    std::chrono::steady_clock::time_point last_feedback_time{};
-    bool stall_latched{false};
-    double stall_latched_command{0.5};
-    bool watchdog_initialised{false};
-    double watchdog_ref_position{0.0};
-    std::chrono::steady_clock::time_point watchdog_ref_time{};
-  };
-
   void parse_hardware_parameters()
   {
     front_left_wheel_name_ = get_required_string("front_left_wheel_name");
@@ -879,7 +753,6 @@ private:
 
     pid_slot_ = static_cast<uint8_t>(get_int("pid_slot", 0));
 
-    print_commands_ = get_bool("print_commands", false);
     print_status_frames_ = get_bool("print_status", false);
     debug_printing_enabled_ = get_bool("debug_printing_enabled", false);
 
@@ -1195,43 +1068,6 @@ private:
       throw std::runtime_error(
         "Joint '" + joint_name + "' is missing velocity state interface");
     }
-  }
-
-  void reset_actuator_state(LinearActuatorHW & act)
-  {
-    act.command = std::clamp(act.test_position_command, 0.0, 1.0);
-    act.position = 0.0;
-    act.voltage = 0.0;
-    act.has_voltage = false;
-    act.command_count = 0;
-    act.last_sent_output = 999.0;
-    act.has_raw_can_frame = false;
-    act.has_status3_frame = false;
-    act.has_analog_voltage_candidate = false;
-    act.analog_voltage_candidate = 0.0;
-    act.analog_voltage_source = "NONE";
-    act.last_raw_can_id = 0;
-    act.last_raw_dlc = 0;
-    act.last_raw_data.fill(0);
-    act.last_status3_can_id = 0;
-    act.last_status3_dlc = 0;
-    act.last_status3_data.fill(0);
-    act.raw_can_frame_count = 0;
-    act.status3_frame_count = 0;
-    act.currently_commanded = false;
-    act.last_feedback_print_time =
-      std::chrono::steady_clock::now() + LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
-    act.last_feedback_time = std::chrono::steady_clock::time_point{};
-    act.stall_latched = false;
-    act.stall_latched_command = act.command;
-    act.watchdog_initialised = false;
-    act.watchdog_ref_position = 0.0;
-    act.watchdog_ref_time = std::chrono::steady_clock::time_point{};
-  }
-
-  void sleep_bus_gap()
-  {
-    std::this_thread::sleep_for(BUS_FRAME_GAP);
   }
 
   void send_heartbeat_before_motor_command(const std::string & label)
@@ -1557,203 +1393,6 @@ private:
         1000,
         "Failed to send native velocity command to %s motor",
         label.c_str());
-    }
-  }
-
-  void request_actuator_status3_period(LinearActuatorHW & act, const std::string & label)
-  {
-    const uint32_t status3_id = SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(act.can_id);
-
-    std::vector<uint8_t> data(2, 0x00);
-    data[0] = static_cast<uint8_t>(LINEAR_ACTUATOR_STATUS3_PERIOD_MS & 0xFF);
-    data[1] = static_cast<uint8_t>((LINEAR_ACTUATOR_STATUS3_PERIOD_MS >> 8) & 0xFF);
-
-    const bool ok = can_.send_extended_frame(status3_id, data, print_commands_);
-
-    if (ok)
-    {
-      RCLCPP_WARN(
-        logger_,
-        "Requested SPARK MAX Status 3 period for %s linear actuator: id=%u can_id=0x%08X period=%u ms",
-        label.c_str(),
-        act.can_id,
-        status3_id,
-        LINEAR_ACTUATOR_STATUS3_PERIOD_MS);
-    }
-    else
-    {
-      RCLCPP_WARN(
-        logger_,
-        "Failed to request SPARK MAX Status 3 period for %s linear actuator: id=%u can_id=0x%08X",
-        label.c_str(),
-        act.can_id,
-        status3_id);
-    }
-
-    sleep_bus_gap();
-  }
-
-  // Closed-loop position servo for one linear actuator.
-  //
-  // The actuator is an open-loop duty device (0.0 -> -1.0 duty retract,
-  // 0.5 -> stop, 1.0 -> +1.0 duty extend), but ros2_control presents it as a
-  // position command in 0..1. We honour that contract by driving toward the
-  // commanded position using the analog feedback and stopping once we get there,
-  // so a held command parks the drum instead of stalling at an end-stop.
-  void write_actuator_closed_loop(LinearActuatorHW & act, const std::string & label)
-  {
-    if (!act.spark)
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Cannot write to %s linear actuator because SparkMax object is null",
-        label.c_str());
-
-      return;
-    }
-
-    // Target position requested through the ros2_control position interface.
-    const double target =
-      std::clamp(std::isfinite(act.command) ? act.command : 0.5, 0.0, 1.0);
-
-    const auto now = std::chrono::steady_clock::now();
-
-    // A new/changed target clears any latched stall so we retry the move.
-    if (std::fabs(target - act.stall_latched_command) > act.position_tolerance)
-    {
-      act.stall_latched = false;
-      act.watchdog_initialised = false;
-    }
-
-    // Feedback-loss failsafe: these actuators have no end-stop limit switches, so
-    // we must never drive them open-loop/blind. If the analog position feedback is
-    // missing (feedback disabled, wiring fault) or stale (frames stopped arriving),
-    // hold the motor stopped rather than risk a runaway or a sustained stall.
-    const bool feedback_fresh =
-      act.has_voltage &&
-      (now - act.last_feedback_time) <= ACTUATOR_FEEDBACK_TIMEOUT;
-
-    if (!feedback_fresh)
-    {
-      send_actuator_duty(act, 0.0, label);
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "%s LINEAR ACTUATOR: no fresh position feedback (has_voltage=%s) - holding stopped",
-        label.c_str(),
-        act.has_voltage ? "true" : "false");
-      act.watchdog_initialised = false;
-      return;
-    }
-
-    const double measured = std::clamp(act.position, 0.0, 1.0);
-    const double error = target - measured;
-
-    // Bang-bang: drive at full duty toward the target, stop inside the tolerance
-    // band. The actuator cannot servo intermediate speeds, so there is no point
-    // in a proportional term.
-    double duty = 0.0;
-    if (error > act.position_tolerance)
-    {
-      duty = 1.0;   // measured below target: extend
-    }
-    else if (error < -act.position_tolerance)
-    {
-      duty = -1.0;  // measured above target: retract
-    }
-    else
-    {
-      duty = 0.0;   // within tolerance: reached, stop
-      act.stall_latched = false;
-      act.watchdog_initialised = false;
-    }
-
-    // Stall/jam watchdog: while commanding motion we expect the measured position
-    // to keep changing. If it stops progressing (jam, hard end-stop, or frozen
-    // feedback) latch the motor off until the target changes, so we never sit at
-    // full duty against a blocked load.
-    if (duty != 0.0 && !act.stall_latched)
-    {
-      if (!act.watchdog_initialised)
-      {
-        act.watchdog_initialised = true;
-        act.watchdog_ref_position = measured;
-        act.watchdog_ref_time = now;
-      }
-      else if (std::fabs(measured - act.watchdog_ref_position) >= ACTUATOR_STALL_MOTION_EPSILON)
-      {
-        // Still making progress - reset the watchdog reference.
-        act.watchdog_ref_position = measured;
-        act.watchdog_ref_time = now;
-      }
-      else if ((now - act.watchdog_ref_time) >= ACTUATOR_STALL_TIMEOUT)
-      {
-        act.stall_latched = true;
-        act.stall_latched_command = target;
-        RCLCPP_WARN(
-          logger_,
-          "%s LINEAR ACTUATOR: stall watchdog tripped (target=%.3f measured=%.3f) - "
-          "holding stopped until target changes",
-          label.c_str(),
-          target,
-          measured);
-      }
-    }
-
-    if (act.stall_latched)
-    {
-      duty = 0.0;
-    }
-
-    send_actuator_duty(act, duty, label);
-  }
-
-  // Clamp/deadband a duty command and send it to one actuator's SPARK MAX.
-  void send_actuator_duty(LinearActuatorHW & act, double duty, const std::string & label)
-  {
-    double safe_throttle =
-      apply_throttle_deadband(clamp_throttle(duty), act.deadband);
-
-    if (std::fabs(safe_throttle) <= act.deadband)
-    {
-      safe_throttle = 0.0;
-    }
-
-    RCLCPP_WARN_THROTTLE(
-      logger_,
-      *rclcpp::Clock::make_shared(),
-      500,
-      "%s LINEAR ACTUATOR: id=%u target_pos=%.3f measured_pos=%.3f duty_sent=%.3f",
-      label.c_str(),
-      act.can_id,
-      std::clamp(act.command, 0.0, 1.0),
-      act.position,
-      safe_throttle);
-
-    const bool ok = act.spark->set_duty_cycle(
-      static_cast<float>(safe_throttle),
-      print_commands_);
-
-    sleep_bus_gap();
-
-    if (ok)
-    {
-      ++act.command_count;
-      act.last_sent_output = safe_throttle;
-      act.currently_commanded = std::fabs(safe_throttle) > 0.0;
-    }
-    else
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Failed to send duty command to %s linear actuator on CAN ID %u",
-        label.c_str(),
-        act.can_id);
     }
   }
 
