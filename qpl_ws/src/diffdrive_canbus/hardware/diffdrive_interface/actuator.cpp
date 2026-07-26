@@ -1,6 +1,7 @@
 #include <string>
 #include <iomanip>
 #include <chrono>
+#include <iostream>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -236,6 +237,115 @@ namespace diffdrive_canbus {
         "Failed to send duty command to %s linear actuator on CAN ID %u",
         label.c_str(),
         act.can_id);
+    }
+  }
+
+  void print_actuator_status(LinearActuatorHW & act, const std::string & label)
+  {
+    const double safe_position_command = std::clamp(act.command, 0.0, 1.0);
+
+    std::cout << label << "_linear_actuator"
+              << " id=" << static_cast<int>(act.can_id)
+              << " | command position=" << safe_position_command
+              << " | last_duty=" << act.last_sent_output
+              << " | position=" << act.position;
+
+    if (act.has_voltage)
+    {
+      std::cout << " | voltage=" << act.voltage;
+    }
+    else
+    {
+      std::cout << " | voltage=NO_ANALOG";
+    }
+
+    if (!act.spark)
+    {
+      std::cout << " | spark=NULL\n";
+      return;
+    }
+
+    const auto & tel = act.spark->telemetry();
+
+    if (tel.has_applied_output)
+    {
+      std::cout << " | applied=" << tel.applied_output;
+    }
+    else
+    {
+      std::cout << " | applied=NO_FEEDBACK";
+    }
+
+    std::cout << "\n";
+  }
+
+  double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage)
+  {
+    const double span = max_voltage - min_voltage;
+
+    if (!std::isfinite(voltage) || std::fabs(span) < 1e-9)
+    {
+      return 0.0;
+    }
+
+    return std::clamp(
+      (voltage - min_voltage) / span,
+      0.0,
+      1.0);
+  }
+
+  void observe_actuator_raw_frame(LinearActuatorHW & act, const CANFrame & frame)
+  {
+    if (get_frc_device_id_from_can_id(frame.id) != act.can_id)
+    {
+      return;
+    }
+
+    act.has_raw_can_frame = true;
+    ++act.raw_can_frame_count;
+
+    act.last_raw_can_id = frame.id;
+    act.last_raw_dlc = static_cast<uint8_t>(std::min<int>(frame.dlc, 8));
+    act.last_raw_data.fill(0);
+
+    for (uint8_t i = 0; i < act.last_raw_dlc; ++i)
+    {
+      act.last_raw_data[i] = frame.data[i];
+    }
+
+    // SPARK MAX analogue sensor data is expected on Periodic Status 3.
+    // Use the exact Status 3 CAN ID instead of only the API index so Status 0/1/2
+    // frames cannot be mistaken for analogue feedback.
+    if (!is_actuator_status3_id(frame.id, act.can_id))
+    {
+      return;
+    }
+
+    act.has_status3_frame = true;
+    ++act.status3_frame_count;
+
+    // Per the non-FRC SPARK MAX CAN reference, Periodic Status 3 starts with
+    // adcVoltage in 2q8 fixed-point format. That means the raw 16-bit
+    // little-endian value is voltage * 256.
+    const uint16_t raw_adc_voltage_2q8 = le_u16_from_frame_data(frame.data, 0);
+    const double analog_voltage = static_cast<double>(raw_adc_voltage_2q8) / 256.0;
+
+    act.has_analog_voltage_candidate = true;
+    act.analog_voltage_candidate = analog_voltage;
+    act.analog_voltage_source = "status3 adcVoltage 2q8 bytes0-1 /256";
+
+    act.voltage = analog_voltage;
+    act.has_voltage = true;
+    act.position =
+      normalise_actuator_voltage(analog_voltage, act.feedback_min_voltage, act.feedback_max_voltage);
+    act.last_feedback_time = std::chrono::steady_clock::now();
+
+    act.last_status3_can_id = frame.id;
+    act.last_status3_dlc = static_cast<uint8_t>(std::min<int>(frame.dlc, 8));
+    act.last_status3_data.fill(0);
+    for (uint8_t i = 0; i < act.last_status3_dlc; ++i)
+    {
+      act.last_status3_data[i] = frame.data[i];
     }
   }
 }

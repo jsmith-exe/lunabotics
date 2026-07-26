@@ -149,5 +149,8 @@ namespace diffdrive_canbus {
   void send_actuator_duty(LinearActuatorHW & act, double duty, const std::string & label);
   void request_actuator_status3_period(LinearActuatorHW & act, const std::string & label, CANComms & can_);
   void write_actuator_closed_loop(LinearActuatorHW & act, const std::string & label);
+  void print_actuator_status(LinearActuatorHW & act, const std::string & label);
+  double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage);
+  void observe_actuator_raw_frame(LinearActuatorHW & act, const CANFrame & frame);
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_
