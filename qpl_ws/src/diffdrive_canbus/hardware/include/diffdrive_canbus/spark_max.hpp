@@ -35,6 +35,12 @@ public:
   float gear_ratio() const;
   void set_gear_ratio(float gear_ratio);
 
+  // TODO hopefully temporary
+  virtual double commanded_velocity() const { return 0.0; }
+  virtual double velocity() const { return 0.0; }
+  virtual double rotation_position() const { return 0.0; }
+  virtual void update_joint_state_from_telemetry(double & position_offset_rad, bool & position_offset_valid) {}
+
   bool send_heartbeats(bool print = false);
   bool clear_faults(bool print = false);
 

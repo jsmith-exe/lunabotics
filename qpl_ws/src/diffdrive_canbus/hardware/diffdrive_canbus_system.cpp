@@ -472,17 +472,13 @@ public:
     write_actuator_closed_loop(right_actuator_, "right");
     write_drum_velocity();
 
-    const double front_left_command =
-      clean_command(front_left_command_, command_deadband_rad_per_sec_);
+    const double front_left_command = clean_command(front_left_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
 
-    const double front_right_command =
-      clean_command(front_right_command_, command_deadband_rad_per_sec_);
+    const double front_right_command = clean_command(front_right_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
 
-    const double rear_left_command =
-      clean_command(rear_left_command_, command_deadband_rad_per_sec_);
+    const double rear_left_command = clean_command(rear_left_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
 
-    const double rear_right_command =
-      clean_command(rear_right_command_, command_deadband_rad_per_sec_);
+    const double rear_right_command = clean_command(rear_right_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
 
     const bool any_wheel_command =
       std::fabs(front_left_command) > 0.0 ||
@@ -1686,33 +1682,10 @@ private:
 
   void update_all_joint_states_from_telemetry()
   {
-    update_joint_state_from_telemetry(
-      front_left_spark_,
-      front_left_position_,
-      front_left_velocity_,
-      front_left_position_offset_,
-      front_left_position_offset_valid_);
-
-    update_joint_state_from_telemetry(
-      front_right_spark_,
-      front_right_position_,
-      front_right_velocity_,
-      front_right_position_offset_,
-      front_right_position_offset_valid_);
-
-    update_joint_state_from_telemetry(
-      rear_left_spark_,
-      rear_left_position_,
-      rear_left_velocity_,
-      rear_left_position_offset_,
-      rear_left_position_offset_valid_);
-
-    update_joint_state_from_telemetry(
-      rear_right_spark_,
-      rear_right_position_,
-      rear_right_velocity_,
-      rear_right_position_offset_,
-      rear_right_position_offset_valid_);
+    front_left_spark_->update_joint_state_from_telemetry(front_left_position_offset_, front_left_position_offset_valid_);
+    front_right_spark_->update_joint_state_from_telemetry(front_right_position_offset_, front_right_position_offset_valid_);
+    rear_left_spark_->update_joint_state_from_telemetry(rear_left_position_offset_, rear_left_position_offset_valid_);
+    rear_right_spark_->update_joint_state_from_telemetry(rear_right_position_offset_, rear_right_position_offset_valid_);
 
     update_joint_state_from_telemetry(
       drum_spark_,

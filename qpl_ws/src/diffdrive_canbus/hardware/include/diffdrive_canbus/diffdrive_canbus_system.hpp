@@ -175,6 +175,12 @@ namespace diffdrive_canbus {
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
 
+    void update_joint_state_from_telemetry(double &position_offset_rad, bool &position_offset_valid);
+
+    double rotation_position() const override { return rotation_position_; }
+    double velocity() const override { return velocity_; }
+    double commanded_velocity() const override { return commanded_velocity_; }
+
   protected:
     double rotation_position_{0.0};
     double velocity_{0.0};

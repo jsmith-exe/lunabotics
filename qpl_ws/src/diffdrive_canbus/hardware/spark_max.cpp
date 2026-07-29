@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
+
 namespace diffdrive_canbus
 {
 

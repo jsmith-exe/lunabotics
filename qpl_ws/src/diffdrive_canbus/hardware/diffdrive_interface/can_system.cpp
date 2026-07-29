@@ -28,6 +28,34 @@ namespace diffdrive_canbus {
       &commanded_velocity_);
   }
 
+  void Motor::update_joint_state_from_telemetry(
+    double & position_offset_rad,
+    bool & position_offset_valid)
+  {
+    const auto & tel = this->telemetry();
+
+    if (tel.has_encoder_velocity)
+    {
+       velocity_ = static_cast<double>(tel.wheel_rad_per_sec);
+    }
+
+    if (tel.has_encoder_position)
+    {
+      const double absolute_position_rad =
+        static_cast<double>(tel.wheel_position_rotations) * TWO_PI;
+
+      if (!position_offset_valid)
+      {
+        position_offset_rad = absolute_position_rad;
+        position_offset_valid = true;
+      }
+
+      rotation_position_ = absolute_position_rad - position_offset_rad;
+    }
+  }
+
+
+
 
   CANSystem::CANSystem(CANComms &comms) : comms_(comms) {
   }
