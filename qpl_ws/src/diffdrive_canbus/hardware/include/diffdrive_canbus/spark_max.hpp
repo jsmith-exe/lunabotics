@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <hardware_interface/handle.hpp>
 
 namespace diffdrive_canbus
 {
@@ -23,12 +24,14 @@ struct SparkMaxTelemetry
   float applied_output = 0.0f;
 };
 
-class SparkMax
+class CANDevice
 {
 public:
-  SparkMax(CANComms & can, uint8_t device_id, float gear_ratio = 1.0f);
+  CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio);
+  virtual ~CANDevice() = default; // TODO why do we need this?
 
-  uint8_t device_id() const;
+  std::string name() const;
+  uint8_t can_id() const;
   float gear_ratio() const;
   void set_gear_ratio(float gear_ratio);
 
@@ -83,7 +86,10 @@ public:
 
   float velocity_controller_output() const;
 
-private:
+  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
+  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
+
+protected:
   static constexpr float PI = 3.14159265358979323846f;
 
   static constexpr uint8_t DEVICE_TYPE_MOTOR_CONTROLLER = 2;
@@ -106,8 +112,9 @@ private:
 
   static constexpr uint8_t HEARTBEAT_DEVICE_ID = 0;
 
+  std::string name_;
+  uint8_t can_id_;
   CANComms & can_;
-  uint8_t device_id_;
   float gear_ratio_;
 
   SparkMaxTelemetry telemetry_;

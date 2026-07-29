@@ -2,7 +2,8 @@
 #define DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_
 
 #include <chrono>
-#include <math.h>
+#include <map>
+#include <cmath>
 #include <string>
 #include <rclcpp/logger.hpp>
 #include "diffdrive_canbus/spark_max.hpp"
@@ -111,7 +112,7 @@ namespace diffdrive_canbus {
     double deadband{0.02};
     double last_sent_output{999.0};
 
-    std::unique_ptr<SparkMax> spark;
+    std::unique_ptr<CANDevice> spark;
 
     int command_count{0};
     bool has_raw_can_frame{false};
@@ -152,5 +153,32 @@ namespace diffdrive_canbus {
   void print_actuator_status(LinearActuatorHW & act, const std::string & label);
   double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage);
   void observe_actuator_raw_frame(LinearActuatorHW & act, const CANFrame & frame);
+
+  // can system
+  class CANSystem {
+  public:
+    CANSystem(CANComms &comms);
+    void add_device(const std::unique_ptr<CANDevice> &device);
+    void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
+    void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
+
+  private:
+    std::map<uint8_t, CANDevice*> devices_;
+    CANComms &comms_;
+  };
+
+  class Motor : public CANDevice {
+  public:
+    Motor(const std::string &name, const uint8_t &can_id, CANComms &can, float gear_ratio)
+      : CANDevice(name, can_id, can, gear_ratio) {}
+
+    void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
+    void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
+
+  protected:
+    double rotation_position_{0.0};
+    double velocity_{0.0};
+    double commanded_velocity_{0.0};
+  };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_

@@ -16,8 +16,6 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
-#include <iomanip>
-#include <iostream>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -27,7 +25,6 @@
 
 namespace diffdrive_canbus
 {
-
 class DiffDriveCanbusHardware : public hardware_interface::SystemInterface
 {
 public:
@@ -48,6 +45,34 @@ public:
       parse_hardware_parameters();
       drum_can_id_ = static_cast<uint8_t>(get_int("drum_can_id", 7));
       initialise_joint_storage();
+
+      can_system_ = std::make_unique<CANSystem>(can_);
+
+      front_left_spark_ = std::make_unique<Motor>(front_left_wheel_name_, 1,
+        can_, static_cast<float>(gear_ratio_));
+
+      front_right_spark_ = std::make_unique<Motor>(front_right_wheel_name_, 2,
+        can_, static_cast<float>(gear_ratio_));
+
+      rear_left_spark_ = std::make_unique<Motor>(rear_left_wheel_name_, 3,
+        can_, static_cast<float>(gear_ratio_));
+
+      rear_right_spark_ = std::make_unique<Motor>(rear_right_wheel_name_, 4,
+        can_, static_cast<float>(gear_ratio_));
+
+      left_actuator_.spark = std::make_unique<CANDevice>(left_actuator_.joint_name, 5,
+        can_, static_cast<float>(gear_ratio_));
+
+      right_actuator_.spark = std::make_unique<CANDevice>(right_actuator_.joint_name, 6,
+        can_, static_cast<float>(gear_ratio_));
+
+      drum_spark_ = std::make_unique<Motor>("drum_spin_joint", 7,
+      can_, static_cast<float>(125.0));
+
+      can_system_->add_device(front_left_spark_);
+      can_system_->add_device(front_right_spark_);
+      can_system_->add_device(rear_left_spark_);
+      can_system_->add_device(rear_right_spark_);
     }
     catch (const std::exception & e)
     {
@@ -133,45 +158,8 @@ public:
   {
     std::vector<hardware_interface::StateInterface> state_interfaces;
 
-    state_interfaces.emplace_back(
-      front_left_wheel_name_,
-      hardware_interface::HW_IF_POSITION,
-      &front_left_position_);
-
-    state_interfaces.emplace_back(
-      front_left_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &front_left_velocity_);
-
-    state_interfaces.emplace_back(
-      front_right_wheel_name_,
-      hardware_interface::HW_IF_POSITION,
-      &front_right_position_);
-
-    state_interfaces.emplace_back(
-      front_right_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &front_right_velocity_);
-
-    state_interfaces.emplace_back(
-      rear_left_wheel_name_,
-      hardware_interface::HW_IF_POSITION,
-      &rear_left_position_);
-
-    state_interfaces.emplace_back(
-      rear_left_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &rear_left_velocity_);
-
-    state_interfaces.emplace_back(
-      rear_right_wheel_name_,
-      hardware_interface::HW_IF_POSITION,
-      &rear_right_position_);
-
-    state_interfaces.emplace_back(
-      rear_right_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &rear_right_velocity_);
+    // TODO replace with CANSystem class
+    can_system_->setup_ros_state_interfaces(state_interfaces);
 
     if (left_actuator_.ros2_control_interface_enabled)
     {
@@ -206,26 +194,7 @@ public:
   export_command_interfaces() override
   {
     std::vector<hardware_interface::CommandInterface> command_interfaces;
-
-    command_interfaces.emplace_back(
-      front_left_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &front_left_command_);
-
-    command_interfaces.emplace_back(
-      front_right_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &front_right_command_);
-
-    command_interfaces.emplace_back(
-      rear_left_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &rear_left_command_);
-
-    command_interfaces.emplace_back(
-      rear_right_wheel_name_,
-      hardware_interface::HW_IF_VELOCITY,
-      &rear_right_command_);
+    can_system_->setup_ros_command_interfaces(command_interfaces);
 
     if (left_actuator_.ros2_control_interface_enabled)
     {
@@ -278,63 +247,12 @@ public:
         return hardware_interface::CallbackReturn::ERROR;
       }
 
-      RCLCPP_WARN(logger_, "Constructing all 4 SparkMax objects");
-      RCLCPP_WARN(logger_, "Using gear ratio %.3f from ros2_control for all SparkMax objects", gear_ratio_);
-      RCLCPP_WARN(logger_, "No SPARK MAX setpoint, zero-duty, or heartbeat frames are sent in configure()");
-
-      front_left_spark_ = std::make_unique<SparkMax>(
-        can_,
-        front_left_can_id_,
-        static_cast<float>(gear_ratio_));
-
-      front_right_spark_ = std::make_unique<SparkMax>(
-        can_,
-        front_right_can_id_,
-        static_cast<float>(gear_ratio_));
-
-      rear_left_spark_ = std::make_unique<SparkMax>(
-        can_,
-        rear_left_can_id_,
-        static_cast<float>(gear_ratio_));
-
-      rear_right_spark_ = std::make_unique<SparkMax>(
-        can_,
-        rear_right_can_id_,
-        static_cast<float>(gear_ratio_));
-
-      left_actuator_.spark = std::make_unique<SparkMax>(
-        can_,
-        left_actuator_.can_id,
-        static_cast<float>(gear_ratio_));
-
-      right_actuator_.spark = std::make_unique<SparkMax>(
-        can_,
-        right_actuator_.can_id,
-        static_cast<float>(gear_ratio_));
-
-      drum_spark_ = std::make_unique<SparkMax>(
-        can_,
-        drum_can_id_,
-        static_cast<float>(125.0));
-
       front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
       front_right_spark_->set_native_velocity_pid_slot(pid_slot_);
       rear_left_spark_->set_native_velocity_pid_slot(pid_slot_);
       rear_right_spark_->set_native_velocity_pid_slot(pid_slot_);
 
       RCLCPP_INFO(logger_, "CAN adapter configured");
-      RCLCPP_INFO(logger_, "Front left SPARK MAX ID: %u", front_left_can_id_);
-      RCLCPP_INFO(logger_, "Front right SPARK MAX ID: %u", front_right_can_id_);
-      RCLCPP_INFO(logger_, "Rear left SPARK MAX ID: %u", rear_left_can_id_);
-      RCLCPP_INFO(logger_, "Rear right SPARK MAX ID: %u", rear_right_can_id_);
-      RCLCPP_INFO(logger_, "Drum spin SPARK MAX ID: %u", drum_can_id_);
-      RCLCPP_INFO(logger_, "Left linear actuator SPARK MAX ID: %u", left_actuator_.can_id);
-      RCLCPP_INFO(logger_, "Right linear actuator SPARK MAX ID: %u", right_actuator_.can_id);
-      RCLCPP_INFO(logger_, "Left linear actuator test position command starts at: %.3f", left_actuator_.test_position_command);
-      RCLCPP_INFO(logger_, "Right linear actuator test position command starts at: %.3f", right_actuator_.test_position_command);
-      RCLCPP_INFO(logger_, "Left linear actuator ros2_control position command starts at: %.3f", left_actuator_.command);
-      RCLCPP_INFO(logger_, "Right linear actuator ros2_control position command starts at: %.3f", right_actuator_.command);
-      RCLCPP_INFO(logger_, "Actuator commands are resent every write() cycle, independent of wheel commands");
 
       request_actuator_status3_period(left_actuator_, "left", can_);
       request_actuator_status3_period(right_actuator_, "right", can_);
@@ -524,11 +442,6 @@ public:
     maybe_print_actuator_feedback(left_actuator_, "left");
     maybe_print_actuator_feedback(right_actuator_, "right");
 
-    if (debug_printing_enabled_)
-    {
-      maybe_print_status();
-    }
-
     return hardware_interface::return_type::OK;
   }
 
@@ -697,11 +610,6 @@ private:
     can_baud_rate_ = get_int("can_baud_rate", 1000000);
 
     timeout_ms_ = get_int("timeout_ms", 5);
-
-    front_left_can_id_ = get_can_id("front_left_can_id");
-    front_right_can_id_ = get_can_id("front_right_can_id");
-    rear_left_can_id_ = get_can_id("rear_left_can_id");
-    rear_right_can_id_ = get_can_id("rear_right_can_id");
 
     left_actuator_.can_id = static_cast<uint8_t>(get_int("left_linear_actuator_can_id", 5));
     if (left_actuator_.can_id <= 0 || left_actuator_.can_id > 63)
@@ -929,18 +837,6 @@ private:
     }
 
     return string_to_bool(it->second);
-  }
-
-  uint8_t get_can_id(const std::string & name) const
-  {
-    const int parsed_id = get_int(name, -1);
-
-    if (parsed_id <= 0 || parsed_id > 63)
-    {
-      throw std::runtime_error(name + " must be between 1 and 63");
-    }
-
-    return static_cast<uint8_t>(parsed_id);
   }
 
   void validate_joint_exists(const std::string & joint_name) const
@@ -1188,7 +1084,7 @@ private:
 
   bool detect_runaway(
     const std::string & label,
-    const std::unique_ptr<SparkMax> & spark,
+    const std::unique_ptr<CANDevice> & spark,
     double target_motor_rpm)
   {
     if (!spark)
@@ -1276,7 +1172,7 @@ private:
 
   void write_one_motor_native_velocity(
     const std::string & label,
-    const std::unique_ptr<SparkMax> & spark,
+    const std::unique_ptr<CANDevice> & spark,
     double command_rad_per_sec)
   {
     if (!spark)
@@ -1827,7 +1723,7 @@ private:
   }
 
   void update_joint_state_from_telemetry(
-    const std::unique_ptr<SparkMax> & spark,
+    const std::unique_ptr<CANDevice> & spark,
     double & position_rad,
     double & velocity_rad_per_sec,
     double & position_offset_rad,
@@ -1860,154 +1756,6 @@ private:
     }
   }
 
-  void maybe_print_status()
-  {
-    const auto now = std::chrono::steady_clock::now();
-
-    if (now < last_print_time_)
-    {
-      return;
-    }
-
-    last_print_time_ += PRINT_PERIOD;
-
-    if (last_print_time_ < now - PRINT_PERIOD)
-    {
-      last_print_time_ = now + PRINT_PERIOD;
-    }
-
-    std::cout << std::fixed << std::setprecision(3);
-
-    std::cout << "\n[DiffDriveCanbusHardware SIMPLE NATIVE VELOCITY MODE]\n";
-    std::cout << "command_state="
-              << (motors_currently_commanded_ ? "ACTIVE_NATIVE_VELOCITY" : "PASSIVE_IDLE")
-              << " | command_deadband_rad/s=" << command_deadband_rad_per_sec_
-              << " | velocity_clamp=DISABLED"
-              << " | command_write_period_ms=" << COMMAND_WRITE_PERIOD.count()
-              << " | bus_frame_gap_ms=" << BUS_FRAME_GAP.count()
-              << " | gear_ratio=" << gear_ratio_
-              << " | feedback=" << (feedback_enabled_ ? "ENABLED" : "DISABLED")
-              << " | runaway_latched=" << (runaway_latched_ ? "YES" : "NO")
-              << "\n";
-
-    print_motor_status(
-      "front_left",
-      front_left_can_id_,
-      front_left_command_,
-      front_left_position_,
-      front_left_velocity_,
-      front_left_spark_);
-
-    print_motor_status(
-      "front_right",
-      front_right_can_id_,
-      front_right_command_,
-      front_right_position_,
-      front_right_velocity_,
-      front_right_spark_);
-
-    print_motor_status(
-      "rear_left",
-      rear_left_can_id_,
-      rear_left_command_,
-      rear_left_position_,
-      rear_left_velocity_,
-      rear_left_spark_);
-
-    print_motor_status(
-      "rear_right",
-      rear_right_can_id_,
-      rear_right_command_,
-      rear_right_position_,
-      rear_right_velocity_,
-      rear_right_spark_);
-
-    std::cout << "commands_sent=" << command_count_
-              << " | idle_writes_skipped=" << skipped_idle_write_count_
-              << " | idle_stops_sent=" << idle_stop_count_
-              << " | heartbeats=" << heartbeat_count_
-              << " | non_finite_commands=" << non_finite_command_count_
-              << " | runaway_count=" << runaway_count_
-              << " | read_calls=" << telemetry_read_count_
-              << " | telemetry_hits=" << telemetry_hit_count_
-              << " | feedback_cycles=" << feedback_cycle_count_
-              << " | feedback_empty=" << feedback_empty_count_
-              << " | can_frames_read=" << can_frames_read_count_
-              << " | can_frames_parsed=" << can_frames_parsed_count_
-              << " | left_actuator_commands_sent=" << left_actuator_.command_count
-              << " | right_actuator_commands_sent=" << right_actuator_.command_count
-              << "\n";
-
-    print_actuator_status(left_actuator_, "left");
-    print_actuator_status(right_actuator_, "right");
-  }
-
-  void print_motor_status(
-    const std::string & label,
-    uint8_t can_id,
-    double command_rad_per_sec,
-    double position_rad,
-    double velocity_rad_per_sec,
-    const std::unique_ptr<SparkMax> & spark)
-  {
-    const double cleaned_command =
-      clean_command(command_rad_per_sec, command_deadband_rad_per_sec_);
-
-    const double target_motor_rpm =
-      cleaned_command * gear_ratio_ * 60.0 / TWO_PI;
-
-    std::cout << label
-              << " id=" << static_cast<int>(can_id)
-              << " | raw cmd wheel rad/s=" << command_rad_per_sec
-              << " | clean cmd wheel rad/s=" << cleaned_command
-              << " | gear_ratio=" << gear_ratio_
-              << " | target motor rpm=" << target_motor_rpm
-              << " | ros pos rad=" << position_rad
-              << " | ros vel rad/s=" << velocity_rad_per_sec;
-
-    if (!spark)
-    {
-      std::cout << " | spark=NULL\n";
-      return;
-    }
-
-    const auto & tel = spark->telemetry();
-
-    if (tel.has_encoder_velocity)
-    {
-      std::cout << " | measured rpm=" << tel.encoder_velocity_rpm
-                << " | motor rad/s=" << tel.motor_rad_per_sec
-                << " | wheel rad/s=" << tel.wheel_rad_per_sec;
-    }
-    else
-    {
-      std::cout << " | measured rpm=NO_FEEDBACK"
-                << " | motor rad/s=NO_FEEDBACK"
-                << " | wheel rad/s=NO_FEEDBACK";
-    }
-
-    if (tel.has_encoder_position)
-    {
-      std::cout << " | pos rev=" << tel.encoder_position_rotations
-                << " | wheel rev=" << tel.wheel_position_rotations;
-    }
-    else
-    {
-      std::cout << " | pos=NO_FEEDBACK";
-    }
-
-    if (tel.has_applied_output)
-    {
-      std::cout << " | applied=" << tel.applied_output;
-    }
-    else
-    {
-      std::cout << " | applied=NO_FEEDBACK";
-    }
-
-    std::cout << "\n";
-  }
-
 private:
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
 
@@ -2037,24 +1785,19 @@ private:
 
   uint8_t pid_slot_{0};
 
-  uint8_t front_left_can_id_{1};
-  uint8_t front_right_can_id_{2};
-  uint8_t rear_left_can_id_{3};
-  uint8_t rear_right_can_id_{4};
-
   LinearActuatorHW left_actuator_;
   LinearActuatorHW right_actuator_;
 
-  std::unique_ptr<SparkMax> drum_spark_;
+  std::unique_ptr<CANDevice> drum_spark_;
   uint8_t drum_can_id_{7};
   double drum_command_{0.0};
   std::chrono::steady_clock::time_point next_drum_command_write_time_{
     std::chrono::steady_clock::now()};
 
-  std::unique_ptr<SparkMax> front_left_spark_;
-  std::unique_ptr<SparkMax> front_right_spark_;
-  std::unique_ptr<SparkMax> rear_left_spark_;
-  std::unique_ptr<SparkMax> rear_right_spark_;
+  std::unique_ptr<CANDevice> front_left_spark_;
+  std::unique_ptr<CANDevice> front_right_spark_;
+  std::unique_ptr<CANDevice> rear_left_spark_;
+  std::unique_ptr<CANDevice> rear_right_spark_;
 
   double front_left_command_{0.0};
   double front_right_command_{0.0};
@@ -2116,6 +1859,8 @@ private:
 
   std::chrono::steady_clock::time_point last_print_time_{
     std::chrono::steady_clock::now()};
+
+  std::unique_ptr<CANSystem> can_system_;
 };
 
 }  // namespace diffdrive_canbus

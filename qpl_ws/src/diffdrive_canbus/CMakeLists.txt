@@ -37,6 +37,7 @@ add_library(
   hardware/can_comms/waveshare_codec.cpp
   hardware/diffdrive_interface/helpers.cpp
   hardware/diffdrive_interface/can_comms_helpers.cpp
+  hardware/diffdrive_interface/can_system.cpp
   hardware/diffdrive_interface/actuator.cpp
 )
 

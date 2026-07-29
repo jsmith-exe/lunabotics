@@ -1,0 +1,50 @@
+#include <map>
+#include <string>
+#include <hardware_interface/handle.hpp>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+
+#include "diffdrive_canbus/can_comms.hpp"
+#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
+#include "diffdrive_canbus/spark_max.hpp"
+
+
+namespace diffdrive_canbus {
+  void Motor::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
+    state_interfaces.emplace_back(
+      name_,
+      hardware_interface::HW_IF_POSITION,
+      &rotation_position_);
+
+    state_interfaces.emplace_back(
+      name_,
+      hardware_interface::HW_IF_VELOCITY,
+      &velocity_);
+  }
+
+  void Motor::setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
+    command_interfaces.emplace_back(
+      name_,
+      hardware_interface::HW_IF_VELOCITY,
+      &commanded_velocity_);
+  }
+
+
+  CANSystem::CANSystem(CANComms &comms) : comms_(comms) {
+  }
+
+  void CANSystem::add_device(const std::unique_ptr<CANDevice> &device) {
+    devices_[device->can_id()] = device.get();
+  }
+
+  void CANSystem::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
+    for (auto & [can_id, device] : devices_) {
+      device->setup_ros_state_interfaces(state_interfaces);
+    }
+  }
+
+  void CANSystem::setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
+    for (auto & [can_id, device] : devices_) {
+      device->setup_ros_command_interfaces(command_interfaces);
+    }
+  }
+}
