@@ -51,7 +51,7 @@ namespace diffdrive_canbus {
     data[0] = static_cast<uint8_t>(LINEAR_ACTUATOR_STATUS3_PERIOD_MS & 0xFF);
     data[1] = static_cast<uint8_t>((LINEAR_ACTUATOR_STATUS3_PERIOD_MS >> 8) & 0xFF);
 
-    const bool ok = can_.send_extended_frame(status3_id, data, true);
+    const bool ok = can_.send_extended_frame(status3_id, data, false);
 
     if (ok)
     {
@@ -121,13 +121,13 @@ namespace diffdrive_canbus {
     if (!feedback_fresh)
     {
       send_actuator_duty(act, 0.0, label);
-      RCLCPP_WARN_THROTTLE(
-        act.logger,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "%s LINEAR ACTUATOR: no fresh position feedback (has_voltage=%s) - holding stopped",
-        label.c_str(),
-        act.has_voltage ? "true" : "false");
+      // RCLCPP_WARN_THROTTLE(
+      //   act.logger,
+      //   *rclcpp::Clock::make_shared(),
+      //   1000,
+      //   "%s LINEAR ACTUATOR: no fresh position feedback (has_voltage=%s) - holding stopped",
+      //   label.c_str(),
+      //   act.has_voltage ? "true" : "false");
       act.watchdog_initialised = false;
       return;
     }
@@ -176,13 +176,13 @@ namespace diffdrive_canbus {
       {
         act.stall_latched = true;
         act.stall_latched_command = target;
-        RCLCPP_WARN(
-          act.logger,
-          "%s LINEAR ACTUATOR: stall watchdog tripped (target=%.3f measured=%.3f) - "
-          "holding stopped until target changes",
-          label.c_str(),
-          target,
-          measured);
+        // RCLCPP_WARN(
+        //   act.logger,
+        //   "%s LINEAR ACTUATOR: stall watchdog tripped (target=%.3f measured=%.3f) - "
+        //   "holding stopped until target changes",
+        //   label.c_str(),
+        //   target,
+        //   measured);
       }
     }
 
@@ -205,20 +205,20 @@ namespace diffdrive_canbus {
       safe_throttle = 0.0;
     }
 
-    RCLCPP_WARN_THROTTLE(
-      act.logger,
-      *rclcpp::Clock::make_shared(),
-      500,
-      "%s LINEAR ACTUATOR: id=%u target_pos=%.3f measured_pos=%.3f duty_sent=%.3f",
-      label.c_str(),
-      act.can_id,
-      std::clamp(act.command, 0.0, 1.0),
-      act.position,
-      safe_throttle);
+    // RCLCPP_WARN_THROTTLE(
+    //   act.logger,
+    //   *rclcpp::Clock::make_shared(),
+    //   500,
+    //   "%s LINEAR ACTUATOR: id=%u target_pos=%.3f measured_pos=%.3f duty_sent=%.3f",
+    //   label.c_str(),
+    //   act.can_id,
+    //   std::clamp(act.command, 0.0, 1.0),
+    //   act.position,
+    //   safe_throttle);
 
     const bool ok = act.spark->set_duty_cycle(
       static_cast<float>(safe_throttle),
-      true);
+      false);
 
     sleep_bus_gap();
 

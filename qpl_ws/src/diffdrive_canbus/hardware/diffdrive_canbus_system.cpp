@@ -439,8 +439,8 @@ public:
       maybe_drain_can_rx_without_feedback();
     }
 
-    maybe_print_actuator_feedback(left_actuator_, "left");
-    maybe_print_actuator_feedback(right_actuator_, "right");
+    // maybe_print_actuator_feedback(left_actuator_, "left");
+    // maybe_print_actuator_feedback(right_actuator_, "right");
 
     return hardware_interface::return_type::OK;
   }
@@ -1313,13 +1313,13 @@ private:
     const double command = std::isfinite(drum_command_) ? drum_command_ : 0.0;
     const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
 
-    RCLCPP_WARN_THROTTLE(
-      logger_,
-      *rclcpp::Clock::make_shared(),
-      500,
-      "DRUM: cmd=%.4f duty_sent=%.4f",
-      command,
-      duty);
+    // RCLCPP_WARN_THROTTLE(
+    //   logger_,
+    //   *rclcpp::Clock::make_shared(),
+    //   500,
+    //   "DRUM: cmd=%.4f duty_sent=%.4f",
+    //   command,
+    //   duty);
 
     drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
     sleep_bus_gap();
