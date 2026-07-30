@@ -79,76 +79,6 @@ public:
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    RCLCPP_WARN(logger_, "============================================================");
-    RCLCPP_WARN(logger_, "DIFFDRIVE CANBUS HARDWARE IS RUNNING IN SIMPLE NATIVE VELOCITY MODE");
-    RCLCPP_WARN(logger_, "Runtime command path remains based on the best working version");
-    RCLCPP_WARN(logger_, "Heartbeat is only sent while commanding or stopping");
-    RCLCPP_WARN(logger_, "Active command stream is refreshed quickly for SPARK MAX keepalive stability");
-    RCLCPP_WARN(logger_, "Heartbeat is handled globally by maybe_send_heartbeat()");
-    RCLCPP_WARN(logger_, "Active commands use native SPARK MAX velocity setpoints");
-    RCLCPP_WARN(logger_, "Left linear actuator on CAN ID %u uses closed-loop position servo (bang-bang on analog feedback)", left_actuator_.can_id);
-    RCLCPP_WARN(logger_, "Right linear actuator on CAN ID %u uses closed-loop position servo (bang-bang on analog feedback)", right_actuator_.can_id);
-    RCLCPP_WARN(logger_, "Left linear actuator command interface: %s/%s", left_actuator_.joint_name.c_str(), hardware_interface::HW_IF_POSITION);
-    RCLCPP_WARN(logger_, "Right linear actuator command interface: %s/%s", right_actuator_.joint_name.c_str(), hardware_interface::HW_IF_POSITION);
-    RCLCPP_WARN(logger_, "Left linear actuator ros2_control interface enabled: %s", left_actuator_.ros2_control_interface_enabled ? "true" : "false");
-    RCLCPP_WARN(logger_, "Right linear actuator ros2_control interface enabled: %s", right_actuator_.ros2_control_interface_enabled ? "true" : "false");
-    RCLCPP_WARN(logger_, "If disabled, actuator command comes from test_position_command only");
-    RCLCPP_WARN(logger_, "Linear actuators run a closed-loop position servo on analog feedback at the top of every write() cycle");
-    RCLCPP_WARN(logger_, "Servo drives toward the position command then stops within tolerance; without fresh feedback it holds stopped (never drives blind)");
-    if (!feedback_enabled_)
-    {
-      RCLCPP_WARN(logger_, "WARNING: feedback_enabled is false - the closed-loop servo will HOLD STOPPED and the actuators will not move");
-    }
-    RCLCPP_WARN(logger_, "When feedback is disabled, CAN RX frames are still lightly drained for serial adapter stability");
-    RCLCPP_WARN(logger_, "Linear actuator raw CAN frames are sniffed for analogue-voltage feedback without editing spark_max.cpp");
-    RCLCPP_WARN(logger_, "Linear actuator ros2_control command is position: 0.0 retract, 0.5 stop, 1.0 extend");
-    RCLCPP_WARN(logger_, "Shutdown/Ctrl+C uses zero-duty stop bursts");
-    RCLCPP_WARN(logger_, "Velocity clamp removed");
-    RCLCPP_WARN(logger_, "NaN/+inf/-inf commands are forced to zero before deadband");
-    RCLCPP_WARN(logger_, "Gear ratio is REQUIRED from ros2_control hardware params");
-    RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
-    RCLCPP_WARN(logger_, "Feedback path copied closer to spark_max_test read_telemetry behaviour");
-    RCLCPP_WARN(logger_, "Command logs include cached SPARK MAX readback when available");
-    RCLCPP_WARN(logger_, "Runaway watchdog is enabled");
-    RCLCPP_WARN(logger_, "Runaway stop time: %ld ms", RUNAWAY_STOP_TIME.count());
-    RCLCPP_WARN(logger_, "Command write period: %ld ms", COMMAND_WRITE_PERIOD.count());
-    RCLCPP_WARN(logger_, "Bus frame gap: %ld ms", BUS_FRAME_GAP.count());
-    RCLCPP_WARN(logger_, "============================================================");
-
-    RCLCPP_INFO(logger_, "Initialised DiffDriveCanbusHardware");
-    RCLCPP_INFO(logger_, "Serial device: %s", serial_device_.c_str());
-    RCLCPP_INFO(logger_, "Serial baud rate: %d", serial_baud_rate_);
-    RCLCPP_INFO(logger_, "CAN baud rate: %d", can_baud_rate_);
-    RCLCPP_INFO(logger_, "Timeout: %d ms", timeout_ms_);
-    RCLCPP_INFO(logger_, "Gear ratio from ros2_control: %.3f motor rev / wheel rev", gear_ratio_);
-    RCLCPP_INFO(logger_, "Command deadband: %.6f rad/s", command_deadband_rad_per_sec_);
-    RCLCPP_INFO(logger_, "PID slot: %u", pid_slot_);
-    RCLCPP_INFO(logger_, "Loopback mode: %s", loopback_mode_ ? "true" : "false");
-
-    RCLCPP_INFO(logger_, "Debug flag print_status: %s", print_status_frames_ ? "true" : "false");
-    RCLCPP_INFO(
-      logger_,
-      "Debug flag debug_printing_enabled: %s",
-      debug_printing_enabled_ ? "true" : "false");
-
-    RCLCPP_INFO(
-      logger_,
-      "Left linear actuator ros2_control interface enabled: %s",
-      left_actuator_.ros2_control_interface_enabled ? "true" : "false");
-
-    RCLCPP_INFO(
-      logger_,
-      "Right linear actuator ros2_control interface enabled: %s",
-      right_actuator_.ros2_control_interface_enabled ? "true" : "false");
-
-    if (timeout_ms_ > 10)
-    {
-      RCLCPP_WARN(
-        logger_,
-        "timeout_ms is %d ms. Set timeout_ms to 1 or 5 inside the ros2_control hardware params.",
-        timeout_ms_);
-    }
-
     return hardware_interface::CallbackReturn::SUCCESS;
   }
 
@@ -288,17 +218,6 @@ public:
     next_rx_drain_time_ = std::chrono::steady_clock::now();
     next_command_write_time_ = std::chrono::steady_clock::now();
     last_print_time_ = std::chrono::steady_clock::now() + PRINT_PERIOD;
-
-    RCLCPP_WARN(logger_, "Activated in simple native velocity mode");
-    RCLCPP_WARN(logger_, "No SPARK MAX command frames sent during activate()");
-    RCLCPP_WARN(logger_, "Gear ratio active: %.3f motor rev / wheel rev", gear_ratio_);
-    RCLCPP_WARN(logger_, "Feedback enabled: %s", feedback_enabled_ ? "true" : "false");
-    RCLCPP_WARN(logger_, "Runaway latch reset");
-    RCLCPP_WARN(logger_, "Left linear actuator CAN ID %u position command starts at %.3f", left_actuator_.can_id, left_actuator_.command);
-    RCLCPP_WARN(logger_, "Right linear actuator CAN ID %u position command starts at %.3f", right_actuator_.can_id, right_actuator_.command);
-    RCLCPP_WARN(logger_, "First heartbeat will only be sent once a real command or stop is being sent");
-    RCLCPP_WARN(logger_, "Active velocity commands limited to one command batch every %ld ms", COMMAND_WRITE_PERIOD.count());
-    RCLCPP_WARN(logger_, "Each heartbeat/command frame is separated by %ld ms", BUS_FRAME_GAP.count());
 
     if (feedback_enabled_)
     {
@@ -1250,14 +1169,6 @@ private:
     const double drum_command = drum_spark_->commanded_velocity();
     const double command = std::isfinite(drum_command) ? drum_command : 0.0;
     const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
-
-    // RCLCPP_WARN_THROTTLE(
-    //   logger_,
-    //   *rclcpp::Clock::make_shared(),
-    //   500,
-    //   "DRUM: cmd=%.4f duty_sent=%.4f",
-    //   command,
-    //   duty);
 
     drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
     sleep_bus_gap();
