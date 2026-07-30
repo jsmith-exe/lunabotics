@@ -30,7 +30,7 @@ add_library(
   diffdrive_canbus
   SHARED
   hardware/diffdrive_canbus_system.cpp
-  hardware/can_system.cpp
+  hardware/can_device.cpp
   hardware/can_comms/can_comms.cpp
   hardware/can_comms/can_utils.cpp
   hardware/can_comms/serial_utils.cpp
