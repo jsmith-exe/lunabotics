@@ -11,7 +11,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -58,11 +57,9 @@ public:
       rear_right_spark_ = std::make_unique<Motor>(rear_right_wheel_name_, 4,
         can_, static_cast<float>(gear_ratio_));
 
-      left_actuator_.spark = std::make_unique<CANDevice>(left_actuator_.joint_name, 5,
-        can_, static_cast<float>(gear_ratio_));
+      left_actuator_spark_ = std::make_unique<Actuator>(left_actuator_name_, 5, can_);
 
-      right_actuator_.spark = std::make_unique<CANDevice>(right_actuator_.joint_name, 6,
-        can_, static_cast<float>(gear_ratio_));
+      right_actuator_spark_ = std::make_unique<Actuator>(right_actuator_name_, 6, can_);
 
       drum_spark_ = std::make_unique<Motor>("drum_spin_joint", 7,
       can_, static_cast<float>(125.0));
@@ -71,6 +68,8 @@ public:
       can_system_->add_device(front_right_spark_);
       can_system_->add_device(rear_left_spark_);
       can_system_->add_device(rear_right_spark_);
+      can_system_->add_device(left_actuator_spark_);
+      can_system_->add_device(right_actuator_spark_);
       can_system_->add_device(drum_spark_);
     }
     catch (const std::exception & e)
@@ -82,59 +81,21 @@ public:
     return hardware_interface::CallbackReturn::SUCCESS;
   }
 
-  std::vector<hardware_interface::StateInterface>
-  export_state_interfaces() override
+  std::vector<hardware_interface::StateInterface> export_state_interfaces() override
   {
     std::vector<hardware_interface::StateInterface> state_interfaces;
-
     can_system_->setup_ros_state_interfaces(state_interfaces);
-
-    if (left_actuator_.ros2_control_interface_enabled)
-    {
-      state_interfaces.emplace_back(
-        left_actuator_.joint_name,
-        hardware_interface::HW_IF_POSITION,
-        &left_actuator_.position);
-    }
-
-    if (right_actuator_.ros2_control_interface_enabled)
-    {
-      state_interfaces.emplace_back(
-        right_actuator_.joint_name,
-        hardware_interface::HW_IF_POSITION,
-        &right_actuator_.position);
-    }
-
     return state_interfaces;
   }
 
-  std::vector<hardware_interface::CommandInterface>
-  export_command_interfaces() override
+  std::vector<hardware_interface::CommandInterface> export_command_interfaces() override
   {
     std::vector<hardware_interface::CommandInterface> command_interfaces;
     can_system_->setup_ros_command_interfaces(command_interfaces);
-
-    if (left_actuator_.ros2_control_interface_enabled)
-    {
-      command_interfaces.emplace_back(
-        left_actuator_.joint_name,
-        hardware_interface::HW_IF_POSITION,
-        &left_actuator_.command);
-    }
-
-    if (right_actuator_.ros2_control_interface_enabled)
-    {
-      command_interfaces.emplace_back(
-        right_actuator_.joint_name,
-        hardware_interface::HW_IF_POSITION,
-        &right_actuator_.command);
-    }
-
     return command_interfaces;
   }
 
-  hardware_interface::CallbackReturn on_configure(
-    const rclcpp_lifecycle::State &) override
+  hardware_interface::CallbackReturn on_configure(const rclcpp_lifecycle::State &) override
   {
     try
     {
@@ -167,8 +128,8 @@ public:
 
       RCLCPP_INFO(logger_, "CAN adapter configured");
 
-      request_actuator_status3_period(left_actuator_, "left", can_);
-      request_actuator_status3_period(right_actuator_, "right", can_);
+      left_actuator_spark_->request_actuator_status3_period(can_);
+      right_actuator_spark_->request_actuator_status3_period(can_);
     }
     catch (const std::exception & e)
     {
@@ -191,10 +152,6 @@ public:
   hardware_interface::CallbackReturn on_activate(
     const rclcpp_lifecycle::State &) override
   {
-
-    reset_actuator_state(left_actuator_, logger_);
-    reset_actuator_state(right_actuator_, logger_);
-
     command_count_ = 0;
     skipped_idle_write_count_ = 0;
     telemetry_read_count_ = 0;
@@ -263,14 +220,14 @@ public:
         rear_right_spark_->stop(false);
       }
 
-      if (left_actuator_.spark)
+      if (left_actuator_spark_)
       {
-        left_actuator_.spark->stop(false);
+        left_actuator_spark_->stop(false);
       }
 
-      if (right_actuator_.spark)
+      if (right_actuator_spark_)
       {
-        right_actuator_.spark->stop(false);
+        right_actuator_spark_->stop(false);
       }
 
       if (drum_spark_)
@@ -312,9 +269,6 @@ public:
       maybe_drain_can_rx_without_feedback();
     }
 
-    // maybe_print_actuator_feedback(left_actuator_, "left");
-    // maybe_print_actuator_feedback(right_actuator_, "right");
-
     return hardware_interface::return_type::OK;
   }
 
@@ -328,8 +282,8 @@ public:
     maybe_send_heartbeat();
 
     // Closed-loop actuator position servos are intentionally independent of the wheels.
-    write_actuator_closed_loop(left_actuator_, "left");
-    write_actuator_closed_loop(right_actuator_, "right");
+    left_actuator_spark_->write_actuator_closed_loop();
+    right_actuator_spark_->write_actuator_closed_loop();
     write_drum_velocity();
 
     const double front_left_command = clean_command(front_left_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
@@ -455,10 +409,8 @@ private:
     rear_left_wheel_name_ = get_required_string("rear_left_wheel_name");
     rear_right_wheel_name_ = get_required_string("rear_right_wheel_name");
 
-    left_actuator_.joint_name =
-      get_string("left_linear_actuator_joint_name", "left_linear_actuator_joint");
-    right_actuator_.joint_name =
-      get_string("right_linear_actuator_joint_name", "right_linear_actuator_joint");
+    left_actuator_name_ = get_string("left_linear_actuator_joint_name", "left_linear_actuator_joint");
+    right_actuator_name_ = get_string("right_linear_actuator_joint_name", "right_linear_actuator_joint");
 
     serial_device_ = get_required_string("serial_device");
 
@@ -466,49 +418,6 @@ private:
     can_baud_rate_ = get_int("can_baud_rate", 1000000);
 
     timeout_ms_ = get_int("timeout_ms", 5);
-
-    left_actuator_.can_id = static_cast<uint8_t>(get_int("left_linear_actuator_can_id", 5));
-    if (left_actuator_.can_id <= 0 || left_actuator_.can_id > 63)
-    {
-      throw std::runtime_error("left_linear_actuator_can_id must be between 1 and 63");
-    }
-
-    right_actuator_.can_id = static_cast<uint8_t>(get_int("right_linear_actuator_can_id", 6));
-    if (right_actuator_.can_id <= 0 || right_actuator_.can_id > 63)
-    {
-      throw std::runtime_error("right_linear_actuator_can_id must be between 1 and 63");
-    }
-
-    left_actuator_.test_position_command = std::clamp(
-      get_double("left_linear_actuator_initial_position_command", 0.5), 0.0, 1.0);
-    left_actuator_.command = left_actuator_.test_position_command;
-
-    right_actuator_.test_position_command = std::clamp(
-      get_double("right_linear_actuator_initial_position_command", 0.5), 0.0, 1.0);
-    right_actuator_.command = right_actuator_.test_position_command;
-
-    left_actuator_.deadband =
-      std::clamp(get_double("left_linear_actuator_deadband", 0.02), 0.0, 0.5);
-    right_actuator_.deadband =
-      std::clamp(get_double("right_linear_actuator_deadband", 0.02), 0.0, 0.5);
-
-    // Closed-loop servo stops once measured position is within tolerance of the
-    // target, so commands of 0.0/1.0 settle just shy of the mechanical end-stops
-    // instead of ramming them. Shared by both actuators.
-    const double actuator_position_tolerance =
-      std::clamp(get_double("linear_actuator_position_tolerance", 0.03), 0.005, 0.25);
-    left_actuator_.position_tolerance = actuator_position_tolerance;
-    right_actuator_.position_tolerance = actuator_position_tolerance;
-
-    left_actuator_.feedback_min_voltage =
-      get_double("left_linear_actuator_feedback_min_voltage", 0.279);
-    left_actuator_.feedback_max_voltage =
-      get_double("left_linear_actuator_feedback_max_voltage", 1.85);
-
-    right_actuator_.feedback_min_voltage =
-      get_double("right_linear_actuator_feedback_min_voltage", 0.279);
-    right_actuator_.feedback_max_voltage =
-      get_double("right_linear_actuator_feedback_max_voltage", 1.85);
 
     enc_counts_per_rev_ = get_int("enc_counts_per_rev", 2048);
     loopback_mode_ = get_bool("loopback_mode", false);
@@ -522,29 +431,12 @@ private:
 
     feedback_enabled_ = get_bool("feedback_enabled", false);
 
-    left_actuator_.ros2_control_interface_enabled =
-      get_bool("left_linear_actuator_ros2_control_interface_enabled", false);
-    right_actuator_.ros2_control_interface_enabled =
-      get_bool("right_linear_actuator_ros2_control_interface_enabled", false);
-
     command_deadband_rad_per_sec_ =
       get_double("command_deadband_rad_per_sec", 0.001);
 
     if (gear_ratio_ <= 0.0)
     {
       throw std::runtime_error("gear_ratio must be greater than zero");
-    }
-
-    if (left_actuator_.feedback_max_voltage <= left_actuator_.feedback_min_voltage)
-    {
-      throw std::runtime_error(
-        "left_linear_actuator_feedback_max_voltage must be greater than left_linear_actuator_feedback_min_voltage");
-    }
-
-    if (right_actuator_.feedback_max_voltage <= right_actuator_.feedback_min_voltage)
-    {
-      throw std::runtime_error(
-        "right_linear_actuator_feedback_max_voltage must be greater than right_linear_actuator_feedback_min_voltage");
     }
 
     if (pid_slot_ > 3)
@@ -580,27 +472,20 @@ private:
 
   void initialise_joint_storage()
   {
+    // TODO note no drum?
     validate_joint_exists(front_left_wheel_name_);
     validate_joint_exists(front_right_wheel_name_);
     validate_joint_exists(rear_left_wheel_name_);
     validate_joint_exists(rear_right_wheel_name_);
+    validate_joint_exists(left_actuator_name_);
+    validate_joint_exists(right_actuator_name_);
 
     validate_joint_interfaces(front_left_wheel_name_);
     validate_joint_interfaces(front_right_wheel_name_);
     validate_joint_interfaces(rear_left_wheel_name_);
     validate_joint_interfaces(rear_right_wheel_name_);
-
-    if (left_actuator_.ros2_control_interface_enabled)
-    {
-      validate_joint_exists(left_actuator_.joint_name);
-      validate_linear_actuator_interfaces(left_actuator_.joint_name);
-    }
-
-    if (right_actuator_.ros2_control_interface_enabled)
-    {
-      validate_joint_exists(right_actuator_.joint_name);
-      validate_linear_actuator_interfaces(right_actuator_.joint_name);
-    }
+    validate_linear_actuator_interfaces(left_actuator_name_);
+    validate_linear_actuator_interfaces(right_actuator_name_);
   }
 
   std::string get_required_string(const std::string & name) const
@@ -922,14 +807,14 @@ private:
       rear_right_spark_->set_duty_cycle(0.0f, print);
     }
 
-    if (left_actuator_.spark)
+    if (left_actuator_spark_)
     {
-      left_actuator_.spark->set_duty_cycle(0.0f, print);
+      left_actuator_spark_->set_duty_cycle(0.0f, print);
     }
 
-    if (right_actuator_.spark)
+    if (right_actuator_spark_)
     {
-      right_actuator_.spark->set_duty_cycle(0.0f, print);
+      right_actuator_spark_->set_duty_cycle(0.0f, print);
     }
 
     if (drum_spark_)
@@ -1286,8 +1171,8 @@ private:
       ++can_frames_read_count_;
       drained_any = true;
 
-      observe_actuator_raw_frame(left_actuator_, frame);
-      observe_actuator_raw_frame(right_actuator_, frame);
+      left_actuator_spark_->observe_actuator_raw_frame(frame);
+      right_actuator_spark_->observe_actuator_raw_frame(frame);
 
       // Parse status frames into cached telemetry if they happen to match, but
       // do not update ros2_control joint state when feedback is disabled.
@@ -1317,14 +1202,14 @@ private:
         parsed_this_frame = true;
       }
 
-      if (left_actuator_.spark &&
-          left_actuator_.spark->handle_status_frame(frame, print_status_frames))
+      if (left_actuator_spark_ &&
+          left_actuator_spark_->handle_status_frame(frame, print_status_frames))
       {
         parsed_this_frame = true;
       }
 
-      if (right_actuator_.spark &&
-          right_actuator_.spark->handle_status_frame(frame, print_status_frames))
+      if (right_actuator_spark_ &&
+          right_actuator_spark_->handle_status_frame(frame, print_status_frames))
       {
         parsed_this_frame = true;
       }
@@ -1373,8 +1258,8 @@ private:
       ++frames_read;
       ++can_frames_read_count_;
 
-      observe_actuator_raw_frame(left_actuator_, frame);
-      observe_actuator_raw_frame(right_actuator_, frame);
+      left_actuator_spark_->observe_actuator_raw_frame(frame);
+      right_actuator_spark_->observe_actuator_raw_frame(frame);
 
       bool parsed_this_frame = false;
 
@@ -1402,14 +1287,14 @@ private:
         parsed_this_frame = true;
       }
 
-      if (left_actuator_.spark &&
-          left_actuator_.spark->handle_status_frame(frame, print_status_frames))
+      if (left_actuator_spark_ &&
+          left_actuator_spark_->handle_status_frame(frame, print_status_frames))
       {
         parsed_this_frame = true;
       }
 
-      if (right_actuator_.spark &&
-          right_actuator_.spark->handle_status_frame(frame, print_status_frames))
+      if (right_actuator_spark_ &&
+          right_actuator_spark_->handle_status_frame(frame, print_status_frames))
       {
         parsed_this_frame = true;
       }
@@ -1444,6 +1329,8 @@ private:
   std::string front_right_wheel_name_{"front_right_wheel_joint"};
   std::string rear_left_wheel_name_{"rear_left_wheel_joint"};
   std::string rear_right_wheel_name_{"rear_right_wheel_joint"};
+  std::string left_actuator_name_{"left_linear_actuator_joint"};
+  std::string right_actuator_name_{"right_linear_actuator_joint"};
 
   std::string serial_device_{"/dev/ttyUSB0"};
 
@@ -1464,10 +1351,6 @@ private:
 
   uint8_t pid_slot_{0};
 
-  LinearActuatorHW left_actuator_;
-  LinearActuatorHW right_actuator_;
-
-  std::unique_ptr<CANDevice> drum_spark_;
   std::chrono::steady_clock::time_point next_drum_command_write_time_{
     std::chrono::steady_clock::now()};
 
@@ -1475,6 +1358,9 @@ private:
   std::unique_ptr<CANDevice> front_right_spark_;
   std::unique_ptr<CANDevice> rear_left_spark_;
   std::unique_ptr<CANDevice> rear_right_spark_;
+  std::unique_ptr<CANDevice> left_actuator_spark_;
+  std::unique_ptr<CANDevice> right_actuator_spark_;
+  std::unique_ptr<CANDevice> drum_spark_;
 
   int command_count_{0};
   int skipped_idle_write_count_{0};

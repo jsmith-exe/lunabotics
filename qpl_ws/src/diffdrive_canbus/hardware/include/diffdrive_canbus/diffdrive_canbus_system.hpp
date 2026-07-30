@@ -94,66 +94,6 @@ namespace diffdrive_canbus {
   std::string can_data_to_hex_string(const uint8_t data[8], uint8_t dlc);
   void sleep_bus_gap();
 
-  // actuator
-  struct LinearActuatorHW
-  {
-    rclcpp::Logger logger{rclcpp::get_logger("linear_actuator")};
-    std::string joint_name{"linear_actuator_joint"};
-    uint8_t can_id{5};
-
-    double test_position_command{0.5};
-    double command{0.5};
-    double position{0.0};
-    double voltage{0.0};
-    bool has_voltage{false};
-
-    double feedback_min_voltage{0.279};
-    double feedback_max_voltage{1.85};
-    double deadband{0.02};
-    double last_sent_output{999.0};
-
-    std::unique_ptr<CANDevice> spark;
-
-    int command_count{0};
-    bool has_raw_can_frame{false};
-    bool has_status3_frame{false};
-    bool has_analog_voltage_candidate{false};
-    double analog_voltage_candidate{0.0};
-    std::string analog_voltage_source{"NONE"};
-
-    uint32_t last_raw_can_id{0};
-    uint8_t last_raw_dlc{0};
-    std::array<uint8_t, 8> last_raw_data{};
-
-    uint32_t last_status3_can_id{0};
-    uint8_t last_status3_dlc{0};
-    std::array<uint8_t, 8> last_status3_data{};
-
-    int raw_can_frame_count{0};
-    int status3_frame_count{0};
-
-    bool currently_commanded{false};
-    bool ros2_control_interface_enabled{false};
-
-    std::chrono::steady_clock::time_point last_feedback_print_time{};
-
-    // Closed-loop position servo state (bang-bang on analog feedback).
-    double position_tolerance{0.03};
-    std::chrono::steady_clock::time_point last_feedback_time{};
-    bool stall_latched{false};
-    double stall_latched_command{0.5};
-    bool watchdog_initialised{false};
-    double watchdog_ref_position{0.0};
-    std::chrono::steady_clock::time_point watchdog_ref_time{};
-  };
-  void reset_actuator_state(LinearActuatorHW & act, const rclcpp::Logger & logger);
-  void send_actuator_duty(LinearActuatorHW & act, double duty, const std::string & label);
-  void request_actuator_status3_period(LinearActuatorHW & act, const std::string & label, CANComms & can_);
-  void write_actuator_closed_loop(LinearActuatorHW & act, const std::string & label);
-  void print_actuator_status(LinearActuatorHW & act, const std::string & label);
-  double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage);
-  void observe_actuator_raw_frame(LinearActuatorHW & act, const CANFrame & frame);
-
   // can system
   class CANSystem {
   public:
@@ -187,6 +127,27 @@ namespace diffdrive_canbus {
     double commanded_velocity_{0.0};
     double position_offset_rad_{0.0};
     bool position_offset_valid_{false};
+  };
+
+
+  class Actuator : public CANDevice {
+  public:
+    Actuator(const std::string &name, const uint8_t &can_id, CANComms &can)
+      : CANDevice(name, can_id, can, 0.0) {} // TODO remove gear_ratio from actuators and base class
+
+    void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
+    void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
+
+    void request_actuator_status3_period(CANComms & can_);
+    void write_actuator_closed_loop();
+    void send_actuator_duty(double duty);
+    double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage);
+    void observe_actuator_raw_frame(const CANFrame & frame);
+  private:
+    // TODO rename to be clearly specific to actuator
+    double command_{0.0};
+    double position_{0.0};
+    double voltage_{0.0};
   };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_
