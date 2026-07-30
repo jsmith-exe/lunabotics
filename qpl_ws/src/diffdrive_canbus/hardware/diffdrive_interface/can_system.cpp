@@ -5,7 +5,7 @@
 
 #include "diffdrive_canbus/can_comms.hpp"
 #include "diffdrive_canbus/diffdrive_canbus_system.hpp"
-#include "diffdrive_canbus/spark_max.hpp"
+#include "diffdrive_canbus/can_device.hpp"
 
 
 namespace diffdrive_canbus {

@@ -6,7 +6,7 @@
 #include <cmath>
 #include <string>
 #include <rclcpp/logger.hpp>
-#include "diffdrive_canbus/spark_max.hpp"
+#include "diffdrive_canbus/can_device.hpp"
 
 #pragma region Constants
 constexpr double TWO_PI = 2.0 * M_PI;

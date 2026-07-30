@@ -6,7 +6,7 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 
-#include "diffdrive_canbus/spark_max.hpp"
+#include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_canbus_system.hpp"
 
 namespace diffdrive_canbus {

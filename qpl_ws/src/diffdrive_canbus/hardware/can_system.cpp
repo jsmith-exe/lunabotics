@@ -1,4 +1,4 @@
-#include "diffdrive_canbus/spark_max.hpp"
+#include "diffdrive_canbus/can_device.hpp"
 
 #include <chrono>
 #include <cmath>
