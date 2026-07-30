@@ -28,9 +28,7 @@ namespace diffdrive_canbus {
       &commanded_velocity_);
   }
 
-  void Motor::update_joint_state_from_telemetry(
-    double & position_offset_rad,
-    bool & position_offset_valid)
+  void Motor::update_joint_state_from_telemetry()
   {
     const auto & tel = this->telemetry();
 
@@ -44,13 +42,13 @@ namespace diffdrive_canbus {
       const double absolute_position_rad =
         static_cast<double>(tel.wheel_position_rotations) * TWO_PI;
 
-      if (!position_offset_valid)
+      if (!position_offset_valid_)
       {
-        position_offset_rad = absolute_position_rad;
-        position_offset_valid = true;
+        position_offset_rad_ = absolute_position_rad;
+        position_offset_valid_ = true;
       }
 
-      rotation_position_ = absolute_position_rad - position_offset_rad;
+      rotation_position_ = absolute_position_rad - position_offset_rad_;
     }
   }
 
@@ -73,6 +71,12 @@ namespace diffdrive_canbus {
   void CANSystem::setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
     for (auto & [can_id, device] : devices_) {
       device->setup_ros_command_interfaces(command_interfaces);
+    }
+  }
+
+  void CANSystem::update_joint_state_from_telemetry() {
+    for (auto & [can_id, device] : devices_) {
+      device->update_joint_state_from_telemetry();
     }
   }
 }

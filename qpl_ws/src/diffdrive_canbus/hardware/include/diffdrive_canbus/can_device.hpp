@@ -39,7 +39,7 @@ public:
   virtual double commanded_velocity() const { return 0.0; }
   virtual double velocity() const { return 0.0; }
   virtual double rotation_position() const { return 0.0; }
-  virtual void update_joint_state_from_telemetry(double & position_offset_rad, bool & position_offset_valid) {}
+  virtual void update_joint_state_from_telemetry() {}
 
   bool send_heartbeats(bool print = false);
   bool clear_faults(bool print = false);

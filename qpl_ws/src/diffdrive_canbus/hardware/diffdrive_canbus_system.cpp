@@ -12,7 +12,6 @@
 #include "rclcpp_lifecycle/state.hpp"
 
 #include <algorithm>
-#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -43,7 +42,6 @@ public:
     try
     {
       parse_hardware_parameters();
-      drum_can_id_ = static_cast<uint8_t>(get_int("drum_can_id", 7));
       initialise_joint_storage();
 
       can_system_ = std::make_unique<CANSystem>(can_);
@@ -73,6 +71,7 @@ public:
       can_system_->add_device(front_right_spark_);
       can_system_->add_device(rear_left_spark_);
       can_system_->add_device(rear_right_spark_);
+      can_system_->add_device(drum_spark_);
     }
     catch (const std::exception & e)
     {
@@ -158,7 +157,6 @@ public:
   {
     std::vector<hardware_interface::StateInterface> state_interfaces;
 
-    // TODO replace with CANSystem class
     can_system_->setup_ros_state_interfaces(state_interfaces);
 
     if (left_actuator_.ros2_control_interface_enabled)
@@ -176,16 +174,6 @@ public:
         hardware_interface::HW_IF_POSITION,
         &right_actuator_.position);
     }
-
-    state_interfaces.emplace_back(
-      "drum_spin_joint",
-      hardware_interface::HW_IF_POSITION,
-      &drum_position_);
-
-    state_interfaces.emplace_back(
-      "drum_spin_joint",
-      hardware_interface::HW_IF_VELOCITY,
-      &drum_velocity_);
 
     return state_interfaces;
   }
@@ -211,11 +199,6 @@ public:
         hardware_interface::HW_IF_POSITION,
         &right_actuator_.command);
     }
-
-    command_interfaces.emplace_back(
-      "drum_spin_joint",
-      hardware_interface::HW_IF_VELOCITY,
-      &drum_command_);
 
     return command_interfaces;
   }
@@ -278,33 +261,9 @@ public:
   hardware_interface::CallbackReturn on_activate(
     const rclcpp_lifecycle::State &) override
   {
-    front_left_command_ = 0.0;
-    front_right_command_ = 0.0;
-    rear_left_command_ = 0.0;
-    rear_right_command_ = 0.0;
-
-    front_left_velocity_ = 0.0;
-    front_right_velocity_ = 0.0;
-    rear_left_velocity_ = 0.0;
-    rear_right_velocity_ = 0.0;
-
-    front_left_position_ = 0.0;
-    front_right_position_ = 0.0;
-    rear_left_position_ = 0.0;
-    rear_right_position_ = 0.0;
 
     reset_actuator_state(left_actuator_, logger_);
     reset_actuator_state(right_actuator_, logger_);
-
-    front_left_position_offset_ = 0.0;
-    front_right_position_offset_ = 0.0;
-    rear_left_position_offset_ = 0.0;
-    rear_right_position_offset_ = 0.0;
-
-    front_left_position_offset_valid_ = false;
-    front_right_position_offset_valid_ = false;
-    rear_left_position_offset_valid_ = false;
-    rear_right_position_offset_valid_ = false;
 
     command_count_ = 0;
     skipped_idle_write_count_ = 0;
@@ -322,11 +281,6 @@ public:
     motors_currently_commanded_ = false;
     runaway_latched_ = false;
 
-    drum_command_ = 0.0;
-    drum_position_ = 0.0;
-    drum_velocity_ = 0.0;
-    drum_position_offset_ = 0.0;
-    drum_position_offset_valid_ = false;
     next_drum_command_write_time_ = std::chrono::steady_clock::now();
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
@@ -354,7 +308,7 @@ public:
         INITIAL_FEEDBACK_FRAMES,
         print_status_frames_);
 
-      update_all_joint_states_from_telemetry();
+      can_system_->update_joint_state_from_telemetry();
     }
 
     return hardware_interface::CallbackReturn::SUCCESS;
@@ -432,7 +386,7 @@ public:
     if (feedback_enabled_)
     {
       maybe_read_feedback_like_test_script();
-      update_all_joint_states_from_telemetry();
+      can_system_->update_joint_state_from_telemetry();
     }
     else
     {
@@ -449,20 +403,7 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-    if (
-      !std::isfinite(front_left_command_) ||
-      !std::isfinite(front_right_command_) ||
-      !std::isfinite(rear_left_command_) ||
-      !std::isfinite(rear_right_command_))
-    {
-      ++non_finite_command_count_;
-
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Non-finite ros2_control command detected. Forcing non-finite commands to zero.");
-    }
+    // TODO validate wheel commands - this was previously just checking isfinite
 
     // Global non-RIO heartbeat. Keep this independent from individual motor writes.
     maybe_send_heartbeat();
@@ -1306,7 +1247,8 @@ private:
     }
     next_drum_command_write_time_ = now + COMMAND_WRITE_PERIOD;
 
-    const double command = std::isfinite(drum_command_) ? drum_command_ : 0.0;
+    const double drum_command = drum_spark_->commanded_velocity();
+    const double command = std::isfinite(drum_command) ? drum_command : 0.0;
     const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
 
     // RCLCPP_WARN_THROTTLE(
@@ -1319,104 +1261,6 @@ private:
 
     drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
     sleep_bus_gap();
-  }
-
-  void maybe_print_actuator_feedback(LinearActuatorHW & act, const std::string & label)
-  {
-    const auto now = std::chrono::steady_clock::now();
-
-    if (now < act.last_feedback_print_time)
-    {
-      return;
-    }
-
-    act.last_feedback_print_time += LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
-
-    if (act.last_feedback_print_time < now - LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD)
-    {
-      act.last_feedback_print_time = now + LINEAR_ACTUATOR_FEEDBACK_PRINT_PERIOD;
-    }
-
-    if (!act.spark)
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "%s LINEAR ACTUATOR FEEDBACK: spark=NULL",
-        label.c_str());
-
-      return;
-    }
-
-    const auto & tel = act.spark->telemetry();
-
-    if (act.has_analog_voltage_candidate)
-    {
-      RCLCPP_WARN(
-        logger_,
-        "%s LINEAR ACTUATOR ANALOG: id=%u cmd=%.3f voltage=%.4f V position=%.4f source=%s status3_frames=%d raw_frames=%d status3_can_id=0x%08X dlc=%u data=[%s] applied=%s%.3f",
-        label.c_str(),
-        act.can_id,
-        std::clamp(act.command, 0.0, 1.0),
-        act.analog_voltage_candidate,
-        act.position,
-        act.analog_voltage_source.c_str(),
-        act.status3_frame_count,
-        act.raw_can_frame_count,
-        act.last_status3_can_id,
-        act.last_status3_dlc,
-        can_data_to_hex_string(act.last_status3_data.data(), act.last_status3_dlc).c_str(),
-        tel.has_applied_output ? "" : "NO_",
-        tel.has_applied_output ? static_cast<double>(tel.applied_output) : 0.0);
-
-      return;
-    }
-
-    if (act.has_status3_frame)
-    {
-      RCLCPP_WARN(
-        logger_,
-        "%s LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f STATUS3_SEEN_BUT_NO_VOLTAGE_CANDIDATE status3_frames=%d raw_frames=%d last_can_id=0x%08X dlc=%u data=[%s] applied=%s%.3f",
-        label.c_str(),
-        act.can_id,
-        std::clamp(act.command, 0.0, 1.0),
-        act.status3_frame_count,
-        act.raw_can_frame_count,
-        act.last_raw_can_id,
-        act.last_raw_dlc,
-        can_data_to_hex_string(act.last_raw_data.data(), act.last_raw_dlc).c_str(),
-        tel.has_applied_output ? "" : "NO_",
-        tel.has_applied_output ? static_cast<double>(tel.applied_output) : 0.0);
-
-      return;
-    }
-
-    if (act.has_raw_can_frame)
-    {
-      RCLCPP_WARN(
-        logger_,
-        "%s LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f NO_STATUS3_ANALOG_FRAME_YET raw_frames=%d last_can_id=0x%08X api_index=%u dlc=%u data=[%s] applied=%s%.3f",
-        label.c_str(),
-        act.can_id,
-        std::clamp(act.command, 0.0, 1.0),
-        act.raw_can_frame_count,
-        act.last_raw_can_id,
-        get_frc_api_index_from_can_id(act.last_raw_can_id),
-        act.last_raw_dlc,
-        can_data_to_hex_string(act.last_raw_data.data(), act.last_raw_dlc).c_str(),
-        tel.has_applied_output ? "" : "NO_",
-        tel.has_applied_output ? static_cast<double>(tel.applied_output) : 0.0);
-
-      return;
-    }
-
-    RCLCPP_WARN(
-      logger_,
-      "%s LINEAR ACTUATOR ANALOG RAW: id=%u cmd=%.3f no CAN frames from actuator decoded yet",
-      label.c_str(),
-      act.can_id,
-      std::clamp(act.command, 0.0, 1.0));
   }
 
   void send_stop_for_duration(std::chrono::milliseconds duration)
@@ -1680,55 +1524,6 @@ private:
     return parsed_any;
   }
 
-  void update_all_joint_states_from_telemetry()
-  {
-    front_left_spark_->update_joint_state_from_telemetry(front_left_position_offset_, front_left_position_offset_valid_);
-    front_right_spark_->update_joint_state_from_telemetry(front_right_position_offset_, front_right_position_offset_valid_);
-    rear_left_spark_->update_joint_state_from_telemetry(rear_left_position_offset_, rear_left_position_offset_valid_);
-    rear_right_spark_->update_joint_state_from_telemetry(rear_right_position_offset_, rear_right_position_offset_valid_);
-
-    update_joint_state_from_telemetry(
-      drum_spark_,
-      drum_position_,
-      drum_velocity_,
-      drum_position_offset_,
-      drum_position_offset_valid_);
-  }
-
-  void update_joint_state_from_telemetry(
-    const std::unique_ptr<CANDevice> & spark,
-    double & position_rad,
-    double & velocity_rad_per_sec,
-    double & position_offset_rad,
-    bool & position_offset_valid)
-  {
-    if (!spark)
-    {
-      return;
-    }
-
-    const auto & tel = spark->telemetry();
-
-    if (tel.has_encoder_velocity)
-    {
-      velocity_rad_per_sec = static_cast<double>(tel.wheel_rad_per_sec);
-    }
-
-    if (tel.has_encoder_position)
-    {
-      const double absolute_position_rad =
-        static_cast<double>(tel.wheel_position_rotations) * TWO_PI;
-
-      if (!position_offset_valid)
-      {
-        position_offset_rad = absolute_position_rad;
-        position_offset_valid = true;
-      }
-
-      position_rad = absolute_position_rad - position_offset_rad;
-    }
-  }
-
 private:
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
 
@@ -1762,8 +1557,6 @@ private:
   LinearActuatorHW right_actuator_;
 
   std::unique_ptr<CANDevice> drum_spark_;
-  uint8_t drum_can_id_{7};
-  double drum_command_{0.0};
   std::chrono::steady_clock::time_point next_drum_command_write_time_{
     std::chrono::steady_clock::now()};
 
@@ -1771,31 +1564,6 @@ private:
   std::unique_ptr<CANDevice> front_right_spark_;
   std::unique_ptr<CANDevice> rear_left_spark_;
   std::unique_ptr<CANDevice> rear_right_spark_;
-
-  double front_left_command_{0.0};
-  double front_right_command_{0.0};
-  double rear_left_command_{0.0};
-  double rear_right_command_{0.0};
-
-  double front_left_position_{0.0};
-  double front_right_position_{0.0};
-  double rear_left_position_{0.0};
-  double rear_right_position_{0.0};
-
-  double front_left_velocity_{0.0};
-  double front_right_velocity_{0.0};
-  double rear_left_velocity_{0.0};
-  double rear_right_velocity_{0.0};
-
-  double front_left_position_offset_{0.0};
-  double front_right_position_offset_{0.0};
-  double rear_left_position_offset_{0.0};
-  double rear_right_position_offset_{0.0};
-
-  bool front_left_position_offset_valid_{false};
-  bool front_right_position_offset_valid_{false};
-  bool rear_left_position_offset_valid_{false};
-  bool rear_right_position_offset_valid_{false};
 
   int command_count_{0};
   int skipped_idle_write_count_{0};
@@ -1812,11 +1580,6 @@ private:
 
   bool motors_currently_commanded_{false};
   bool runaway_latched_{false};
-
-  double drum_position_{0.0};
-  double drum_velocity_{0.0};
-  double drum_position_offset_{0.0};
-  bool drum_position_offset_valid_{false};
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{
     std::chrono::steady_clock::now()};
