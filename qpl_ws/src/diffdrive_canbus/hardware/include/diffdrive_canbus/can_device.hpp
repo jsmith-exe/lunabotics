@@ -40,6 +40,10 @@ public:
   virtual double velocity() const { return 0.0; }
   virtual double rotation_position() const { return 0.0; }
   virtual void update_joint_state_from_telemetry() {}
+  // actuator stuff, also hopefully temporary
+  virtual void request_actuator_status3_period(const CANComms & can) {}
+  virtual void write_actuator_closed_loop() {}
+  virtual void observe_actuator_raw_frame(const CANFrame & frame) {}
 
   bool send_heartbeats(bool print = false);
   bool clear_faults(bool print = false);

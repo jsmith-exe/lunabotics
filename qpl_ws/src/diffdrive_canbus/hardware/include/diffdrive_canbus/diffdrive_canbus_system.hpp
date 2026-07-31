@@ -133,7 +133,7 @@ namespace diffdrive_canbus {
   class Actuator : public CANDevice {
   public:
     Actuator(const std::string &name, const uint8_t &can_id, CANComms &can)
-      : CANDevice(name, can_id, can, 0.0) {} // TODO remove gear_ratio from actuators and base class
+      : CANDevice(name, can_id, can, 1.0) {} // TODO remove gear_ratio from actuators and base class
 
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
