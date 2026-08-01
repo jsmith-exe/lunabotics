@@ -38,9 +38,6 @@ public:
 
     try
     {
-      parse_hardware_parameters();
-      initialise_joint_storage();
-
       can_system_ = std::make_unique<CANSystem>(can_);
 
       front_left_spark_ = std::make_unique<Motor>(front_left_wheel_name_, 1,
@@ -118,13 +115,14 @@ public:
         RCLCPP_ERROR(logger_, "Failed to configure CAN adapter");
         return hardware_interface::CallbackReturn::ERROR;
       }
-
-      front_left_spark_->set_native_velocity_pid_slot(pid_slot_);
-      front_right_spark_->set_native_velocity_pid_slot(pid_slot_);
-      rear_left_spark_->set_native_velocity_pid_slot(pid_slot_);
-      rear_right_spark_->set_native_velocity_pid_slot(pid_slot_);
-
       RCLCPP_INFO(logger_, "CAN adapter configured");
+
+      constexpr int pid_slot = 0;
+      front_left_spark_->set_native_velocity_pid_slot(pid_slot);
+      front_right_spark_->set_native_velocity_pid_slot(pid_slot);
+      rear_left_spark_->set_native_velocity_pid_slot(pid_slot);
+      rear_right_spark_->set_native_velocity_pid_slot(pid_slot);
+      drum_spark_->set_native_velocity_pid_slot(pid_slot);
 
       left_actuator_spark_->request_actuator_status3_period(can_);
       right_actuator_spark_->request_actuator_status3_period(can_);
@@ -158,7 +156,7 @@ public:
 
     RCLCPP_WARN(logger_, "Performing initial telemetry drain like spark_max_test");
 
-    read_telemetry_like_test_script(INITIAL_FEEDBACK_FRAMES);
+    read_frames(INITIAL_FEEDBACK_FRAMES);
 
     can_system_->update_joint_state_from_telemetry();
 
@@ -195,7 +193,7 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-    maybe_read_feedback_like_test_script();
+    read_frames_if_due();
     can_system_->update_joint_state_from_telemetry();
     return hardware_interface::return_type::OK;
   }
@@ -205,7 +203,7 @@ public:
     const rclcpp::Duration &) override
   {
     // Global non-RIO heartbeat. Keep this independent from individual motor writes.
-    maybe_send_heartbeat();
+    send_heartbeat_if_due();
 
     // if (CANSystem::runaway_latched_)
     // {
@@ -244,299 +242,8 @@ public:
   }
 
 private:
-  void parse_hardware_parameters()
-  {
-    front_left_wheel_name_ = get_required_string("front_left_wheel_name");
-    front_right_wheel_name_ = get_required_string("front_right_wheel_name");
-    rear_left_wheel_name_ = get_required_string("rear_left_wheel_name");
-    rear_right_wheel_name_ = get_required_string("rear_right_wheel_name");
 
-    left_actuator_name_ = get_string("left_linear_actuator_joint_name", "left_linear_actuator_joint");
-    right_actuator_name_ = get_string("right_linear_actuator_joint_name", "right_linear_actuator_joint");
-
-    serial_device_ = get_required_string("serial_device");
-
-    serial_baud_rate_ = get_int("serial_baud_rate", 2000000);
-    can_baud_rate_ = get_int("can_baud_rate", 1000000);
-
-    timeout_ms_ = get_int("timeout_ms", 5);
-
-    pid_slot_ = static_cast<uint8_t>(get_int("pid_slot", 0));
-
-    command_deadband_rad_per_sec_ =
-      get_double("command_deadband_rad_per_sec", 0.001);
-
-    if (pid_slot_ > 3)
-    {
-      throw std::runtime_error("pid_slot must be between 0 and 3");
-    }
-
-    if (serial_baud_rate_ <= 0)
-    {
-      throw std::runtime_error("serial_baud_rate must be greater than zero");
-    }
-
-    if (can_baud_rate_ <= 0)
-    {
-      throw std::runtime_error("can_baud_rate must be greater than zero");
-    }
-
-    if (timeout_ms_ <= 0)
-    {
-      throw std::runtime_error("timeout_ms must be greater than zero");
-    }
-
-    if (command_deadband_rad_per_sec_ < 0.0)
-    {
-      throw std::runtime_error("command_deadband_rad_per_sec must be >= 0");
-    }
-  }
-
-  void initialise_joint_storage()
-  {
-    // TODO note no drum?
-    validate_joint_exists(front_left_wheel_name_);
-    validate_joint_exists(front_right_wheel_name_);
-    validate_joint_exists(rear_left_wheel_name_);
-    validate_joint_exists(rear_right_wheel_name_);
-    validate_joint_exists(left_actuator_name_);
-    validate_joint_exists(right_actuator_name_);
-    validate_joint_exists(drum_spin_name_);
-
-    validate_joint_interfaces(front_left_wheel_name_);
-    validate_joint_interfaces(front_right_wheel_name_);
-    validate_joint_interfaces(rear_left_wheel_name_);
-    validate_joint_interfaces(rear_right_wheel_name_);
-    validate_linear_actuator_interfaces(left_actuator_name_);
-    validate_linear_actuator_interfaces(right_actuator_name_);
-    validate_joint_interfaces(drum_spin_name_);
-  }
-
-  std::string get_required_string(const std::string & name) const
-  {
-    const auto it = info_.hardware_parameters.find(name);
-
-    if (it == info_.hardware_parameters.end())
-    {
-      throw std::runtime_error("Missing hardware parameter: " + name);
-    }
-
-    if (it->second.empty())
-    {
-      throw std::runtime_error("Hardware parameter is empty: " + name);
-    }
-
-    return it->second;
-  }
-
-  std::string get_string(
-    const std::string & name,
-    const std::string & default_value) const
-  {
-    const auto it = info_.hardware_parameters.find(name);
-
-    if (it == info_.hardware_parameters.end())
-    {
-      return default_value;
-    }
-
-    return it->second;
-  }
-
-  double get_required_double(const std::string & name) const
-  {
-    const auto it = info_.hardware_parameters.find(name);
-
-    if (it == info_.hardware_parameters.end())
-    {
-      throw std::runtime_error(
-        "Missing required hardware parameter: " + name +
-        ". Add <param name=\"" + name + "\">100.0</param> to the ros2_control hardware block.");
-    }
-
-    if (it->second.empty())
-    {
-      throw std::runtime_error("Hardware parameter is empty: " + name);
-    }
-
-    return std::stod(it->second);
-  }
-
-  int get_int(
-    const std::string & name,
-    int default_value) const
-  {
-    const auto it = info_.hardware_parameters.find(name);
-
-    if (it == info_.hardware_parameters.end())
-    {
-      return default_value;
-    }
-
-    return std::stoi(it->second);
-  }
-
-  double get_double(
-    const std::string & name,
-    double default_value) const
-  {
-    const auto it = info_.hardware_parameters.find(name);
-
-    if (it == info_.hardware_parameters.end())
-    {
-      return default_value;
-    }
-
-    return std::stod(it->second);
-  }
-
-  bool get_bool(
-    const std::string & name,
-    bool default_value) const
-  {
-    const auto it = info_.hardware_parameters.find(name);
-
-    if (it == info_.hardware_parameters.end())
-    {
-      return default_value;
-    }
-
-    return string_to_bool(it->second);
-  }
-
-  void validate_joint_exists(const std::string & joint_name) const
-  {
-    for (const auto & joint : info_.joints)
-    {
-      if (joint.name == joint_name)
-      {
-        return;
-      }
-    }
-
-    throw std::runtime_error(
-      "Joint '" + joint_name +
-      "' was listed in hardware parameters but does not exist in ros2_control");
-  }
-
-  void validate_linear_actuator_interfaces(const std::string & joint_name) const
-  {
-    const hardware_interface::ComponentInfo * joint_info = nullptr;
-
-    for (const auto & joint : info_.joints)
-    {
-      if (joint.name == joint_name)
-      {
-        joint_info = &joint;
-        break;
-      }
-    }
-
-    if (joint_info == nullptr)
-    {
-      throw std::runtime_error("Could not find joint: " + joint_name);
-    }
-
-    bool has_position_command = false;
-    bool has_position_state = false;
-
-    for (const auto & command_interface : joint_info->command_interfaces)
-    {
-      if (command_interface.name == hardware_interface::HW_IF_POSITION)
-      {
-        has_position_command = true;
-      }
-    }
-
-    for (const auto & state_interface : joint_info->state_interfaces)
-    {
-      if (state_interface.name == hardware_interface::HW_IF_POSITION)
-      {
-        has_position_state = true;
-      }
-    }
-
-    if (!has_position_command)
-    {
-      throw std::runtime_error(
-        "Joint '" + joint_name + "' is missing position command interface for actuator target");
-    }
-
-    if (!has_position_state)
-    {
-      throw std::runtime_error(
-        "Joint '" + joint_name + "' is missing position state interface for actuator feedback");
-    }
-  }
-
-  void validate_joint_interfaces(const std::string & joint_name) const
-  {
-    const hardware_interface::ComponentInfo * joint_info = nullptr;
-
-    for (const auto & joint : info_.joints)
-    {
-      if (joint.name == joint_name)
-      {
-        joint_info = &joint;
-        break;
-      }
-    }
-
-    if (joint_info == nullptr)
-    {
-      throw std::runtime_error("Could not find joint: " + joint_name);
-    }
-
-    bool has_velocity_command = false;
-    bool has_position_state = false;
-    bool has_velocity_state = false;
-
-    for (const auto & command_interface : joint_info->command_interfaces)
-    {
-      if (command_interface.name == hardware_interface::HW_IF_VELOCITY)
-      {
-        has_velocity_command = true;
-      }
-    }
-
-    for (const auto & state_interface : joint_info->state_interfaces)
-    {
-      if (state_interface.name == hardware_interface::HW_IF_POSITION)
-      {
-        has_position_state = true;
-      }
-
-      if (state_interface.name == hardware_interface::HW_IF_VELOCITY)
-      {
-        has_velocity_state = true;
-      }
-    }
-
-    if (!has_velocity_command)
-    {
-      throw std::runtime_error(
-        "Joint '" + joint_name + "' is missing velocity command interface");
-    }
-
-    if (!has_position_state)
-    {
-      throw std::runtime_error(
-        "Joint '" + joint_name + "' is missing position state interface");
-    }
-
-    if (!has_velocity_state)
-    {
-      throw std::runtime_error(
-        "Joint '" + joint_name + "' is missing velocity state interface");
-    }
-  }
-  // Parameter parsing stuff up here
-
-
-
-
-
-  void maybe_send_heartbeat()
+  void send_heartbeat_if_due()
   {
     const auto now = std::chrono::steady_clock::now();
 
@@ -545,16 +252,59 @@ private:
       return;
     }
 
-    if (front_left_spark_)
-    {
-      front_left_spark_->send_heartbeats(false);
-    }
-
     next_heartbeat_time_ += HEARTBEAT_PERIOD;
 
     if (next_heartbeat_time_ < now - HEARTBEAT_PERIOD)
     {
       next_heartbeat_time_ = now + HEARTBEAT_PERIOD;
+    }
+
+    if (front_left_spark_)
+    {
+      front_left_spark_->send_heartbeats(false);
+    }
+  }
+
+  void read_frames_if_due()
+  {
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_feedback_read_time_)
+    {
+      return;
+    }
+
+    next_feedback_read_time_ += FEEDBACK_READ_PERIOD;
+    // TODO fix this - shouldn't be '< now - FEEDBACK_READ_PERIOD', could just be '< now'. Alternatively, always set to now + FEEDBACK_READ_PERIOD
+    if (next_feedback_read_time_ < now - FEEDBACK_READ_PERIOD)
+    {
+      next_feedback_read_time_ = now + FEEDBACK_READ_PERIOD;
+    }
+
+    read_frames(MAX_FEEDBACK_FRAMES_PER_READ);
+  }
+
+  void read_frames(int max_frames)
+  {
+    int frames_read = 0;
+    int empty_reads = 0;
+
+    while (frames_read < max_frames && empty_reads < FEEDBACK_EMPTY_READ_RETRIES)
+    {
+      CANFrame frame;
+
+      if (!can_.read_frame(frame, false))
+      {
+        ++empty_reads;
+        std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
+        continue;
+      }
+
+      empty_reads = 0;
+      ++frames_read;
+
+      left_actuator_spark_->observe_actuator_raw_frame(frame);
+      right_actuator_spark_->observe_actuator_raw_frame(frame);
+      can_system_->handle_status_frame(frame);
     }
   }
 
@@ -601,52 +351,6 @@ private:
     }
   }
 
-  void maybe_read_feedback_like_test_script()
-  {
-    const auto now = std::chrono::steady_clock::now();
-
-    if (now < next_feedback_read_time_)
-    {
-      return;
-    }
-
-    next_feedback_read_time_ += FEEDBACK_READ_PERIOD;
-
-    // TODO fix this - shouldn't be '< now - FEEDBACK_READ_PERIOD', could just be '< now'. Alternatively, always set to now + FEEDBACK_READ_PERIOD
-    if (next_feedback_read_time_ < now - FEEDBACK_READ_PERIOD)
-    {
-      next_feedback_read_time_ = now + FEEDBACK_READ_PERIOD;
-    }
-
-    read_telemetry_like_test_script(MAX_FEEDBACK_FRAMES_PER_READ);
-  }
-
-  void read_telemetry_like_test_script(int max_frames)
-  {
-    int frames_read = 0;
-    int empty_reads = 0;
-
-    while (frames_read < max_frames && empty_reads < FEEDBACK_EMPTY_READ_RETRIES)
-    {
-      CANFrame frame;
-
-      if (!can_.read_frame(frame, false))
-      {
-        ++empty_reads;
-        std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
-        continue;
-      }
-
-      empty_reads = 0;
-      ++frames_read;
-
-      left_actuator_spark_->observe_actuator_raw_frame(frame);
-      right_actuator_spark_->observe_actuator_raw_frame(frame);
-      can_system_->handle_status_frame(frame);
-    }
-  }
-
-private:
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
 
   CANComms can_;
@@ -662,10 +366,6 @@ private:
   std::string left_actuator_name_{"left_linear_actuator_joint"};
   std::string right_actuator_name_{"right_linear_actuator_joint"};
   std::string drum_spin_name_{"drum_spin_joint"};
-
-  double command_deadband_rad_per_sec_{0.001};
-
-  uint8_t pid_slot_{0};
 
   std::chrono::steady_clock::time_point next_drum_command_write_time_{
     std::chrono::steady_clock::now()};

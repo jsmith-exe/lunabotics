@@ -18,7 +18,6 @@ namespace diffdrive_canbus {
       this->name_,
       hardware_interface::HW_IF_POSITION,
       &position_);
-    std::cout << "Actuator " << this->name_ << " state interface set up." << std::endl;
   }
   void Actuator::setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
     command_interfaces.emplace_back(
