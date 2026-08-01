@@ -59,7 +59,7 @@ namespace diffdrive_canbus {
       safe_throttle = 0.0;
     }
 
-    this->set_duty_cycle(static_cast<float>(safe_throttle), false);
+    this->set_duty_cycle(static_cast<float>(safe_throttle));
 
     sleep_bus_gap();
   }

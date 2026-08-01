@@ -29,9 +29,7 @@ public:
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareInfo & info) override
   {
-    if (
-      hardware_interface::SystemInterface::on_init(info) !=
-      hardware_interface::CallbackReturn::SUCCESS)
+    if (SystemInterface::on_init(info) != hardware_interface::CallbackReturn::SUCCESS)
     {
       return hardware_interface::CallbackReturn::ERROR;
     }
@@ -46,22 +44,22 @@ public:
       can_system_ = std::make_unique<CANSystem>(can_);
 
       front_left_spark_ = std::make_unique<Motor>(front_left_wheel_name_, 1,
-        can_, static_cast<float>(gear_ratio_));
+        can_, static_cast<float>(100.0));
 
       front_right_spark_ = std::make_unique<Motor>(front_right_wheel_name_, 2,
-        can_, static_cast<float>(gear_ratio_));
+        can_, static_cast<float>(100.0));
 
       rear_left_spark_ = std::make_unique<Motor>(rear_left_wheel_name_, 3,
-        can_, static_cast<float>(gear_ratio_));
+        can_, static_cast<float>(100.0));
 
       rear_right_spark_ = std::make_unique<Motor>(rear_right_wheel_name_, 4,
-        can_, static_cast<float>(gear_ratio_));
+        can_, static_cast<float>(100.0));
 
       left_actuator_spark_ = std::make_unique<Actuator>(left_actuator_name_, 5, can_);
 
       right_actuator_spark_ = std::make_unique<Actuator>(right_actuator_name_, 6, can_);
 
-      drum_spark_ = std::make_unique<Motor>("drum_spin_joint", 7,
+      drum_spark_ = std::make_unique<Motor>(drum_spin_name_, 7,
       can_, static_cast<float>(125.0));
 
       can_system_->add_device(front_left_spark_);
@@ -111,7 +109,7 @@ public:
         false,
         0x00000000,
         0x00000000,
-        loopback_mode_ ? CANMode::LOOPBACK : CANMode::NORMAL,
+        CANMode::NORMAL,
         false,
         true);
 
@@ -152,40 +150,17 @@ public:
   hardware_interface::CallbackReturn on_activate(
     const rclcpp_lifecycle::State &) override
   {
-    command_count_ = 0;
-    skipped_idle_write_count_ = 0;
-    telemetry_read_count_ = 0;
-    telemetry_hit_count_ = 0;
-    can_frames_read_count_ = 0;
-    can_frames_parsed_count_ = 0;
-    heartbeat_count_ = 0;
-    idle_stop_count_ = 0;
-    non_finite_command_count_ = 0;
-    feedback_cycle_count_ = 0;
-    feedback_empty_count_ = 0;
-    runaway_count_ = 0;
-
-    motors_currently_commanded_ = false;
-    runaway_latched_ = false;
-
     next_drum_command_write_time_ = std::chrono::steady_clock::now();
 
     next_heartbeat_time_ = std::chrono::steady_clock::now();
     next_feedback_read_time_ = std::chrono::steady_clock::now();
-    next_rx_drain_time_ = std::chrono::steady_clock::now();
     next_command_write_time_ = std::chrono::steady_clock::now();
-    last_print_time_ = std::chrono::steady_clock::now() + PRINT_PERIOD;
 
-    if (feedback_enabled_)
-    {
-      RCLCPP_WARN(logger_, "Performing initial telemetry drain like spark_max_test");
+    RCLCPP_WARN(logger_, "Performing initial telemetry drain like spark_max_test");
 
-      read_telemetry_like_test_script(
-        INITIAL_FEEDBACK_FRAMES,
-        print_status_frames_);
+    read_telemetry_like_test_script(INITIAL_FEEDBACK_FRAMES);
 
-      can_system_->update_joint_state_from_telemetry();
-    }
+    can_system_->update_joint_state_from_telemetry();
 
     return hardware_interface::CallbackReturn::SUCCESS;
   }
@@ -198,45 +173,8 @@ public:
 
     try
     {
+      can_system_->send_zero_duty_all();
       send_stop_for_duration(STOP_TIME);
-
-      if (front_left_spark_)
-      {
-        front_left_spark_->stop(false);
-      }
-
-      if (front_right_spark_)
-      {
-        front_right_spark_->stop(false);
-      }
-
-      if (rear_left_spark_)
-      {
-        rear_left_spark_->stop(false);
-      }
-
-      if (rear_right_spark_)
-      {
-        rear_right_spark_->stop(false);
-      }
-
-      if (left_actuator_spark_)
-      {
-        left_actuator_spark_->stop(false);
-      }
-
-      if (right_actuator_spark_)
-      {
-        right_actuator_spark_->stop(false);
-      }
-
-      if (drum_spark_)
-      {
-        drum_spark_->stop(false);
-      }
-
-      send_stop_for_duration(EXTRA_STOP_TIME);
-
       can_.disconnect();
     }
     catch (const std::exception & e)
@@ -257,18 +195,8 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-    ++telemetry_read_count_;
-
-    if (feedback_enabled_)
-    {
-      maybe_read_feedback_like_test_script();
-      can_system_->update_joint_state_from_telemetry();
-    }
-    else
-    {
-      maybe_drain_can_rx_without_feedback();
-    }
-
+    maybe_read_feedback_like_test_script();
+    can_system_->update_joint_state_from_telemetry();
     return hardware_interface::return_type::OK;
   }
 
@@ -276,127 +204,41 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-    // TODO validate wheel commands - this was previously just checking isfinite
-
     // Global non-RIO heartbeat. Keep this independent from individual motor writes.
     maybe_send_heartbeat();
 
-    // Closed-loop actuator position servos are intentionally independent of the wheels.
-    left_actuator_spark_->write_actuator_closed_loop();
-    right_actuator_spark_->write_actuator_closed_loop();
-    write_drum_velocity();
-
-    const double front_left_command = clean_command(front_left_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
-
-    const double front_right_command = clean_command(front_right_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
-
-    const double rear_left_command = clean_command(rear_left_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
-
-    const double rear_right_command = clean_command(rear_right_spark_->commanded_velocity(), command_deadband_rad_per_sec_);
-
-    const bool any_wheel_command =
-      std::fabs(front_left_command) > 0.0 ||
-      std::fabs(front_right_command) > 0.0 ||
-      std::fabs(rear_left_command) > 0.0 ||
-      std::fabs(rear_right_command) > 0.0;
-
-    const bool any_active_command = any_wheel_command;
-
-    if (runaway_latched_)
-    {
-      if (!any_active_command)
-      {
-        RCLCPP_WARN(
-          logger_,
-          "Runaway latch cleared because ros2_control command returned to zero.");
-
-        runaway_latched_ = false;
-      }
-      else
-      {
-        RCLCPP_ERROR_THROTTLE(
-          logger_,
-          *rclcpp::Clock::make_shared(),
-          1000,
-          "Runaway latch active. Blocking velocity commands and sending zero-duty stop frames.");
-
-        maybe_send_heartbeat();
-        send_zero_duty_wheels_only(false);
-
-        return hardware_interface::return_type::OK;
-      }
-    }
-
-    if (!any_active_command)
-    {
-      ++skipped_idle_write_count_;
-
-      if (motors_currently_commanded_)
-      {
-        ++idle_stop_count_;
-
-        RCLCPP_WARN_THROTTLE(
-          logger_,
-          *rclcpp::Clock::make_shared(),
-          1000,
-          "Commands returned to zero. Sending immediate zero-duty stop frames to drive motors only.");
-
-        if (front_left_spark_)
-        {
-            front_left_spark_->send_heartbeats(false);
-            sleep_bus_gap();
-        }
-        // Send several stop frames to improve reliability
-        for (int i = 0; i < 3; ++i)
-        {
-            send_zero_duty_wheels_only(false);
-            sleep_bus_gap();
-        }
-        maybe_send_heartbeat();
-        send_zero_duty_wheels_only(false);
-      }
-
-      motors_currently_commanded_ = false;
-
-      return hardware_interface::return_type::OK;
-    }
+    // if (CANSystem::runaway_latched_)
+    // {
+    //   if (!any_active_command)
+    //   {
+    //     CANSystem::runaway_latched_ = false;
+    //   }
+    //   else
+    //   {
+    //     maybe_send_heartbeat();
+    //     can_system_->send_zero_duty_all();
+    //
+    //     return hardware_interface::return_type::OK;
+    //   }
+    // }
 
     const auto now = std::chrono::steady_clock::now();
-
     if (now < next_command_write_time_)
     {
       return hardware_interface::return_type::OK;
     }
-
     next_command_write_time_ = now + COMMAND_WRITE_PERIOD;
-
-    if (!any_wheel_command)
-    {
-      motors_currently_commanded_ = false;
-      return hardware_interface::return_type::OK;
-    }
 
     motors_currently_commanded_ = true;
 
-    write_one_motor_native_velocity(
-      "front_left",
-      front_left_spark_,
-      front_left_command);
+    front_left_spark_->write_one_motor_native_velocity();
+    front_right_spark_->write_one_motor_native_velocity();
+    rear_left_spark_->write_one_motor_native_velocity();
+    rear_right_spark_->write_one_motor_native_velocity();
+    drum_spark_->write_one_motor_native_velocity();
 
-    write_one_motor_native_velocity(
-      "front_right",
-      front_right_spark_,
-      front_right_command);
-
-    write_one_motor_native_velocity(
-      "rear_left",
-      rear_left_spark_,
-      rear_left_command);
-
-    write_one_motor_native_velocity(
-      "rear_right",
-      rear_right_spark_,
-      rear_right_command);
+    left_actuator_spark_->write_actuator_closed_loop();
+    right_actuator_spark_->write_actuator_closed_loop();
 
     return hardware_interface::return_type::OK;
   }
@@ -419,25 +261,10 @@ private:
 
     timeout_ms_ = get_int("timeout_ms", 5);
 
-    enc_counts_per_rev_ = get_int("enc_counts_per_rev", 2048);
-    loopback_mode_ = get_bool("loopback_mode", false);
-
-    gear_ratio_ = get_required_double("gear_ratio");
-
     pid_slot_ = static_cast<uint8_t>(get_int("pid_slot", 0));
-
-    print_status_frames_ = get_bool("print_status", false);
-    debug_printing_enabled_ = get_bool("debug_printing_enabled", false);
-
-    feedback_enabled_ = get_bool("feedback_enabled", false);
 
     command_deadband_rad_per_sec_ =
       get_double("command_deadband_rad_per_sec", 0.001);
-
-    if (gear_ratio_ <= 0.0)
-    {
-      throw std::runtime_error("gear_ratio must be greater than zero");
-    }
 
     if (pid_slot_ > 3)
     {
@@ -459,11 +286,6 @@ private:
       throw std::runtime_error("timeout_ms must be greater than zero");
     }
 
-    if (enc_counts_per_rev_ <= 0)
-    {
-      throw std::runtime_error("enc_counts_per_rev must be greater than zero");
-    }
-
     if (command_deadband_rad_per_sec_ < 0.0)
     {
       throw std::runtime_error("command_deadband_rad_per_sec must be >= 0");
@@ -479,6 +301,7 @@ private:
     validate_joint_exists(rear_right_wheel_name_);
     validate_joint_exists(left_actuator_name_);
     validate_joint_exists(right_actuator_name_);
+    validate_joint_exists(drum_spin_name_);
 
     validate_joint_interfaces(front_left_wheel_name_);
     validate_joint_interfaces(front_right_wheel_name_);
@@ -486,6 +309,7 @@ private:
     validate_joint_interfaces(rear_right_wheel_name_);
     validate_linear_actuator_interfaces(left_actuator_name_);
     validate_linear_actuator_interfaces(right_actuator_name_);
+    validate_joint_interfaces(drum_spin_name_);
   }
 
   std::string get_required_string(const std::string & name) const
@@ -711,31 +535,6 @@ private:
 
 
 
-  void send_heartbeat_before_motor_command(const std::string & label)
-  {
-    if (!front_left_spark_)
-    {
-      return;
-    }
-
-    const bool ok = front_left_spark_->send_heartbeats(false);
-
-    if (ok)
-    {
-      ++heartbeat_count_;
-    }
-    else
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Failed to send heartbeat before %s motor command",
-        label.c_str());
-    }
-
-    sleep_bus_gap();
-  }
 
   void maybe_send_heartbeat()
   {
@@ -748,10 +547,7 @@ private:
 
     if (front_left_spark_)
     {
-      if (front_left_spark_->send_heartbeats(false))
-      {
-        ++heartbeat_count_;
-      }
+      front_left_spark_->send_heartbeats(false);
     }
 
     next_heartbeat_time_ += HEARTBEAT_PERIOD;
@@ -760,303 +556,6 @@ private:
     {
       next_heartbeat_time_ = now + HEARTBEAT_PERIOD;
     }
-  }
-
-  void send_zero_duty_wheels_only(bool print)
-  {
-    if (front_left_spark_)
-    {
-      front_left_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (front_right_spark_)
-    {
-      front_right_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (rear_left_spark_)
-    {
-      rear_left_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (rear_right_spark_)
-    {
-      rear_right_spark_->set_duty_cycle(0.0f, print);
-    }
-  }
-
-  void send_zero_duty_all(bool print)
-  {
-    if (front_left_spark_)
-    {
-      front_left_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (front_right_spark_)
-    {
-      front_right_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (rear_left_spark_)
-    {
-      rear_left_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (rear_right_spark_)
-    {
-      rear_right_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (left_actuator_spark_)
-    {
-      left_actuator_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (right_actuator_spark_)
-    {
-      right_actuator_spark_->set_duty_cycle(0.0f, print);
-    }
-
-    if (drum_spark_)
-    {
-      drum_spark_->set_duty_cycle(0.0f, print);
-    }
-  }
-
-  bool detect_runaway(
-    const std::string & label,
-    const std::unique_ptr<CANDevice> & spark,
-    double target_motor_rpm)
-  {
-    if (!spark)
-    {
-      return false;
-    }
-
-    const auto & tel = spark->telemetry();
-
-    if (!tel.has_encoder_velocity)
-    {
-      return false;
-    }
-
-    const double measured_rpm =
-      static_cast<double>(tel.encoder_velocity_rpm);
-
-    const double rpm_error =
-      measured_rpm - target_motor_rpm;
-
-    const bool target_small =
-      std::fabs(target_motor_rpm) < RUNAWAY_SMALL_TARGET_RPM;
-
-    const bool measured_large =
-      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM;
-
-    const bool huge_error =
-      std::fabs(rpm_error) > RUNAWAY_ALLOWED_RPM_ERROR;
-
-    const bool sign_opposed =
-      std::fabs(target_motor_rpm) > RUNAWAY_SIGN_TARGET_MIN_RPM &&
-      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM &&
-      ((target_motor_rpm > 0.0 && measured_rpm < 0.0) ||
-       (target_motor_rpm < 0.0 && measured_rpm > 0.0));
-
-    const bool high_applied =
-      tel.has_applied_output &&
-      std::fabs(static_cast<double>(tel.applied_output)) >
-        RUNAWAY_HIGH_APPLIED_OUTPUT;
-
-    const bool runaway =
-      (target_small && measured_large) ||
-      (huge_error && measured_large && high_applied) ||
-      sign_opposed;
-
-    if (runaway)
-    {
-      if (tel.has_applied_output)
-      {
-        RCLCPP_ERROR(
-          logger_,
-          "RUNAWAY DETECTED on %s: target_motor_rpm=%.3f measured_motor_rpm=%.3f rpm_error=%.3f applied=%.3f",
-          label.c_str(),
-          target_motor_rpm,
-          measured_rpm,
-          rpm_error,
-          static_cast<double>(tel.applied_output));
-      }
-      else
-      {
-        RCLCPP_ERROR(
-          logger_,
-          "RUNAWAY DETECTED on %s: target_motor_rpm=%.3f measured_motor_rpm=%.3f rpm_error=%.3f applied=NO_FEEDBACK",
-          label.c_str(),
-          target_motor_rpm,
-          measured_rpm,
-          rpm_error);
-      }
-    }
-
-    return runaway;
-  }
-
-  void latch_runaway_and_stop()
-  {
-    ++runaway_count_;
-    runaway_latched_ = true;
-
-    RCLCPP_ERROR(
-      logger_,
-      "Runaway latched. Sending zero-duty stop burst and blocking velocity commands until command returns to zero.");
-
-    send_stop_for_duration(RUNAWAY_STOP_TIME);
-  }
-
-  void write_one_motor_native_velocity(
-    const std::string & label,
-    const std::unique_ptr<CANDevice> & spark,
-    double command_rad_per_sec)
-  {
-    if (!spark)
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Cannot write to %s motor because SparkMax object is null",
-        label.c_str());
-
-      return;
-    }
-
-    if (!std::isfinite(command_rad_per_sec))
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Command for %s motor is not finite. Skipping this command.",
-        label.c_str());
-
-      return;
-    }
-
-    const double target_motor_rpm =
-      command_rad_per_sec * gear_ratio_ * 60.0 / TWO_PI;
-
-    const auto & tel = spark->telemetry();
-
-    const bool has_velocity = tel.has_encoder_velocity;
-    const bool has_applied = tel.has_applied_output;
-
-    if (has_velocity && has_applied)
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        500,
-        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=%.3f measured_wheel_rad/s=%.6f applied=%.3f",
-        label.c_str(),
-        command_rad_per_sec,
-        gear_ratio_,
-        target_motor_rpm,
-        static_cast<double>(tel.encoder_velocity_rpm),
-        static_cast<double>(tel.wheel_rad_per_sec),
-        static_cast<double>(tel.applied_output));
-    }
-    else if (has_velocity && !has_applied)
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        500,
-        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=%.3f measured_wheel_rad/s=%.6f applied=NO_FEEDBACK",
-        label.c_str(),
-        command_rad_per_sec,
-        gear_ratio_,
-        target_motor_rpm,
-        static_cast<double>(tel.encoder_velocity_rpm),
-        static_cast<double>(tel.wheel_rad_per_sec));
-    }
-    else if (!has_velocity && has_applied)
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        500,
-        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=NO_FEEDBACK measured_wheel_rad/s=NO_FEEDBACK applied=%.3f",
-        label.c_str(),
-        command_rad_per_sec,
-        gear_ratio_,
-        target_motor_rpm,
-        static_cast<double>(tel.applied_output));
-    }
-    else
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        500,
-        "NATIVE VELOCITY: %s cmd_wheel_rad/s=%.6f gear_ratio=%.3f target_motor_rpm=%.3f | READBACK measured_motor_rpm=NO_FEEDBACK measured_wheel_rad/s=NO_FEEDBACK applied=NO_FEEDBACK",
-        label.c_str(),
-        command_rad_per_sec,
-        gear_ratio_,
-        target_motor_rpm);
-    }
-
-    if (detect_runaway(label, spark, target_motor_rpm))
-    {
-      latch_runaway_and_stop();
-      return;
-    }
-
-    if (runaway_latched_)
-    {
-      return;
-    }
-
-    send_heartbeat_before_motor_command(label);
-
-    const bool ok = spark->set_velocity_rad_per_sec(
-      static_cast<float>(command_rad_per_sec),
-      print_commands_);
-
-    sleep_bus_gap();
-
-    if (ok)
-    {
-      ++command_count_;
-    }
-    else
-    {
-      RCLCPP_WARN_THROTTLE(
-        logger_,
-        *rclcpp::Clock::make_shared(),
-        1000,
-        "Failed to send native velocity command to %s motor",
-        label.c_str());
-    }
-  }
-
-  void write_drum_velocity()
-  {
-    if (!drum_spark_)
-    {
-      return;
-    }
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now < next_drum_command_write_time_)
-    {
-      return;
-    }
-    next_drum_command_write_time_ = now + COMMAND_WRITE_PERIOD;
-
-    const double drum_command = drum_spark_->commanded_velocity();
-    const double command = std::isfinite(drum_command) ? drum_command : 0.0;
-    const double duty = clamp_throttle(command);  // command IS the duty, -1.0 to 1.0
-
-    drum_spark_->set_duty_cycle(static_cast<float>(duty), print_commands_);
-    sleep_bus_gap();
   }
 
   void send_stop_for_duration(std::chrono::milliseconds duration)
@@ -1088,7 +587,7 @@ private:
 
       if (now >= next_command)
       {
-        send_zero_duty_all(false);
+        can_system_->send_zero_duty_all();
 
         next_command += STOP_COMMAND_PERIOD;
 
@@ -1113,132 +612,17 @@ private:
 
     next_feedback_read_time_ += FEEDBACK_READ_PERIOD;
 
+    // TODO fix this - shouldn't be '< now - FEEDBACK_READ_PERIOD', could just be '< now'. Alternatively, always set to now + FEEDBACK_READ_PERIOD
     if (next_feedback_read_time_ < now - FEEDBACK_READ_PERIOD)
     {
       next_feedback_read_time_ = now + FEEDBACK_READ_PERIOD;
     }
 
-    ++feedback_cycle_count_;
-
-    read_telemetry_like_test_script(
-      MAX_FEEDBACK_FRAMES_PER_READ,
-      print_status_frames_);
+    read_telemetry_like_test_script(MAX_FEEDBACK_FRAMES_PER_READ);
   }
 
-  void maybe_drain_can_rx_without_feedback()
+  void read_telemetry_like_test_script(int max_frames)
   {
-    const auto now = std::chrono::steady_clock::now();
-
-    if (now < next_rx_drain_time_)
-    {
-      return;
-    }
-
-    next_rx_drain_time_ += RX_DRAIN_PERIOD;
-
-    if (next_rx_drain_time_ < now - RX_DRAIN_PERIOD)
-    {
-      next_rx_drain_time_ = now + RX_DRAIN_PERIOD;
-    }
-
-    drain_can_rx_without_feedback(
-      RX_DRAIN_FRAMES_PER_READ,
-      false);
-  }
-
-  bool drain_can_rx_without_feedback(
-    int max_frames,
-    bool print_status_frames)
-  {
-    bool drained_any = false;
-    int frames_read = 0;
-    int empty_reads = 0;
-
-    while (frames_read < max_frames && empty_reads < RX_DRAIN_EMPTY_READ_RETRIES)
-    {
-      CANFrame frame;
-
-      if (!can_.read_frame(frame, false))
-      {
-        ++empty_reads;
-        ++feedback_empty_count_;
-        std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
-        continue;
-      }
-
-      empty_reads = 0;
-      ++frames_read;
-      ++can_frames_read_count_;
-      drained_any = true;
-
-      left_actuator_spark_->observe_actuator_raw_frame(frame);
-      right_actuator_spark_->observe_actuator_raw_frame(frame);
-
-      // Parse status frames into cached telemetry if they happen to match, but
-      // do not update ros2_control joint state when feedback is disabled.
-      bool parsed_this_frame = false;
-
-      if (front_left_spark_ &&
-          front_left_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (front_right_spark_ &&
-          front_right_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (rear_left_spark_ &&
-          rear_left_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (rear_right_spark_ &&
-          rear_right_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (left_actuator_spark_ &&
-          left_actuator_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (right_actuator_spark_ &&
-          right_actuator_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (drum_spark_ &&
-          drum_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (parsed_this_frame)
-      {
-        ++can_frames_parsed_count_;
-      }
-    }
-
-    if (drained_any)
-    {
-      ++telemetry_hit_count_;
-    }
-
-    return drained_any;
-  }
-
-  bool read_telemetry_like_test_script(
-    int max_frames,
-    bool print_status_frames)
-  {
-    bool parsed_any = false;
     int frames_read = 0;
     int empty_reads = 0;
 
@@ -1249,81 +633,27 @@ private:
       if (!can_.read_frame(frame, false))
       {
         ++empty_reads;
-        ++feedback_empty_count_;
         std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
         continue;
       }
 
       empty_reads = 0;
       ++frames_read;
-      ++can_frames_read_count_;
 
       left_actuator_spark_->observe_actuator_raw_frame(frame);
       right_actuator_spark_->observe_actuator_raw_frame(frame);
-
-      bool parsed_this_frame = false;
-
-      if (front_left_spark_ &&
-          front_left_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (front_right_spark_ &&
-          front_right_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (rear_left_spark_ &&
-          rear_left_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (rear_right_spark_ &&
-          rear_right_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (left_actuator_spark_ &&
-          left_actuator_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (right_actuator_spark_ &&
-          right_actuator_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (drum_spark_ &&
-          drum_spark_->handle_status_frame(frame, print_status_frames))
-      {
-        parsed_this_frame = true;
-      }
-
-      if (parsed_this_frame)
-      {
-        parsed_any = true;
-        ++can_frames_parsed_count_;
-      }
+      can_system_->handle_status_frame(frame);
     }
-
-    if (parsed_any)
-    {
-      ++telemetry_hit_count_;
-    }
-
-    return parsed_any;
   }
 
 private:
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
 
   CANComms can_;
+  std::string serial_device_{"/dev/ttyUSB0"};
+  int serial_baud_rate_{2000000};
+  int can_baud_rate_{1000000};
+  int timeout_ms_{5};
 
   std::string front_left_wheel_name_{"front_left_wheel_joint"};
   std::string front_right_wheel_name_{"front_right_wheel_joint"};
@@ -1331,28 +661,16 @@ private:
   std::string rear_right_wheel_name_{"rear_right_wheel_joint"};
   std::string left_actuator_name_{"left_linear_actuator_joint"};
   std::string right_actuator_name_{"right_linear_actuator_joint"};
+  std::string drum_spin_name_{"drum_spin_joint"};
 
-  std::string serial_device_{"/dev/ttyUSB0"};
-
-  int serial_baud_rate_{2000000};
-  int can_baud_rate_{1000000};
-  int timeout_ms_{5};
-  int enc_counts_per_rev_{2048};
-
-  bool loopback_mode_{false};
-
-  bool print_commands_{false};
-  bool print_status_frames_{false};
-  bool debug_printing_enabled_{false};
-  bool feedback_enabled_{false};
-
-  double gear_ratio_{1.0};
   double command_deadband_rad_per_sec_{0.001};
 
   uint8_t pid_slot_{0};
 
   std::chrono::steady_clock::time_point next_drum_command_write_time_{
     std::chrono::steady_clock::now()};
+
+  std::unique_ptr<CANSystem> can_system_;
 
   std::unique_ptr<CANDevice> front_left_spark_;
   std::unique_ptr<CANDevice> front_right_spark_;
@@ -1362,38 +680,11 @@ private:
   std::unique_ptr<CANDevice> right_actuator_spark_;
   std::unique_ptr<CANDevice> drum_spark_;
 
-  int command_count_{0};
-  int skipped_idle_write_count_{0};
-  int telemetry_read_count_{0};
-  int telemetry_hit_count_{0};
-  int can_frames_read_count_{0};
-  int can_frames_parsed_count_{0};
-  int heartbeat_count_{0};
-  int idle_stop_count_{0};
-  int non_finite_command_count_{0};
-  int feedback_cycle_count_{0};
-  int feedback_empty_count_{0};
-  int runaway_count_{0};
-
   bool motors_currently_commanded_{false};
-  bool runaway_latched_{false};
 
-  std::chrono::steady_clock::time_point next_heartbeat_time_{
-    std::chrono::steady_clock::now()};
-
-  std::chrono::steady_clock::time_point next_feedback_read_time_{
-    std::chrono::steady_clock::now()};
-
-  std::chrono::steady_clock::time_point next_rx_drain_time_{
-    std::chrono::steady_clock::now()};
-
-  std::chrono::steady_clock::time_point next_command_write_time_{
-    std::chrono::steady_clock::now()};
-
-  std::chrono::steady_clock::time_point last_print_time_{
-    std::chrono::steady_clock::now()};
-
-  std::unique_ptr<CANSystem> can_system_;
+  std::chrono::steady_clock::time_point next_heartbeat_time_{std::chrono::steady_clock::now()};
+  std::chrono::steady_clock::time_point next_feedback_read_time_{std::chrono::steady_clock::now()};
+  std::chrono::steady_clock::time_point next_command_write_time_{std::chrono::steady_clock::now()};
 };
 
 }  // namespace diffdrive_canbus

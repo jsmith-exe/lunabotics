@@ -40,15 +40,16 @@ public:
   virtual double velocity() const { return 0.0; }
   virtual double rotation_position() const { return 0.0; }
   virtual void update_joint_state_from_telemetry() {}
-  // actuator stuff, also hopefully temporary
-  virtual void request_actuator_status3_period(const CANComms & can) {}
-  virtual void write_actuator_closed_loop() {}
-  virtual void observe_actuator_raw_frame(const CANFrame & frame) {}
+  virtual void write_one_motor_native_velocity() { throw std::runtime_error("base write_one_motor_native_velocity used"); }
+  // TODO hopefully temporary
+  virtual void request_actuator_status3_period(CANComms & can) { throw std::runtime_error("base request_actuator_status3_period used"); }
+  virtual void write_actuator_closed_loop() { throw std::runtime_error("base write_actuator_closed_loop used"); }
+  virtual void observe_actuator_raw_frame(const CANFrame & frame) { throw std::runtime_error("base observe_actuator_raw_frame used"); }
 
   bool send_heartbeats(bool print = false);
   bool clear_faults(bool print = false);
 
-  bool set_duty_cycle(float duty, bool print = false);
+  bool set_duty_cycle(float duty);
 
   bool stop(bool print = false);
 
@@ -157,8 +158,7 @@ protected:
 
   bool send_simple_setpoint(
     uint8_t api_id,
-    float setpoint,
-    bool print);
+    float setpoint);
 
   bool send_setpoint_with_control_type(
     uint8_t api_class,

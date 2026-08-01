@@ -97,11 +97,15 @@ namespace diffdrive_canbus {
   // can system
   class CANSystem {
   public:
-    CANSystem(CANComms &comms);
+  CANSystem(CANComms &comms);
     void add_device(const std::unique_ptr<CANDevice> &device);
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
     void update_joint_state_from_telemetry();
+    void handle_status_frame(const CANFrame &frame);
+    void send_zero_duty_all();
+
+  static bool runaway_latched_;
 
   private:
     std::map<uint8_t, CANDevice*> devices_;
@@ -121,10 +125,14 @@ namespace diffdrive_canbus {
     double commanded_velocity() const override { return commanded_velocity_; }
     void update_joint_state_from_telemetry();
 
+    void write_one_motor_native_velocity();
+    void send_heartbeat_before_motor_command();
+    bool detect_runaway(double target_motor_rpm);
+
   protected:
     double rotation_position_{0.0};
     double velocity_{0.0};
-    double commanded_velocity_{0.0};
+    double commanded_velocity_{0.0}; // TODO rename to command_rad_per_sec ??
     double position_offset_rad_{0.0};
     bool position_offset_valid_{false};
   };
@@ -138,11 +146,11 @@ namespace diffdrive_canbus {
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
 
-    void request_actuator_status3_period(CANComms & can_);
-    void write_actuator_closed_loop();
+    void request_actuator_status3_period(CANComms & can_) override;
+    void write_actuator_closed_loop() override;
     void send_actuator_duty(double duty);
     double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage);
-    void observe_actuator_raw_frame(const CANFrame & frame);
+    void observe_actuator_raw_frame(const CANFrame & frame) override;
   private:
     // TODO rename to be clearly specific to actuator
     double command_{0.0};

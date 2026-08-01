@@ -36,42 +36,6 @@ constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS = 46;
 
 constexpr int TELEMETRY_EMPTY_READ_RETRIES = 8;
 constexpr auto TELEMETRY_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
-
-void print_debug_can_id(
-  const std::string & label,
-  uint8_t api_id,
-  uint8_t device_id,
-  uint32_t can_id,
-  float setpoint,
-  bool print)
-{
-  if (print)
-  {
-    std::cout << "DEBUG TX " << label
-              << ": api_id=0x"
-              << std::hex << std::uppercase << static_cast<int>(api_id)
-              << " device_id=" << std::dec << static_cast<int>(device_id)
-              << " can_id=0x"
-              << std::hex << std::uppercase << can_id
-              << std::dec
-              << " setpoint=" << setpoint
-              << "\n";
-  }
-
-  // Keep these warnings always-on because they indicate a dangerous CAN ID issue.
-  if (device_id == 0)
-  {
-    std::cerr << "WARNING: setpoint command is targeting SPARK MAX device ID 0\n";
-  }
-
-  if ((can_id & 0x3F) == 0)
-  {
-    std::cerr << "WARNING: outgoing setpoint CAN ID appears to end in device ID 0: 0x"
-              << std::hex << std::uppercase << can_id
-              << std::dec << "\n";
-  }
-}
-
 }  // namespace
 
 CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio)
@@ -210,19 +174,9 @@ bool CANDevice::send_setpoint(
 
 bool CANDevice::send_simple_setpoint(
   uint8_t api_id,
-  float setpoint,
-  bool print)
+  float setpoint)
 {
   const uint32_t id = make_sparkmax_id_from_api_id(api_id, can_id_);
-
-  print_debug_can_id(
-    "SIMPLE_SETPOINT",
-    api_id,
-    can_id_,
-    id,
-    setpoint,
-    print);
-
   std::vector<uint8_t> data(8, 0x00);
 
   uint8_t target[4];
@@ -238,7 +192,7 @@ bool CANDevice::send_simple_setpoint(
   data[6] = static_cast<uint8_t>(native_velocity_pid_slot_ & 0x03);
   data[7] = 0x00;
 
-  return can_.send_extended_frame(id, data, print);
+  return can_.send_extended_frame(id, data, false);
 }
 
 bool CANDevice::send_setpoint_with_control_type(
@@ -294,21 +248,20 @@ bool CANDevice::send_setpoint_with_control_type(
   return can_.send_extended_frame(id, data, print);
 }
 
-bool CANDevice::set_duty_cycle(float duty, bool print)
+bool CANDevice::set_duty_cycle(float duty)
 {
   duty = clamp_duty(duty);
 
   return send_simple_setpoint(
     SPARKMAX_API_DUTY_CYCLE_SET,
-    duty,
-    print);
+    duty);
 }
 
 bool CANDevice::stop(bool print)
 {
   send_heartbeats(false);
 
-  return set_duty_cycle(0.0f, print);
+  return set_duty_cycle(0.0f);
 }
 
 bool CANDevice::read_telemetry(int max_frames, bool print_status_frames)
@@ -435,8 +388,7 @@ bool CANDevice::set_velocity_rpm(
 {
   return send_simple_setpoint(
     SPARKMAX_API_VELOCITY_SET,
-    target_motor_rpm,
-    print);
+    target_motor_rpm);
 }
 
 void CANDevice::reset_velocity_controller()

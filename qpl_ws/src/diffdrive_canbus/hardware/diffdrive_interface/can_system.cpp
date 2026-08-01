@@ -7,6 +7,8 @@
 
 
 namespace diffdrive_canbus {
+  bool CANSystem::runaway_latched_ = false;
+
   CANSystem::CANSystem(CANComms &comms) : comms_(comms) {}
 
   void CANSystem::add_device(const std::unique_ptr<CANDevice> &device) {
@@ -28,6 +30,18 @@ namespace diffdrive_canbus {
   void CANSystem::update_joint_state_from_telemetry() {
     for (auto & [can_id, device] : devices_) {
       device->update_joint_state_from_telemetry();
+    }
+  }
+
+  void CANSystem::handle_status_frame(const CANFrame &frame) {
+    for (auto & [can_id, device] : devices_) {
+      device->handle_status_frame(frame, false);
+    }
+  }
+
+  void CANSystem::send_zero_duty_all() {
+    for (auto & [can_id, device] : devices_) {
+      device->set_duty_cycle(0.0f);
     }
   }
 }
