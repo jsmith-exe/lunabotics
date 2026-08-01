@@ -97,25 +97,27 @@ namespace diffdrive_canbus {
   // can system
   class CANSystem {
   public:
-  CANSystem(CANComms &comms);
+    CANSystem(CANComms &comms, rclcpp::Logger logger) : comms_(comms), logger_(logger) {}
     void add_device(const std::unique_ptr<CANDevice> &device);
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
     void update_joint_state_from_telemetry();
     void handle_status_frame(const CANFrame &frame);
     void send_zero_duty_all();
+    void send_heartbeat();
 
   static bool runaway_latched_;
 
   private:
     std::map<uint8_t, CANDevice*> devices_;
     CANComms &comms_;
+    rclcpp::Logger logger_;
   };
 
   class Motor : public CANDevice {
   public:
-    Motor(const std::string &name, const uint8_t &can_id, CANComms &can, float gear_ratio)
-      : CANDevice(name, can_id, can, gear_ratio) {}
+    Motor(const std::string &name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
+      : CANDevice(name, can_id, can, gear_ratio, logger) {}
 
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
@@ -125,7 +127,7 @@ namespace diffdrive_canbus {
     double commanded_velocity() const override { return commanded_velocity_; }
     void update_joint_state_from_telemetry();
 
-    void write_one_motor_native_velocity();
+    void write();
     void send_heartbeat_before_motor_command();
     bool detect_runaway(double target_motor_rpm);
 
@@ -140,8 +142,8 @@ namespace diffdrive_canbus {
 
   class Actuator : public CANDevice {
   public:
-    Actuator(const std::string &name, const uint8_t &can_id, CANComms &can)
-      : CANDevice(name, can_id, can, 1.0) {} // TODO remove gear_ratio from actuators and base class
+    Actuator(const std::string &name, const uint8_t &can_id, CANComms &can, rclcpp::Logger &logger)
+      : CANDevice(name, can_id, can, 1.0, logger) {} // TODO remove gear_ratio from actuators and base class
 
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;

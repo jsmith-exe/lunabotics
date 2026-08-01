@@ -4,7 +4,6 @@
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
-#include "hardware_interface/types/hardware_interface_type_values.hpp"
 
 #include "pluginlib/class_list_macros.hpp"
 
@@ -16,7 +15,6 @@
 #include <cstring>
 #include <memory>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -26,8 +24,7 @@ namespace diffdrive_canbus
 class DiffDriveCanbusHardware : public hardware_interface::SystemInterface
 {
 public:
-  hardware_interface::CallbackReturn on_init(
-    const hardware_interface::HardwareInfo & info) override
+  hardware_interface::CallbackReturn on_init(const hardware_interface::HardwareInfo & info) override
   {
     if (SystemInterface::on_init(info) != hardware_interface::CallbackReturn::SUCCESS)
     {
@@ -38,34 +35,23 @@ public:
 
     try
     {
-      can_system_ = std::make_unique<CANSystem>(can_);
+      can_system_ = std::make_unique<CANSystem>(can_, logger_);
 
-      front_left_spark_ = std::make_unique<Motor>(front_left_wheel_name_, 1,
-        can_, static_cast<float>(100.0));
+      front_left_motor_ = std::make_unique<Motor>("front_left_wheel_joint", 1, can_, 100.0, logger_);
+      front_right_motor_ = std::make_unique<Motor>("front_right_wheel_joint", 2, can_, 100.0, logger_);
+      rear_left_motor_ = std::make_unique<Motor>("rear_left_wheel_joint", 3, can_, 100.0, logger_);
+      rear_right_motor_ = std::make_unique<Motor>("rear_right_wheel_joint", 4, can_, 100.0, logger_);
+      left_actuator_ = std::make_unique<Actuator>("left_linear_actuator_joint", 5, can_, logger_);
+      right_actuator_ = std::make_unique<Actuator>("right_linear_actuator_joint", 6, can_, logger_);
+      drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, can_, 125.0, logger_);
 
-      front_right_spark_ = std::make_unique<Motor>(front_right_wheel_name_, 2,
-        can_, static_cast<float>(100.0));
-
-      rear_left_spark_ = std::make_unique<Motor>(rear_left_wheel_name_, 3,
-        can_, static_cast<float>(100.0));
-
-      rear_right_spark_ = std::make_unique<Motor>(rear_right_wheel_name_, 4,
-        can_, static_cast<float>(100.0));
-
-      left_actuator_spark_ = std::make_unique<Actuator>(left_actuator_name_, 5, can_);
-
-      right_actuator_spark_ = std::make_unique<Actuator>(right_actuator_name_, 6, can_);
-
-      drum_spark_ = std::make_unique<Motor>(drum_spin_name_, 7,
-      can_, static_cast<float>(125.0));
-
-      can_system_->add_device(front_left_spark_);
-      can_system_->add_device(front_right_spark_);
-      can_system_->add_device(rear_left_spark_);
-      can_system_->add_device(rear_right_spark_);
-      can_system_->add_device(left_actuator_spark_);
-      can_system_->add_device(right_actuator_spark_);
-      can_system_->add_device(drum_spark_);
+      can_system_->add_device(front_left_motor_);
+      can_system_->add_device(front_right_motor_);
+      can_system_->add_device(rear_left_motor_);
+      can_system_->add_device(rear_right_motor_);
+      can_system_->add_device(left_actuator_);
+      can_system_->add_device(right_actuator_);
+      can_system_->add_device(drum_motor_);
     }
     catch (const std::exception & e)
     {
@@ -96,10 +82,7 @@ public:
     {
       RCLCPP_INFO(logger_, "Connecting to CAN adapter on %s", serial_device_.c_str());
 
-      can_.connect(
-        serial_device_,
-        serial_baud_rate_,
-        timeout_ms_);
+      can_.connect(serial_device_, serial_baud_rate_, timeout_ms_);
 
       const bool configured = can_.configure_adapter(
         can_baud_rate_,
@@ -118,14 +101,14 @@ public:
       RCLCPP_INFO(logger_, "CAN adapter configured");
 
       constexpr int pid_slot = 0;
-      front_left_spark_->set_native_velocity_pid_slot(pid_slot);
-      front_right_spark_->set_native_velocity_pid_slot(pid_slot);
-      rear_left_spark_->set_native_velocity_pid_slot(pid_slot);
-      rear_right_spark_->set_native_velocity_pid_slot(pid_slot);
-      drum_spark_->set_native_velocity_pid_slot(pid_slot);
+      front_left_motor_->set_native_velocity_pid_slot(pid_slot);
+      front_right_motor_->set_native_velocity_pid_slot(pid_slot);
+      rear_left_motor_->set_native_velocity_pid_slot(pid_slot);
+      rear_right_motor_->set_native_velocity_pid_slot(pid_slot);
+      drum_motor_->set_native_velocity_pid_slot(pid_slot);
 
-      left_actuator_spark_->request_actuator_status3_period(can_);
-      right_actuator_spark_->request_actuator_status3_period(can_);
+      left_actuator_->request_actuator_status3_period(can_);
+      right_actuator_->request_actuator_status3_period(can_);
     }
     catch (const std::exception & e)
     {
@@ -145,8 +128,7 @@ public:
     return hardware_interface::CallbackReturn::SUCCESS;
   }
 
-  hardware_interface::CallbackReturn on_activate(
-    const rclcpp_lifecycle::State &) override
+  hardware_interface::CallbackReturn on_activate(const rclcpp_lifecycle::State &) override
   {
     next_drum_command_write_time_ = std::chrono::steady_clock::now();
 
@@ -163,8 +145,7 @@ public:
     return hardware_interface::CallbackReturn::SUCCESS;
   }
 
-  hardware_interface::CallbackReturn on_deactivate(
-    const rclcpp_lifecycle::State &) override
+  hardware_interface::CallbackReturn on_deactivate(const rclcpp_lifecycle::State &) override
   {
     RCLCPP_WARN(logger_, "Deactivating DiffDriveCanbusHardware");
     RCLCPP_WARN(logger_, "Sending guaranteed zero-duty stop burst to all motors and actuators");
@@ -202,42 +183,8 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-    // Global non-RIO heartbeat. Keep this independent from individual motor writes.
     send_heartbeat_if_due();
-
-    // if (CANSystem::runaway_latched_)
-    // {
-    //   if (!any_active_command)
-    //   {
-    //     CANSystem::runaway_latched_ = false;
-    //   }
-    //   else
-    //   {
-    //     maybe_send_heartbeat();
-    //     can_system_->send_zero_duty_all();
-    //
-    //     return hardware_interface::return_type::OK;
-    //   }
-    // }
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now < next_command_write_time_)
-    {
-      return hardware_interface::return_type::OK;
-    }
-    next_command_write_time_ = now + COMMAND_WRITE_PERIOD;
-
-    motors_currently_commanded_ = true;
-
-    front_left_spark_->write_one_motor_native_velocity();
-    front_right_spark_->write_one_motor_native_velocity();
-    rear_left_spark_->write_one_motor_native_velocity();
-    rear_right_spark_->write_one_motor_native_velocity();
-    drum_spark_->write_one_motor_native_velocity();
-
-    left_actuator_spark_->write_actuator_closed_loop();
-    right_actuator_spark_->write_actuator_closed_loop();
-
+    send_frames_if_due();
     return hardware_interface::return_type::OK;
   }
 
@@ -253,16 +200,12 @@ private:
     }
 
     next_heartbeat_time_ += HEARTBEAT_PERIOD;
-
     if (next_heartbeat_time_ < now - HEARTBEAT_PERIOD)
     {
       next_heartbeat_time_ = now + HEARTBEAT_PERIOD;
     }
 
-    if (front_left_spark_)
-    {
-      front_left_spark_->send_heartbeats(false);
-    }
+    can_system_->send_heartbeat();
   }
 
   void read_frames_if_due()
@@ -302,10 +245,25 @@ private:
       empty_reads = 0;
       ++frames_read;
 
-      left_actuator_spark_->observe_actuator_raw_frame(frame);
-      right_actuator_spark_->observe_actuator_raw_frame(frame);
+      left_actuator_->observe_actuator_raw_frame(frame);
+      right_actuator_->observe_actuator_raw_frame(frame);
       can_system_->handle_status_frame(frame);
     }
+  }
+
+  void send_frames_if_due() {
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_command_write_time_) { return; }
+    next_command_write_time_ = now + COMMAND_WRITE_PERIOD;
+
+    front_left_motor_->write();
+    front_right_motor_->write();
+    rear_left_motor_->write();
+    rear_right_motor_->write();
+    drum_motor_->write();
+
+    left_actuator_->write_actuator_closed_loop();
+    right_actuator_->write_actuator_closed_loop();
   }
 
   void send_stop_for_duration(std::chrono::milliseconds duration)
@@ -322,9 +280,9 @@ private:
 
       if (now >= next_heartbeat)
       {
-        if (front_left_spark_)
+        if (front_left_motor_)
         {
-          front_left_spark_->send_heartbeats(false);
+          front_left_motor_->send_heartbeats(false);
         }
 
         next_heartbeat += HEARTBEAT_PERIOD;
@@ -359,28 +317,18 @@ private:
   int can_baud_rate_{1000000};
   int timeout_ms_{5};
 
-  std::string front_left_wheel_name_{"front_left_wheel_joint"};
-  std::string front_right_wheel_name_{"front_right_wheel_joint"};
-  std::string rear_left_wheel_name_{"rear_left_wheel_joint"};
-  std::string rear_right_wheel_name_{"rear_right_wheel_joint"};
-  std::string left_actuator_name_{"left_linear_actuator_joint"};
-  std::string right_actuator_name_{"right_linear_actuator_joint"};
-  std::string drum_spin_name_{"drum_spin_joint"};
-
   std::chrono::steady_clock::time_point next_drum_command_write_time_{
     std::chrono::steady_clock::now()};
 
   std::unique_ptr<CANSystem> can_system_;
 
-  std::unique_ptr<CANDevice> front_left_spark_;
-  std::unique_ptr<CANDevice> front_right_spark_;
-  std::unique_ptr<CANDevice> rear_left_spark_;
-  std::unique_ptr<CANDevice> rear_right_spark_;
-  std::unique_ptr<CANDevice> left_actuator_spark_;
-  std::unique_ptr<CANDevice> right_actuator_spark_;
-  std::unique_ptr<CANDevice> drum_spark_;
-
-  bool motors_currently_commanded_{false};
+  std::unique_ptr<CANDevice> front_left_motor_;
+  std::unique_ptr<CANDevice> front_right_motor_;
+  std::unique_ptr<CANDevice> rear_left_motor_;
+  std::unique_ptr<CANDevice> rear_right_motor_;
+  std::unique_ptr<CANDevice> left_actuator_;
+  std::unique_ptr<CANDevice> right_actuator_;
+  std::unique_ptr<CANDevice> drum_motor_;
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{std::chrono::steady_clock::now()};
   std::chrono::steady_clock::time_point next_feedback_read_time_{std::chrono::steady_clock::now()};

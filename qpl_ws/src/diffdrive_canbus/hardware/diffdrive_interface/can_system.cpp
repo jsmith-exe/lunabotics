@@ -9,8 +9,6 @@
 namespace diffdrive_canbus {
   bool CANSystem::runaway_latched_ = false;
 
-  CANSystem::CANSystem(CANComms &comms) : comms_(comms) {}
-
   void CANSystem::add_device(const std::unique_ptr<CANDevice> &device) {
     devices_[device->can_id()] = device.get();
   }
@@ -43,5 +41,10 @@ namespace diffdrive_canbus {
     for (auto & [can_id, device] : devices_) {
       device->set_duty_cycle(0.0f);
     }
+  }
+
+  void CANSystem::send_heartbeat() {
+    // Send heartbeat from arbitrary device - in this case, whichever was added first.
+    devices_.begin()->second->send_heartbeats(false);
   }
 }

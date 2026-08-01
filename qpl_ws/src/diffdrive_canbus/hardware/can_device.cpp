@@ -38,11 +38,12 @@ constexpr int TELEMETRY_EMPTY_READ_RETRIES = 8;
 constexpr auto TELEMETRY_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 }  // namespace
 
-CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio)
+CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
 : name_(std::move(name)),
   can_id_(can_id),
   can_(can),
-  gear_ratio_(gear_ratio)
+  gear_ratio_(gear_ratio),
+  logger_(logger)
 {
   if (can_id_ == 0)
   {

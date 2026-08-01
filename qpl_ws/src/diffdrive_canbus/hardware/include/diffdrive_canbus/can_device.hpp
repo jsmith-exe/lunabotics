@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <hardware_interface/handle.hpp>
+#include <rclcpp/logger.hpp>
 
 namespace diffdrive_canbus
 {
@@ -27,7 +28,7 @@ struct SparkMaxTelemetry
 class CANDevice
 {
 public:
-  CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio);
+  CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger);
   virtual ~CANDevice() = default; // TODO why do we need this?
 
   std::string name() const;
@@ -40,7 +41,7 @@ public:
   virtual double velocity() const { return 0.0; }
   virtual double rotation_position() const { return 0.0; }
   virtual void update_joint_state_from_telemetry() {}
-  virtual void write_one_motor_native_velocity() { throw std::runtime_error("base write_one_motor_native_velocity used"); }
+  virtual void write() { throw std::runtime_error("base write_one_motor_native_velocity used"); }
   // TODO hopefully temporary
   virtual void request_actuator_status3_period(CANComms & can) { throw std::runtime_error("base request_actuator_status3_period used"); }
   virtual void write_actuator_closed_loop() { throw std::runtime_error("base write_actuator_closed_loop used"); }
@@ -122,6 +123,8 @@ protected:
   static constexpr uint8_t API_INDEX_NON_RIO_HEARTBEAT = 2;
 
   static constexpr uint8_t HEARTBEAT_DEVICE_ID = 0;
+
+  rclcpp::Logger logger_;
 
   std::string name_;
   uint8_t can_id_;

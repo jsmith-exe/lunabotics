@@ -52,30 +52,29 @@ namespace diffdrive_canbus {
     }
   }
 
-  void Motor::write_one_motor_native_velocity()
+  void Motor::write()
   {
-    // TODO validate?
+    // TODO validate
+
     const double target_motor_rpm = commanded_velocity_ * gear_ratio_ * 60.0 / TWO_PI;
-    // if (detect_runaway(target_motor_rpm))
-    // {
-    //   CANSystem::runaway_latched_ = true;
-    //   this->set_duty_cycle(0.0f);
-    //   return;
-    // }
-    //
-    // if (CANSystem::runaway_latched_)
-    // {
-    //   return;
-    // }
 
-    this->send_heartbeat_before_motor_command();
-    this->set_velocity_rad_per_sec(static_cast<float>(commanded_velocity_), false);
-    sleep_bus_gap();
-  }
+    if (detect_runaway(target_motor_rpm))
+    {
+      CANSystem::runaway_latched_ = true;
+      this->set_duty_cycle(0.0f);
+      return;
+    }
+    if (commanded_velocity_ == 0.0)
+    {
+      this->set_duty_cycle(0.0f);
+      CANSystem::runaway_latched_ = false;
+      return;
+    }
+    if (CANSystem::runaway_latched_) { return; }
 
-  void Motor::send_heartbeat_before_motor_command()
-  {
     this->send_heartbeats(false);
+    sleep_bus_gap();
+    this->set_velocity_rad_per_sec(static_cast<float>(commanded_velocity_), false);
     sleep_bus_gap();
   }
 
