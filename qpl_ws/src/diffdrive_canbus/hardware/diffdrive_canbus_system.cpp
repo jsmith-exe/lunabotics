@@ -80,12 +80,13 @@ public:
   {
     try
     {
-      RCLCPP_INFO(logger_, "Connecting to CAN adapter on %s", serial_device_.c_str());
+      const std::string serial_device = "/dev/ttyUSB0";
+      RCLCPP_INFO(logger_, "Connecting to CAN adapter on %s", serial_device.c_str());
 
-      can_.connect(serial_device_, serial_baud_rate_, timeout_ms_);
+      can_.connect(serial_device, 2000000, 5);
 
       const bool configured = can_.configure_adapter(
-        can_baud_rate_,
+        1000000,
         false,
         0x00000000,
         0x00000000,
@@ -118,9 +119,7 @@ public:
       {
         can_.disconnect();
       }
-      catch (...)
-      {
-      }
+      catch (...) {}
 
       return hardware_interface::CallbackReturn::ERROR;
     }
@@ -130,8 +129,6 @@ public:
 
   hardware_interface::CallbackReturn on_activate(const rclcpp_lifecycle::State &) override
   {
-    next_drum_command_write_time_ = std::chrono::steady_clock::now();
-
     next_heartbeat_time_ = std::chrono::steady_clock::now();
     next_feedback_read_time_ = std::chrono::steady_clock::now();
     next_command_write_time_ = std::chrono::steady_clock::now();
@@ -280,13 +277,9 @@ private:
 
       if (now >= next_heartbeat)
       {
-        if (front_left_motor_)
-        {
-          front_left_motor_->send_heartbeats(false);
-        }
+        can_system_->send_heartbeat();
 
         next_heartbeat += HEARTBEAT_PERIOD;
-
         if (next_heartbeat < now - HEARTBEAT_PERIOD)
         {
           next_heartbeat = now + HEARTBEAT_PERIOD;
@@ -298,7 +291,6 @@ private:
         can_system_->send_zero_duty_all();
 
         next_command += STOP_COMMAND_PERIOD;
-
         if (next_command < now - STOP_COMMAND_PERIOD)
         {
           next_command = now + STOP_COMMAND_PERIOD;
@@ -310,16 +302,7 @@ private:
   }
 
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
-
   CANComms can_;
-  std::string serial_device_{"/dev/ttyUSB0"};
-  int serial_baud_rate_{2000000};
-  int can_baud_rate_{1000000};
-  int timeout_ms_{5};
-
-  std::chrono::steady_clock::time_point next_drum_command_write_time_{
-    std::chrono::steady_clock::now()};
-
   std::unique_ptr<CANSystem> can_system_;
 
   std::unique_ptr<CANDevice> front_left_motor_;

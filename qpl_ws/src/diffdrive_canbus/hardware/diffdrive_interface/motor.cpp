@@ -2,6 +2,7 @@
 #include <string>
 #include <hardware_interface/handle.hpp>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <rclcpp/logging.hpp>
 
 #include "diffdrive_canbus/can_comms.hpp"
 #include "diffdrive_canbus/diffdrive_canbus_system.hpp"
@@ -9,6 +10,8 @@
 
 
 namespace diffdrive_canbus {
+  static constexpr double SAFE_STOPPED_VELOCITY = 0.1;
+
   void Motor::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
     state_interfaces.emplace_back(
       name_,
@@ -60,12 +63,14 @@ namespace diffdrive_canbus {
 
     if (detect_runaway(target_motor_rpm))
     {
+      RCLCPP_WARN(logger_, "Runaway detected, enabling latch.");
       CANSystem::runaway_latched_ = true;
       this->set_duty_cycle(0.0f);
       return;
     }
-    if (commanded_velocity_ == 0.0)
+    if (CANSystem::runaway_latched_ && velocity_ <= SAFE_STOPPED_VELOCITY)
     {
+      RCLCPP_WARN(logger_, "Velocity safe, disabling latch.");
       this->set_duty_cycle(0.0f);
       CANSystem::runaway_latched_ = false;
       return;
