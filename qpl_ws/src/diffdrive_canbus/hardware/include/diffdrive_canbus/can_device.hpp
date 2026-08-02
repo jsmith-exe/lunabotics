@@ -3,7 +3,6 @@
 #include "diffdrive_canbus/can_comms.hpp"
 
 #include <cstddef>
-#include <cstdint>
 #include <hardware_interface/handle.hpp>
 #include <rclcpp/logger.hpp>
 
@@ -31,10 +30,9 @@ public:
   CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger);
   virtual ~CANDevice() = default; // TODO why do we need this?
 
-  std::string name() const;
-  uint8_t can_id() const;
-  float gear_ratio() const;
-  void set_gear_ratio(float gear_ratio);
+  std::string name() const { return name_; }
+  uint8_t can_id() const { return can_id_; }
+  float gear_ratio() const { return gear_ratio_; }
 
   // TODO hopefully temporary
   virtual double commanded_velocity() const { return 0.0; }
@@ -51,8 +49,6 @@ public:
   bool clear_faults(bool print = false);
 
   bool set_duty_cycle(float duty);
-
-  bool stop(bool print = false);
 
   bool read_telemetry(int max_frames = 20, bool print_status_frames = false);
 
@@ -71,35 +67,15 @@ public:
 
   void set_native_velocity_pid_slot(uint8_t pid_slot);
 
-  bool set_velocity_rpm(
-    float target_motor_rpm,
-    bool print = false);
-
   bool set_velocity_rad_per_sec(
-    float target_wheel_rad_per_sec,
-    bool print = false);
+    float target_wheel_rad_per_sec);
 
-  bool set_native_velocity_rpm(
-    float target_motor_rpm,
-    bool print = false);
-
-  bool set_native_velocity_rad_per_sec(
-    float target_wheel_rad_per_sec,
-    bool print = false);
-
-  bool debug_send_setpoint_api(
-    uint8_t api_class,
-    uint8_t api_index,
-    float setpoint,
-    uint8_t pid_slot = 0,
-    bool print = false);
-
-  void reset_velocity_controller();
-
-  float velocity_controller_output() const;
-
-  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
-  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
+  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
+    throw std::runtime_error("base setup_ros_state_interfaces used");
+  }
+  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
+    throw std::runtime_error("base setup_ros_command_interfaces used");
+  }
 
 protected:
   static constexpr float PI = 3.14159265358979323846f;
@@ -146,7 +122,6 @@ protected:
 
   static float rpm_to_rad_per_sec(float rpm);
   static float rad_per_sec_to_rpm(float rad_per_sec);
-  static float clamp_duty(float duty);
 
   static void float_to_le_bytes(float value, uint8_t bytes[4]);
   static float le_bytes_to_float(const uint8_t data[8], size_t offset);
@@ -170,10 +145,6 @@ protected:
     uint8_t control_type,
     uint8_t pid_slot,
     bool print);
-
-  bool parse_status_frame(
-    const CANFrame & frame,
-    bool print_status_frame);
 };
 
 }  // namespace diffdrive_canbus

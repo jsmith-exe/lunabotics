@@ -79,7 +79,7 @@ namespace diffdrive_canbus {
 
     this->send_heartbeats(false);
     sleep_bus_gap();
-    this->set_velocity_rad_per_sec(static_cast<float>(commanded_velocity_), false);
+    this->set_velocity_rad_per_sec(static_cast<float>(commanded_velocity_));
     sleep_bus_gap();
   }
 

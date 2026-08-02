@@ -16,9 +16,6 @@
 namespace diffdrive_canbus
 {
 
-namespace
-{
-
 constexpr uint8_t SPARKMAX_API_DUTY_CYCLE_SET = 0x02;
 constexpr uint8_t SPARKMAX_API_VELOCITY_SET   = 0x12;
 
@@ -36,7 +33,6 @@ constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS = 46;
 
 constexpr int TELEMETRY_EMPTY_READ_RETRIES = 8;
 constexpr auto TELEMETRY_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
-}  // namespace
 
 CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
 : name_(std::move(name)),
@@ -55,21 +51,6 @@ CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, flo
   {
     throw std::runtime_error("SparkMax gear ratio must be greater than zero");
   }
-}
-
-std::string CANDevice::name() const
-{
-  return name_;
-}
-
-uint8_t CANDevice::can_id() const
-{
-  return can_id_;
-}
-
-float CANDevice::gear_ratio() const
-{
-  return gear_ratio_;
 }
 
 bool CANDevice::send_heartbeats(bool print)
@@ -129,10 +110,7 @@ bool CANDevice::send_setpoint(
   uint8_t pid_slot,
   bool print)
 {
-  const uint32_t id = make_sparkmax_id(
-    api_class,
-    api_index,
-    can_id_);
+  const uint32_t id = make_sparkmax_id(api_class, api_index, can_id_);
 
   std::cout << "DEBUG TX SETPOINT:"
             << " api_class=" << static_cast<int>(api_class)
@@ -144,16 +122,6 @@ bool CANDevice::send_setpoint(
             << " setpoint=" << setpoint
             << " pid_slot=" << static_cast<int>(pid_slot)
             << "\n";
-
-  if (can_id_ == 0)
-  {
-    std::cerr << "WARNING: send_setpoint is targeting SPARK MAX device ID 0\n";
-  }
-
-  if (can_id_ == 0)
-  {
-    std::cerr << "WARNING: send_setpoint is targeting SPARK MAX device ID 0\n";
-  }
 
   std::vector<uint8_t> data(8, 0x00);
 
@@ -251,18 +219,8 @@ bool CANDevice::send_setpoint_with_control_type(
 
 bool CANDevice::set_duty_cycle(float duty)
 {
-  duty = clamp_duty(duty);
-
-  return send_simple_setpoint(
-    SPARKMAX_API_DUTY_CYCLE_SET,
-    duty);
-}
-
-bool CANDevice::stop(bool print)
-{
-  send_heartbeats(false);
-
-  return set_duty_cycle(0.0f);
+  duty = std::clamp(duty, -1.0f, 1.0f);
+  return send_simple_setpoint(SPARKMAX_API_DUTY_CYCLE_SET, duty);
 }
 
 bool CANDevice::read_telemetry(int max_frames, bool print_status_frames)
@@ -285,7 +243,7 @@ bool CANDevice::read_telemetry(int max_frames, bool print_status_frames)
     empty_reads = 0;
     ++frames_read;
 
-    if (parse_status_frame(frame, print_status_frames))
+    if (handle_status_frame(frame, print_status_frames))
     {
       parsed_any = true;
     }
@@ -294,211 +252,7 @@ bool CANDevice::read_telemetry(int max_frames, bool print_status_frames)
   return parsed_any;
 }
 
-bool CANDevice::handle_status_frame(
-  const CANFrame & frame,
-  bool print_status_frame)
-{
-  return parse_status_frame(frame, print_status_frame);
-}
-
-const SparkMaxTelemetry & CANDevice::telemetry() const
-{
-  return telemetry_;
-}
-
-float CANDevice::encoder_velocity_rpm() const
-{
-  return telemetry_.encoder_velocity_rpm;
-}
-
-float CANDevice::motor_rad_per_sec() const
-{
-  return telemetry_.motor_rad_per_sec;
-}
-
-float CANDevice::wheel_rad_per_sec() const
-{
-  return telemetry_.wheel_rad_per_sec;
-}
-
-float CANDevice::encoder_position_rotations() const
-{
-  return telemetry_.encoder_position_rotations;
-}
-
-float CANDevice::wheel_position_rotations() const
-{
-  return telemetry_.wheel_position_rotations;
-}
-
-float CANDevice::applied_output() const
-{
-  return telemetry_.applied_output;
-}
-
-void CANDevice::set_native_velocity_pid_slot(uint8_t pid_slot)
-{
-  native_velocity_pid_slot_ = static_cast<uint8_t>(pid_slot & 0x03);
-}
-
-bool CANDevice::set_native_velocity_rpm(
-  float target_motor_rpm,
-  bool print)
-{
-  return set_velocity_rpm(target_motor_rpm, print);
-}
-
-bool CANDevice::set_native_velocity_rad_per_sec(
-  float target_wheel_rad_per_sec,
-  bool print)
-{
-  return set_velocity_rad_per_sec(target_wheel_rad_per_sec, print);
-}
-
-bool CANDevice::debug_send_setpoint_api(
-  uint8_t api_class,
-  uint8_t api_index,
-  float setpoint,
-  uint8_t pid_slot,
-  bool print)
-{
-  return send_setpoint(
-    api_class,
-    api_index,
-    setpoint,
-    pid_slot,
-    print);
-}
-
-bool CANDevice::set_velocity_rad_per_sec(
-  float target_wheel_rad_per_sec,
-  bool print)
-{
-  const float target_motor_rad_per_sec =
-    target_wheel_rad_per_sec * gear_ratio_;
-
-  const float target_motor_rpm =
-    rad_per_sec_to_rpm(target_motor_rad_per_sec);
-
-  return set_velocity_rpm(target_motor_rpm, print);
-}
-
-bool CANDevice::set_velocity_rpm(
-  float target_motor_rpm,
-  bool print)
-{
-  return send_simple_setpoint(
-    SPARKMAX_API_VELOCITY_SET,
-    target_motor_rpm);
-}
-
-void CANDevice::reset_velocity_controller()
-{
-  // No software velocity controller is used anymore.
-  // Velocity control is handled internally by the SPARK MAX.
-}
-
-float CANDevice::velocity_controller_output() const
-{
-  if (telemetry_.has_applied_output)
-  {
-    return telemetry_.applied_output;
-  }
-
-  return 0.0f;
-}
-
-void CANDevice::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
-
-}
-void CANDevice::setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
-
-}
-
-
-uint32_t CANDevice::make_sparkmax_id(
-  uint8_t api_class,
-  uint8_t api_index,
-  uint8_t device_id)
-{
-  return make_frc_extended_can_id(
-    DEVICE_TYPE_MOTOR_CONTROLLER,
-    MANUFACTURER_REV,
-    api_class,
-    api_index,
-    device_id);
-}
-
-uint32_t CANDevice::make_sparkmax_id_from_api_id(
-  uint8_t api_id,
-  uint8_t device_id)
-{
-  return make_frc_extended_can_id(
-    DEVICE_TYPE_MOTOR_CONTROLLER,
-    MANUFACTURER_REV,
-    static_cast<uint8_t>((api_id >> 4) & 0x3F),
-    static_cast<uint8_t>(api_id & 0x0F),
-    device_id);
-}
-
-float CANDevice::rpm_to_rad_per_sec(float rpm)
-{
-  return rpm * 2.0f * PI / 60.0f;
-}
-
-float CANDevice::rad_per_sec_to_rpm(float rad_per_sec)
-{
-  return rad_per_sec * 60.0f / (2.0f * PI);
-}
-
-float CANDevice::clamp_duty(float duty)
-{
-  if (duty > 1.0f)
-  {
-    return 1.0f;
-  }
-
-  if (duty < -1.0f)
-  {
-    return -1.0f;
-  }
-
-  return duty;
-}
-
-void CANDevice::float_to_le_bytes(float value, uint8_t bytes[4])
-{
-  static_assert(sizeof(float) == 4, "float must be 32-bit");
-  std::memcpy(bytes, &value, sizeof(float));
-}
-
-float CANDevice::le_bytes_to_float(const uint8_t data[8], size_t offset)
-{
-  if (offset + 4 > 8)
-  {
-    return std::numeric_limits<float>::quiet_NaN();
-  }
-
-  float value = 0.0f;
-  std::memcpy(&value, data + offset, sizeof(float));
-  return value;
-}
-
-int16_t CANDevice::le_bytes_to_i16(const uint8_t data[8], size_t offset)
-{
-  if (offset + 2 > 8)
-  {
-    return 0;
-  }
-
-  int16_t value = 0;
-  std::memcpy(&value, data + offset, sizeof(int16_t));
-  return value;
-}
-
-bool CANDevice::parse_status_frame(
-  const CANFrame & frame,
-  bool print_status_frame)
+bool CANDevice::handle_status_frame(const CANFrame & frame, bool print_status_frame)
 {
   const auto fields = parse_frc_extended_can_id(frame.id);
 
@@ -666,6 +420,119 @@ bool CANDevice::parse_status_frame(
   // Any other status frame from this SPARK MAX is valid traffic,
   // but we are not decoding it yet.
   return true;
+}
+
+const SparkMaxTelemetry & CANDevice::telemetry() const
+{
+  return telemetry_;
+}
+
+float CANDevice::encoder_velocity_rpm() const
+{
+  return telemetry_.encoder_velocity_rpm;
+}
+
+float CANDevice::motor_rad_per_sec() const
+{
+  return telemetry_.motor_rad_per_sec;
+}
+
+float CANDevice::wheel_rad_per_sec() const
+{
+  return telemetry_.wheel_rad_per_sec;
+}
+
+float CANDevice::encoder_position_rotations() const
+{
+  return telemetry_.encoder_position_rotations;
+}
+
+float CANDevice::wheel_position_rotations() const
+{
+  return telemetry_.wheel_position_rotations;
+}
+
+float CANDevice::applied_output() const
+{
+  return telemetry_.applied_output;
+}
+
+void CANDevice::set_native_velocity_pid_slot(uint8_t pid_slot)
+{
+  native_velocity_pid_slot_ = static_cast<uint8_t>(pid_slot & 0x03);
+}
+
+bool CANDevice::set_velocity_rad_per_sec(float target_wheel_rad_per_sec)
+{
+  const float target_motor_rad_per_sec = target_wheel_rad_per_sec * gear_ratio_;
+  const float target_motor_rpm = rad_per_sec_to_rpm(target_motor_rad_per_sec);
+  return send_simple_setpoint(SPARKMAX_API_VELOCITY_SET, target_motor_rpm);
+}
+
+// --- All below here can go into comms
+uint32_t CANDevice::make_sparkmax_id(
+  uint8_t api_class,
+  uint8_t api_index,
+  uint8_t device_id)
+{
+  return make_frc_extended_can_id(
+    DEVICE_TYPE_MOTOR_CONTROLLER,
+    MANUFACTURER_REV,
+    api_class,
+    api_index,
+    device_id);
+}
+
+uint32_t CANDevice::make_sparkmax_id_from_api_id(
+  uint8_t api_id,
+  uint8_t device_id)
+{
+  return make_frc_extended_can_id(
+    DEVICE_TYPE_MOTOR_CONTROLLER,
+    MANUFACTURER_REV,
+    static_cast<uint8_t>((api_id >> 4) & 0x3F),
+    static_cast<uint8_t>(api_id & 0x0F),
+    device_id);
+}
+
+float CANDevice::rpm_to_rad_per_sec(float rpm)
+{
+  return rpm * 2.0f * PI / 60.0f;
+}
+
+float CANDevice::rad_per_sec_to_rpm(float rad_per_sec)
+{
+  return rad_per_sec * 60.0f / (2.0f * PI);
+}
+
+void CANDevice::float_to_le_bytes(float value, uint8_t bytes[4])
+{
+  static_assert(sizeof(float) == 4, "float must be 32-bit");
+  std::memcpy(bytes, &value, sizeof(float));
+}
+
+float CANDevice::le_bytes_to_float(const uint8_t data[8], size_t offset)
+{
+  if (offset + 4 > 8)
+  {
+    return std::numeric_limits<float>::quiet_NaN();
+  }
+
+  float value = 0.0f;
+  std::memcpy(&value, data + offset, sizeof(float));
+  return value;
+}
+
+int16_t CANDevice::le_bytes_to_i16(const uint8_t data[8], size_t offset)
+{
+  if (offset + 2 > 8)
+  {
+    return 0;
+  }
+
+  int16_t value = 0;
+  std::memcpy(&value, data + offset, sizeof(int16_t));
+  return value;
 }
 
 }  // namespace diffdrive_canbus
