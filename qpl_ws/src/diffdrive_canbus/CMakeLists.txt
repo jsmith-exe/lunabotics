@@ -29,7 +29,7 @@ pkg_check_modules(LIBSERIAL REQUIRED libserial)
 add_library(
   diffdrive_canbus
   SHARED
-  hardware/diffdrive_canbus_system.cpp
+  hardware/diffdrive_interface/ros_interface_plugin.cpp
   hardware/can_device.cpp
   hardware/can_comms/can_comms.cpp
   hardware/can_comms/can_utils.cpp
