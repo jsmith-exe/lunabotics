@@ -54,7 +54,6 @@ class DrumInterface(Node):
 
     def lift_autonomy_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.AUTONOMY): return
-        msg.data = normalise_for_actuator_convention(msg.data)
         self.set_drum_lift_rate(msg.data)
 
     def spin_autonomy_cb(self, msg: Float64):
@@ -63,7 +62,6 @@ class DrumInterface(Node):
 
     def lift_teleop_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.TELEOP): return
-        msg.data = normalise_for_actuator_convention(msg.data)
         self.set_drum_lift_rate(msg.data)
 
     def spin_teleop_cb(self, msg: Float64):
@@ -101,21 +99,12 @@ class DrumInterface(Node):
 
     def send_zero_if_no_recent_messages(self):
         if time.time() - self.last_message_received_time >= self.zero_timer_threshold_seconds:
-            # Spin is a velocity command, so "no command" means stop spinning.
             self.set_drum_spin_rate(0.0)
-            # Lift is a closed-loop *position* on the hardware: re-publishing here
-            # would actively drive the drum (0.5 sends it to mid-travel, which would
-            # drop a raised bucket during deposition, where lift is never commanded).
-            # "No command" means hold position, so we leave the last lift target
-            # latched in the position controller / hardware servo and send nothing.
+            self.set_drum_lift_rate(0.0)
 
 # Unused, as clamped at control level
 def clamp(value, min_value, max_value):
     return max(min_value, min(max_value, value))
-
-def normalise_for_actuator_convention(value):
-    """ Converts from -1 to 1 range to 0 to 1 range, as required by linear actuators. """
-    return value / 2 + 0.5
 
 def main():
     rclpy.init()
