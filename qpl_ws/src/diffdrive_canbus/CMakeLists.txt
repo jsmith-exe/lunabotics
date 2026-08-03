@@ -30,13 +30,11 @@ add_library(
   diffdrive_canbus
   SHARED
   hardware/diffdrive_interface/ros_interface_plugin.cpp
-  hardware/can_device.cpp
+        hardware/diffdrive_interface/can_device.cpp
   hardware/can_comms/can_comms.cpp
   hardware/can_comms/can_utils.cpp
-  hardware/can_comms/serial_utils.cpp
   hardware/can_comms/waveshare_codec.cpp
-  hardware/diffdrive_interface/helpers.cpp
-  hardware/diffdrive_interface/can_comms_helpers.cpp
+  hardware/can_comms/can_comms_helpers.cpp
   hardware/diffdrive_interface/can_system.cpp
   hardware/diffdrive_interface/actuator.cpp
   hardware/diffdrive_interface/motor.cpp

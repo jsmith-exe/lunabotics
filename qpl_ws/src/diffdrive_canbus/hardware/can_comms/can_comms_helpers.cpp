@@ -4,7 +4,7 @@
 #include <iomanip>
 #include <thread>
 
-#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
+#include "diffdrive_canbus/diffdrive_interface.hpp"
 
 namespace diffdrive_canbus {
   uint8_t get_frc_device_id_from_can_id(uint32_t can_id)
@@ -37,6 +37,7 @@ namespace diffdrive_canbus {
     return value;
   }
 
+  /// TODO this might be a duplicate of can_data_to_hex_string
   std::string can_data_to_hex_string(const uint8_t data[8], uint8_t dlc)
   {
     std::ostringstream oss;

@@ -1,6 +1,5 @@
 #include "diffdrive_canbus/can_device.hpp"
 
-#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -11,28 +10,12 @@
 #include <utility>
 #include <vector>
 
-#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
+#include "diffdrive_canbus/diffdrive_interface.hpp"
 
 namespace diffdrive_canbus
 {
-
 constexpr uint8_t SPARKMAX_API_DUTY_CYCLE_SET = 0x02;
 constexpr uint8_t SPARKMAX_API_VELOCITY_SET   = 0x12;
-
-// Firmware 24 status frame layout:
-//   Status 0: 0x2051800 + device_id
-//   Status 1: 0x2051840 + device_id
-//   Status 2: 0x2051880 + device_id
-//
-// Firmware 25+ status frame layout seen in earlier logs:
-//   Status 0: 0x205B800 + device_id
-//   Status 1: 0x205B840 + device_id
-//   Status 2: 0x205B880 + device_id
-constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_24 = 6;
-constexpr uint8_t API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS = 46;
-
-constexpr int TELEMETRY_EMPTY_READ_RETRIES = 8;
-constexpr auto TELEMETRY_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 
 CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
 : name_(std::move(name)),
@@ -51,6 +34,21 @@ CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, flo
   {
     throw std::runtime_error("SparkMax gear ratio must be greater than zero");
   }
+}
+
+
+double CANDevice::clamp_and_apply_deadband_if_finite(double value, double deadband, double min, double max)
+{
+  if (!std::isfinite(value)) {
+    return 0.0;
+  }
+
+  value = std::clamp(value, min, max);
+  if (std::fabs(value) <= deadband)
+  {
+    return 0.0;
+  }
+  return value;
 }
 
 bool CANDevice::send_heartbeats(bool print)
@@ -217,211 +215,6 @@ bool CANDevice::send_setpoint_with_control_type(
   return can_.send_extended_frame(id, data, print);
 }
 
-bool CANDevice::set_duty_cycle(float duty)
-{
-  duty = std::clamp(duty, -1.0f, 1.0f);
-  return send_simple_setpoint(SPARKMAX_API_DUTY_CYCLE_SET, duty);
-}
-
-bool CANDevice::read_telemetry(int max_frames, bool print_status_frames)
-{
-  bool parsed_any = false;
-  int frames_read = 0;
-  int empty_reads = 0;
-
-  while (frames_read < max_frames && empty_reads < TELEMETRY_EMPTY_READ_RETRIES)
-  {
-    CANFrame frame;
-
-    if (!can_.read_frame(frame, false))
-    {
-      ++empty_reads;
-      std::this_thread::sleep_for(TELEMETRY_EMPTY_READ_DELAY);
-      continue;
-    }
-
-    empty_reads = 0;
-    ++frames_read;
-
-    if (handle_status_frame(frame, print_status_frames))
-    {
-      parsed_any = true;
-    }
-  }
-
-  return parsed_any;
-}
-
-bool CANDevice::handle_status_frame(const CANFrame & frame, bool print_status_frame)
-{
-  const auto fields = parse_frc_extended_can_id(frame.id);
-
-  if (fields.device_type != DEVICE_TYPE_MOTOR_CONTROLLER ||
-      fields.manufacturer != MANUFACTURER_REV ||
-      fields.device_id != can_id_)
-  {
-    return false;
-  }
-
-  const bool is_firmware24_status =
-    fields.api_class == API_CLASS_PERIODIC_STATUS_FIRMWARE_24;
-
-  const bool is_firmware25_status =
-    fields.api_class == API_CLASS_PERIODIC_STATUS_FIRMWARE_25_PLUS;
-
-  if (!is_firmware24_status && !is_firmware25_status)
-  {
-    return false;
-  }
-
-  if (print_status_frame)
-  {
-    std::cout << "RX SPARK STATUS: "
-              << CANComms::frame_to_string(frame)
-              << " | api_class=" << static_cast<int>(fields.api_class)
-              << " api_index=" << static_cast<int>(fields.api_index)
-              << " device_id=" << static_cast<int>(fields.device_id);
-
-    if (is_firmware24_status)
-    {
-      std::cout << " | style=firmware24";
-    }
-    else
-    {
-      std::cout << " | style=firmware25+";
-    }
-
-    std::cout << "\n";
-  }
-
-  if (fields.api_index == API_INDEX_STATUS_0)
-  {
-    if (frame.dlc >= 2)
-    {
-      const int16_t raw_output =
-        le_bytes_to_i16(frame.data, 0);
-
-      telemetry_.applied_output =
-        static_cast<float>(raw_output) / 32767.0f;
-
-      telemetry_.has_applied_output = true;
-    }
-
-    return true;
-  }
-
-  if (is_firmware24_status && fields.api_index == API_INDEX_STATUS_1)
-  {
-    // Firmware 24:
-    // Status 1, bytes 0-3 = encoder velocity RPM.
-    //
-    // Example from your logs:
-    //   DATA=[0x39 0x8A 0xF8 0x43 ...] -> about 497 RPM
-    // while commanding 500 RPM.
-    if (frame.dlc >= 4)
-    {
-      const float encoder_velocity_rpm =
-        le_bytes_to_float(frame.data, 0);
-
-      if (std::isfinite(encoder_velocity_rpm))
-      {
-        telemetry_.encoder_velocity_rpm =
-          encoder_velocity_rpm;
-
-        telemetry_.motor_rad_per_sec =
-          rpm_to_rad_per_sec(encoder_velocity_rpm);
-
-        telemetry_.wheel_rad_per_sec =
-          telemetry_.motor_rad_per_sec / gear_ratio_;
-
-        telemetry_.has_encoder_velocity = true;
-      }
-    }
-
-    return true;
-  }
-
-  if (is_firmware24_status && fields.api_index == API_INDEX_STATUS_2)
-  {
-    // Firmware 24:
-    // Status 2, bytes 0-3 = encoder position rotations.
-    //
-    // Example from your logs:
-    //   DATA=[0xB8 0xC2 0xB0 0x44 ...] -> about 1414 rotations
-    // and this value increases over time.
-    if (frame.dlc >= 4)
-    {
-      const float encoder_position_rotations =
-        le_bytes_to_float(frame.data, 0);
-
-      if (std::isfinite(encoder_position_rotations))
-      {
-        telemetry_.encoder_position_rotations =
-          encoder_position_rotations;
-
-        telemetry_.wheel_position_rotations =
-          encoder_position_rotations / gear_ratio_;
-
-        telemetry_.has_encoder_position = true;
-      }
-    }
-
-    return true;
-  }
-
-  if (is_firmware25_status && fields.api_index == API_INDEX_STATUS_1)
-  {
-    // Not decoding firmware 25 status 1 yet.
-    return true;
-  }
-
-  if (is_firmware25_status && fields.api_index == API_INDEX_STATUS_2)
-  {
-    // Firmware 25+ assumption from your earlier logs:
-    // Status 2, bytes 0-3 = velocity RPM
-    // Status 2, bytes 4-7 = position rotations
-    if (frame.dlc >= 8)
-    {
-      const float encoder_velocity_rpm =
-        le_bytes_to_float(frame.data, 0);
-
-      const float encoder_position_rotations =
-        le_bytes_to_float(frame.data, 4);
-
-      if (std::isfinite(encoder_velocity_rpm))
-      {
-        telemetry_.encoder_velocity_rpm =
-          encoder_velocity_rpm;
-
-        telemetry_.motor_rad_per_sec =
-          rpm_to_rad_per_sec(encoder_velocity_rpm);
-
-        telemetry_.wheel_rad_per_sec =
-          telemetry_.motor_rad_per_sec / gear_ratio_;
-
-        telemetry_.has_encoder_velocity = true;
-      }
-
-      if (std::isfinite(encoder_position_rotations))
-      {
-        telemetry_.encoder_position_rotations =
-          encoder_position_rotations;
-
-        telemetry_.wheel_position_rotations =
-          encoder_position_rotations / gear_ratio_;
-
-        telemetry_.has_encoder_position = true;
-      }
-    }
-
-    return true;
-  }
-
-  // Any other status frame from this SPARK MAX is valid traffic,
-  // but we are not decoding it yet.
-  return true;
-}
-
 const SparkMaxTelemetry & CANDevice::telemetry() const
 {
   return telemetry_;
@@ -533,6 +326,12 @@ int16_t CANDevice::le_bytes_to_i16(const uint8_t data[8], size_t offset)
   int16_t value = 0;
   std::memcpy(&value, data + offset, sizeof(int16_t));
   return value;
+}
+
+bool CANDevice::set_duty_cycle(float duty)
+{
+  duty = std::clamp(duty, -1.0f, 1.0f);
+  return send_simple_setpoint(SPARKMAX_API_DUTY_CYCLE_SET, duty);
 }
 
 }  // namespace diffdrive_canbus

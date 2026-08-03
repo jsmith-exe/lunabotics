@@ -2,7 +2,6 @@
 
 #include "diffdrive_canbus/can_comms.hpp"
 
-#include <algorithm>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>

@@ -28,6 +28,14 @@ enum class CANMode : uint8_t
   LOOPBACK_SILENT = 0x03
 };
 
+// can comms helpers
+uint8_t get_frc_device_id_from_can_id(uint32_t can_id);
+uint8_t get_frc_api_index_from_can_id(uint32_t can_id);
+bool is_actuator_status3_id(uint32_t can_id, uint8_t device_id);
+uint16_t le_u16_from_frame_data(const uint8_t data[8], std::size_t offset);
+std::string can_data_to_hex_string(const uint8_t data[8], uint8_t dlc);
+void sleep_bus_gap();
+
 LibSerial::BaudRate convert_baud_rate(int baud_rate);
 uint8_t can_baud_to_waveshare_code(int32_t can_baud_rate);
 
@@ -61,7 +69,7 @@ public:
     int32_t timeout_ms = 100);
 
   void disconnect();
-  bool connected() const;
+  bool connected() const { return serial_conn_.IsOpen(); }
 
   bool configure_adapter(
     int32_t can_baud_rate,

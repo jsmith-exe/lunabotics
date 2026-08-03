@@ -2,7 +2,7 @@
 #include <hardware_interface/handle.hpp>
 
 #include "diffdrive_canbus/can_comms.hpp"
-#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
+#include "diffdrive_canbus/diffdrive_interface.hpp"
 #include "diffdrive_canbus/can_device.hpp"
 
 
@@ -25,15 +25,9 @@ namespace diffdrive_canbus {
     }
   }
 
-  void CANSystem::update_joint_state_from_telemetry() {
+  void CANSystem::update_joint_state(CANFrame &frame) {
     for (auto & [can_id, device] : devices_) {
-      device->update_joint_state_from_telemetry();
-    }
-  }
-
-  void CANSystem::handle_status_frame(const CANFrame &frame) {
-    for (auto & [can_id, device] : devices_) {
-      device->handle_status_frame(frame, false);
+      device->update_joint_state(frame);
     }
   }
 

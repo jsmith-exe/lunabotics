@@ -1,6 +1,6 @@
 #include "diffdrive_canbus/can_comms.hpp"
 #include "diffdrive_canbus/can_device.hpp"
-#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
+#include "diffdrive_canbus/diffdrive_interface.hpp"
 
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
@@ -133,11 +133,7 @@ public:
     next_feedback_read_time_ = std::chrono::steady_clock::now();
     next_command_write_time_ = std::chrono::steady_clock::now();
 
-    RCLCPP_WARN(logger_, "Performing initial telemetry drain like spark_max_test");
-
     read_frames(INITIAL_FEEDBACK_FRAMES);
-
-    can_system_->update_joint_state_from_telemetry();
 
     return hardware_interface::CallbackReturn::SUCCESS;
   }
@@ -172,7 +168,6 @@ public:
     const rclcpp::Duration &) override
   {
     read_frames_if_due();
-    can_system_->update_joint_state_from_telemetry();
     return hardware_interface::return_type::OK;
   }
 
@@ -242,9 +237,7 @@ private:
       empty_reads = 0;
       ++frames_read;
 
-      left_actuator_->observe_actuator_raw_frame(frame);
-      right_actuator_->observe_actuator_raw_frame(frame);
-      can_system_->handle_status_frame(frame);
+      can_system_->update_joint_state(frame);
     }
   }
 
@@ -259,8 +252,8 @@ private:
     rear_right_motor_->write();
     drum_motor_->write();
 
-    left_actuator_->write_actuator_closed_loop();
-    right_actuator_->write_actuator_closed_loop();
+    left_actuator_->write();
+    right_actuator_->write();
   }
 
   void send_stop_for_duration(std::chrono::milliseconds duration)

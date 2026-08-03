@@ -30,34 +30,18 @@ public:
   CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger);
   virtual ~CANDevice() = default; // TODO why do we need this?
 
+  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
+    throw std::runtime_error("base setup_ros_state_interfaces used");
+  }
+  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
+    throw std::runtime_error("base setup_ros_command_interfaces used");
+  }
+
   std::string name() const { return name_; }
   uint8_t can_id() const { return can_id_; }
   float gear_ratio() const { return gear_ratio_; }
 
-  // TODO hopefully temporary
-  virtual double commanded_velocity() const { return 0.0; }
-  virtual double velocity() const { return 0.0; }
-  virtual double rotation_position() const { return 0.0; }
-  virtual void update_joint_state_from_telemetry() {}
-  virtual void write() { throw std::runtime_error("base write_one_motor_native_velocity used"); }
-  // TODO hopefully temporary
-  virtual void request_actuator_status3_period(CANComms & can) { throw std::runtime_error("base request_actuator_status3_period used"); }
-  virtual void write_actuator_closed_loop() { throw std::runtime_error("base write_actuator_closed_loop used"); }
-  virtual void observe_actuator_raw_frame(const CANFrame & frame) { throw std::runtime_error("base observe_actuator_raw_frame used"); }
-
-  bool send_heartbeats(bool print = false);
-  bool clear_faults(bool print = false);
-
-  bool set_duty_cycle(float duty);
-
-  bool read_telemetry(int max_frames = 20, bool print_status_frames = false);
-
-  bool handle_status_frame(
-    const CANFrame & frame,
-    bool print_status_frame);
-
   const SparkMaxTelemetry & telemetry() const;
-
   float encoder_velocity_rpm() const;
   float motor_rad_per_sec() const;
   float wheel_rad_per_sec() const;
@@ -65,17 +49,24 @@ public:
   float wheel_position_rotations() const;
   float applied_output() const;
 
+  virtual void write() { throw std::runtime_error("base write used"); }
+
+  // TODO hopefully temporary declarations of motor functions; these can be removed once there is clearer separation of concerns
+  virtual double commanded_velocity() const { return 0.0; }
+  virtual double velocity() const { return 0.0; }
+  virtual double rotation_position() const { return 0.0; }
+  // TODO temporary declarations for actuators (see prev todo)
+  virtual void request_actuator_status3_period(CANComms & can) { throw std::runtime_error("base request_actuator_status3_period used"); }
+  virtual void update_joint_state(const CANFrame & frame) { throw std::runtime_error("base update_joint_state used"); }
+
+  double clamp_and_apply_deadband_if_finite(double value, double deadband, double min = -1.0, double max = 1.0);
+  bool send_heartbeats(bool print = false);
+  bool clear_faults(bool print = false);
+
+  bool set_duty_cycle(float duty);
+  bool set_velocity_rad_per_sec(float target_wheel_rad_per_sec);
+
   void set_native_velocity_pid_slot(uint8_t pid_slot);
-
-  bool set_velocity_rad_per_sec(
-    float target_wheel_rad_per_sec);
-
-  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
-    throw std::runtime_error("base setup_ros_state_interfaces used");
-  }
-  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
-    throw std::runtime_error("base setup_ros_command_interfaces used");
-  }
 
 protected:
   static constexpr float PI = 3.14159265358979323846f;

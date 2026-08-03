@@ -79,30 +79,14 @@ constexpr auto RUNAWAY_STOP_TIME = std::chrono::milliseconds(100);
 #pragma endregion Constants
 
 namespace diffdrive_canbus {
-  // helpers
-  bool string_to_bool(const std::string & value);
-  double apply_deadband(double value, double deadband);
-  double clean_command(double value, double deadband);
-  double clamp_throttle(double value);
-  double apply_throttle_deadband(double value, double deadband);
-
-  // can comms helpers
-  uint8_t get_frc_device_id_from_can_id(uint32_t can_id);
-  uint8_t get_frc_api_index_from_can_id(uint32_t can_id);
-  bool is_actuator_status3_id(uint32_t can_id, uint8_t device_id);
-  uint16_t le_u16_from_frame_data(const uint8_t data[8], std::size_t offset);
-  std::string can_data_to_hex_string(const uint8_t data[8], uint8_t dlc);
-  void sleep_bus_gap();
-
   // can system
   class CANSystem {
   public:
-    CANSystem(CANComms &comms, rclcpp::Logger logger) : comms_(comms), logger_(logger) {}
+    CANSystem(CANComms &comms, rclcpp::Logger &logger) : comms_(comms), logger_(logger) {}
     void add_device(const std::unique_ptr<CANDevice> &device);
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
-    void update_joint_state_from_telemetry();
-    void handle_status_frame(const CANFrame &frame);
+    void update_joint_state(CANFrame &frame);
     void send_zero_duty_all();
     void send_heartbeat();
 
@@ -125,16 +109,17 @@ namespace diffdrive_canbus {
     double rotation_position() const override { return rotation_position_; }
     double velocity() const override { return velocity_; }
     double commanded_velocity() const override { return commanded_velocity_; }
-    void update_joint_state_from_telemetry();
+    void update_joint_state(const CANFrame &frame) override;
+    bool handle_status_frame(const CANFrame &frame, bool print_status_frame);
+    bool read_telemetry(int max_frames = 20, bool print_status_frames = false);
 
-    void write();
-    void send_heartbeat_before_motor_command();
+    void write() override;
     bool detect_runaway(double target_motor_rpm);
 
   protected:
     double rotation_position_{0.0};
     double velocity_{0.0};
-    double commanded_velocity_{0.0}; // TODO rename to command_rad_per_sec ??
+    double commanded_velocity_{0.0}; // TODO rename to command_rad_per_sec??
     double position_offset_rad_{0.0};
     bool position_offset_valid_{false};
   };
@@ -149,12 +134,11 @@ namespace diffdrive_canbus {
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
 
     void request_actuator_status3_period(CANComms & can_) override;
-    void write_actuator_closed_loop() override;
+    void write() override;
     void send_actuator_duty(double duty);
     double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage);
-    void observe_actuator_raw_frame(const CANFrame & frame) override;
+    void update_joint_state(const CANFrame & frame) override;
   private:
-    // TODO rename to be clearly specific to actuator
     double command_{0.0};
     double position_{0.0};
     double voltage_{0.0};

@@ -1,12 +1,11 @@
 #include <string>
 #include <iomanip>
-#include <iostream>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
 
 #include "diffdrive_canbus/can_device.hpp"
-#include "diffdrive_canbus/diffdrive_canbus_system.hpp"
+#include "diffdrive_canbus/diffdrive_interface.hpp"
 
 constexpr double ACTUATOR_MIN_VOLTAGE = 0.279;
 constexpr double ACTUATOR_MAX_VOLTAGE = 1.85;
@@ -39,27 +38,10 @@ namespace diffdrive_canbus {
     sleep_bus_gap();
   }
 
-  void Actuator::write_actuator_closed_loop()
+  void Actuator::write()
   {
-    // Target position requested through the ros2_control position interface.
-    const double cleaned_command =
-      std::clamp(std::isfinite(this->command_) ? this->command_ : 0.0, -1.0, 1.0);
-
-    send_actuator_duty(cleaned_command);
-  }
-
-  void Actuator::send_actuator_duty(double duty)
-  {
-    double safe_throttle =
-      apply_throttle_deadband(clamp_throttle(duty), ACTUATOR_DEADBAND);
-
-    if (std::fabs(safe_throttle) <= ACTUATOR_DEADBAND)
-    {
-      safe_throttle = 0.0;
-    }
-
-    this->set_duty_cycle(static_cast<float>(safe_throttle));
-
+    double safe_throttle = clamp_and_apply_deadband_if_finite(command_, ACTUATOR_DEADBAND);
+    set_duty_cycle(static_cast<float>(safe_throttle));
     sleep_bus_gap();
   }
 
@@ -78,7 +60,7 @@ namespace diffdrive_canbus {
       1.0);
   }
 
-  void Actuator::observe_actuator_raw_frame(const CANFrame & frame)
+  void Actuator::update_joint_state(const CANFrame & frame)
   {
     if (get_frc_device_id_from_can_id(frame.id) != can_id_)
     {
