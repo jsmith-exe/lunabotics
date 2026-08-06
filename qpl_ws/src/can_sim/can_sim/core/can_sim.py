@@ -39,7 +39,7 @@ class CANSim(Node):
 
         # Heartbeat tracking
         self.last_heartbeat = time.monotonic()
-        self.heartbeat_period = 1.0 # seconds
+        self.heartbeat_period = 0.1 # seconds
 
         self.serial = serial.Serial(timeout=0.005) # Block for 5ms if no data - most stable at this
         self.serial.port = port
