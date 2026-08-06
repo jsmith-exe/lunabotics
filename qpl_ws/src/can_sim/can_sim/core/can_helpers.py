@@ -48,4 +48,4 @@ def create_packed_id(api_id, dev_id):
 # Non-RIO heartbeat: api_class=0x16, api_index=0x00, device_id=0x00 (broadcast)
 # The plugin sends this periodically to tell SPARK MAXs a non-FRC controller
 # is present. Without it, SPARK MAXs disable their outputs after ~100ms.
-HEARTBEAT_ID = create_frc_id(0x16, 0x00, 0x00)
+HEARTBEAT_ID = create_frc_id(0x0B, 0x02, 0x00)

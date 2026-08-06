@@ -37,6 +37,10 @@ class CANSim(Node):
         self.raw_duty_can_id_to_state_mapping = {create_packed_id(0x02, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.can_ids}
         self.raw_vel_can_id_to_state_mapping = {create_packed_id(0x12, can_id): self.can_id_to_state_mapping[can_id] for can_id in self.velocity_can_ids}
 
+        # Heartbeat tracking
+        self.last_heartbeat = time.monotonic()
+        self.heartbeat_period = 1.0 # seconds
+
         self.serial = serial.Serial(timeout=0.005) # Block for 5ms if no data - most stable at this
         self.serial.port = port
         self.serial.baudrate = baudrate
@@ -96,12 +100,18 @@ class CANSim(Node):
     def _parse_frame(self, frame):
         raw_can_id, data = frame
         sufficient_data_to_decode = len(data) >= 4
+        now = time.monotonic()
 
         if raw_can_id == HEARTBEAT_ID:
-            pass
+            self.last_heartbeat = now
+            return
+
+        if now - self.last_heartbeat > self.heartbeat_period:
+            overdue_seconds = now - self.last_heartbeat - self.heartbeat_period
+            self.logger.warning(f"Frame arrived during expired heartbeat, {overdue_seconds} seconds overdue.")
 
         # Handle duty commands
-        elif raw_can_id in self.raw_duty_can_id_to_state_mapping and sufficient_data_to_decode:
+        if raw_can_id in self.raw_duty_can_id_to_state_mapping and sufficient_data_to_decode:
             device = self.raw_duty_can_id_to_state_mapping[raw_can_id]
             duty = struct.unpack_from("<f", data)[0]   # float32 LE
             device.set_duty(duty)
@@ -111,3 +121,6 @@ class CANSim(Node):
             device = self.raw_vel_can_id_to_state_mapping[raw_can_id]
             commanded_vel = struct.unpack_from("<f", data)[0] # RPM as float32 LE
             device.set_velocity(commanded_vel)
+
+        else:
+            self.logger.warning(f"{raw_can_id} --- {data}")
