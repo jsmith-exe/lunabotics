@@ -50,7 +50,6 @@ namespace diffdrive_canbus {
   void Motor::update_joint_state(const CANFrame & frame)
   {
     handle_status_frame(frame, false);
-    read_telemetry();
     const auto & tel = this->telemetry();
 
     if (tel.has_encoder_velocity)
@@ -138,35 +137,6 @@ namespace diffdrive_canbus {
       sign_opposed;
 
     return runaway;
-  }
-
-  bool Motor::read_telemetry(int max_frames, bool print_status_frames)
-  {
-    bool parsed_any = false;
-    int frames_read = 0;
-    int empty_reads = 0;
-
-    while (frames_read < max_frames && empty_reads < TELEMETRY_EMPTY_READ_RETRIES)
-    {
-      CANFrame frame;
-
-      if (!can_.read_frame(frame, false))
-      {
-        ++empty_reads;
-        std::this_thread::sleep_for(TELEMETRY_EMPTY_READ_DELAY);
-        continue;
-      }
-
-      empty_reads = 0;
-      ++frames_read;
-
-      if (handle_status_frame(frame, print_status_frames))
-      {
-        parsed_any = true;
-      }
-    }
-
-    return parsed_any;
   }
 
   bool Motor::handle_status_frame(const CANFrame & frame, bool print_status_frame)

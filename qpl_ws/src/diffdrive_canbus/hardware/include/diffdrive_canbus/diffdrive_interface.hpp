@@ -111,7 +111,6 @@ namespace diffdrive_canbus {
     double commanded_velocity() const override { return commanded_velocity_; }
     void update_joint_state(const CANFrame &frame) override;
     bool handle_status_frame(const CANFrame &frame, bool print_status_frame);
-    bool read_telemetry(int max_frames = 20, bool print_status_frames = false);
 
     void write() override;
     bool detect_runaway(double target_motor_rpm);
