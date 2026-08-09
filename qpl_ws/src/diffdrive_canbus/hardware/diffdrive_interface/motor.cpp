@@ -94,7 +94,10 @@ namespace diffdrive_canbus {
     }
     if (CANSystem::runaway_latched_) { return; }
 
+    this->send_heartbeats(false);
+    sleep_bus_gap();
     this->set_velocity_rad_per_sec(static_cast<float>(commanded_velocity_));
+    sleep_bus_gap();
   }
 
   bool Motor::detect_runaway(double target_motor_rpm)
