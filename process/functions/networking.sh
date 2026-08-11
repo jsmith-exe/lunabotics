@@ -144,7 +144,6 @@ qpl_load_dds() {
   set -a # Enable exporting all set variables
   source "${QPL_PROJECT}/dds/.current_dds" > /dev/null 2>&1 # Source current DDS config if it exists, ignore if not
   set +a # Disable exporting variables
-  echo "CURRENT_DDS: ${CURRENT_DDS:-Unset}"
 }
 qpl_load_dds
 

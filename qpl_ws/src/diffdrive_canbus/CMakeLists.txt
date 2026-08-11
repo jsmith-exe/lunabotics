@@ -18,10 +18,7 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 
-# -------------------------------------------------------------------
 # Find system LibSerial
-# -------------------------------------------------------------------
-
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBSERIAL REQUIRED libserial)
 
@@ -32,9 +29,15 @@ pkg_check_modules(LIBSERIAL REQUIRED libserial)
 add_library(
   diffdrive_canbus
   SHARED
-  hardware/diffdrive_canbus_system.cpp
-  hardware/CAN_comms.cpp
-  hardware/spark_max.cpp
+  hardware/diffdrive_interface/ros_interface_plugin.cpp
+        hardware/diffdrive_interface/can_device.cpp
+  hardware/can_comms/can_comms.cpp
+  hardware/can_comms/can_utils.cpp
+  hardware/can_comms/waveshare_codec.cpp
+  hardware/can_comms/can_comms_helpers.cpp
+  hardware/diffdrive_interface/can_system.cpp
+  hardware/diffdrive_interface/actuator.cpp
+  hardware/diffdrive_interface/motor.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)
@@ -78,47 +81,7 @@ pluginlib_export_plugin_description_file(
 )
 
 # -------------------------------------------------------------------
-# Test executable
-# -------------------------------------------------------------------
-
-add_executable(
-  spark_max_test
-  hardware/spark_max_test.cpp
-)
-
-target_compile_features(spark_max_test PUBLIC cxx_std_17)
-
-target_include_directories(spark_max_test PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/hardware/include>
-  $<INSTALL_INTERFACE:include>
-  ${LIBSERIAL_INCLUDE_DIRS}
-)
-
-ament_target_dependencies(
-  spark_max_test
-  ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
-
-target_link_directories(
-  spark_max_test
-  PUBLIC
-  ${LIBSERIAL_LIBRARY_DIRS}
-)
-
-target_link_libraries(
-  spark_max_test
-  diffdrive_canbus
-  ${LIBSERIAL_LIBRARIES}
-)
-
-target_compile_options(
-  spark_max_test
-  PUBLIC
-  ${LIBSERIAL_CFLAGS_OTHER}
-)
-
-# -------------------------------------------------------------------
-# Install headers
+# Install headers and plugin XML
 # -------------------------------------------------------------------
 
 install(
@@ -126,26 +89,8 @@ install(
   DESTINATION include
 )
 
-# -------------------------------------------------------------------
-# Install plugin XML
-# -------------------------------------------------------------------
-
 install(
   FILES diffdrive_canbus.xml
-  DESTINATION share/${PROJECT_NAME}
-)
-
-# -------------------------------------------------------------------
-# Install descriptions / bringup files
-# -------------------------------------------------------------------
-
-install(
-  DIRECTORY description/ros2_control description/urdf
-  DESTINATION share/${PROJECT_NAME}
-)
-
-install(
-  DIRECTORY bringup/launch bringup/config
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -159,15 +104,6 @@ install(
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
-)
-
-# -------------------------------------------------------------------
-# Install executable
-# -------------------------------------------------------------------
-
-install(
-  TARGETS spark_max_test
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 # -------------------------------------------------------------------
