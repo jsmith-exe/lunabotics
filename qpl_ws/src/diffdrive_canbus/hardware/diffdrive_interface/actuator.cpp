@@ -42,6 +42,7 @@ namespace diffdrive_canbus {
   {
     double safe_throttle = clamp_and_apply_deadband_if_finite(command_, ACTUATOR_DEADBAND);
     set_duty_cycle(static_cast<float>(safe_throttle));
+    sleep_bus_gap();
   }
 
   double Actuator::normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage)
