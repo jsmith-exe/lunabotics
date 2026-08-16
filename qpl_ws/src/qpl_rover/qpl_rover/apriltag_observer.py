@@ -47,6 +47,7 @@ class AprilTagObserver(Node):
         with open(apriltag_config_path, 'r') as file:
             apriltag_config = yaml.safe_load(file)['apriltag']
 
+        self.tag_family = apriltag_config['family']
         self.apriltag_physical_size = apriltag_config['physical_size']
         self.min_decision_margin = apriltag_config['min_decision_margin']
 
@@ -63,7 +64,7 @@ class AprilTagObserver(Node):
         # 2. CONFIGURE DETECTOR
         # nthreads=4 to prevent EKF "Failed to meet update rate" errors
         self.detector = Detector(
-            families='tag36h11',
+            families=self.tag_family,
             nthreads=4,
             quad_decimate=1.0,
             quad_sigma=0.0,

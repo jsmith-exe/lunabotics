@@ -1,3 +1,4 @@
 apriltag:
+  family: tag36h11
   physical_size: 0.40
   min_decision_margin: 35 # Minimum detection confidence; higher is better
