@@ -48,11 +48,11 @@ class AprilTagObserver(Node):
             apriltag_config = yaml.safe_load(file)['apriltag']
 
         self.apriltag_physical_size = apriltag_config['physical_size']
+        self.min_decision_margin = apriltag_config['min_decision_margin']
 
         # Physical tag size includes the white border, as used by Gazebo.
         # pupil_apriltags expects the black-to-black tag size, excluding the
         # 1-pixel white border and therefore uses 8/10 of the physical size.
-        self.tag_size = self.apriltag_physical_size * 8 / 10
         self.tag_size = self.apriltag_physical_size * 8 / 10
 
         # 1. INITIALIZE DATA STRUCTURES FIRST
@@ -170,9 +170,7 @@ class AprilTagObserver(Node):
             return
         for r in results:
             # Filter out low-quality detections or high ambiguity
-            # decision_margin: how clear the tag is (higher is better, < 30 is risky)
-            # pose_err: reconstruction error (lower is better)
-            if r.decision_margin < 35:
+            if r.decision_margin < self.min_decision_margin:
                 self.get_logger().warn(f"Ignoring noisy detection (Margin: {r.decision_margin:.1f})")
                 continue
 
@@ -209,7 +207,7 @@ class AprilTagObserver(Node):
                 continue
 
             # If we passed the fence, publish to EKF
-            #self.get_logger().warn(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
+            #self.get_logger().info(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
             self.publish_pose(T_map_footprint, msg.header.stamp)
 
     def publish_pose(self, T, stamp):
