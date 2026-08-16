@@ -6,7 +6,7 @@ from cv_bridge import CvBridge
 import tf_transformations
 import numpy as np
 from pupil_apriltags import Detector
-
+import tf2_ros
 
 # THE ARENA GEOFENCE WITH BUFFER
 # Physical Arena: X(0 to 4.4), Y(0 to 7.9)
@@ -45,12 +45,9 @@ class AprilTagObserver(Node):
         tag_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
         self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
 
-        # Front Camera
-        self.T_footprint_cam_front = self.make_tf_matrix([0.465, 0, 0.02], [0, 0, 0, 1])
-
-        # Rear Camera
-        r_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
-        self.T_footprint_cam_rear = self.make_tf_matrix([-0.465, 0, 0.02], r_q)
+        # TF listener for rover/camera transforms
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # 4. SETUP PUBLISHER
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/apriltag/pose', 10)
@@ -115,6 +112,23 @@ class AprilTagObserver(Node):
             self.process_results(results, msg, cam_id)
         except Exception as e:
             self.get_logger().error(f"Exception during image callback: {e}")
+
+    def get_camera_transform(self, cam_id):
+        camera_frame = f'camera_link_{cam_id}'
+
+        transform = self.tf_buffer.lookup_transform(
+            'base_link',
+            camera_frame,
+            rclpy.time.Time()
+        )
+
+        t = transform.transform.translation
+        q = transform.transform.rotation
+
+        return self.make_tf_matrix(
+            [t.x, t.y, t.z],
+            [q.x, q.y, q.z, q.w]
+        )
     
     def process_results(self, results, msg, cam_id):
         if len(results) == 0:
@@ -145,7 +159,7 @@ class AprilTagObserver(Node):
             T_cam_tag[0:3, 3] = ros_t
 
             # Select the correct static transform relative to footprint
-            T_footprint_cam = self.T_footprint_cam_front if cam_id == 'front' else self.T_footprint_cam_rear
+            T_footprint_cam = self.get_camera_transform(cam_id)
 
             # Calculate Map -> Tag -> Camera -> Footprint
             T_map_footprint = self.T_map_tag @ np.linalg.inv(T_cam_tag) @ np.linalg.inv(T_footprint_cam)
