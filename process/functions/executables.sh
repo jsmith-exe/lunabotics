@@ -23,6 +23,8 @@ alias qpl_logs_rec="ros2 run basestation log_recorder"
 alias qpl_logs_cat="cat ~/rosout_combined.log"
 alias qpl_logs_clear="rm ~/rosout_combined.log"
 
+# CAN bus system should use /tmp/vttyCAN to use the following CAN logging command
+alias qpl_can_log="socat -x -v PTY,link=/tmp/vttyCAN,raw,echo=0 FILE:/dev/ttyUSB0,raw,echo=0 2> ./raw_can_log.txt"
 
 # -------------------- Simulation + RViz --------------------
 # Add 'export LIBGL_ALWAYS_SOFTWARE=true' to bashrc if problems with rendering
