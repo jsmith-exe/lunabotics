@@ -7,19 +7,34 @@ import tf_transformations
 import numpy as np
 from pupil_apriltags import Detector
 import tf2_ros
-
-# THE ARENA GEOFENCE WITH BUFFER
-# Physical Arena: X(0 to 4.4), Y(0 to 7.9)
-buffer = 0.20  # 20cm buffer to allow for jitter and edge-driving
-
-x_min, x_max = 0.0 - buffer, 4.4 + buffer
-y_min, y_max = 0.0 - buffer, 7.9 + buffer
-z_limit = 0.50  # Z is usually the noisiest; give it a little more room
-
+import os
+import yaml
+from ament_index_python.packages import get_package_share_directory
 
 class AprilTagObserver(Node):
     def __init__(self):
         super().__init__('apriltag_observer')
+
+        # Load arena configuration
+        config_path = os.path.join(
+            get_package_share_directory('qpl_rover'),
+            'config',
+            'arena',
+            'uk.yaml'
+        )
+
+        with open(config_path, 'r') as file:
+            arena_config = yaml.safe_load(file)['arena']
+
+        self.arena_width = arena_config['width']
+        self.arena_length = arena_config['length']
+        self.buffer = arena_config['buffer']
+        self.z_limit = arena_config['z_limit']
+
+        self.x_min = -self.buffer
+        self.x_max = self.arena_width + self.buffer
+        self.y_min = -self.buffer
+        self.y_max = self.arena_length + self.buffer
 
         # 1. INITIALIZE DATA STRUCTURES FIRST
         # This prevents the "AttributeError" if a callback triggers immediately
@@ -168,9 +183,9 @@ class AprilTagObserver(Node):
             pos = T_map_footprint[0:3, 3]
 
             # Boundary Check
-            in_x = x_min <= pos[0] <= x_max
-            in_y = y_min <= pos[1] <= y_max
-            in_z = abs(pos[2]) <= z_limit
+            in_x = self.x_min <= pos[0] <= self.x_max
+            in_y = self.y_min <= pos[1] <= self.y_max
+            in_z = abs(pos[2]) <= self.z_limit
 
             if not (in_x and in_y and in_z):
                 self.get_logger().warn(f"Ghost Rejected at X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}; in_x={in_x}, in_y={in_y}, in_z={in_z}")
