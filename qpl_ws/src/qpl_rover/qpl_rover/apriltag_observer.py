@@ -73,8 +73,8 @@ class AprilTagObserver(Node):
 
         # 3. CALCULATE STATIC TRANSFORMS
         # Tag pose in MAP frame
-        tag_pos = [0.0, 0.2, 0.2]
-        tag_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
+        tag_pos = arena_config['apriltag']['position']
+        tag_q = arena_config['apriltag']['quaternion']
         self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
 
         # TF listener for rover/camera transforms
