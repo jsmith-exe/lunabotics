@@ -114,6 +114,7 @@ private:
   static std::string bytes_to_hex(const std::vector<uint8_t> & bytes);
 
   LibSerial::SerialPort serial_conn_;
+  std::vector<uint8_t> buffer_;
   int timeout_ms_ = 100;
 };
 

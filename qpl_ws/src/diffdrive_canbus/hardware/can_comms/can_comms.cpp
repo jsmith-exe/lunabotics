@@ -253,6 +253,15 @@ bool CANComms::read_frame(CANFrame & frame, bool print_output)
   }
 }
 
+std::vector<CANFrame> CANComms::poll_frames()
+{
+  serial_conn_.Read(buffer_, buffer_.size(), timeout_ms_);
+
+  std::vector<CANFrame> frames = extract_frame();
+
+  return frames;
+}
+
 /// Compute an 8-bit checksum over a slice of a byte vector.
 /// Sums bytes[start_idx] through bytes[end_idx_inclusive] and returns the
 /// low 8 bits of the result. Used for the Waveshare config packet checksum.

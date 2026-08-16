@@ -302,4 +302,18 @@ bool CANComms::read_variable_packet(std::vector<uint8_t> & packet)
   return true;
 }
 
+std::vector<std::vector<uint8_t>> CANComms::extract_raw_frames(std::vector<uint8_t> & loaded_bytes) {
+{
+  std::vector<std::vector<uint8_t>> frames;
+
+  // Scan for the start-of-frame marker
+  auto start_it = std::find(loaded_bytes.begin(), loaded_bytes.end(), 0xAA);
+  if (start_it == loaded_bytes.end())
+  {
+    return frames; // no start marker found
+  }
+}
+
+}
+
 }
