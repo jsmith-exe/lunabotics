@@ -24,6 +24,7 @@ setup(
     (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/*.png')),
     (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     (os.path.join('share', package_name, 'config', 'arena'), glob('config/arena/*.yaml')),
+    (os.path.join('share', package_name, 'config', 'localisation'), glob('config/localisation/*.yaml')),
     (os.path.join("share", package_name, "rviz"), glob("rviz/*")), 
     ],
     install_requires=['setuptools'],

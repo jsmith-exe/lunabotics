@@ -36,12 +36,29 @@ class AprilTagObserver(Node):
         self.y_min = -self.buffer
         self.y_max = self.arena_length + self.buffer
 
+        # Load AprilTag configuration
+        apriltag_config_path = os.path.join(
+            get_package_share_directory('qpl_rover'),
+            'config',
+            'localisation',
+            'apriltag.yaml'
+        )
+
+        with open(apriltag_config_path, 'r') as file:
+            apriltag_config = yaml.safe_load(file)['apriltag']
+
+        self.apriltag_physical_size = apriltag_config['physical_size']
+
+        # Physical tag size includes the white border, as used by Gazebo.
+        # pupil_apriltags expects the black-to-black tag size, excluding the
+        # 1-pixel white border and therefore uses 8/10 of the physical size.
+        self.tag_size = self.apriltag_physical_size * 8 / 10
+        self.tag_size = self.apriltag_physical_size * 8 / 10
+
         # 1. INITIALIZE DATA STRUCTURES FIRST
         # This prevents the "AttributeError" if a callback triggers immediately
         self.bridge = CvBridge()
         self.cam_params = {'front': None, 'rear': None}
-        self.tag_id = 0
-        self.tag_size = 0.32 # Tag size is measured between edges of tag's BLACK OUTLINE
 
         # 2. CONFIGURE DETECTOR
         # nthreads=4 to prevent EKF "Failed to meet update rate" errors
