@@ -85,20 +85,25 @@ public:
 
       can_.connect(serial_device, 2000000, 5);
 
+      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
       const bool configured = can_.configure_adapter(
-        1000000,
-        false,
-        0x00000000,
-        0x00000000,
-        CANMode::NORMAL,
-        false,
-        true);
+          1000000,
+          false,
+          0x00000000,
+          0x00000000,
+          CANMode::NORMAL,
+          false,
+          true);
 
       if (!configured)
       {
-        RCLCPP_ERROR(logger_, "Failed to configure CAN adapter");
-        return hardware_interface::CallbackReturn::ERROR;
+          RCLCPP_ERROR(logger_, "Failed to configure CAN adapter");
+          return hardware_interface::CallbackReturn::ERROR;
       }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
       RCLCPP_INFO(logger_, "CAN adapter configured");
 
       constexpr int pid_slot = 0;

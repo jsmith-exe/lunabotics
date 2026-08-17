@@ -13,7 +13,7 @@ constexpr double ACTUATOR_DEADBAND = 0.02;
 
 // Temporary bench-test target. Both linear actuators receive this position
 // setpoint. Change this value to the desired extension in millimetres.
-constexpr float ACTUATOR_TEST_POSITION_MM = 200.0f + 14.0f;
+constexpr float ACTUATOR_TEST_POSITION_MM = 75.0f + 14.0f;
 
 namespace diffdrive_canbus {
   void Actuator::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
