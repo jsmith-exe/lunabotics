@@ -7,7 +7,12 @@ material AprilTag/tag0
       texture_unit
       {
         texture tag36_11_00000.png
-        filtering none
+        // The texture is the 10x10 tag36h11 bitmap pre-scaled 100x with nearest
+        // neighbour, so the cell edges are already baked in at high resolution.
+        // Trilinear (with mipmaps) then handles minification, giving a properly
+        // averaged grey at range instead of the aliasing "filtering none" caused
+        // once the tag drops below ~10px on the sensor.
+        filtering trilinear
       }
     }
   }
