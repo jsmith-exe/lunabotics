@@ -65,6 +65,7 @@ public:
 
   bool set_duty_cycle(float duty);
   bool set_velocity_rad_per_sec(float target_wheel_rad_per_sec);
+  bool set_position(float position);
 
   void set_native_velocity_pid_slot(uint8_t pid_slot);
 

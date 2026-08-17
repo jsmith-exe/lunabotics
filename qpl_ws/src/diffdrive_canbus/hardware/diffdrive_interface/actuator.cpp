@@ -11,6 +11,10 @@ constexpr double ACTUATOR_MIN_VOLTAGE = 0.279;
 constexpr double ACTUATOR_MAX_VOLTAGE = 1.85;
 constexpr double ACTUATOR_DEADBAND = 0.02;
 
+// Temporary bench-test target. Both linear actuators receive this position
+// setpoint. Change this value to the desired extension in millimetres.
+constexpr float ACTUATOR_TEST_POSITION_MM = 200.0f + 14.0f;
+
 namespace diffdrive_canbus {
   void Actuator::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
     state_interfaces.emplace_back(
@@ -40,8 +44,7 @@ namespace diffdrive_canbus {
 
   void Actuator::write()
   {
-    double safe_throttle = clamp_and_apply_deadband_if_finite(command_, ACTUATOR_DEADBAND);
-    set_duty_cycle(static_cast<float>(safe_throttle));
+    set_position(ACTUATOR_TEST_POSITION_MM);
     sleep_bus_gap();
   }
 
