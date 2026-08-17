@@ -55,7 +55,14 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.15
-      movement_time_allowance: 8.0
+      # PROGRESS CHECKER NOTE:
+      # This checks TRANSLATION only - rotating in place counts as zero progress.
+      # Measured in sim: commanded angular.z produces only ~0.5x the physical
+      # yaw rate (skid-steer scrub), so at max_vel_theta 0.4 the real turn rate
+      # is ~0.2 rad/s and a 180 deg turn takes ~16 s of zero translation.
+      # 40.0 covers that with margin; the old 20.0 aborted mid-reorientation
+      # over and over ("Failed to make progress" loops).
+      movement_time_allowance: 40.0
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -70,12 +77,24 @@ controller_server:
 
       ### VELOCITY LIMITS (Slowing it down) ##
       max_vel_x: 0.20       # Cut down from 0.4. Max forward speed is now 20 cm/s
-      min_vel_x: 0.0        # Allowed to stop if needed
+      # REVERSE NOTE:
+      # DWB samples vx across [min_vel_x, max_vel_x]. This was 0.0, so reverse
+      # was never even considered and the only way out of a dead end was the
+      # BackUp recovery - which aborts instantly when the footprint is already
+      # in lethal space. -0.10 gives a genuine reverse escape at half forward
+      # speed. Safe here because rear_camera_raw feeds the same obstacle layer,
+      # so the costmap is populated behind the rover.
+      min_vel_x: -0.10      # Reverse at half of max_vel_x
 
       max_vel_y: 0.0        # Keep at 0.0 since rover is non-holonomic (differential)
       min_vel_y: 0.0
 
-      max_vel_theta: 0.4    # Cut down from 0.8. Slows down how fast it spins in place
+      # Empirically measured in sim (teleop 0.3 rad/s commanded -> 0.158 rad/s
+      # actual): the rover yaws at only ~0.5x the commanded rate because the
+      # skid-steer wheels scrub. At 0.2 the physical turn rate was ~0.1 rad/s
+      # and every reorientation outlived the progress checker. 0.4 restores a
+      # usable ~0.2 rad/s physical rate.
+      max_vel_theta: 0.4
       min_speed_xy: 0.0
       max_speed_xy: 0.20    # Match max_vel_x
       min_speed_theta: 0.0
@@ -91,10 +110,17 @@ controller_server:
       decel_lim_theta: -0.8 # Down from -1.5
 
       # Trajectory Sampling - Reduce if CPU utilization spikes:
-      vx_samples: 10
+      # Bumped 10 -> 12 to keep sample resolution across the now-wider
+      # [-0.10, 0.20] vx span opened up by enabling reverse.
+      vx_samples: 12
       vy_samples: 1 # Keep at 1 for differential drive (no strafing)
       vtheta_samples: 12
-      sim_time: 1.5 # How many seconds into the future the planner simulates
+      # 3.0 (was 1.5): at 0.2 m/s, 1.5 s simulates only 0.3 m of arc — too
+      # short to find a swerve around a sensed obstacle, so DWB dithered in
+      # place whenever the global path clipped one (which happens whenever the
+      # map-frame plan and odom-frame local costmap disagree by the current
+      # localisation error).
+      sim_time: 3.0 # How many seconds into the future the planner simulates
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.5
@@ -106,17 +132,27 @@ controller_server:
       # CRITIC TUNING NOTES:
       # High PathAlign/PathDist = strictly stays on global path.
       # High GoalAlign/GoalDist = rushes toward the goal shortcutting the path.
-      # High BaseObstacle = prioritizes safety around obstacles.
+      # High ObstacleFootprint = prioritizes safety around obstacles.
+      #
+      # ObstacleFootprint, NOT BaseObstacle: BaseObstacle scores only the cell
+      # under the robot's CENTRE, so with this rectangular footprint DWB was
+      # happy to command trajectories that drove a corner of the rover into a
+      # lethal obstacle (observed in sim: front corner ground against a boulder
+      # while the centre sat in merely-inflated space, wheels slipping, every
+      # recovery failing). ObstacleFootprint collision-checks the full polygon.
       critics:
         - RotateToGoal
         - Oscillation
-        - BaseObstacle
+        - ObstacleFootprint
         - GoalAlign
         - PathAlign
         - PathDist
         - GoalDist
-      BaseObstacle.scale: 25.0
-      PathAlign.scale: 5.0
+      ObstacleFootprint.scale: 25.0
+      # PathAlign lowered 5.0 -> 2.0: with localisation error the plan can clip
+      # a sensed obstacle; a strong PathAlign then fights ObstacleFootprint and
+      # the rover dithers instead of swerving around and rejoining the path.
+      PathAlign.scale: 2.0
       PathAlign.forward_point_distance: 0.10
       GoalAlign.scale: 5.0
       GoalAlign.forward_point_distance: 0.10
@@ -125,6 +161,18 @@ controller_server:
       RotateToGoal.scale: 20.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
+
+      # OSCILLATION NOTE:
+      # Made explicit because enabling reverse (min_vel_x above) is what makes
+      # forward/back dithering possible in the first place. This critic latches
+      # the commanded direction and rejects trajectories that flip it until one
+      # of these resets fires. The TIME reset is the important one - without it
+      # the latch can only clear by travelling oscillation_reset_dist, which a
+      # boxed-in rover cannot do, leaving it stuck reversing.
+      # If it dithers on open ground, raise oscillation_reset_time.
+      Oscillation.oscillation_reset_dist: 0.05
+      Oscillation.oscillation_reset_angle: 0.2
+      Oscillation.oscillation_reset_time: 3.0
 
 local_costmap:
   local_costmap:
@@ -138,17 +186,25 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      robot_radius: 0.70
+      # FOOTPRINT NOTE:
+      # Was robot_radius: 0.70, which modelled the rover as a 1.4 m circle.
+      # The rover is actually rectangular (rover_core.xacro): base 0.925 x 0.745
+      # plus wheels at +/-0.4625 with r=0.15 -> ~1.225 m long x 0.895 m wide.
+      # The polygon keeps the true length for collision checking while dropping
+      # the inscribed radius from 0.70 to 0.45, which is what sets the size of
+      # the solid high-cost disk drawn around each obstacle.
+      footprint: "[ [0.62, 0.45], [0.62, -0.45], [-0.62, -0.45], [-0.62, 0.45] ]"
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
-      ### Costmap mask addition - comment out if need be ###
-      filters: ["keepout_filter"]
-      keepout_filter:
-        plugin: "nav2_costmap_2d::KeepoutFilter"
-        enabled: true
-        filter_info_topic: "/costmap_filter_info"
-      ### end of costmap mask addition ###
+      # NO keepout filter here (global costmap only). The keepout mask bakes a
+      # 0.55 m CENTRE clearance into the boundary (see generate_masks.py), which
+      # pairs with the centre-based global planner. The local DWB critic is
+      # ObstacleFootprint — full-polygon collision checking — and the footprint
+      # (corner radius 0.77 m) always overlaps that inset band near the walls,
+      # so keeping the filter here made every trajectory "collide" ("No valid
+      # trajectories out of 168"). The physical walls and boulders are seen by
+      # the depth cameras, so the local costmap still contains the real hazards.
 
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
@@ -172,7 +228,6 @@ local_costmap:
           raytrace_max_range: 2.0   # Clear out memory up to 2.0m away
           min_obstacle_height: 0.1
           max_obstacle_height: 1.2
-          vertical_fov_angle: 1.0
 
         rear_camera_raw:
           topic: /depth_camera_rear/depth/points
@@ -183,7 +238,6 @@ local_costmap:
           raytrace_max_range: 2.0
           min_obstacle_height: 0.1
           max_obstacle_height: 1.2
-          vertical_fov_angle: 2.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -193,8 +247,11 @@ local_costmap:
         cost_scaling_factor: 3.0
 
         # INFLATION RADIUS NOTE:
-        # Must be > robot_radius. Anything inside this radius + robot_radius will receive a high-cost penalization.
-        inflation_radius: 0.90
+        # Must be > the footprint's inscribed radius (0.45 here). This is the
+        # total distance from an obstacle that gets any cost at all, i.e. the
+        # outer edge of the coloured blob on the costmap.
+        # 0.90 -> 0.52 shrinks that blob to ~1/3 its old area ((0.52/0.90)^2).
+        inflation_radius: 0.52
 
   local_costmap_client:
     ros__parameters:
@@ -216,7 +273,8 @@ global_costmap:
       width: 16
       height: 16
       resolution: 0.05
-      robot_radius: 0.70
+      # See footprint note in local_costmap above - keep these two in sync.
+      footprint: "[ [0.62, 0.45], [0.62, -0.45], [-0.62, -0.45], [-0.62, 0.45] ]"
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
@@ -251,7 +309,6 @@ global_costmap:
           raytrace_max_range: 2.0
           min_obstacle_height: 0.1
           max_obstacle_height: 1.2
-          vertical_fov_angle: 1.0
 
         rear_camera_raw:
           topic: /depth_camera_rear/depth/points
@@ -262,12 +319,11 @@ global_costmap:
           raytrace_max_range: 2.0
           min_obstacle_height: 0.1
           max_obstacle_height: 1.2
-          vertical_fov_angle: 2.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.90
+        inflation_radius: 0.52
 
   global_costmap_client:
     ros__parameters:
@@ -303,16 +359,27 @@ behavior_server:
     spin:
       plugin: "nav2_behaviors/Spin"
       spin_dist: 3.14 # Distance to spin in radians (180 degrees to fully clear/sweep camera views)
-      time_allowance: 10.0 # Max time allowed to complete execution before timing out
+      # Physical yaw rate is ~0.5x commanded (skid-steer scrub, measured in
+      # sim), so 3.14 rad at 0.4 commanded = ~0.2 actual needs ~16 s.
+      time_allowance: 30.0 # Max time allowed to complete execution before timing out
       max_rotational_vel: 0.4 # Target angular speed
     backup:
       plugin: "nav2_behaviors/BackUp"
-      backup_dist: 0.30 # Distance to reverse in meters
-      time_allowance: 4.0
+      # Must exceed the footprint's 0.45 m inscribed radius, otherwise backing up
+      # cannot move the rover's centre out of an inflated band and the recovery
+      # finishes still in collision. 0.30 -> 0.60.
+      backup_dist: 0.60 # Distance to reverse in meters
+      time_allowance: 10.0 # 0.60 m at 0.10 m/s = 6 s, plus acceleration ramp
       speed: 0.10 # Target linear speed (m/s) for backing up
     wait:
       plugin: "nav2_behaviors/Wait"
       time_allowance: 0.5 # Minimal wait; just a brief pause to let the controllers reset
+    # local_frame must be odom: Spin/BackUp collision-check against the LOCAL
+    # costmap (costmap_topic above), whose frame is odom. Without this they
+    # checked map-frame poses against that grid and aborted with "Pose Goes
+    # Off Grid" whenever map->odom carried any real correction — meaning every
+    # recovery failed exactly when the rover was lost enough to need one.
+    local_frame: odom
     global_frame: map
     robot_base_frame: base_footprint
     transform_tolerance: 0.5
@@ -339,8 +406,13 @@ velocity_smoother:
     scale_velocities: false
     feedback: "OPEN_LOOP"
     # SMOOTHER NOTE: Limits must be >= DWB Local Planner limits to prevent choking commands
+    #
+    # Wired in-path by navigation_launch.py: controller/behaviors publish
+    # /cmd_vel_nav_raw, this node smooths it onto /cmd_vel_nav, which is what
+    # the drive mux consumes. min_velocity x stays negative so DWB's reverse
+    # escape (min_vel_x -0.10) isn't clamped to zero here.
     max_velocity: [0.8, 0.0, 0.8]
-    min_velocity: [0.0, 0.0, -0.8]
+    min_velocity: [-0.10, 0.0, -0.8]
     max_accel: [1.0, 0.0, 2.0]
     max_decel: [-1.0, 0.0, -2.0]
     odom_topic: /odometry/filtered
@@ -363,6 +435,8 @@ lifecycle_manager_navigation:
   ros__parameters:
     use_sim_time: true
     autostart: true
+    # NOTE: navigation_launch.py passes its own node_names list (which is what
+    # actually takes effect there); keep this in sync with it.
     node_names:
       - controller_server
       - planner_server
@@ -370,4 +444,5 @@ lifecycle_manager_navigation:
       - bt_navigator
       - waypoint_follower
       - velocity_smoother
+      - filter_mask_server
       - costmap_filter_info_server

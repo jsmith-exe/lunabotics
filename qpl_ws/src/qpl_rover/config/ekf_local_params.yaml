@@ -7,7 +7,9 @@ ekf_local:
     publish_tf: true
     frequency: 50.0
     sensor_timeout: 0.1
-    two_d_mode: false
+    # Planar rover: nothing measures z/roll/pitch, so in 3D mode those states
+    # are unobservable and their covariance grows without bound.
+    two_d_mode: true
 
     # Local EKF:
     # - this filter publishes odom -> base_footprint
@@ -32,7 +34,7 @@ ekf_local:
     #  vroll, vpitch, vyaw,
     #  ax, ay, az]
     # ------------------------------------------------------------------
-    imu0: /imu/data_disabled # Change to /imu/data to enable
+    imu0: /imu/data
     imu0_config: [false, false, false,
                   false, false, true,
                   false, false, false,
@@ -49,22 +51,64 @@ ekf_local:
     # Keep pose disabled here to avoid double-using the same encoder source
     # if the odometry pose is derived from the same internal model.
     # ------------------------------------------------------------------
+    # Yaw rate is DELIBERATELY off. Wheel yaw on a 4-wheel skid-steer is the
+    # derived quantity (v_right - v_left) / wheel_separation, so it inherits the
+    # wheel_radius error, the wheel_separation error, and all of the scrub — and
+    # wheel_separation is surface-dependent, so no single value is ever right.
+    #
+    # Measured in sim against Gazebo ground truth on a 56 deg turn:
+    #     wheel odom yaw error  +11.67 deg
+    #     visual odom yaw error  -0.13 deg
+    #     gyro-driven fused       0.00 deg
+    # The gyro measures angular rate directly, with no kinematic model in the
+    # way, so there is nothing for wheel yaw to add here. imu0 below owns it.
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true,  false,
-                   false, false, true,
+                   false, false, false,
                    false, false, false]
 
     odom0_differential: false
     odom0_relative: false
 
-    # If VO later fights wheel odom, try twist-only fusion instead:
-    # odom1_config: [false, false, false,
-    #                false, false, false,
-    #                true,  false, false,
-    #                false, false, true,
-    #                false, false, false]
+    # ------------------------------------------------------------------
+    # RGB-D visual odometry (vslam_launch.py)
+    #
+    # Body-frame velocities ONLY. Three reasons this is not the pose-fusing
+    # config that was deleted in efad12f:
+    #   1. VO pose drifts without bound in the odom frame, exactly like wheel
+    #      odom does. Fusing both as absolute pose double-counts the same
+    #      quantity and the two sources fight.
+    #   2. odom -> base_footprint is a dead-reckoning edge by definition; the
+    #      global EKF + AprilTags own absolute position via map -> odom.
+    #   3. Yaw rate is deliberately left to the IMU. VO yaw is derived from the
+    #      same feature matches as its translation, so it is not independent
+    #      information, and it degrades first when texture is poor.
+    #
+    # The value here is vx/vy that don't care about wheel slip: when the wheels
+    # spin up on regolith and over-report distance, this input contradicts them.
+    # vy matters on a skid-steer — wheel odom reports it as a hard zero, so
+    # lateral scrub during turns is otherwise invisible to the filter.
+    #
+    # Nothing breaks if vslam isn't running: robot_localization simply never
+    # receives odom1 and carries on with odom0 + imu0.
+    # ------------------------------------------------------------------
+    odom1: /vo/odom
+    odom1_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, false,
+                   false, false, false]
+
+    odom1_differential: false
+    odom1_relative: false
+    odom1_queue_size: 10
+
+    # VO failure mode is a large bogus jump, not gradual noise. publish_null_when_lost
+    # is off so a lost tracker goes quiet rather than lying, and this catches
+    # whatever slips through on recovery frames.
+    odom1_twist_rejection_threshold: 3.0
 
     # ------------------------------------------------------------------
     # Optional timing settings

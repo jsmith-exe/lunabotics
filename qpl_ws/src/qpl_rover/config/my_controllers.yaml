@@ -24,13 +24,65 @@ diff_cont:
     left_wheel_names:  ["front_left_wheel_joint", "rear_left_wheel_joint"]
     right_wheel_names: ["front_right_wheel_joint", "rear_right_wheel_joint"]
 
+    # TODO(calibration): wheel_separation below is WRONG and needs to be
+    # measured on the real rover before it is trusted.
+    #
+    # 0.5836 is the chassis width, not a wheel-centre-to-wheel-centre distance,
+    # and it predates the chassis being re-measured (base_y 0.5806 -> 0.745 in
+    # rover_core.xacro). Two things are missing from it:
+    #   1. The wheels sit outboard of the chassis, so the geometric track is
+    #      base_y + wheel_w = 0.895 m, not 0.5836 m.
+    #   2. This is a 4-wheel skid-steer running a 2-wheel diff-drive model. The
+    #      wheels scrub sideways to rotate, so the *effective* track width that
+    #      the odometry needs is larger than the geometric one and depends on
+    #      the surface (regolith vs concrete will differ).
+    #
+    # In sim this causes yaw to be over-reported by ~2x; the sim value is
+    # overridden to a measured 1.161 in gaz_ros2_ctl_use_sim.yaml. Do NOT copy
+    # that number here - it is specific to the sim's wheel friction.
+    #
+    # To calibrate on hardware: spin the rover in place at a steady rate, and
+    # compute (v_right - v_left) / yaw_rate using an external yaw reference
+    # (IMU or AprilTag), then set that as wheel_separation. Repeat on the
+    # competition surface. Expect something >= 0.895.
     wheel_separation: 0.5836
-    wheel_radius: 0.15
+    wheel_radius: 0.15   # TODO(calibration): verify against loaded wheels on the real rover
 
     use_stamped_vel: false
 
     odom_frame_id: odom
     enable_odom_tf: false
+
+    # ------------------------------------------------------------------
+    # Odometry covariance
+    #
+    # diff_drive_controller defaults BOTH of these to all zeros, and a zero
+    # covariance is not "unknown" — robot_localization substitutes ~1e-9 to keep
+    # the matrix invertible, which means the encoders are fused as a near-perfect
+    # measurement and outvote every other input.
+    #
+    # Measured in sim against Gazebo ground truth over a 3.9 m path: wheel odom
+    # drifted 0.224 m (5.7%) while visual odometry drifted 0.015 m (0.4%) — yet
+    # the fused output sat at 0.071 m, dragged toward the wheels purely because
+    # they claimed zero variance. These numbers are what let the filter believe
+    # the better source.
+    #
+    # Order is [vx, vy, vz, vroll, vpitch, vyaw]. Unfused axes get 1e6.
+    #   vx   0.01  -> std 0.1 m/s. Slip on loose regolith is one-directional
+    #                 (wheels spin, rover doesn't), so this is a bias as much as
+    #                 noise; 0.1 m/s at a 0.25 m/s cruise is deliberately humble.
+    #   vy   0.05  -> the diff-drive model reports a hard zero, but a 4-wheel
+    #                 skid-steer genuinely scrubs sideways in turns. Large
+    #                 variance stops that hard zero over-constraining the filter.
+    #   vyaw 0.05  -> std 0.22 rad/s. Wheel yaw depends on wheel_separation, which
+    #                 is surface-dependent and known wrong (see the TODO above).
+    #                 Measured yaw scale error in sim was ~21% on a 56 deg turn.
+    #
+    # TODO(calibration): refine from real bag data on the competition surface.
+    # These are honest starting values, not measured hardware ones.
+    # ------------------------------------------------------------------
+    pose_covariance_diagonal:  [0.05, 0.05, 1.0e6, 1.0e6, 1.0e6, 0.1]
+    twist_covariance_diagonal: [0.01, 0.05, 1.0e6, 1.0e6, 1.0e6, 0.05]
 
     linear:
       x:

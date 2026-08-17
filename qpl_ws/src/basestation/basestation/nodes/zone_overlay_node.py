@@ -6,7 +6,9 @@ for the arena boundary and the berm deposition target. Static overlay: no TF
 lookup needed, the markers are fixed in the map frame. Text labels and waypoint
 arrows are intentionally omitted to keep the view uncluttered.
 
-Map-frame arena: X(0..4.4) Y(0..7.9), origin at the AprilTag corner.
+UCF championship arena (guidebook Figure 2; see arena_ucf.world for the frame
+convention). Map-frame arena: X(0..9.14) Y(0..8.10), origin at the SW interior
+corner; the rulebook origin (front-wall centre) is at map (4.57, 0).
 Topic: /zone_overlay  ->  add an rviz_default_plugins/MarkerArray display.
 """
 
@@ -16,16 +18,24 @@ from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
 
 
-# name, x_min, x_max, y_min, y_max, (r, g, b, a)
+# name, x_min, x_max, y_min, y_max, (r, g, b, a), fill z-height
+# The starting zone sits inside the excavation zone and the construction zone
+# inside the obstacle zone, so the inner zones are drawn on a higher z layer.
 ZONES = [
-    ("START",        0.0, 2.0,  0.0,   2.0,    (0.20, 0.80, 0.30, 0.30)),
-    ("CONSTRUCTION", 2.9, 4.4,  0.0,   2.6,    (0.25, 0.45, 0.95, 0.30)),
-    ("EXCAVATION",   0.0, 4.4,  5.275, 7.9,    (0.95, 0.30, 0.70, 0.30)),
+    ("EXCAVATION",   0.0,  9.14, 0.0,  3.0,  (0.95, 0.30, 0.70, 0.30), 0.02),
+    ("OBSTACLE",     0.0,  9.14, 3.0,  8.10, (0.95, 0.75, 0.20, 0.15), 0.02),
+    ("START",        2.32, 4.57, 0.0,  2.25, (0.20, 0.80, 0.30, 0.30), 0.04),
+    ("CONSTRUCTION", 7.14, 9.14, 4.69, 8.10, (0.25, 0.45, 0.95, 0.30), 0.04),
 ]
 
-# Berm deposition target (map frame) — handy reference while depositing.
-BERM_CENTER = (3.5, 1.0)
-BERM_SIZE = (0.9, 1.4)  # x, y footprint of the target berm area
+# Berm deposition target (map frame) — 0.9 x 2.2 m, long axis along Y,
+# centred at rulebook (X: 3.56, Y: 6.40) = map (8.13, 6.40).
+BERM_CENTER = (8.13, 6.40)
+BERM_SIZE = (0.9, 2.2)  # x, y footprint of the target berm area
+
+# Arena outline (map frame)
+ARENA_X = 9.14
+ARENA_Y = 8.10
 
 FRAME = "map"
 
@@ -55,10 +65,12 @@ class ZoneOverlay(Node):
         m = self._base("zone_fill", mid, Marker.CUBE)
         m.pose.position.x = (x0 + x1) / 2.0
         m.pose.position.y = (y0 + y1) / 2.0
-        m.pose.position.z = z / 2.0
+        # Thin slab whose TOP surface sits at z, so overlapping zones stack
+        # instead of z-fighting.
         m.scale.x = x1 - x0
         m.scale.y = y1 - y0
-        m.scale.z = z
+        m.scale.z = 0.01
+        m.pose.position.z = z - 0.005
         m.color.r, m.color.g, m.color.b, m.color.a = rgba
         return m
 
@@ -85,13 +97,13 @@ class ZoneOverlay(Node):
         arr.markers.append(clear)
 
         mid = 0
-        for name, x0, x1, y0, y1, rgba in ZONES:
-            arr.markers.append(self._fill(mid, x0, x1, y0, y1, rgba))
+        for name, x0, x1, y0, y1, rgba, z in ZONES:
+            arr.markers.append(self._fill(mid, x0, x1, y0, y1, rgba, z=z))
             mid += 1
 
         # Arena boundary
         arr.markers.append(
-            self._outline(mid, 0.0, 4.4, 0.0, 7.9, (1.0, 1.0, 1.0, 0.8))
+            self._outline(mid, 0.0, ARENA_X, 0.0, ARENA_Y, (1.0, 1.0, 1.0, 0.8))
         )
         mid += 1
 
