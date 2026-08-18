@@ -2,6 +2,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
+import yaml
 
 from launch.actions import TimerAction, OpaqueFunction, DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -44,15 +45,24 @@ def opaque_generate_launch_description(context):
 
     print(f"Using global EKF params: {ekf_global_params}")
 
-    # 1. Static Anchor: Where the tag exists in the world
+    # Single source of truth for the tag's map pose (see the comments in it).
+    # The observer gets it as parameters; the static TF below is derived from
+    # the same values so the two can never disagree.
+    tag_pose_params = os.path.join(rover_pkg, "config", "tag_pose.yaml")
+    with open(tag_pose_params, "r") as f:
+        tag_cfg = yaml.safe_load(f)["apriltag_observer"]["ros__parameters"]
+    tag_x, tag_y, tag_z, tag_yaw = (str(v) for v in tag_cfg["tag_map_pose"])
+    tag_frame = f"tag_{tag_cfg['tag_id']}"
+
+    # 1. Static Anchor: Where the tag exists in the world (debug/visualisation)
     tag_to_map_static = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
         name="static_map_to_tag",
         arguments=[
-            "0.055", "0.2", "0.3",
-            "0", "0", "0",
-            "map", "tag_0"
+            tag_x, tag_y, tag_z,
+            tag_yaw, "0", "0",  # yaw pitch roll
+            "map", tag_frame
         ],
         parameters=[{"use_sim_time": use_sim_time}],
     )
@@ -63,7 +73,10 @@ def opaque_generate_launch_description(context):
         executable="apriltag_observer",
         name="apriltag_observer",
         output="screen",
-        parameters=[{"use_sim_time": use_sim_time}],
+        parameters=[
+            tag_pose_params,
+            {"use_sim_time": use_sim_time},
+        ],
     )
 
     # 3. Global EKF: Calculates map -> odom

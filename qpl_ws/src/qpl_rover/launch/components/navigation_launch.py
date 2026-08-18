@@ -28,7 +28,6 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     autostart = LaunchConfiguration('autostart')
     params_file = LaunchConfiguration('params_file')
-    default_bt_xml_filename = LaunchConfiguration('default_bt_xml_filename')
     mask_yaml_file = os.path.join(bringup_dir, 'config', 'keepout_mask.yaml') # costmap mask addition
 
     lifecycle_nodes = [
@@ -42,10 +41,14 @@ def generate_launch_description():
         'costmap_filter_info_server', # costmap mask addition
     ]
 
+    # Command path: controller/behavior output -> /cmd_vel_nav_raw -> velocity
+    # smoother -> /cmd_vel_nav -> drive mux. The smoother used to sit in
+    # parallel with the mux (both read /cmd_vel_nav, its output had no
+    # subscriber), so its acceleration limits did nothing.
     common_remappings = [
         ('/tf', 'tf'),
         ('/tf_static', 'tf_static'),
-        ('/cmd_vel', '/cmd_vel_nav'),
+        ('/cmd_vel', '/cmd_vel_nav_raw'),
     ]
 
     return LaunchDescription([
@@ -67,16 +70,6 @@ def generate_launch_description():
             'params_file',
             default_value=os.path.join(bringup_dir, 'config', 'nav_params.yaml'),
             description='Full path to the ROS2 parameters file to use'
-        ),
-
-        DeclareLaunchArgument(
-            'default_bt_xml_filename',
-            default_value=os.path.join(
-                get_package_share_directory('nav2_bt_navigator'),
-                'behavior_trees',
-                'navigate_w_replanning_and_recovery.xml'
-            ),
-            description='Full path to the behavior tree xml file to use'
         ),
 
         Node(
@@ -123,7 +116,6 @@ def generate_launch_description():
             parameters=[
                 params_file,
                 {'use_sim_time': use_sim_time},
-                {'default_bt_xml_filename': default_bt_xml_filename},
             ],
             remappings=common_remappings,
         ),
@@ -152,8 +144,8 @@ def generate_launch_description():
             remappings=[
                 ('/tf', 'tf'),
                 ('/tf_static', 'tf_static'),
-                ('cmd_vel', 'cmd_vel_nav'),
-                ('cmd_vel_smoothed', 'cmd_vel'),
+                ('cmd_vel', 'cmd_vel_nav_raw'),
+                ('cmd_vel_smoothed', 'cmd_vel_nav'),
             ],
         ),
 

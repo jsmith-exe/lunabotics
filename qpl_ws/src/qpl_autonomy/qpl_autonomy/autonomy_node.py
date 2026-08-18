@@ -81,6 +81,21 @@ class AutonomyNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = AutonomyNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Best-effort: cancel any in-flight Nav2 goal so the rover doesn't keep
+        # driving after this node dies, then spin briefly to flush the request.
+        try:
+            node.navigation.shutdown()
+            for _ in range(5):
+                rclpy.spin_once(node, timeout_sec=0.1)
+        except Exception:
+            pass
+        node.destroy_node()
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass

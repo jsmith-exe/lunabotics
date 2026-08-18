@@ -1,0 +1,42 @@
+# Single source of truth for the AprilTag's pose in the map frame.
+#
+# map_localisation.launch.py feeds these values to BOTH consumers:
+#   - apriltag_observer (parameters) — this is what actually defines the map
+#     frame, because the global EKF fuses the poses computed against it
+#   - the map -> tag_0 static TF (for visualisation/debug)
+# so the two can never disagree. Do not hardcode a tag pose anywhere else.
+#
+# UCF championship arena (arena_ucf.world; map origin = SW interior corner,
+# rulebook origin = front-wall centre = map (4.57, 0)):
+# the tag is a 1.5 x 1.5 m board filling the fiducial rail on the front (south)
+# wall — rail spans map x 2.57..4.07 — bottom edge on the regolith, so the
+# board centre is at 0.75 m height, facing +Y into the arena. yaw -pi/2 follows
+# the observer's convention (the sanitised tag frame's x-axis points INTO the
+# wall; a +X-facing tag was yaw pi).
+#
+# COMPETITION: re-measure the board's actual mount position/height relative to
+# the front-wall centre with a tape measure and update here only. The rules put
+# no size limit on starting-zone fiducials, but the board's mass counts toward
+# the robot mass limit and it must fit within the starting zone.
+apriltag_observer:
+  ros__parameters:
+    tag_id: 0
+    # Between edges of the BLACK outline. tag36h11 outline = 0.8 of the printed
+    # board: 1.5 m board -> 1.2 m tag.
+    tag_size: 1.2
+    tag_map_pose: [3.32, 0.01, 0.75, -1.5707963267948966]  # x, y, z, yaw
+    decision_margin_min: 35.0
+    cov_xy_at_1m: 0.02          # measurement variance at 1 m, scaled by distance^2
+    cov_yaw_at_1m: 0.05
+    # Reject detections beyond this range (too few pixels -> noisy position,
+    # yaw ambiguity flips). With the 1.2 m tag this covers the whole arena:
+    # the farthest corner is ~10 m from the board, where it still appears as
+    # large as the old 0.32 m tag did at 2.7 m. If the tag ever shrinks again,
+    # scale this down proportionally (0.32 m tag -> 4.0).
+    max_tag_range: 11.0
+    # Cooldown between published poses (seconds, both cameras share it). Caps
+    # how often the EKF gets tugged while the tag is in view so map->odom stays
+    # steady under Nav2; a couple of absolute fixes per second bounds drift.
+    # Raise it if nav still stutters when facing the tag; lower toward 0.2 if
+    # drift between fixes grows.
+    min_update_period: 0.5

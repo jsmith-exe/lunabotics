@@ -1,0 +1,188 @@
+<?xml version="1.0"?>
+<!--
+  UCF Exolith Lab arena — NASA International Lunabotics Championship
+  (Guidebook "UCF Review Draft 7", Figure 2 "UCF Arena Layout").
+
+  Arena interior: 9.14 m (X) x 8.10 m (Y). The 1.0 m judge platform beyond the
+  north wall is not modelled.
+
+  FRAME CONVENTION: the map frame keeps the corner-origin convention used by
+  the whole stack — map (0,0) is the arena's south-west (bottom-left) interior
+  corner. Gazebo world origin is the arena centre, so:
+      map = world + (4.57, 4.05)
+  The RULEBOOK origin (centre of the front/south wall, Figure 2) is at
+  map (4.57, 0.0); rulebook (X,Y) -> map (X + 4.57, Y).
+
+  Zones (map frame, from Figure 2):
+    Excavation zone   y 0.00..3.00 (full width; includes the starting zone)
+    Starting zone     x 2.32..4.57, y 0..2.25
+    Obstacle zone     y 3.00..8.10
+    Construction zone x 7.14..9.14, y 4.69..8.10
+    Berm target       0.9 x 2.2 m centred at map (8.13, 6.40)
+                      (rulebook X: 3.56, Y: 6.40)
+
+  Fiducial rail: front (south) wall, 1.5 m of 80/20 at 0.40 m height, spanning
+  rulebook x -2.0..-0.5 = map x 2.57..4.07. The AprilTag sits at the rail
+  centre, map (3.32, ~0, 0.40), facing +Y into the arena.
+
+  Boulders and craters are DELIBERATELY ABSENT for now (avoidance-vs-navigation
+  isolation testing); the rulebook places 30-40 cm rocks and 40-50 cm craters
+  in the obstacle zone — add them back once base navigation is trusted.
+-->
+<sdf version="1.6">
+  <world name="lunabotics_ucf_arena">
+
+    <!-- PHYSICS -->
+    <physics type="ode">
+      <gravity>0 0 -9.81</gravity>
+    </physics>
+
+    <!-- Ground truth for localisation testing: publishes /gazebo/model_states -->
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros>
+        <namespace>/gazebo</namespace>
+      </ros>
+      <update_rate>10.0</update_rate>
+    </plugin>
+
+    <light type="directional" name="sun">
+      <pose>0 0 10 0 0 0</pose>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Ground: flat slab with default friction (matches the flat heightmap
+         the old world used; the terrain_heightmap model is only 7.9x7.9 m and
+         would leave the larger arena's edges unsupported). -->
+    <model name="arena_ground">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>12 12 0.1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>12 12 0.1</size></box></geometry>
+          <!-- Textured, not flat-shaded. A solid colour here made RGB-D visual
+               odometry untestable in sim: no intensity gradient means no
+               trackable features. See worlds/regolith_texture_gen.py. -->
+          <material>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Ground</name>
+            </script>
+          </material>
+        </visual>
+        <pose>0 0 -0.05 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Walls: inner faces exactly on the arena boundary
+         (south y=-4.05, north y=+4.05, west x=-4.57, east x=+4.57) -->
+    <model name="wall_south">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>9.34 0.1 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>9.34 0.1 0.4</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
+          </material>
+        </visual>
+        <pose>0 -4.10 0.2 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_north">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>9.34 0.1 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>9.34 0.1 0.4</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
+          </material>
+        </visual>
+        <pose>0 4.10 0.2 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_west">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 8.10 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 8.10 0.4</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
+          </material>
+        </visual>
+        <pose>-4.62 0 0.2 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_east">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 8.10 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 8.10 0.4</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
+          </material>
+        </visual>
+        <pose>4.62 0 0.2 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- APRILTAG board filling the fiducial rail: a 1.5 x 1.5 m printed board
+         spanning the rail's full 1.5 m (map x 2.57..4.07), bottom edge on the
+         regolith, centre at map (3.32, 0.01, 0.75), facing +Y into the arena.
+         The tag36h11 black outline is 0.8 of the board -> tag_size 1.2 m.
+         yaw pi/2 turns the old +X-facing tag face to +Y.
+         Keep in sync with config/tag_pose.yaml. -->
+    <model name="apriltag_0">
+      <static>true</static>
+      <pose>-1.25 -4.04 0.75 0 0 1.5708</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.01 1.5 1.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.01 1.5 1.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
+              <uri>model://apriltag_model/materials/textures/</uri>
+              <name>AprilTag/tag0</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

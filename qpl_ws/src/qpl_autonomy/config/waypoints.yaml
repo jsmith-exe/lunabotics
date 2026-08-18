@@ -2,28 +2,46 @@
 # high-level autonomy_node and the excavation/deposition task nodes read
 # from this file, so a change here propagates everywhere.
 #
+# UCF championship arena (guidebook Figure 2; map origin = SW interior corner,
+# rulebook origin = front-wall centre = map (4.57, 0)):
+#   Excavation zone   y 0.00..3.00 (full width; includes the starting zone)
+#   Starting zone     x 2.32..4.57, y 0..2.25 (rover starts here)
+#   Obstacle zone     y 3.00..8.10
+#   Construction zone x 7.14..9.14, y 4.69..8.10
+#   Berm target       0.9 x 2.2 m centred at map (8.13, 6.40), long axis
+#                     along Y (rulebook X: 3.56, Y: 6.40)
+#
 # *_zone  : navigation target / start of the dig or dump pass
 # *_finish: end of the dig (excavation) or dump (construction) pass; the
 #           task node drives from the zone to the finish while running the drum.
-# NOTE: the *_finish values below are best-guess in-bounds defaults — tune
-#       them against the real arena before relying on a mission run.
+#
+# PASS LENGTH NOTE: keep zone->finish distance well above Nav2's
+# xy_goal_tolerance (0.20 m in nav_params.yaml), otherwise the goal checker can
+# declare the finish reached almost immediately and the drum pass barely
+# happens.
+#
+# NOTE: tune against the real arena before relying on a mission run.
 
+# Dig pass: west -> east across the excavation zone at y 2.0, clear of the
+# south wall and the starting position.
 excavation_zone:
-  x: 1
-  y: 6.5
+  x: 2.5
+  y: 2.0
   yaw: 0.0
 
 excavation_finish:
-  x: 2
-  y: 6.5
+  x: 4.5
+  y: 2.0
   yaw: 0.0
 
+# Dump pass: enter the berm target area from the north and drive south along
+# its long axis (berm x centre 8.13; area spans y 5.30..7.50).
 construction_zone:
-  x: 3.65
-  y: 1.3
+  x: 8.13
+  y: 7.2
   yaw: -1.5708  # -pi/2 radians, faces -Y (the dump-pass travel direction)
 
 construction_finish:
-  x: 3.65
-  y: 1
+  x: 8.13
+  y: 5.6
   yaw: -1.5708  # -pi/2 radians, faces -Y (the dump-pass travel direction)

@@ -7,7 +7,9 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Tim
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
-selected_world = "arena_april.world"
+# UCF championship arena (see the frame-convention comment in arena_ucf.world).
+# "arena_april.world" is the old UK 4.4x7.9 arena, kept for reference.
+selected_world = "arena_ucf.world"
 rover_pkg: str = get_package_share_directory("qpl_rover")
 gazebo_directory: str = get_package_share_directory("gazebo_ros")
 
@@ -39,10 +41,11 @@ def setup_components(context):
             path.join(rover_pkg, "launch", "components.launch.py")
         ),
         launch_arguments={
-            "use_sim_time": "true"
+            "use_sim_time": "true",
+            "use_vslam": LaunchConfiguration("use_vslam").perform(context),
         }.items()
     )
-    
+
     return [components]
 
 def make_relay(name: str, source: str, destination: str):
@@ -90,6 +93,12 @@ def generate_launch_description():
         description='Whether to run the simulation with components.'
     )
 
+    use_vslam_parameter = DeclareLaunchArgument(
+        'use_vslam',
+        default_value='false',
+        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1.'
+    )
+
     # tell gazebo where to find the apriltag model so the texture loads on any machine
     models_path = path.join(rover_pkg, "worlds")
     gazebo_model_path = SetEnvironmentVariable(
@@ -114,9 +123,12 @@ def generate_launch_description():
                 arguments=[
                     "-topic", "robot_description",
                     "-entity", "rover",
-                    "-x", "-1.2", # set to 0 (default) if not using april_arena.world
-                    "-y", "-2.95", # set to 0 (default) if not using april_arena.world
-                    "-z", "0.2"], # set to 0 (default) if not using april_arena.world
+                    # Centre of the UCF starting zone: map (3.45, 1.12) ->
+                    # world (-1.12, -2.93), facing +X (east). Keep in sync with
+                    # initial_state in ekf_global_params.yaml.
+                    "-x", "-1.12",
+                    "-y", "-2.93",
+                    "-z", "0.2"],
                 output="screen",
             )
         ],
@@ -125,6 +137,7 @@ def generate_launch_description():
     return LaunchDescription([
         headless_parameter,
         run_components_parameter,
+        use_vslam_parameter,
         gazebo_model_path,
         rsp,
         OpaqueFunction(function=setup_gazebo),

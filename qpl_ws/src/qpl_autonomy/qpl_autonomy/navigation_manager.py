@@ -32,7 +32,16 @@ class NavigationManager:
         self._active = False
         self._deadline = None
 
+        # Generation counter: each navigate_to() starts a new generation, and
+        # every callback carries the generation it belongs to. Without this, a
+        # goal cancelled by the watchdog can deliver its (CANCELED) result
+        # AFTER the FSM has already retried, and that stale result would be
+        # recorded as the NEW goal's outcome.
+        self._generation = 0
+
         # Don't block forever if Nav2 isn't up yet — log so it's diagnosable.
+        # Nav2 is intentionally launched separately (qpl_nav), so waiting here
+        # with a heartbeat warning is the expected startup path.
         while not self.nav_client.wait_for_server(timeout_sec=5.0):
             self.node.get_logger().warn(
                 "Waiting for the navigate_to_pose action server (is Nav2 running?)"
@@ -46,6 +55,9 @@ class NavigationManager:
     # =====================================================
 
     def navigate_to(self, waypoint):
+
+        self._generation += 1
+        generation = self._generation
 
         self.goal_complete = False
         self.goal_succeeded = False
@@ -72,13 +84,17 @@ class NavigationManager:
         goal_msg.pose = pose
 
         future = self.nav_client.send_goal_async(goal_msg)
-        future.add_done_callback(self.goal_response_callback)
+        future.add_done_callback(
+            lambda f: self.goal_response_callback(f, generation))
 
     # =====================================================
     # RESPONSE
     # =====================================================
 
-    def goal_response_callback(self, future):
+    def goal_response_callback(self, future, generation):
+
+        if generation != self._generation:
+            return  # response for a goal we've already given up on
 
         self.goal_handle = future.result()
 
@@ -94,16 +110,18 @@ class NavigationManager:
         self.node.get_logger().info("Goal accepted")
 
         result_future = self.goal_handle.get_result_async()
-        result_future.add_done_callback(self.result_callback)
+        result_future.add_done_callback(
+            lambda f: self.result_callback(f, generation))
 
     # =====================================================
     # RESULT
     # =====================================================
 
-    def result_callback(self, future):
+    def result_callback(self, future, generation):
 
-        # Ignore a late result for a goal we already gave up on (timeout/cancel).
-        if not self._active:
+        # Ignore a late result for a goal we already gave up on (timeout/cancel
+        # or a newer goal has been issued since).
+        if generation != self._generation or not self._active:
             return
 
         status = future.result().status
@@ -136,10 +154,21 @@ class NavigationManager:
             self.goal_complete = True
 
     # =====================================================
-    # CANCEL
+    # CANCEL / SHUTDOWN
     # =====================================================
 
     def cancel_goal(self):
 
         if self.goal_handle is not None:
             self.goal_handle.cancel_goal_async()
+
+    def shutdown(self):
+        """Cancel any in-flight goal so the rover doesn't keep driving after
+        the mission node dies. Call from the node's shutdown path — bt_navigator
+        keeps executing the last goal otherwise, and the drive mux can't help
+        because Nav2 is still publishing."""
+        self._generation += 1  # invalidate all pending callbacks
+        if self._active:
+            self.node.get_logger().info("Shutting down — cancelling active navigation goal")
+            self.cancel_goal()
+        self._active = False
