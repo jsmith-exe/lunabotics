@@ -1,0 +1,51 @@
+// Arena surface materials for arena_ucf.world.
+//
+// These exist so RGB-D visual odometry (vslam_launch.py) has something to
+// track. The surfaces they replace were solid-colour polygons: the front
+// camera measured 0.39 grey levels per pixel of gradient, and rgbd_odometry
+// could not hold 8 inliers anywhere in the arena. See regolith_texture_gen.py.
+//
+// 'scale' here is Ogre's texture-coordinate scale, so SMALLER values mean MORE
+// repeats across the face. Box faces are UV mapped 0..1 regardless of size, so
+// the numbers below are derived from each model's dimensions in the world file.
+// If you resize the ground or the walls, re-derive them or the grain size will
+// silently change.
+
+material Regolith/Ground
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture regolith.png
+        // Ground slab is 12 x 12 m; 1/6 gives a 2 m tile, so the visible grain
+        // sits at roughly the scale of real BP-1 clumping and rover tracks.
+        scale 0.1667 0.1667
+        // Trilinear + mipmaps: without it the fine grain aliases into moving
+        // speckle at range, which produces features that do not survive
+        // between frames — worse for VO than no texture at all.
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material Regolith/Wall
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture arena_wall.png
+        // Walls are 0.4 m tall and up to 9.34 m long. A 1/10 scale keeps the
+        // panel grain fine enough not to read as soil.
+        scale 0.1 0.1
+        filtering trilinear
+      }
+    }
+  }
+}

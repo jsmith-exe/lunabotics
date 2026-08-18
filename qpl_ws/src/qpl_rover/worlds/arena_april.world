@@ -12,12 +12,29 @@
       <direction>-0.5 0.1 -0.9</direction>
     </light>
 
+    <!-- Ground truth for localisation testing: publishes /gazebo/model_states.
+         Inert otherwise - it adds a topic and nothing else. arena_ucf.world on
+         the localisation branch carries the same plugin for the same reason. -->
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros>
+        <namespace>/gazebo</namespace>
+      </ros>
+      <update_rate>50.0</update_rate>
+    </plugin>
+
     <!-- PHYSICAL ARENA -->
     <!-- Terrain -->
     <include>
       <uri>model://terrain_heightmap</uri>
     </include>
 
+    <!-- Walls.
+         Textured rather than flat-shaded, for the same reason as the ground:
+         a solid-colour surface gives RGB-D visual odometry no intensity
+         gradient to track, and at rover camera height the walls are most of
+         what the front camera sees. Regolith/Wall's texture scale was derived
+         for the UCF arena's 0.4 m walls, so on these 0.2 m walls the grain
+         comes out finer; trilinear filtering keeps it from aliasing. -->
     <!-- Walls -->
     <model name="wall_south">
       <static>true</static>
@@ -28,8 +45,11 @@
         <visual name="visual">
           <geometry><box><size>4.4 0.1 0.2</size></box></geometry>
           <material>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.3 0.3 0.3 1</diffuse>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
           </material>
         </visual>
         <pose>0 -3.95 0.1 0 0 0</pose>
@@ -45,8 +65,11 @@
         <visual name="visual">
           <geometry><box><size>4.4 0.1 0.2</size></box></geometry>
           <material>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.3 0.3 0.3 1</diffuse>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
           </material>
         </visual>
         <pose>0 3.95 0.1 0 0 0</pose>
@@ -62,8 +85,11 @@
         <visual name="visual">
           <geometry><box><size>0.1 7.9 0.2</size></box></geometry>
           <material>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.3 0.3 0.3 1</diffuse>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
           </material>
         </visual>
         <pose>-2.2 0 0.1 0 0 0</pose>
@@ -79,8 +105,11 @@
         <visual name="visual">
           <geometry><box><size>0.1 7.9 0.2</size></box></geometry>
           <material>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.3 0.3 0.3 1</diffuse>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Wall</name>
+            </script>
           </material>
         </visual>
         <pose>2.2 0 0.1 0 0 0</pose>
