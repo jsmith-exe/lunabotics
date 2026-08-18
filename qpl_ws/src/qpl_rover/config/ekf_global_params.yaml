@@ -16,15 +16,46 @@ ekf_global:
     transform_time_offset: 0.0
     transform_timeout: 0.1
 
-    # INPUT 1: The "Smooth" movement from Local EKF
+    # AprilTag poses carry the IMAGE timestamp, which lags by the render +
+    # detection latency. Without lag smoothing the filter drops any measurement
+    # older than its own time, so tag corrections vanish exactly when the
+    # system is under load. This buffers 1 s of history and rewinds instead.
+    smooth_lagged_data: true
+    history_length: 1.0
+
+    # INPUT 1: body-frame velocities from RAW wheel odometry.
+    #
+    # Deliberately NOT /odometry/filtered: the local EKF's output stamps lag
+    # sim/wall time under CPU load (measured ~0.7 s in sim), and this filter
+    # silently drops any measurement older than its own filter time — which
+    # left it free-integrating a diverged velocity state (6 m drift in 70 s).
+    # /diff_cont/odom is stamped at source, so it can never go stale that way.
+    # Yaw rate DELIBERATELY off — see the long note in ekf_local_params.yaml.
+    # Wheel yaw carries a measured +11.67 deg error on a 56 deg turn because
+    # wheel_separation is wrong and surface-dependent; imu0 below fuses the gyro
+    # rate instead, which is a direct measurement with no kinematic model.
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
                    true,  true, false,
-                   false, false, true,
+                   false, false, false,
                    false, false, false]
     odom0_differential: false
     odom0_relative: false
+
+    # INPUT 3: IMU yaw RATE, fused directly so gyro information reaches the map
+    # frame without routing through the (laggy) local EKF. Yaw rate only — the
+    # IMU's absolute yaw reference is arbitrary on hardware and would fight the
+    # AprilTag yaw.
+    imu0: /imu/data
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
 
     # INPUT 2: The "Truth" from AprilTags
     pose0: /apriltag/pose

@@ -17,6 +17,9 @@
   <exec_depend>joint_state_broadcaster</exec_depend>
   <exec_depend>velocity_controllers</exec_depend>
   <exec_depend>twist_mux</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
+  <!-- rgbd_odometry, launched by vslam_launch.py (optional, use_vslam:=true) -->
+  <exec_depend>rtabmap_odom</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>

@@ -23,7 +23,8 @@ def setup_components(context):
             path.join(rover_pkg, "launch", "components.launch.py")
         ),
         launch_arguments={
-            "use_sim_time": "false"
+            "use_sim_time": "false",
+            "use_vslam": LaunchConfiguration("use_vslam").perform(context),
         }.items()
     )
 
@@ -36,6 +37,15 @@ def generate_launch_description():
         'run_components',
         default_value='true',
         description='Whether to run the rover with components.'
+    )
+
+    # NOTE: enabling this on hardware also requires the RealSense to be running
+    # (realsense_launch is commented out of the returned LaunchDescription
+    # below), since VO consumes its colour + aligned depth streams.
+    use_vslam_parameter = DeclareLaunchArgument(
+        'use_vslam',
+        default_value='false',
+        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1.'
     )
 
     rsp = IncludeLaunchDescription(
@@ -74,6 +84,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         run_components_parameter,
+        use_vslam_parameter,
         rsp,
         OpaqueFunction(function=setup_components),
         # realsense_launch,

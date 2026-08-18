@@ -16,7 +16,32 @@ ekf_global:
     transform_time_offset: 0.0
     transform_timeout: 0.1
 
-    # INPUT 1: The "Smooth" movement from Local EKF
+    # AprilTag poses carry the IMAGE timestamp, which lags by the capture +
+    # detection latency. Without lag smoothing the filter drops any measurement
+    # older than its own time, so tag corrections vanish exactly when the
+    # system is under load. This buffers 1 s of history and rewinds instead.
+    smooth_lagged_data: true
+    history_length: 1.0
+
+    # INPUT 1: body-frame velocities from RAW wheel odometry. Deliberately NOT
+    # /odometry/filtered — see the note in ekf_global_params.yaml: the local
+    # EKF's output stamps can lag under load and stale measurements are
+    # silently dropped by this filter.
+    #
+    # TODO(hardware): once the physical IMU publishes /imu/data, add an imu0
+    # yaw-rate block here exactly like the sim config's, so gyro yaw reaches
+    # the map frame instead of relying on wheel-odom scrub.
+    # !! yaw rate still TRUE here, and it is wrong — see the equivalent note in
+    #    ekf_local_params_rover.yaml. !!
+    #
+    # The sim twin has this bit FALSE (wheel yaw measured +11.67 deg error on a
+    # 56 deg turn vs 0.00 deg gyro-driven). It stays true here because this
+    # filter has no imu0 either: its only other yaw source is pose0's AprilTag
+    # yaw, which exists only while the board is actually in view. Clearing this
+    # now would leave heading unobservable between tag fixes.
+    #
+    # Clear the 11th entry to false in the SAME commit that adds the imu0
+    # yaw-rate block described in the TODO above.
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,

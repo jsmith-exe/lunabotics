@@ -67,6 +67,8 @@ def get_remappings():
     /camera/camera/accel/imu_info
     /camera/camera/accel/metadata
     /camera/camera/accel/sample
+    /camera/camera/aligned_depth_to_color/camera_info
+    /camera/camera/aligned_depth_to_color/image_raw
     /camera/camera/color/camera_info
     /camera/camera/color/image_raw
     /camera/camera/color/image_raw/compressed
@@ -187,7 +189,14 @@ def get_camera_params(use_low_quality: bool):
         **ffmpeg_cfg,
 
         'pointcloud__neon_.enable': True,
-        # 'align_depth.enable': True,
+
+        # Registers depth into the colour frame, producing
+        # aligned_depth_to_color/*. Required by rgbd_odometry (vslam_launch.py):
+        # it needs a colour image and a depth image that share intrinsics, and
+        # the raw depth stream is a different resolution with its own optics.
+        # Output comes out at the COLOUR resolution, so this is also why the
+        # hardware VO config runs fewer features than the sim one.
+        'align_depth.enable': True,
 
         'enable_gyro': True,
         'enable_accel': True,
