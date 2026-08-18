@@ -87,90 +87,12 @@
       </link>
     </model>
 
-    <!-- BOULDER OBSTACLES -->
-    <model name="boulder_1">
-      <pose>0.4 1.2 0.2 0 0 0</pose>
-      <static>1</static>
-      <link name="link">
-        <visual name="visual">
-          <geometry>
-            <box>
-              <size>0.4 0.4 0.4</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>0.4 0.4 0.4 1</ambient>
-            <diffuse>0.4 0.4 0.4 1</diffuse>
-          </material>
-        </visual>
-        <collision name="collision">
-          <geometry>
-            <box>
-              <size>0.4 0.4 0.4</size>
-            </box>
-          </geometry>
-        </collision>
-        <inertial>
-          <mass>5</mass>
-        </inertial>
-      </link>
-    </model>
-
-    <model name="boulder_2">
-      <pose>0.3 -2.95 0.15 0 0 0</pose>
-      <static>1</static>
-      <link name="link">
-        <visual name="visual">
-          <geometry>
-            <box>
-              <size>0.3 0.3 0.3</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>0.4 0.4 0.4 1</ambient>
-            <diffuse>0.4 0.4 0.4 1</diffuse>
-          </material>
-        </visual>
-        <collision name="collision">
-          <geometry>
-            <box>
-              <size>0.3 0.3 0.3</size>
-            </box>
-          </geometry>
-        </collision>
-        <inertial>
-          <mass>5</mass>
-        </inertial>
-      </link>
-    </model>
-
-    <model name="boulder_3">
-      <pose>0.9 -1.0 0.15 0 0 0</pose>
-      <static>1</static>
-      <link name="link">
-        <visual name="visual">
-          <geometry>
-            <box>
-              <size>0.3 0.3 0.3</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>0.4 0.4 0.4 1</ambient>
-            <diffuse>0.4 0.4 0.4 1</diffuse>
-          </material>
-        </visual>
-        <collision name="collision">
-          <geometry>
-            <box>
-              <size>0.3 0.3 0.3</size>
-            </box>
-          </geometry>
-        </collision>
-        <inertial>
-          <mass>5</mass>
-        </inertial>
-      </link>
-    </model>
+    <!-- BOULDER OBSTACLES removed.
+         They sat in the drive path used for localisation testing - boulder_2 at
+         (0.3, -2.95) is 1.5 m directly in front of the rover spawn - and an
+         open-loop dead-reckoning run that rams a rock is not a repeatable
+         measurement of odometry drift. The arena walls are kept: they are the
+         boundary, not obstacles. -->
 
     <!-- APRILTAG -->
     <model name="apriltag_0">
