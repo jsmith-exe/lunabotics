@@ -76,8 +76,10 @@ def generate_launch_description():
         run_components_parameter,
         rsp,
         OpaqueFunction(function=setup_components),
-        # realsense_launch,
+        realsense_launch,
         # delayed_orbbec_launch,
         # rear_camera_tf_transform,
-        # front_camera_tf_transform,
+        # Splices the RealSense's own frame subtree (including the IMU optical frame)
+        # onto the URDF, so the EKF can transform /imu/data into base_footprint.
+        front_camera_tf_transform,
     ])

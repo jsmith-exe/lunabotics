@@ -193,6 +193,14 @@ def get_camera_params(use_low_quality: bool):
         'enable_accel': True,
         'unite_imu_method': 2,
 
+        # These land in the Imu message covariances, which is how robot_localization
+        # decides how far to trust the yaw rate. The driver default of 0.01 is
+        # sigma ~= 5.7 deg/s, far looser than this gyro actually is, which would
+        # make the EKF lag during turns now that the IMU is the primary heading
+        # source. Starting point only - tune against wheel odom on the rover.
+        'angular_velocity_cov': 0.001,
+        'linear_accel_cov': 0.01,
+
         'initial_reset': True,
         'base_frame_id': 'camera_link_front',
         
