@@ -37,3 +37,19 @@ ekf_global:
 
     pose0_differential: false
     pose0_relative: false
+
+    # INPUT 3: Yaw rate from the RealSense gyro.
+    # Mirrors ekf_local. Without this the global filter takes yaw rate from the
+    # wheels while the local one takes it from the IMU; on slip the two estimates
+    # diverge and the whole discrepancy is dumped into map -> odom as a rotation
+    # jump, which is the artifact enabling the IMU was meant to remove.
+    imu0: /camera/camera/imu
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,    # vyaw
+                  false, false, false]
+
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
