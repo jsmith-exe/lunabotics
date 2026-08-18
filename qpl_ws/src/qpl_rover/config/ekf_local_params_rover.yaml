@@ -17,13 +17,47 @@ ekf_local:
     debug: false
 
     # ------------------------------------------------------------------
+    # IMU (RealSense gyro)
+    # Yaw RATE only: the RealSense has no magnetometer, so any absolute yaw
+    # is arbitrary at startup and drifts. Yaw rate is the trustworthy signal
+    # and is immune to wheel slip.
+    #
+    # Subscribed direct to the driver rather than to imu_filter_madgwick's
+    # /imu/data: the filter only overwrites `orientation`, which we do not
+    # fuse, so routing through it would add a process to the critical path
+    # for heading without changing a single fused value.
+    #
+    # Config order:
+    # [x, y, z,
+    #  roll, pitch, yaw,
+    #  vx, vy, vz,
+    #  vroll, vpitch, vyaw,
+    #  ax, ay, az]
+    # ------------------------------------------------------------------
+    imu0: /camera/camera/imu
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,    # vyaw
+                  false, false, false]
+
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
+
+    # ------------------------------------------------------------------
     # Wheel odometry
+    # Body-frame velocities only. vyaw stays enabled, but with a deliberately
+    # loose twist_covariance_diagonal in my_controllers.yaml (0.05 vs the IMU's
+    # 0.001) so the IMU dominates during slip while wheel odom still pins the
+    # heading if the RealSense drops out. Removing it entirely would leave a
+    # single non-redundant yaw source that fails open-loop and silently.
     # ------------------------------------------------------------------
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
-                   true,  true,  false,
-                   false, false, true,
+                   true,  true,  false,   # vx, vy
+                   false, false, true,    # vyaw (loose fallback only)
                    false, false, false]
 
     odom0_differential: false
