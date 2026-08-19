@@ -1,4 +1,13 @@
 # If you get an error to do with 'Unable to locate package', it may be due to Windows-style newlines
+#
+# Both of these back exec_depends declared in qpl_rover/package.xml:
+#   rtabmap-odom      - rgbd_odometry, run by vslam_launch.py. Already arrives transitively via
+#                       rtabmap-ros, listed by name anyway: rtabmap-ros also drags in
+#                       viz/demos/examples, so if that ever gets trimmed to save space on the
+#                       Jetson, visual odometry would break silently.
+#   realsense2-camera - the ROS wrapper, and NOT previously installed by anything here.
+#                       libuvc_installation.sh builds the librealsense SDK from source, which is a
+#                       different thing and does not provide this node.
 qpl_packages() {
   sudo apt update
   sudo apt -y install ros-humble-xacro \
@@ -21,9 +30,11 @@ qpl_packages() {
     ros-humble-robot-localization \
     ros-humble-pointcloud-to-laserscan \
     ros-humble-camera-info-manager \
+    ros-humble-realsense2-camera \
     ros-humble-v4l2-camera \
     v4l-utils \
     ros-humble-rtabmap-ros \
+    ros-humble-rtabmap-odom \
     ros-humble-image-pipeline \
     ros-humble-tf-transformations \
     ros-humble-cv-bridge \

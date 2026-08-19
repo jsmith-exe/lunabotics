@@ -1,0 +1,31 @@
+{
+  "label": "novo_slip_2",
+  "sim_seconds": 70.0,
+  "truth_path_len_m": 7.822198944190091,
+  "truth_msgs": 3502,
+  "sources": {
+    "fused": {
+      "samples": 691,
+      "msgs": 692,
+      "final_pos_err_m": 1.0304378855191956,
+      "final_pos_err_pct_of_path": 13.173250806725513,
+      "mean_pos_err_m": 0.6056985278560096,
+      "max_pos_err_m": 1.1107804967617982,
+      "final_yaw_err_deg": 0.00013701489561360493,
+      "mean_yaw_err_deg": 0.023988680554157055,
+      "max_yaw_err_deg": 0.17253868704141243
+    },
+    "wheel": {
+      "samples": 6997,
+      "msgs": 7002,
+      "final_pos_err_m": 3.841636710971009,
+      "final_pos_err_pct_of_path": 49.11197910434598,
+      "mean_pos_err_m": 1.5527989997005158,
+      "max_pos_err_m": 3.854087952708411,
+      "final_yaw_err_deg": 135.4246391884417,
+      "mean_yaw_err_deg": 69.68233334103314,
+      "max_yaw_err_deg": 136.05541771298718
+    },
+    "vo": null
+  }
+}

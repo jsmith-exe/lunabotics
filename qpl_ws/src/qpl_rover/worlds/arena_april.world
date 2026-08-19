@@ -23,19 +23,53 @@
     </plugin>
 
     <!-- PHYSICAL ARENA -->
-    <!-- Terrain -->
-    <include>
-      <uri>model://terrain_heightmap</uri>
-    </include>
+    <!-- Ground: flat textured slab, replacing the terrain_heightmap model.
+         Nothing is lost geometrically - heightmap.png is a uniform 128-grey
+         image and the model's <size> has a zero Z scale, so that terrain was
+         already perfectly flat.
+
+         It is a box rather than a heightmap because a heightmap's <texture>
+         <diffuse> is resolved by Ogre's terrain loader, not the normal
+         material path, and pointing it at another model's texture
+         (model://regolith_model/...) made the whole heightmap fail to build -
+         which renders as the sky showing through where the floor should be.
+         A box visual with a material script has no such restriction, and is
+         what arena_ucf.world already does.
+
+         12 x 12 m covers the 4.4 x 7.9 m arena with margin. Top surface sits
+         at z = 0, so the spawn height in sim.launch.py is unchanged. -->
+    <model name="arena_ground">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>12 12 0.1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>12 12 0.1</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
+              <uri>model://regolith_model/materials/textures/</uri>
+              <name>Regolith/Ground</name>
+            </script>
+          </material>
+        </visual>
+        <pose>0 0 -0.05 0 0 0</pose>
+      </link>
+    </model>
 
     <!-- Walls.
          Textured rather than flat-shaded, for the same reason as the ground:
          a solid-colour surface gives RGB-D visual odometry no intensity
-         gradient to track, and at rover camera height the walls are most of
-         what the front camera sees. Regolith/Wall's texture scale was derived
-         for the UCF arena's 0.4 m walls, so on these 0.2 m walls the grain
-         comes out finer; trilinear filtering keeps it from aliasing. -->
-    <!-- Walls -->
+         gradient to track. Walls matter disproportionately because they stay
+         in view during turns, which is when VO was measured losing tracking
+         (15-22% zero-inlier frames, clustered in the turning phases).
+
+         North/south are 4.4 m long and east/west 7.9 m, so they use different
+         horizontal scales (WallShort / WallLong) to land on the same ~0.40 m
+         tile. Vertical scale is 1.0 in both: one repeat over the 0.2 m height,
+         so the rail and fastener rows appear once instead of being tiled into
+         a stripe. See regolith.material. -->
     <model name="wall_south">
       <static>true</static>
       <link name="link">
@@ -48,7 +82,7 @@
             <script>
               <uri>model://regolith_model/materials/scripts/regolith.material</uri>
               <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/Wall</name>
+              <name>Regolith/WallShort</name>
             </script>
           </material>
         </visual>
@@ -68,7 +102,7 @@
             <script>
               <uri>model://regolith_model/materials/scripts/regolith.material</uri>
               <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/Wall</name>
+              <name>Regolith/WallShort</name>
             </script>
           </material>
         </visual>
@@ -88,7 +122,7 @@
             <script>
               <uri>model://regolith_model/materials/scripts/regolith.material</uri>
               <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/Wall</name>
+              <name>Regolith/WallLong</name>
             </script>
           </material>
         </visual>
@@ -108,7 +142,7 @@
             <script>
               <uri>model://regolith_model/materials/scripts/regolith.material</uri>
               <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/Wall</name>
+              <name>Regolith/WallLong</name>
             </script>
           </material>
         </visual>
