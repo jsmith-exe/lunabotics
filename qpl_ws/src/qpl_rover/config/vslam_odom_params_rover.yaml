@@ -46,10 +46,14 @@
     # Visual odometry tuning
     # ------------------------------------------------------------------
     # Fewer features than sim. aligned_depth_to_color comes out at the COLOUR
-    # resolution (1280x800 at default quality), and feature extraction at that
-    # size is the dominant cost on the rover's compute. If VO can't keep frame
-    # rate, launch the camera with use_low_quality:=true (424x240) before
-    # touching these numbers.
+    # resolution, and feature extraction at that size is the dominant cost on
+    # the rover's compute.
+    #
+    # rover.launch.py runs the camera at full quality (1280x800x30), so that is
+    # the size VO actually sees. This has NOT been profiled on the Jetson yet:
+    # watch the `update time=` field in rgbd_odometry's "Odom:" log lines on
+    # first bring-up. If it can't keep frame rate, set use_low_quality back to
+    # "true" in rover.launch.py (424x240x15) before touching these numbers.
     Vis/MaxFeatures: "300"
     Vis/MinInliers: "10"
     Vis/InlierDistance: "0.10"

@@ -24,6 +24,11 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
 
+  <!-- Localisation + IMU chain (robot_localization is declared above) -->
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>imu_filter_madgwick</exec_depend>
+  <exec_depend>realsense2_camera</exec_depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

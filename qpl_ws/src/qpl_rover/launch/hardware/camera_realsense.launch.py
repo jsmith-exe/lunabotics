@@ -63,6 +63,13 @@ def get_camera_launch(context):
 
 def get_remappings():
     # Use ros2 topic list to get topics and paste them here, do not include points (/camera/camera/depth/color/points)
+    #
+    # DO NOT add /camera/camera/imu to this list. With unite_imu_method=2 the
+    # driver publishes the fused gyro+accel message there, and both EKFs fuse it
+    # as imu0 under that exact name (see ekf_local_params_rover.yaml). Remapping
+    # it would leave the filters with no gyro and heading would silently fall
+    # back to wheel odometry alone. The gyro/* and accel/* entries below are the
+    # raw split streams and are safe to remap.
     topics_to_remap = """
     /camera/camera/accel/imu_info
     /camera/camera/accel/metadata
@@ -201,6 +208,14 @@ def get_camera_params(use_low_quality: bool):
         'enable_gyro': True,
         'enable_accel': True,
         'unite_imu_method': 2,
+
+        # These land in the Imu message covariances, which is how robot_localization
+        # decides how far to trust the yaw rate. The driver default of 0.01 is
+        # sigma ~= 5.7 deg/s, far looser than this gyro actually is, which would
+        # make the EKF lag during turns now that the IMU is the primary heading
+        # source. Starting point only - tune against wheel odom on the rover.
+        'angular_velocity_cov': 0.001,
+        'linear_accel_cov': 0.01,
 
         'initial_reset': True,
         'base_frame_id': 'camera_link_front',

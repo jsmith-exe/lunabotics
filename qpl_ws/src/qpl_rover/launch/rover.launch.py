@@ -59,7 +59,11 @@ def generate_launch_description():
     )
 
     # Cameras
-    use_low_quality = "true"
+    # Full resolution: 1280x800x30 colour, 848x480x30 depth. aligned_depth_to_color
+    # (needed by visual odometry) comes out at the COLOUR resolution, so this is
+    # also what sets the VO workload. If the Jetson cannot hold frame rate, flip
+    # this to "true" for 424x240x15 - no other change is required.
+    use_low_quality = "false"
     realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
     orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
     realsense_launch = IncludeLaunchDescription(realsense_launch_source, launch_arguments={"use_low_quality": use_low_quality}.items())
@@ -87,8 +91,18 @@ def generate_launch_description():
         use_vslam_parameter,
         rsp,
         OpaqueFunction(function=setup_components),
-        # realsense_launch,
+        realsense_launch,
         # delayed_orbbec_launch,
         # rear_camera_tf_transform,
-        # front_camera_tf_transform,
+        # Splices the RealSense's own frame subtree (including the IMU and colour
+        # optical frames) onto the URDF, so the EKF can transform
+        # /camera/camera/imu into base_footprint and rgbd_odometry can resolve
+        # base_footprint -> the colour image's frame.
+        #
+        # The child frame below is a best guess at the driver's naming and has
+        # NOT been checked against hardware. If VO or the IMU sit silent, read
+        # the real frame off the image header
+        # (ros2 topic echo --once /depth_camera_front/color/image_raw --field header.frame_id)
+        # and fix it HERE rather than in the URDF.
+        front_camera_tf_transform,
     ])

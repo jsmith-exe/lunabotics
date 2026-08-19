@@ -77,6 +77,16 @@ diff_cont:
     #   vyaw 0.05  -> std 0.22 rad/s. Wheel yaw depends on wheel_separation, which
     #                 is surface-dependent and known wrong (see the TODO above).
     #                 Measured yaw scale error in sim was ~21% on a 56 deg turn.
+    #                 On hardware this is only the dropout fallback: the gyro
+    #                 (imu0 in ekf_local_params_rover.yaml) carries 0.001, so the
+    #                 IMU outweighs the wheels 50:1 for heading.
+    #
+    # These apply in SIM TOO. gazebo_ros2_control loads this file and then
+    # gaz_ros2_ctl_use_sim.yaml, which overrides only wheel_separation — so
+    # changing the numbers below moves the sim A/B results as well as the rover.
+    # vy in particular must stay loose: the diff-drive model reports a hard zero
+    # for it, and tightening it back down would silently outvote visual
+    # odometry's vy, which is the whole point of fusing VO on a skid-steer.
     #
     # TODO(calibration): refine from real bag data on the competition surface.
     # These are honest starting values, not measured hardware ones.

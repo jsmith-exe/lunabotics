@@ -19,45 +19,60 @@ ekf_local:
     debug: false
 
     # ------------------------------------------------------------------
-    # TODO(calibration): this filter has no IMU, so wheel odometry is the only
-    # yaw source and any wheel_separation error propagates straight into the
-    # odom -> base_footprint TF with nothing to correct it.
+    # IMU (RealSense gyro)
+    # Yaw RATE only: the RealSense has no magnetometer, so any absolute yaw
+    # is arbitrary at startup and drifts. Yaw rate is the trustworthy signal
+    # and is immune to wheel slip.
     #
-    # The equivalent sim filter (ekf_local_params.yaml) now fuses /imu/data.
-    # Two things are needed here before that can be mirrored:
-    #   1. Calibrate wheel_separation on the real rover - see the TODO in
-    #      my_controllers.yaml. The value in there is known to be wrong.
-    #   2. Confirm the rover's physical IMU publishes to /imu/data with a sane
-    #      covariance, then add an imu0 block fusing yaw + yaw rate.
+    # Subscribed direct to the driver rather than to imu_filter_madgwick's
+    # /imu/data: the filter only overwrites `orientation`, which we do not
+    # fuse, so routing through it would add a process to the critical path
+    # for heading without changing a single fused value.
+    #
+    # NB /camera/camera/imu is deliberately NOT in the remap list in
+    # camera_realsense.launch.py — see the note there before "tidying" it.
+    #
+    # TODO(calibration): wheel_separation is still uncalibrated on the real
+    # rover (see the TODO in my_controllers.yaml). That error no longer reaches
+    # heading now the gyro owns it, but it still scales odom0's vx/vy.
+    #
+    # Config order:
+    # [x, y, z,
+    #  roll, pitch, yaw,
+    #  vx, vy, vz,
+    #  vroll, vpitch, vyaw,
+    #  ax, ay, az]
     # ------------------------------------------------------------------
+    imu0: /camera/camera/imu
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,    # vyaw
+                  false, false, false]
+
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
 
     # ------------------------------------------------------------------
     # Wheel odometry
-    # ------------------------------------------------------------------
-    # ------------------------------------------------------------------
-    # !! yaw rate is still TRUE here, and it is wrong — but it cannot be
-    #    turned off yet. !!
+    # Body-frame velocities only. vyaw stays enabled, but with a deliberately
+    # loose twist_covariance_diagonal in my_controllers.yaml (0.05 vs the IMU's
+    # 0.001) so the IMU dominates during slip while wheel odom still pins the
+    # heading if the RealSense drops out. Removing it entirely would leave a
+    # single non-redundant yaw source that fails open-loop and silently.
     #
-    # The sim filter (ekf_local_params.yaml) now has this bit FALSE, because
-    # wheel yaw measured +11.67 deg of error on a 56 deg turn against Gazebo
-    # ground truth while the gyro-driven estimate measured 0.00 deg.
-    #
-    # This filter has NO imu0 block (see the TODO above), so wheel odometry is
-    # its only yaw source. Clearing the bit here would leave the filter with no
-    # way to estimate heading at all and odom -> base_footprint would never
-    # rotate — far worse than a badly scaled yaw.
-    #
-    # THE MOMENT an imu0 block is added below, change the 11th entry to false:
-    #
-    #     false, false, false,   <- vroll, vpitch, vyaw
-    #
-    # Do these two edits together, in one commit. Neither is safe alone.
+    # This is the one place the hardware filter deliberately DIVERGES from the
+    # sim one (ekf_local_params.yaml), where odom0 vyaw is false. In sim the IMU
+    # is near-perfect and always present, so wheel yaw only adds its own +11.67
+    # deg/56 deg scale error. On hardware the camera can fail, and a scaled yaw
+    # beats no yaw.
     # ------------------------------------------------------------------
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
-                   true,  true,  false,
-                   false, false, true,
+                   true,  true,  false,   # vx, vy
+                   false, false, true,    # vyaw (loose fallback only)
                    false, false, false]
 
     odom0_differential: false
@@ -69,10 +84,10 @@ ekf_local:
     # Body-frame velocities only — see the long note in ekf_local_params.yaml
     # for why pose and yaw rate are deliberately excluded.
     #
-    # Requires the RealSense to be publishing aligned_depth_to_color, which
-    # means align_depth.enable must be on in camera_realsense.launch.py AND the
-    # camera launch must actually be included in rover.launch.py (it is
-    # currently commented out there).
+    # Requires the RealSense to be publishing aligned_depth_to_color: that means
+    # align_depth.enable in camera_realsense.launch.py (on) and realsense_launch
+    # actually included in rover.launch.py (it now is). Opt in per run with
+    # use_vslam:=true.
     #
     # Nothing breaks if vslam isn't running: this input simply never arrives.
     # ------------------------------------------------------------------

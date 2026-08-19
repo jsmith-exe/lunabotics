@@ -28,20 +28,12 @@ ekf_global:
     # EKF's output stamps can lag under load and stale measurements are
     # silently dropped by this filter.
     #
-    # TODO(hardware): once the physical IMU publishes /imu/data, add an imu0
-    # yaw-rate block here exactly like the sim config's, so gyro yaw reaches
-    # the map frame instead of relying on wheel-odom scrub.
-    # !! yaw rate still TRUE here, and it is wrong — see the equivalent note in
-    #    ekf_local_params_rover.yaml. !!
-    #
-    # The sim twin has this bit FALSE (wheel yaw measured +11.67 deg error on a
-    # 56 deg turn vs 0.00 deg gyro-driven). It stays true here because this
-    # filter has no imu0 either: its only other yaw source is pose0's AprilTag
-    # yaw, which exists only while the board is actually in view. Clearing this
-    # now would leave heading unobservable between tag fixes.
-    #
-    # Clear the 11th entry to false in the SAME commit that adds the imu0
-    # yaw-rate block described in the TODO above.
+    # Yaw rate stays TRUE here, deliberately, matching ekf_local_params_rover.yaml:
+    # it is the loose dropout fallback (0.05 in my_controllers.yaml) behind imu0's
+    # gyro (0.001, INPUT 3 below). The sim twin has this bit FALSE because there
+    # the IMU is near-perfect and always present; on hardware the RealSense can
+    # fail, and pose0's AprilTag yaw only exists while the board is in view, so
+    # dropping wheel yaw would leave heading unobservable between tag fixes.
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
@@ -62,3 +54,19 @@ ekf_global:
 
     pose0_differential: false
     pose0_relative: false
+
+    # INPUT 3: Yaw rate from the RealSense gyro.
+    # Mirrors ekf_local. Without this the global filter takes yaw rate from the
+    # wheels while the local one takes it from the IMU; on slip the two estimates
+    # diverge and the whole discrepancy is dumped into map -> odom as a rotation
+    # jump, which is the artifact enabling the IMU was meant to remove.
+    imu0: /camera/camera/imu
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,    # vyaw
+                  false, false, false]
+
+    imu0_differential: false
+    imu0_relative: false
+    imu0_remove_gravitational_acceleration: true
