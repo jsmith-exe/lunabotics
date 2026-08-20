@@ -3,6 +3,7 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
+#include <iostream>
 
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
@@ -41,6 +42,13 @@ namespace diffdrive_canbus {
   void Actuator::write()
   {
     double safe_throttle = clamp_and_apply_deadband_if_finite(command_, ACTUATOR_DEADBAND);
+
+    if (abs(command_ - prev_command_) < 0.1)
+    {
+      return;
+    }
+    prev_command_ = command_;
+
     set_duty_cycle(static_cast<float>(safe_throttle));
     sleep_bus_gap();
   }

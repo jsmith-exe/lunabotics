@@ -76,6 +76,12 @@ namespace diffdrive_canbus {
   {
     // TODO use clamp_and_apply_deadband_if_finite
 
+    if (abs(commanded_velocity_ - prev_commanded_velocity_) < 0.1)
+    {
+      return;
+    }
+    prev_commanded_velocity_ = commanded_velocity_;
+
     const double target_motor_rpm = commanded_velocity_ * gear_ratio_ * 60.0 / TWO_PI;
 
     if (detect_runaway(target_motor_rpm))

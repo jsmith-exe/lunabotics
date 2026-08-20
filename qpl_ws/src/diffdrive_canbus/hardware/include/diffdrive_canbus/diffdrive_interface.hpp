@@ -119,6 +119,7 @@ namespace diffdrive_canbus {
     double rotation_position_{0.0};
     double velocity_{0.0};
     double commanded_velocity_{0.0}; // TODO rename to command_rad_per_sec??
+    double prev_commanded_velocity_{0.0};
     double position_offset_rad_{0.0};
     bool position_offset_valid_{false};
   };
@@ -139,6 +140,7 @@ namespace diffdrive_canbus {
     void update_joint_state(const CANFrame & frame) override;
   private:
     double command_{0.0};
+    double prev_command_{0.0};
     double position_{0.0};
     double voltage_{0.0};
   };
