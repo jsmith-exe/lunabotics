@@ -85,6 +85,8 @@ public:
 
       can_.connect(serial_device, 2000000, 5);
 
+      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
       const bool configured = can_.configure_adapter(
         1000000,
         false,
@@ -100,7 +102,8 @@ public:
         return hardware_interface::CallbackReturn::ERROR;
       }
       RCLCPP_INFO(logger_, "CAN adapter configured");
-
+      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+      
       constexpr int pid_slot = 0;
       front_left_motor_->set_native_velocity_pid_slot(pid_slot);
       front_right_motor_->set_native_velocity_pid_slot(pid_slot);
