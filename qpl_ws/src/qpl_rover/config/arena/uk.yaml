@@ -4,6 +4,6 @@ arena:
   buffer: 0.20
   z_limit: 0.50
 
-  apriltag:
-    position: [ 0.0, 0.2, 0.2 ]
+  apriltag: # map -> tag_0 transform used by localisation
+    position: [ 0.02, 0.25, 0.25 ]
     quaternion: [ 0.0, 0.0, 1.0, 0.0 ]

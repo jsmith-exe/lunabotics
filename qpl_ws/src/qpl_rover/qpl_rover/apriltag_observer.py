@@ -72,13 +72,7 @@ class AprilTagObserver(Node):
             decode_sharpening=0.25
         )
 
-        # 3. CALCULATE STATIC TRANSFORMS
-        # Tag pose in MAP frame
-        tag_pos = arena_config['apriltag']['position']
-        tag_q = arena_config['apriltag']['quaternion']
-        self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
-
-        # TF listener for rover/camera transforms
+        # TF listener for rover/camera/tag transforms
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
@@ -162,6 +156,34 @@ class AprilTagObserver(Node):
             [t.x, t.y, t.z],
             [q.x, q.y, q.z, q.w]
         )
+
+    def get_tag_transform(self):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                'map',
+                'tag_0',
+                rclpy.time.Time()
+            )
+
+            t = transform.transform.translation
+            q = transform.transform.rotation
+
+            self.get_logger().info(
+                f"Using TF map -> tag_0: "
+                f"x={t.x:.3f}, y={t.y:.3f}, z={t.z:.3f}, "
+                f"q=({q.x:.3f}, {q.y:.3f}, {q.z:.3f}, {q.w:.3f})"
+            )
+
+            return self.make_tf_matrix(
+                [t.x, t.y, t.z],
+                [q.x, q.y, q.z, q.w]
+            )
+
+        except tf2_ros.TransformException as e:
+            self.get_logger().warn(
+                f"Unable to get map -> tag_0 transform: {e}"
+            )
+            return None
     
     def process_results(self, results, msg, cam_id):
         if len(results) == 0:
@@ -189,11 +211,19 @@ class AprilTagObserver(Node):
             T_cam_tag[0:3, 0:3] = ros_R
             T_cam_tag[0:3, 3] = ros_t
 
-            # Select the correct static transform relative to footprint
+            # Get static transforms from TF
+            T_map_tag = self.get_tag_transform()
             T_footprint_cam = self.get_camera_transform(cam_id)
 
+            if T_map_tag is None:
+                return
+
             # Calculate Map -> Tag -> Camera -> Footprint
-            T_map_footprint = self.T_map_tag @ np.linalg.inv(T_cam_tag) @ np.linalg.inv(T_footprint_cam)
+            T_map_footprint = (
+                    T_map_tag
+                    @ np.linalg.inv(T_cam_tag)
+                    @ np.linalg.inv(T_footprint_cam)
+            )
 
             # Extract Position (This is now the Ground Projection)
             pos = T_map_footprint[0:3, 3]
@@ -208,7 +238,7 @@ class AprilTagObserver(Node):
                 continue
 
             # If we passed the fence, publish to EKF
-            #self.get_logger().info(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
+            self.get_logger().info(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
             self.publish_pose(T_map_footprint, msg.header.stamp)
 
     def publish_pose(self, T, stamp):
