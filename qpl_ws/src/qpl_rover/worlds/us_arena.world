@@ -1,0 +1,231 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="lunabotics_us_arena">
+
+    <!-- PHYSICS -->
+    <physics type="ode">
+      <gravity>0 0 -9.81</gravity>
+    </physics>
+
+    <light type="directional" name="sun">
+      <pose>0 0 10 0 0 0</pose>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- PHYSICAL ARENA -->
+    <!-- Terrain -->
+    <model name="ground_plane">
+      <static>1</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>9.14 8.10</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>9.14 8.10</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.6 0.5 0.4 1</ambient>
+            <diffuse>0.6 0.5 0.4 1</diffuse>
+          </material>
+        </visual>
+        <pose>4.57 4.05 0 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Walls -->
+    <model name="wall_south">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>4.57 -0.05 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_north">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>4.57 8.15 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_west">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>-0.05 4.05 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_east">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>9.19 4.05 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Zone Markers (visual only) -->
+    <!-- Excavation Zone -->
+    <model name="excavation_zone_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>9.14 3.0 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0 1 0.3</ambient>
+            <diffuse>0 0 1 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>4.57 1.5 0.005 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Starting Zone -->
+    <model name="starting_zone_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>2.25 2.25 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.3</ambient>
+            <diffuse>0 1 0 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>3.445 1.125 0.01 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Construction Zone -->
+    <model name="construction_zone_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>2.0 3.41 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.3</ambient>
+            <diffuse>1 0 0 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>8.14 6.395 0.005 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Berm Zone -->
+    <model name="berm_zone_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.9 2.2 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.3</ambient>
+            <diffuse>1 0 0 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>8.14 6.395 0.01 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Fiducial Rail -->
+    <model name="fiducial_rail_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.5 0.01 0.05</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 1 1 0.3</ambient>
+            <diffuse>0 1 1 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>3.32 0.005 0.425 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- APRILTAG -->
+    <model name="apriltag_0">
+      <static>true</static>
+      <pose>3.32 0.02 0.425 0 0 1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.01 0.5 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.01 0.5 0.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
+              <uri>model://apriltag_model/materials/textures/</uri>
+              <name>AprilTag/tag0</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
