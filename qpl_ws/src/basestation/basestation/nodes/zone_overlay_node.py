@@ -6,7 +6,6 @@ for the arena boundary and the berm deposition target. Static overlay: no TF
 lookup needed, the markers are fixed in the map frame. Text labels and waypoint
 arrows are intentionally omitted to keep the view uncluttered.
 
-Map-frame arena: X(0..4.4) Y(0..7.9), origin at the AprilTag corner.
 Topic: /zone_overlay  ->  add an rviz_default_plugins/MarkerArray display.
 """
 
@@ -14,18 +13,17 @@ import rclpy
 from rclpy.node import Node
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
+import os
+import yaml
+from ament_index_python.packages import get_package_share_directory
 
 
-# name, x_min, x_max, y_min, y_max, (r, g, b, a)
-ZONES = [
-    ("START",        0.0, 2.0,  0.0,   2.0,    (0.20, 0.80, 0.30, 0.30)),
-    ("CONSTRUCTION", 2.9, 4.4,  0.0,   2.6,    (0.25, 0.45, 0.95, 0.30)),
-    ("EXCAVATION",   0.0, 4.4,  5.275, 7.9,    (0.95, 0.30, 0.70, 0.30)),
-]
-
-# Berm deposition target (map frame) — handy reference while depositing.
-BERM_CENTER = (3.5, 1.0)
-BERM_SIZE = (0.9, 1.4)  # x, y footprint of the target berm area
+ZONE_COLORS = {
+    "START": (0.20, 0.80, 0.30, 0.30),
+    "CONSTRUCTION": (0.25, 0.45, 0.95, 0.30),
+    "EXCAVATION": (0.95, 0.30, 0.70, 0.30),
+    "BERM": (0.1, 1.0, 0.2, 1.0),
+}
 
 FRAME = "map"
 
@@ -33,6 +31,34 @@ FRAME = "map"
 class ZoneOverlay(Node):
     def __init__(self):
         super().__init__("zone_overlay")
+        package_path = get_package_share_directory("qpl_rover")
+
+        selector_path = os.path.join(
+            package_path,
+            "config",
+            "arena",
+            "selector.yaml"
+        )
+
+        with open(selector_path, "r") as file:
+            selector_config = yaml.safe_load(file)
+
+        arena_name = selector_config["arena"]
+
+        arena_config_path = os.path.join(
+            package_path,
+            "config",
+            "arena",
+            f"{arena_name}.yaml"
+        )
+
+        with open(arena_config_path, "r") as file:
+            arena_config = yaml.safe_load(file)["arena"]
+
+        self.arena_width = arena_config["width"]
+        self.arena_length = arena_config["length"]
+        self.zones = arena_config["zones"]
+
         self.pub = self.create_publisher(MarkerArray, "/zone_overlay", 1)
         # Republish periodically so RViz always catches the markers regardless
         # of when its subscription comes up.
@@ -85,23 +111,33 @@ class ZoneOverlay(Node):
         arr.markers.append(clear)
 
         mid = 0
-        for name, x0, x1, y0, y1, rgba in ZONES:
-            arr.markers.append(self._fill(mid, x0, x1, y0, y1, rgba))
+        for zone in self.zones:
+            name = zone["name"]
+
+            arr.markers.append(
+                self._fill(
+                    mid,
+                    zone["x_min"],
+                    zone["x_max"],
+                    zone["y_min"],
+                    zone["y_max"],
+                    ZONE_COLORS[name]
+                )
+            )
             mid += 1
 
         # Arena boundary
         arr.markers.append(
-            self._outline(mid, 0.0, 4.4, 0.0, 7.9, (1.0, 1.0, 1.0, 0.8))
+            self._outline(
+                mid,
+                0.0,
+                self.arena_width,
+                0.0,
+                self.arena_length,
+                (1.0, 1.0, 1.0, 0.8)
+            )
         )
         mid += 1
-
-        # Berm deposition target
-        bx, by = BERM_CENTER
-        bw, bh = BERM_SIZE
-        arr.markers.append(
-            self._outline(mid, bx - bw / 2, bx + bw / 2, by - bh / 2,
-                          by + bh / 2, (0.1, 1.0, 0.2, 1.0), width=0.05, z=0.06)
-        )
 
         self.pub.publish(arr)
 
