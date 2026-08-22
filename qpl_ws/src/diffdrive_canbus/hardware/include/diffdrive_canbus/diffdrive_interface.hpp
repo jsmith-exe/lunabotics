@@ -120,6 +120,9 @@ namespace diffdrive_canbus {
     double velocity_{0.0};
     double commanded_velocity_{0.0}; // TODO rename to command_rad_per_sec??
     double prev_commanded_velocity_{0.0};
+    double smoothed_velocity_{0.0};
+    std::chrono::system_clock::time_point last_write_time_{std::chrono::system_clock::now()};
+    double rate_of_velocity_change_{3.0};
     double position_offset_rad_{0.0};
     bool position_offset_valid_{false};
   };
