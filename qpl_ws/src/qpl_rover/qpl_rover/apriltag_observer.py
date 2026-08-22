@@ -15,13 +15,34 @@ class AprilTagObserver(Node):
     def __init__(self):
         super().__init__('apriltag_observer')
 
-        # Load arena configuration
-        config_path = os.path.join(
+        # Load arena selector
+        arena_config_dir = os.path.join(
             get_package_share_directory('qpl_rover'),
             'config',
-            'arena',
-            'uk.yaml'
+            'arena'
         )
+
+        selector_path = os.path.join(
+            arena_config_dir,
+            'selector.yaml'
+        )
+
+        with open(selector_path, 'r') as file:
+            selector_config = yaml.safe_load(file)
+
+        arena_name = selector_config['arena']
+
+        # Load selected arena configuration
+        config_path = os.path.join(
+            arena_config_dir,
+            f'{arena_name}.yaml'
+        )
+
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(
+                f"Unknown arena '{arena_name}'. "
+                f"Expected configuration at: {config_path}"
+            )
 
         with open(config_path, 'r') as file:
             arena_config = yaml.safe_load(file)['arena']
@@ -168,11 +189,11 @@ class AprilTagObserver(Node):
             t = transform.transform.translation
             q = transform.transform.rotation
 
-            self.get_logger().info(
+            '''self.get_logger().info(
                 f"Using TF map -> tag_0: "
                 f"x={t.x:.3f}, y={t.y:.3f}, z={t.z:.3f}, "
                 f"q=({q.x:.3f}, {q.y:.3f}, {q.z:.3f}, {q.w:.3f})"
-            )
+            )'''
 
             return self.make_tf_matrix(
                 [t.x, t.y, t.z],
@@ -238,7 +259,7 @@ class AprilTagObserver(Node):
                 continue
 
             # If we passed the fence, publish to EKF
-            self.get_logger().info(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
+            #self.get_logger().info(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
             self.publish_pose(T_map_footprint, msg.header.stamp)
 
     def publish_pose(self, T, stamp):

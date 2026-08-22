@@ -1,0 +1,9 @@
+arena:
+  width: 9.14
+  length: 8.10
+  buffer: 0.20
+  z_limit: 0.50
+
+  apriltag: # map -> tag_0 transform used by localisation
+    position: [ 3.32, 0.02, 0.425 ]
+    quaternion: [0.0, 0.0, 0.7071067812, -0.7071067812]
