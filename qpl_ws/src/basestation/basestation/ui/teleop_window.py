@@ -1,11 +1,26 @@
 import threading
-import tkinter as tk
-from tkinter import font, ttk
-import sv_ttk
+from tkinter import font, ttk, DoubleVar
 
+from ttkbootstrap import Style, LabeledScale
+
+from ..constants import MOTOR_DRIVE_BUTTON_FACTOR, MOTOR_STEER_BUTTON_FACTOR, MOTOR_DRUM_BUTTON_FACTOR
 from ..controls.controllers.base_station_state import BaseStationState
 
-DANGER_COLOR = "#ff6239"
+DANGER_COLOR = "#ff1e39"
+
+def make_labeled_slider(label_text: str, parent, slider_kwargs: dict | None = None, packing_opts: dict | None = None):
+    if packing_opts is None: packing_opts = {}
+    if slider_kwargs is None: slider_kwargs = {}
+
+    frame = ttk.Frame(parent)
+    frame.pack(**packing_opts)
+
+    label = ttk.Label(frame, text=label_text)
+    label.pack(pady=(0, 5))
+
+    slider = LabeledScale(frame, from_=-1, to=1, **slider_kwargs)
+    slider.pack()
+    return slider
 
 def set_interval(func, interval_seconds: float):
     """
@@ -24,7 +39,6 @@ def set_interval(func, interval_seconds: float):
     thread.start()
 
     def stop():
-        print('stopping')
         stop_event.set()
     return stop
 
@@ -33,12 +47,13 @@ class TeleopWindow:
     def __init__(self, base_station_state):
         self.base_station_state = base_station_state # todo replace with state
 
-        self.root = tk.Tk()
+        self.style = Style(themename='cyborg')
+        self.root = self.style.master
         self.root.title("Rover Teleop")
-        self.root.resizable(False, False)
+        # self.root.resizable(False, False)
 
         x, y = 0, 0
-        self.root.geometry(f"{480}x{120}+{x}+{y}")
+        self.root.geometry(f"{480}x{240}+{x}+{y}")
 
         bold_font = font.Font(family="Helvetica", size=22, weight="bold")
 
@@ -47,6 +62,17 @@ class TeleopWindow:
 
         self.toggle_button = ttk.Button(self.root, text="Disable", command=self.toggle, width=12)
         self.toggle_button.pack(pady=(0, 10))
+
+        sliders_frame = ttk.Frame(self.root)
+        sliders_frame.pack(pady=(0, 10))
+
+        make_labeled_slider("Drive Throttle", sliders_frame,
+                            {"value": MOTOR_DRIVE_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+        make_labeled_slider("Steer Throttle", sliders_frame,
+                            {"value": MOTOR_STEER_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+        make_labeled_slider("Drum Throttle", sliders_frame,
+                            {"value": MOTOR_DRUM_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+        make_labeled_slider("Drum Lift", self.root)
 
         self.stop_flashing_interval = lambda : None  # Placeholder for the flashing interval function
         self.showing_danger = False
@@ -100,7 +126,6 @@ class TeleopWindow:
             self.message_label.configure(foreground="")
 
     def run(self):
-        sv_ttk.set_theme("dark")
         self.root.mainloop()
 
 def open_teleop_window(base_station_state):
