@@ -34,6 +34,14 @@ CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, flo
   {
     throw std::runtime_error("SparkMax gear ratio must be greater than zero");
   }
+
+  set_status_period(0x0018, 1000);
+  set_status_period(0x0019, 1000);
+  set_status_period(0x001A, 1000);
+  set_status_period(0x001B, 1000);
+  set_status_period(0x001C, 1000);
+  set_status_period(0x001D, 1000);
+  set_status_period(0x001E, 1000);
 }
 
 
@@ -99,6 +107,25 @@ bool CANDevice::clear_faults(bool print)
   }
 
   return can_.send_extended_frame(id, {}, print);
+}
+
+bool CANDevice::set_status_period(uint16_t status_parameter_id, uint32_t period)
+{
+  std::vector<uint8_t> data(8, 0x00);
+  const uint32_t id = make_sparkmax_id(0x1C, 0x2, can_id_);
+
+  const uint32_t le_period = __builtin_bswap32(period); // Convert to little-endian
+
+  data[0] = static_cast<uint8_t>(status_parameter_id);
+  data[1] = static_cast<uint8_t>(status_parameter_id >> 8);
+  data[2] = 0x00;
+  data[3] = 0x00;
+  data[4] = static_cast<uint8_t>(le_period);
+  data[5] = static_cast<uint8_t>(le_period >> 8);
+  data[6] = static_cast<uint8_t>(le_period >> 16);
+  data[7] = static_cast<uint8_t>(le_period >> 24);
+
+  return can_.send_extended_frame(id, data, false);
 }
 
 bool CANDevice::send_setpoint(
