@@ -5,20 +5,20 @@
   <joint name="camera_joint_rear" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link_rear"/>
-    <origin xyz="-0.465 0 0.02" rpy="0 0 ${pi}"/>
+    <origin xyz="${-base_long_len / 2 - bar_t / 2} 0 ${bar_t / 2 + camera_z / 2}" rpy="0 0 ${pi}"/> <!-- base_long_len and bar_t come from rover_core -->
   </joint>
 
   <link name="camera_link_rear">
     <visual>
       <geometry>
-        <box size="0.010 0.03 0.03"/>
+        <box size="0.010 0.03 ${camera_z}"/>
       </geometry>
       <material name="red"/>
     </visual>
 
     <collision>
       <geometry>
-        <box size="0.010 0.03 0.03"/>
+        <box size="0.010 0.03 ${camera_z}"/>
       </geometry>
     </collision>
 
@@ -63,8 +63,8 @@
         <vertical_fov>2</vertical_fov>
         <image>
           <format>B8G8R8</format>
-          <width>1920</width>
-          <height>1080</height>
+          <width>1280</width>
+          <height>720</height>
         </image>
         <clip>
           <near>0.05</near>
