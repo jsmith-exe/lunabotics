@@ -30,6 +30,8 @@ public:
   CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger);
   virtual ~CANDevice() = default; // TODO why do we need this?
 
+  void configure();
+
   void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
     throw std::runtime_error("base setup_ros_state_interfaces used");
   }

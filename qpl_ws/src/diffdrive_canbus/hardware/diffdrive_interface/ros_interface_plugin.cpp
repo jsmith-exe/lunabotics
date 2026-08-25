@@ -113,6 +113,15 @@ public:
 
       left_actuator_->request_actuator_status3_period(can_);
       right_actuator_->request_actuator_status3_period(can_);
+
+      front_left_motor_->configure();
+      front_right_motor_->configure();
+      rear_left_motor_->configure();
+      rear_right_motor_->configure();
+      drum_motor_->configure();
+
+      left_actuator_->configure();
+      right_actuator_->configure();
     }
     catch (const std::exception & e)
     {
