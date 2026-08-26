@@ -1,0 +1,34 @@
+arena:
+  width: 9.14
+  length: 8.10
+  buffer: 0.20
+  z_limit: 0.50
+
+  apriltag: # map -> tag_0 transform used by localisation
+    position: [ 3.32, 0.02, 0.4 ]
+    quaternion: [0.0, 0.0, 0.7071067812, -0.7071067812]
+
+  zones:
+    - name: START
+      x_min: 2.32
+      x_max: 4.57
+      y_min: 0.0
+      y_max: 2.25
+
+    - name: EXCAVATION
+      x_min: 0.0
+      x_max: 9.14
+      y_min: 0.0
+      y_max: 3.0
+
+    - name: CONSTRUCTION
+      x_min: 7.14
+      x_max: 9.14
+      y_min: 4.69
+      y_max: 8.10
+
+    - name: BERM
+      x_min: 7.69
+      x_max: 8.59
+      y_min: 5.295
+      y_max: 7.495
