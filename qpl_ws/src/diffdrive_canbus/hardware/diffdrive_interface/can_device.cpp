@@ -37,13 +37,14 @@ CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, flo
 }
 
 void CANDevice::configure() {
-  set_status_period(0x0018, 1000);
-  set_status_period(0x0019, 1000);
-  set_status_period(0x001A, 1000);
-  set_status_period(0x001B, 1000);
-  set_status_period(0x001C, 1000);
-  set_status_period(0x001D, 1000);
-  set_status_period(0x001E, 1000);
+  set_parameter(0x9E, 1000);
+  set_parameter(0x9F, 1000);
+  set_parameter(0xA0, 1000);
+  set_parameter(0xA1, 1000);
+  set_parameter(0xA2, 1000);
+  set_parameter(0xA3, 1000);
+  set_parameter(0xA4, 1000);
+  set_parameter(0xA5, 1000);
 }
 
 double CANDevice::clamp_and_apply_deadband_if_finite(double value, double deadband, double min, double max)
@@ -110,26 +111,20 @@ bool CANDevice::clear_faults(bool print)
   return can_.send_extended_frame(id, {}, print);
 }
 
-bool CANDevice::set_status_period(uint16_t status_parameter_id, uint32_t period)
+bool CANDevice::set_parameter(uint8_t parameter_id, uint32_t value)
 {
-  std::vector<uint8_t> data(8, 0x00);
+  std::vector<uint8_t> data(5, 0x00);
   
-  // Ensure make_sparkmax_id shifts API Class (0x1C) by 10 and API Index (0x02) by 6
-  const uint32_t id = make_sparkmax_id(0x1C, 0x02, can_id_);
+  const uint32_t id = make_sparkmax_id(0x0E, 0x00, can_id_);
 
-  // Populate Parameter ID (Little-Endian)
-  data[0] = static_cast<uint8_t>(status_parameter_id & 0xFF);
-  data[1] = static_cast<uint8_t>((status_parameter_id >> 8) & 0xFF);
-  
-  // Data type (0x00 = uint32) and Write Option (0x00 = volatile RAM, 0x01 = Burn to Flash)
-  data[2] = 0x00;
-  data[3] = 0x00;
+  // Byte 0: Parameter ID (8 bits, bitPosition 0)
+  data[0] = parameter_id;
 
-  // Populate Period in milliseconds (Little-Endian)
-  data[4] = static_cast<uint8_t>(period & 0xFF);
-  data[5] = static_cast<uint8_t>((period >> 8) & 0xFF);
-  data[6] = static_cast<uint8_t>((period >> 16) & 0xFF);
-  data[7] = static_cast<uint8_t>((period >> 24) & 0xFF);
+  // Bytes 1-4: Value (32 bits, bitPosition 8, little-endian)
+  data[1] = static_cast<uint8_t>(value & 0xFF);
+  data[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
+  data[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
+  data[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
 
   return can_.send_extended_frame(id, data, true);
 }

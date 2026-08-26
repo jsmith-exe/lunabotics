@@ -120,7 +120,7 @@ protected:
   static float le_bytes_to_float(const uint8_t data[8], size_t offset);
   static int16_t le_bytes_to_i16(const uint8_t data[8], size_t offset);
 
-  bool set_status_period(uint16_t status_parameter_id, uint32_t period);
+  bool set_parameter(uint8_t parameter_id, uint32_t value);
 
   bool send_setpoint(
     uint8_t api_class,
