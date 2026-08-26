@@ -37,14 +37,8 @@ CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, flo
 }
 
 void CANDevice::configure() {
-  set_parameter(0x9E, 1000);
-  set_parameter(0x9F, 1000);
-  set_parameter(0xA0, 1000);
-  set_parameter(0xA1, 1000);
-  set_parameter(0xA2, 1000);
-  set_parameter(0xA3, 1000);
-  set_parameter(0xA4, 1000);
-  set_parameter(0xA5, 1000);
+  set_status_period(0, 1000);
+  set_status_period(1, 1000);
 }
 
 double CANDevice::clamp_and_apply_deadband_if_finite(double value, double deadband, double min, double max)
@@ -111,20 +105,15 @@ bool CANDevice::clear_faults(bool print)
   return can_.send_extended_frame(id, {}, print);
 }
 
-bool CANDevice::set_parameter(uint8_t parameter_id, uint32_t value)
+bool CANDevice::set_status_period(uint8_t status_frame_index, uint16_t period_ms)
 {
-  std::vector<uint8_t> data(5, 0x00);
-  
-  const uint32_t id = make_sparkmax_id(0x0E, 0x00, can_id_);
+  // status_frame_index: 0-4, corresponding to Periodic Status 0-4
+  std::vector<uint8_t> data(2, 0x00);
 
-  // Byte 0: Parameter ID (8 bits, bitPosition 0)
-  data[0] = parameter_id;
+  const uint32_t id = make_sparkmax_id(0x06, status_frame_index, can_id_);
 
-  // Bytes 1-4: Value (32 bits, bitPosition 8, little-endian)
-  data[1] = static_cast<uint8_t>(value & 0xFF);
-  data[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
-  data[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
-  data[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
+  data[0] = static_cast<uint8_t>(period_ms & 0xFF);
+  data[1] = static_cast<uint8_t>((period_ms >> 8) & 0xFF);
 
   return can_.send_extended_frame(id, data, true);
 }

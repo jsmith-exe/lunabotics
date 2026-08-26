@@ -65,7 +65,7 @@ constexpr double ACTUATOR_STALL_MOTION_EPSILON = 0.02;
 // SPARK MAX Periodic Status 3 contains analogue sensor information.
 // The non-FRC CAN reference uses base ID 0x020518C0 + device_id for Status 3.
 constexpr uint32_t SPARKMAX_PERIODIC_STATUS_3_BASE_ID = 0x020518C0; // TODO rename to be clearer  (can comms helpers)
-constexpr uint16_t LINEAR_ACTUATOR_STATUS3_PERIOD_MS = 20;
+constexpr uint16_t LINEAR_ACTUATOR_STATUS3_PERIOD_MS = 200;
 
 // Runaway watchdog.
 // These are deliberately conservative for catching obvious runaway,
