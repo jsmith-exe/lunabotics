@@ -83,5 +83,6 @@ namespace diffdrive_canbus {
     const double analog_voltage = static_cast<double>(raw_adc_voltage_2q8) / 256.0;
     voltage_ = analog_voltage;
     position_ = normalise_actuator_voltage(analog_voltage, ACTUATOR_MIN_VOLTAGE, ACTUATOR_MAX_VOLTAGE);
+    position_ = raw_adc_voltage_2q8;
   }
 }
