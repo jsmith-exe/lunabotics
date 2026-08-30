@@ -147,7 +147,6 @@ public:
 
     try
     {
-      can_system_->send_zero_duty_all();
       send_stop_for_duration(STOP_TIME);
       can_.disconnect();
     }

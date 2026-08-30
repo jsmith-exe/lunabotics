@@ -35,7 +35,7 @@ namespace diffdrive_canbus {
   {
     double safe_throttle = clamp_and_apply_deadband_if_finite(command_, ACTUATOR_DEADBAND);
 
-    if (abs(command_ - prev_command_) < 0.1)
+    if (abs(command_ - prev_command_) < MIN_ACTUATOR_VELOCITY_CHANGE)
     {
       return;
     }

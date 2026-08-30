@@ -103,7 +103,7 @@ namespace diffdrive_canbus {
 
     // Limit writes to significant changes
     const bool new_zero_sent = velocity_to_write == 0.0 && prev_commanded_velocity_ != 0.0;
-    const bool insignificant_change = abs(velocity_to_write - prev_commanded_velocity_) < 0.1;
+    const bool insignificant_change = abs(velocity_to_write - prev_commanded_velocity_) < MIN_VELOCITY_CHANGE;
     if (!new_zero_sent && insignificant_change)
     {
       return;
