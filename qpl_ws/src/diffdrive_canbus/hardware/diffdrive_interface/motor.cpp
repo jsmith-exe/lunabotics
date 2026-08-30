@@ -101,7 +101,10 @@ namespace diffdrive_canbus {
     }
     const double velocity_to_write = smoothed_velocity_;
 
-    if (abs(velocity_to_write - prev_commanded_velocity_) < 0.1)
+    // Limit writes to significant changes
+    const bool new_zero_sent = velocity_to_write == 0.0 && prev_commanded_velocity_ != 0.0;
+    const bool insignificant_change = abs(velocity_to_write - prev_commanded_velocity_) < 0.1;
+    if (!new_zero_sent && insignificant_change)
     {
       return;
     }
