@@ -110,70 +110,10 @@ namespace diffdrive_canbus {
     }
     prev_commanded_velocity_ = velocity_to_write;
 
-    const double target_motor_rpm = velocity_to_write * gear_ratio_ * 60.0 / TWO_PI;
-
-    // if (detect_runaway(target_motor_rpm))
-    // {
-    //   RCLCPP_WARN(logger_, "Runaway detected, enabling latch.");
-    //   CANSystem::runaway_latched_ = true;
-    //   this->set_duty_cycle(0.0f);
-    //   return;
-    // }
-    // if (CANSystem::runaway_latched_ && velocity_ <= SAFE_STOPPED_VELOCITY)
-    // {
-    //   RCLCPP_WARN(logger_, "Velocity safe, disabling latch.");
-    //   this->set_duty_cycle(0.0f);
-    //   CANSystem::runaway_latched_ = false;
-    //   return;
-    // }
-    // if (CANSystem::runaway_latched_) { return; }
-
     this->send_heartbeats(false);
     sleep_bus_gap();
     this->set_velocity_rad_per_sec(static_cast<float>(velocity_to_write));
     sleep_bus_gap();
-  }
-
-  bool Motor::detect_runaway(double target_motor_rpm)
-  {
-    const auto & tel = this->telemetry();
-
-    if (!tel.has_encoder_velocity)
-    {
-      return false;
-    }
-
-    const double measured_rpm = tel.encoder_velocity_rpm;
-
-    const double rpm_error =
-      measured_rpm - target_motor_rpm;
-
-    const bool target_small =
-      std::fabs(target_motor_rpm) < RUNAWAY_SMALL_TARGET_RPM;
-
-    const bool measured_large =
-      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM;
-
-    const bool huge_error =
-      std::fabs(rpm_error) > RUNAWAY_ALLOWED_RPM_ERROR;
-
-    const bool sign_opposed =
-      std::fabs(target_motor_rpm) > RUNAWAY_SIGN_TARGET_MIN_RPM &&
-      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM &&
-      ((target_motor_rpm > 0.0 && measured_rpm < 0.0) ||
-       (target_motor_rpm < 0.0 && measured_rpm > 0.0));
-
-    const bool high_applied =
-      tel.has_applied_output &&
-      std::fabs(static_cast<double>(tel.applied_output)) >
-        RUNAWAY_HIGH_APPLIED_OUTPUT;
-
-    const bool runaway =
-      (target_small && measured_large) ||
-      (huge_error && measured_large && high_applied) ||
-      sign_opposed;
-
-    return runaway;
   }
 
   bool Motor::handle_status_frame(const CANFrame & frame, bool print_status_frame)

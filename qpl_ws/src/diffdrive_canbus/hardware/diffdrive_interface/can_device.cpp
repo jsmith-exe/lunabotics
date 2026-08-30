@@ -9,6 +9,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <functional>
 
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
@@ -37,8 +38,8 @@ CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, flo
 }
 
 void CANDevice::configure() {
-  set_status_period(0, 1000);
-  set_status_period(1, 1000);
+  set_status_period(0, STATUS0_PERIOD_MS);
+  set_status_period(1, STATUS1_PERIOD_MS);
 }
 
 double CANDevice::clamp_and_apply_deadband_if_finite(double value, double deadband, double min, double max)
