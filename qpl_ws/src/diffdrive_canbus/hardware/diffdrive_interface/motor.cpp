@@ -76,70 +76,44 @@ namespace diffdrive_canbus {
   {
     // TODO use clamp_and_apply_deadband_if_finite
 
-    const double target_motor_rpm = commanded_velocity_ * gear_ratio_ * 60.0 / TWO_PI;
+    // Calculate time since last write
+    const auto now = std::chrono::system_clock::now();
+    const auto time_since_last_write = now - last_write_time_;
+    last_write_time_ = now;
+    // To ms
+    const auto ms_since_last_write = std::chrono::duration_cast<std::chrono::milliseconds>(time_since_last_write);
+    const double seconds_since_last_write = ms_since_last_write.count() / 1000.0;
+    
+    const double max_velocity_change = seconds_since_last_write * rate_of_velocity_change_;
+    // Set velocity to commanded if it's within the max velocity change
+    if (max_velocity_change >= abs(commanded_velocity_ - smoothed_velocity_))
+    {
+      smoothed_velocity_ = commanded_velocity_;
+    }
+    else // Otherwise add/subtract
+    {
+      if (commanded_velocity_ < smoothed_velocity_) { // If we need to slow down to meet commanded vel
+        smoothed_velocity_ -= max_velocity_change;
+      }
+      else { // We need to speed up to meet commanded vel
+        smoothed_velocity_ += max_velocity_change;
+      }
+    }
+    const double velocity_to_write = smoothed_velocity_;
 
-    if (detect_runaway(target_motor_rpm))
+    // Limit writes to significant changes
+    const bool new_zero_sent = velocity_to_write == 0.0 && prev_commanded_velocity_ != 0.0;
+    const bool insignificant_change = abs(velocity_to_write - prev_commanded_velocity_) < MIN_VELOCITY_CHANGE;
+    if (!new_zero_sent && insignificant_change)
     {
-      RCLCPP_WARN(logger_, "Runaway detected, enabling latch.");
-      CANSystem::runaway_latched_ = true;
-      this->set_duty_cycle(0.0f);
       return;
     }
-    if (CANSystem::runaway_latched_ && velocity_ <= SAFE_STOPPED_VELOCITY)
-    {
-      RCLCPP_WARN(logger_, "Velocity safe, disabling latch.");
-      this->set_duty_cycle(0.0f);
-      CANSystem::runaway_latched_ = false;
-      return;
-    }
-    if (CANSystem::runaway_latched_) { return; }
+    prev_commanded_velocity_ = velocity_to_write;
 
     this->send_heartbeats(false);
     sleep_bus_gap();
-    this->set_velocity_rad_per_sec(static_cast<float>(commanded_velocity_));
+    this->set_velocity_rad_per_sec(static_cast<float>(velocity_to_write));
     sleep_bus_gap();
-  }
-
-  bool Motor::detect_runaway(double target_motor_rpm)
-  {
-    const auto & tel = this->telemetry();
-
-    if (!tel.has_encoder_velocity)
-    {
-      return false;
-    }
-
-    const double measured_rpm = tel.encoder_velocity_rpm;
-
-    const double rpm_error =
-      measured_rpm - target_motor_rpm;
-
-    const bool target_small =
-      std::fabs(target_motor_rpm) < RUNAWAY_SMALL_TARGET_RPM;
-
-    const bool measured_large =
-      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM;
-
-    const bool huge_error =
-      std::fabs(rpm_error) > RUNAWAY_ALLOWED_RPM_ERROR;
-
-    const bool sign_opposed =
-      std::fabs(target_motor_rpm) > RUNAWAY_SIGN_TARGET_MIN_RPM &&
-      std::fabs(measured_rpm) > RUNAWAY_MIN_MEASURED_RPM &&
-      ((target_motor_rpm > 0.0 && measured_rpm < 0.0) ||
-       (target_motor_rpm < 0.0 && measured_rpm > 0.0));
-
-    const bool high_applied =
-      tel.has_applied_output &&
-      std::fabs(static_cast<double>(tel.applied_output)) >
-        RUNAWAY_HIGH_APPLIED_OUTPUT;
-
-    const bool runaway =
-      (target_small && measured_large) ||
-      (huge_error && measured_large && high_applied) ||
-      sign_opposed;
-
-    return runaway;
   }
 
   bool Motor::handle_status_frame(const CANFrame & frame, bool print_status_frame)

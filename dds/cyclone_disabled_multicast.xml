@@ -8,8 +8,9 @@
     </General>
     <Discovery>
       <Peers>
-        <Peer address="192.168.1.94"/>
+        <Peer address="192.168.1.81"/>
         <Peer address="192.168.1.167"/>
+        <Peer address="192.168.1.94"/>
       </Peers>
       <ParticipantIndex>auto</ParticipantIndex>
       <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>

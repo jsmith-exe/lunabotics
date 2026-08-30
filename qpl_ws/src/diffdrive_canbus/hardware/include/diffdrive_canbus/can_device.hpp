@@ -28,7 +28,9 @@ class CANDevice
 {
 public:
   CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger);
-  virtual ~CANDevice() = default; // TODO why do we need this?
+  virtual ~CANDevice() = default;
+
+  virtual void configure();
 
   void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
     throw std::runtime_error("base setup_ros_state_interfaces used");
@@ -56,7 +58,6 @@ public:
   virtual double velocity() const { return 0.0; }
   virtual double rotation_position() const { return 0.0; }
   // TODO temporary declarations for actuators (see prev todo)
-  virtual void request_actuator_status3_period(CANComms & can) { throw std::runtime_error("base request_actuator_status3_period used"); }
   virtual void update_joint_state(const CANFrame & frame) { throw std::runtime_error("base update_joint_state used"); }
 
   double clamp_and_apply_deadband_if_finite(double value, double deadband, double min = -1.0, double max = 1.0);
@@ -117,6 +118,8 @@ protected:
   static void float_to_le_bytes(float value, uint8_t bytes[4]);
   static float le_bytes_to_float(const uint8_t data[8], size_t offset);
   static int16_t le_bytes_to_i16(const uint8_t data[8], size_t offset);
+
+  bool set_status_period(uint8_t status_frame_index, uint16_t period_ms);
 
   bool send_setpoint(
     uint8_t api_class,
