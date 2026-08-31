@@ -45,7 +45,7 @@ class DesktopController(BaseController):
             return
 
         self.key_states[key_name] = pressed
-        self.handle_button(key_name, pressed, control_map)
+        self.handle_button(key_name, pressed)
 
 
 if __name__ == '__main__':

@@ -58,7 +58,7 @@ while not connected:
         print("Connection refused, retrying in 3s...")
         sleep(3)
 
-window_thread = Thread(target=open_teleop_window, args=(state,), daemon=True)
+window_thread = Thread(target=open_teleop_window, args=(state, publish_function), daemon=True)
 desktop_controller = DesktopController(publish_function, state)
 physical_controller = PhysicalController(publish_function, state)
 try:

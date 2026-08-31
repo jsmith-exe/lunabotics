@@ -1,14 +1,18 @@
 import threading
-from tkinter import font, ttk, DoubleVar
+from collections.abc import Callable
+from tkinter import font, ttk
 
 from ttkbootstrap import Style, LabeledScale
 
-from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, DEFAULT_MOTOR_DRUM_BUTTON_FACTOR
+from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
+    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs
 from ..controls.controllers.base_station_state import BaseStationState
+from ..controls.controllers.base_controller import BaseController
 
 DANGER_COLOR = "#ff1e39"
 
-def make_labeled_slider(label_text: str, parent, slider_kwargs: dict | None = None, packing_opts: dict | None = None):
+def make_labeled_slider(label_text: str, parent, on_change: Callable | None = None,
+                        slider_kwargs: dict | None = None, packing_opts: dict | None = None):
     if packing_opts is None: packing_opts = {}
     if slider_kwargs is None: slider_kwargs = {}
 
@@ -20,6 +24,10 @@ def make_labeled_slider(label_text: str, parent, slider_kwargs: dict | None = No
 
     slider = LabeledScale(frame, from_=-1, to=1, **slider_kwargs)
     slider.pack()
+
+    if on_change is not None:
+        slider.scale.configure(command=on_change)
+
     return slider
 
 def set_interval(func, interval_seconds: float):
@@ -44,8 +52,9 @@ def set_interval(func, interval_seconds: float):
 
 
 class TeleopWindow:
-    def __init__(self, base_station_state):
-        self.base_station_state = base_station_state # todo replace with state
+    def __init__(self, base_station_state: BaseStationState, publish_function: Callable):
+        self.base_station_state = base_station_state
+        self.controller = BaseController(publish_function, base_station_state)
 
         self.style = Style(themename='cyborg')
         self.root = self.style.master
@@ -67,12 +76,19 @@ class TeleopWindow:
         sliders_frame.pack(pady=(0, 10))
 
         make_labeled_slider("Drive Throttle", sliders_frame,
+                            lambda value: self.base_station_state.set_motor_drive_button_factor(float(value)),
                             {"value": DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+
         make_labeled_slider("Steer Throttle", sliders_frame,
+                            lambda value: self.base_station_state.set_motor_steer_button_factor(float(value)),
                             {"value": DEFAULT_MOTOR_STEER_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+
         make_labeled_slider("Drum Throttle", sliders_frame,
+                            lambda value: self.base_station_state.set_motor_drum_button_factor(float(value)),
                             {"value": DEFAULT_MOTOR_DRUM_BUTTON_FACTOR}, {"side": "left", "padx": 5})
-        make_labeled_slider("Drum Lift", self.root)
+
+        make_labeled_slider("Drum Lift", self.root,
+                            lambda value: self.controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value)))
 
         self.stop_flashing_interval = lambda : None  # Placeholder for the flashing interval function
         self.showing_danger = False
@@ -128,8 +144,8 @@ class TeleopWindow:
     def run(self):
         self.root.mainloop()
 
-def open_teleop_window(base_station_state):
-    window = TeleopWindow(base_station_state)
+def open_teleop_window(*args):
+    window = TeleopWindow(*args)
     window.run()
 
 if __name__ == "__main__":

@@ -36,3 +36,10 @@ class BaseStationState:
     motor_drum_button_factor: float = DEFAULT_MOTOR_DRUM_BUTTON_FACTOR
     control_map: dict = field(default_factory=lambda: default_control_map)
     topic_target_states: dict = field(default_factory=generate_topic_state)
+
+    def set_motor_drive_button_factor(self, value: float):
+        self.motor_drive_button_factor = value
+    def set_motor_steer_button_factor(self, value: float):
+        self.motor_steer_button_factor = value
+    def set_motor_drum_button_factor(self, value: float):
+        self.motor_drum_button_factor = value
