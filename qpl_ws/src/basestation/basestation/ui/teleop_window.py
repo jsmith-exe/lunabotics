@@ -6,8 +6,8 @@ from ttkbootstrap import Style, LabeledScale
 
 from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
     DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs
-from ..controls.controllers.base_station_state import BaseStationState
-from ..controls.controllers.base_controller import BaseController
+from ..controllers.base_station_state import BaseStationState
+from ..controllers.base_controller import BaseController
 
 DANGER_COLOR = "#ff1e39"
 

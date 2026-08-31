@@ -2,9 +2,9 @@ import json
 from time import sleep
 from threading import Thread
 
-from .controls.controllers.desktop_controller import DesktopController
-from .controls.controllers.physical_controller import PhysicalController
-from .controls.controllers.base_station_state import BaseStationState
+from .controllers.desktop_controller import DesktopController
+from .controllers.physical_controller import PhysicalController
+from .controllers.base_station_state import BaseStationState
 from .forwarding.tcp_transmitter import TCPTransmitter
 from .constants import MessageOptions, INVERT_BACKWARDS_STEERING, NAV_TOPIC
 from .ui.teleop_window import open_teleop_window

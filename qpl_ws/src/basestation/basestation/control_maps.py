@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from ..constants import ControllerInputs, MessageOptions, NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, \
+from .constants import ControllerInputs, MessageOptions, NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, \
     CmdMeta, GUIInputs
 
 
