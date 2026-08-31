@@ -11,7 +11,7 @@ from ..controls.controllers.base_controller import BaseController
 
 DANGER_COLOR = "#ff1e39"
 
-def make_labeled_slider(label_text: str, parent, on_change: Callable | None = None,
+def make_labeled_slider(label_text: str, parent, dp: int, on_change: Callable | None = None,
                         slider_kwargs: dict | None = None, packing_opts: dict | None = None):
     if packing_opts is None: packing_opts = {}
     if slider_kwargs is None: slider_kwargs = {}
@@ -22,11 +22,16 @@ def make_labeled_slider(label_text: str, parent, on_change: Callable | None = No
     label = ttk.Label(frame, text=label_text)
     label.pack(pady=(0, 5))
 
-    slider = LabeledScale(frame, from_=-1, to=1, **slider_kwargs)
+    slider = LabeledScale(frame, **slider_kwargs)
     slider.pack()
 
-    if on_change is not None:
-        slider.scale.configure(command=on_change)
+    def handle_move(value):
+        rounded = round(float(value), dp)
+        slider.value = rounded
+        if on_change is not None:
+            on_change(rounded)
+
+    slider.scale.configure(command=handle_move)
 
     return slider
 
@@ -75,20 +80,24 @@ class TeleopWindow:
         sliders_frame = ttk.Frame(self.root)
         sliders_frame.pack(pady=(0, 10))
 
-        make_labeled_slider("Drive Throttle", sliders_frame,
+        make_labeled_slider("Drive Throttle", sliders_frame, 2,
                             lambda value: self.base_station_state.set_motor_drive_button_factor(float(value)),
-                            {"value": DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+                            {"value": DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, "from_": 0, "to": 1},
+                            {"side": "left", "padx": 5})
 
-        make_labeled_slider("Steer Throttle", sliders_frame,
+        make_labeled_slider("Steer Throttle", sliders_frame, 2,
                             lambda value: self.base_station_state.set_motor_steer_button_factor(float(value)),
-                            {"value": DEFAULT_MOTOR_STEER_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+                            {"value": DEFAULT_MOTOR_STEER_BUTTON_FACTOR, "from_": 0, "to": 1},
+                            {"side": "left", "padx": 5})
 
-        make_labeled_slider("Drum Throttle", sliders_frame,
+        make_labeled_slider("Drum Throttle", sliders_frame, 2,
                             lambda value: self.base_station_state.set_motor_drum_button_factor(float(value)),
-                            {"value": DEFAULT_MOTOR_DRUM_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+                            {"value": DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, "from_": 0, "to": 1},
+                            {"side": "left", "padx": 5})
 
-        make_labeled_slider("Drum Lift", self.root,
-                            lambda value: self.controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value)))
+        make_labeled_slider("Drum Lift", self.root, 0,
+                            lambda value: self.controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value)),
+                            {"from_": 22.6, "to": 228.0, "value": 100})
 
         self.stop_flashing_interval = lambda : None  # Placeholder for the flashing interval function
         self.showing_danger = False
