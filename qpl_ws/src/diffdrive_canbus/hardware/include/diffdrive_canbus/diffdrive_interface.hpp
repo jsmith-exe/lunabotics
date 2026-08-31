@@ -94,14 +94,13 @@ namespace diffdrive_canbus {
     void configure() override;
 
     void write() override;
-    void send_actuator_duty(double duty);
-    double feedback_to_distance(uint16_t raw_feedback);
+    double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const CANFrame & frame) override;
   private:
-    double command_{0.0};
-    double prev_command_{0.0};
+    double commanded_pos_mm_{0.0};
     double position_{0.0};
-    bool holding_position_{false};
+    bool reached_position_{false};
+    bool stop_sent_{false};
   };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_
