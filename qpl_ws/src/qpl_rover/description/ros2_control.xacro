@@ -44,18 +44,12 @@
             </joint>
 
             <joint name="left_linear_actuator_joint">
-                <command_interface name="position">
-                    <param name="min">-1.0</param>
-                    <param name="max">1.0</param>
-                </command_interface>
+                <command_interface name="position"/>
                 <state_interface name="position"/>
             </joint>
 
             <joint name="right_linear_actuator_joint">
-                <command_interface name="position">
-                    <param name="min">-1.0</param>
-                    <param name="max">1.0</param>
-                </command_interface>
+                <command_interface name="position"/>
                 <state_interface name="position"/>
             </joint>
 

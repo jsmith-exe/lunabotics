@@ -38,7 +38,7 @@ namespace diffdrive_canbus {
   void Actuator::write()
   {
       constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f;
-      const double setpoint_mm = commanded_pos_mm_ * 100.0 + ACTUATOR_POSITION_CONSTANT;
+      const double setpoint_mm = commanded_pos_mm_ + ACTUATOR_POSITION_CONSTANT;
       const double abs_error_mm = std::fabs(setpoint_mm - position_);
 
       if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM) {
