@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from ...constants import ControllerInputs
+from ...constants import ControllerInputs, CmdMeta
 from .base_station_state import BaseStationState
 from ..control_maps import Command
 
@@ -33,7 +33,7 @@ class BaseController:
             return
 
         if pressed:
-            self.publish_function(command.topic_name, command.message_option, 1 * command.scale)
+            self.publish_function(command.topic_name, command.message_option, self.post_process_value(1, command))
         else:
             # On release, send a STOP signal for that command.
             self.publish_function(command.topic_name, command.message_option, 0)
@@ -53,5 +53,17 @@ class BaseController:
             (prev_value is not None and abs(normalised_value - prev_value) < MINIMUM_ANALOGUE_CHANGE)):
             return
 
+        normalised_value = self.post_process_value(normalised_value, command)
         self.previous_analogue_values[input_] = normalised_value
-        self.publish_function(command.topic_name, command.message_option, normalised_value * command.scale)
+        self.publish_function(command.topic_name, command.message_option, normalised_value)
+
+    def post_process_value(self, value: float, command: Command):
+        # Apply motor factors depending on command metadata
+        if command.metadata.get(CmdMeta.IS_DRIVE_MOTOR_COMMAND):
+            value *= self.state.motor_drive_button_factor
+        elif command.metadata.get(CmdMeta.IS_STEER_MOTOR_COMMAND):
+            value *= self.state.motor_steer_button_factor
+        elif command.metadata.get(CmdMeta.IS_DRUM_MOTOR_COMMAND):
+            value *= self.state.motor_drum_button_factor
+
+        return value * command.scale

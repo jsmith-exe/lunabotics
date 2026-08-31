@@ -58,11 +58,11 @@ while not connected:
         print("Connection refused, retrying in 3s...")
         sleep(3)
 
-warning_thread = Thread(target=open_teleop_window, args=(state,))
+window_thread = Thread(target=open_teleop_window, args=(state,), daemon=True)
 desktop_controller = DesktopController(publish_function, state)
 physical_controller = PhysicalController(publish_function, state)
 try:
-    warning_thread.start()
+    window_thread.start()
     input("Press enter to exit...")
 except KeyboardInterrupt:
     pass

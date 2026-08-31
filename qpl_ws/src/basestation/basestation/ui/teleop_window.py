@@ -3,7 +3,7 @@ from tkinter import font, ttk, DoubleVar
 
 from ttkbootstrap import Style, LabeledScale
 
-from ..constants import MOTOR_DRIVE_BUTTON_FACTOR, MOTOR_STEER_BUTTON_FACTOR, MOTOR_DRUM_BUTTON_FACTOR
+from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, DEFAULT_MOTOR_DRUM_BUTTON_FACTOR
 from ..controls.controllers.base_station_state import BaseStationState
 
 DANGER_COLOR = "#ff1e39"
@@ -67,11 +67,11 @@ class TeleopWindow:
         sliders_frame.pack(pady=(0, 10))
 
         make_labeled_slider("Drive Throttle", sliders_frame,
-                            {"value": MOTOR_DRIVE_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+                            {"value": DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR}, {"side": "left", "padx": 5})
         make_labeled_slider("Steer Throttle", sliders_frame,
-                            {"value": MOTOR_STEER_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+                            {"value": DEFAULT_MOTOR_STEER_BUTTON_FACTOR}, {"side": "left", "padx": 5})
         make_labeled_slider("Drum Throttle", sliders_frame,
-                            {"value": MOTOR_DRUM_BUTTON_FACTOR}, {"side": "left", "padx": 5})
+                            {"value": DEFAULT_MOTOR_DRUM_BUTTON_FACTOR}, {"side": "left", "padx": 5})
         make_labeled_slider("Drum Lift", self.root)
 
         self.stop_flashing_interval = lambda : None  # Placeholder for the flashing interval function

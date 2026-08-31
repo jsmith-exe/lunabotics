@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from ..constants import ControllerInputs, ControlMode, MessageOptions, NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, \
-    MOTOR_DRIVE_BUTTON_FACTOR, MOTOR_DRUM_BUTTON_FACTOR, MOTOR_STEER_BUTTON_FACTOR
+from ..constants import ControllerInputs, MessageOptions, NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, \
+    CmdMeta, GUIInputs
 
 
 @dataclass
@@ -14,33 +14,30 @@ class Command:
     topic_name: str
     message_option: MessageOptions
     scale: float = field(default=1)
+    metadata: dict = field(default_factory=dict)
 
 Con = ControllerInputs
+GUI = GUIInputs
 
 default_control_map = {
-    'mode': ControlMode.STANDARD,
-    Con.DPAD_UP: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, MOTOR_DRIVE_BUTTON_FACTOR),
-    Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -MOTOR_DRIVE_BUTTON_FACTOR),
-    Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -MOTOR_STEER_BUTTON_FACTOR),
-    Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, MOTOR_STEER_BUTTON_FACTOR),
-    Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -MOTOR_STEER_BUTTON_FACTOR),
-    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, MOTOR_DRIVE_BUTTON_FACTOR),
+    Con.DPAD_UP: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
+    Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
+    Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
+    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
 
-    Con.TRIANGLE: Command(DRUM_LIFT_TOPIC, MessageOptions.TWIST_ANGULAR_Z),
-    Con.CROSS: Command(DRUM_LIFT_TOPIC, MessageOptions.TWIST_LINEAR_X, -1),
-    Con.CIRCLE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, MOTOR_DRUM_BUTTON_FACTOR),
-    Con.SQUARE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, -MOTOR_DRUM_BUTTON_FACTOR),
+    Con.CIRCLE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
+    Con.SQUARE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
+    Con.L2_ANALOGUE_STICK: Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -1, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
+    Con.R2_ANALOGUE_STICK: Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
 
-    Con.L2_ANALOGUE_STICK: Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -1),
-    Con.R2_ANALOGUE_STICK: Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT),
-    Con.LEFT_JOYSTICK_Y: Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT),
+    'w': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'a': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
+    's': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'd': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
+    'right': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
+    'left': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -1, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
 
-    'w': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, MOTOR_DRIVE_BUTTON_FACTOR),
-    'a': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, MOTOR_STEER_BUTTON_FACTOR),
-    's': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -MOTOR_DRIVE_BUTTON_FACTOR),
-    'd': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -MOTOR_STEER_BUTTON_FACTOR),
-    'up': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, 1),
-    'down': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, -1),
-    'right': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, MOTOR_DRUM_BUTTON_FACTOR),
-    'left': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -MOTOR_DRUM_BUTTON_FACTOR),
+    GUI.DRUM_HEIGHT_SLIDER: Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT)
 }

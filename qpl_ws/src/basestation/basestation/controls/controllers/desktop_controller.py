@@ -1,5 +1,5 @@
 """
-Controller class for desktop environments using keyboard and mouse inputs.
+Controller class for desktop environments using keyboard input.
 Helpful documentation:
 - pynput docs: https://pynput.readthedocs.io/en/latest/index.html
 """
@@ -17,9 +17,7 @@ class DesktopController(BaseController):
 
         # Setup listeners
         self.keyboard_listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
-        self.mouse_listener = mouse.Listener(on_move=self.on_mouse_move, on_click=self.on_mouse_click, on_scroll=self.on_mouse_scroll)
         self.keyboard_listener.start()
-        self.mouse_listener.start()
 
     def on_press(self, key_object):
         """ Handles a key press event, taking in a key object from pynput. """
@@ -48,15 +46,6 @@ class DesktopController(BaseController):
 
         self.key_states[key_name] = pressed
         self.handle_button(key_name, pressed, control_map)
-
-    def on_mouse_move(self, x, y):
-        pass
-
-    def on_mouse_click(self, x, y, button, pressed):
-        pass
-
-    def on_mouse_scroll(self, x, y, dx, dy):
-        pass
 
 
 if __name__ == '__main__':

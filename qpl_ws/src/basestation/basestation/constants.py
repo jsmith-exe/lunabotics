@@ -1,12 +1,6 @@
 import dataclasses
 from enum import Enum
 
-class ControlMode(Enum):
-    """ Determines what type of controls can be mapped.
-    Allows for having multiple modes of controlling the robot (e.g., manual control or smarter steering). """
-    TEST = 'test'
-    STANDARD = 'standard'
-
 class MessageOptions(Enum):
     """ Commands that can be sent to the robot. """
     FLOAT = 'float'
@@ -21,8 +15,16 @@ class MessageOptions(Enum):
         """ Gets the type of the message option, either 'twist' or 'float'. """
         return self.value[:5]
 
+class CmdMeta(Enum):
+    """
+    Command metadata allows for separation of concerns, allowing all description to belong in the control mapping.
+    """
+    IS_DRIVE_MOTOR_COMMAND = 'is_drive_motor_command'
+    IS_STEER_MOTOR_COMMAND = 'is_steer_motor_command'
+    IS_DRUM_MOTOR_COMMAND = 'is_drum_motor_command'
+
 class ControllerInputs:
-    """ Controller inputs for defining control maps. """
+    """ Controller inputs for defining control maps. This is intentionally not an enum to make accessing values easier. """
     CIRCLE = 'circle'
     SQUARE = 'square'
     TRIANGLE = 'triangle'
@@ -51,11 +53,14 @@ class ControllerInputs:
     MIC_BUTTON = 'microphone_button'
     TOUCHPAD_BUTTON = 'touchpad_button'
 
+class GUIInputs:
+    DRUM_HEIGHT_SLIDER = 'drum_height_slider'
+
 NAV_TOPIC = '/cmd_vel_teleop'
 DRUM_ROTATION_TOPIC = '/drum_spin_control/teleop'
 DRUM_LIFT_TOPIC = '/drum_lift_control/teleop'
 PUBLISHER_UPDATE_RATE = 2
 INVERT_BACKWARDS_STEERING = True
-MOTOR_DRIVE_BUTTON_FACTOR = 0.3
-MOTOR_STEER_BUTTON_FACTOR = 0.3
-MOTOR_DRUM_BUTTON_FACTOR = 0.3
+DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR = 0.3
+DEFAULT_MOTOR_STEER_BUTTON_FACTOR = 0.25
+DEFAULT_MOTOR_DRUM_BUTTON_FACTOR = 0.4
