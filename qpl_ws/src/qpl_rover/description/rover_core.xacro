@@ -13,83 +13,47 @@
   <!-- Main dimensions                                           -->
   <!-- ========================================================= -->
 
-  <!-- Bottom cuboid -->
+  <!-- Bottom welded frame (kept TEMPORARILY to not break drum, needs REMOVED) -->
   <xacro:property name="base_x" value="0.925"/>
   <xacro:property name="base_y" value="0.745"/>
   <xacro:property name="base_z" value="0.025"/>
 
-  <!-- Top trapezoid section -->
-  <!-- top_x smaller than base_x gives the trapezoid side profile -->
-  <xacro:property name="top_x" value="0.53"/>
-  <xacro:property name="top_y" value="${base_y}"/>
-  <xacro:property name="top_z" value="${base_z}"/>
-  <xacro:property name="trap_height" value="0.225"/>
+  <!-- Square tubing cross-section: 1 inch x 1 inch -->
+  <xacro:property name="bar_t" value="0.0254"/>
 
-  <!-- Frame/support thickness -->
-  <xacro:property name="frame_t" value="0.04"/>
+  <!-- Base frame bar lengths -->
+  <xacro:property name="base_long_len" value="1.17460"/>
+  <xacro:property name="base_short_len" value="0.74360"/>
+
+  <!-- Top frame bar lengths -->
+  <xacro:property name="top_long_len" value="0.8396"/>
+  <xacro:property name="top_short_len" value="0.74360"/>
+
+  <!-- Support bar lengths -->
+  <xacro:property name="upper_support_len" value="0.2246"/>
+  <xacro:property name="lower_support_len" value="0.1746"/>
+  <xacro:property name="wheel_support_len" value="0.9"/>
 
   <!-- Wheel dimensions -->
   <xacro:property name="wheel_r" value="0.15"/>
   <xacro:property name="wheel_w" value="0.15"/>
-
-  <!-- Wheel placement -->
-  <xacro:property name="wheel_x_offset" value="${base_x / 2}"/>
-  <xacro:property name="wheel_side_clearance" value="0.00"/>
 
   <!-- ========================================================= -->
   <!-- Derived values                                            -->
   <!-- ========================================================= -->
 
   <!-- Base lift -->
-  <xacro:property name="base_link_z" value="${wheel_r + base_z / 2}"/>
+  <xacro:property name="base_link_z" value="${wheel_r / 2 + lower_support_len + bar_t}"/>
 
-  <!-- Wheel positions -->
-  <xacro:property name="wheel_x_front" value="${wheel_x_offset}"/>
-  <xacro:property name="wheel_x_rear" value="${-wheel_x_offset}"/>
-  <xacro:property name="wheel_y" value="${base_y / 2 + wheel_w / 2 + wheel_side_clearance}"/>
-  <xacro:property name="wheel_z" value="${-base_z / 2}"/>
-
-  <!-- Top deck position -->
-  <xacro:property name="top_deck_z" value="${base_z / 2 + trap_height + top_z / 2}"/>
-
-  <!-- Slanted support geometry -->
-  <xacro:property name="support_dx" value="${(base_x - top_x) / 2}"/>
-  <xacro:property name="support_len" value="${math.sqrt(support_dx * support_dx + trap_height * trap_height)}"/>
-  <xacro:property name="support_pitch" value="${math.atan2(trap_height, support_dx)}"/>
-
-  <!-- Centres of support beams -->
-  <xacro:property name="support_front_x" value="${(base_x + top_x) / 4}"/>
-  <xacro:property name="support_rear_x" value="${-support_front_x}"/>
-  <xacro:property name="support_y" value="${base_y / 2 - frame_t / 2}"/>
-  <xacro:property name="support_z" value="${base_z / 2 + trap_height / 2}"/>
+  <!-- Top frame position -->
+  <xacro:property name="top_frame_z" value="${upper_support_len + bar_t}"/>
 
   <!-- ========================================================= -->
   <!-- Base frames                                               -->
   <!-- ========================================================= -->
 
   <link name="base_footprint"/>
-
-  <!-- Bottom cuboid -->
-  <link name="base_link">
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <box size="${base_x} ${base_y} ${base_z}"/>
-      </geometry>
-      <material name="gray"/>
-    </visual>
-
-    <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <box size="${base_x} ${base_y} ${base_z}"/>
-      </geometry>
-    </collision>
-
-    <xacro:inertial_box mass="10.0" x="${base_x}" y="${base_y}" z="${base_z}">
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-    </xacro:inertial_box>
-  </link>
+  <link name="base_link"/>
 
   <joint name="base_footprint_joint" type="fixed">
     <parent link="base_footprint"/>
@@ -102,7 +66,7 @@
   </gazebo>
 
   <!-- ========================================================= -->
-  <!-- Generic box member macro                                  -->
+  <!-- Bar macro                                                 -->
   <!-- ========================================================= -->
 
   <xacro:macro name="box_member" params="name sx sy sz mass colour">
@@ -133,48 +97,303 @@
   </xacro:macro>
 
   <!-- ========================================================= -->
-  <!-- Upper trapezoid section                                   -->
+  <!-- Bottom welded frame                                       -->
   <!-- ========================================================= -->
 
-  <!-- Top deck -->
-  <xacro:box_member name="top_deck" sx="${top_x}" sy="${top_y}" sz="${top_z}" mass="2.0" colour="blue"/>
+  <xacro:box_member
+    name="front_base_bar"
+    sx="${bar_t}"
+    sy="${base_short_len}"
+    sz="${bar_t}"
+    mass="1.0"
+    colour="black"/>
 
-  <joint name="top_deck_joint" type="fixed">
+  <xacro:box_member
+    name="front_inner_base_bar"
+    sx="${bar_t}"
+    sy="${base_short_len}"
+    sz="${bar_t}"
+    mass="1.0"
+    colour="black"/>
+
+  <xacro:box_member
+      name="rear_base_bar"
+      sx="${bar_t}"
+      sy="${base_short_len}"
+      sz="${bar_t}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+    name="rear_inner_base_bar"
+    sx="${bar_t}"
+    sy="${base_short_len}"
+    sz="${bar_t}"
+    mass="1.0"
+    colour="black"/>
+
+  <xacro:box_member
+      name="left_base_bar"
+      sx="${base_long_len}"
+      sy="${bar_t}"
+      sz="${bar_t}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="right_base_bar"
+      sx="${base_long_len}"
+      sy="${bar_t}"
+      sz="${bar_t}"
+      mass="1.0"
+      colour="black"/>
+
+  <joint name="front_base_bar_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="top_deck"/>
-    <origin xyz="0 0 ${top_deck_z}" rpy="0 0 0"/>
+    <child link="front_base_bar"/>
+    <origin xyz="${base_long_len / 2 + bar_t / 2} 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- Front supports -->
-  <xacro:box_member name="front_left_support"  sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
-  <xacro:box_member name="front_right_support" sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
-
-  <joint name="front_left_support_joint" type="fixed">
+  <joint name="front_inner_base_bar_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="front_left_support"/>
-    <origin xyz="${support_front_x} ${support_y} ${support_z}" rpy="0 ${support_pitch} 0"/>
+    <child link="front_inner_base_bar"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} 0 0" rpy="0 0 0"/>
   </joint>
 
-  <joint name="front_right_support_joint" type="fixed">
+  <joint name="rear_base_bar_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="front_right_support"/>
-    <origin xyz="${support_front_x} -${support_y} ${support_z}" rpy="0 ${support_pitch} 0"/>
+    <child link="rear_base_bar"/>
+    <origin xyz="${-base_long_len / 2 - bar_t / 2} 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- Rear supports -->
-  <xacro:box_member name="rear_left_support"  sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
-  <xacro:box_member name="rear_right_support" sx="${support_len}" sy="${frame_t}" sz="${frame_t}" mass="0.5" colour="black"/>
-
-  <joint name="rear_left_support_joint" type="fixed">
+  <joint name="rear_inner_base_bar_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="rear_left_support"/>
-    <origin xyz="${support_rear_x} ${support_y} ${support_z}" rpy="0 -${support_pitch} 0"/>
+    <child link="rear_inner_base_bar"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} 0 0" rpy="0 0 0"/>
   </joint>
 
-  <joint name="rear_right_support_joint" type="fixed">
+  <joint name="left_base_bar_joint" type="fixed">
     <parent link="base_link"/>
-    <child link="rear_right_support"/>
-    <origin xyz="${support_rear_x} -${support_y} ${support_z}" rpy="0 -${support_pitch} 0"/>
+    <child link="left_base_bar"/>
+    <origin xyz="0 ${base_short_len / 2 - bar_t / 2} 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="right_base_bar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_base_bar"/>
+    <origin xyz="0 ${-base_short_len / 2 + bar_t / 2} 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ========================================================= -->
+  <!-- Top welded frame                                          -->
+  <!-- ========================================================= -->
+
+  <xacro:box_member
+    name="front_top_bar"
+    sx="${bar_t}"
+    sy="${top_short_len}"
+    sz="${bar_t}"
+    mass="1.0"
+    colour="black"/>
+
+  <xacro:box_member
+      name="rear_top_bar"
+      sx="${bar_t}"
+      sy="${top_short_len}"
+      sz="${bar_t}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="left_top_bar"
+      sx="${top_long_len}"
+      sy="${bar_t}"
+      sz="${bar_t}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="right_top_bar"
+      sx="${top_long_len}"
+      sy="${bar_t}"
+      sz="${bar_t}"
+      mass="1.0"
+      colour="black"/>
+
+  <joint name="front_top_bar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_top_bar"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} 0 ${top_frame_z}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="rear_top_bar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_top_bar"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} 0 ${top_frame_z}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="left_top_bar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_top_bar"/>
+    <origin xyz="0 ${top_short_len / 2 - bar_t / 2} ${top_frame_z}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="right_top_bar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_top_bar"/>
+    <origin xyz="0 ${-top_short_len / 2 + bar_t / 2} ${top_frame_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ========================================================= -->
+  <!-- Upper supports                                            -->
+  <!-- ========================================================= -->
+
+  <xacro:box_member
+      name="front_left_upper_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${upper_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="front_right_upper_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${upper_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="rear_left_upper_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${upper_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="rear_right_upper_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${upper_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <joint name="front_left_upper_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_left_upper_support"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} ${base_short_len / 2 - bar_t / 2} ${upper_support_len / 2 + bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="front_right_upper_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_right_upper_support"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} ${-base_short_len / 2 + bar_t / 2} ${upper_support_len / 2 + bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="rear_left_upper_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_left_upper_support"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} ${base_short_len / 2 - bar_t / 2} ${upper_support_len / 2 + bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="rear_right_upper_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_right_upper_support"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} ${-base_short_len / 2 + bar_t / 2} ${upper_support_len / 2 + bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ========================================================= -->
+  <!-- Lower supports                                            -->
+  <!-- ========================================================= -->
+
+  <xacro:box_member
+      name="front_left_lower_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${lower_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="front_right_lower_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${lower_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="rear_left_lower_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${lower_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <xacro:box_member
+      name="rear_right_lower_support"
+      sx="${bar_t}"
+      sy="${bar_t}"
+      sz="${lower_support_len}"
+      mass="1.0"
+      colour="black"/>
+
+  <joint name="front_left_lower_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_left_lower_support"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} -0.1396 ${-lower_support_len / 2 - bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="front_right_lower_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_right_lower_support"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} 0.1396 ${-lower_support_len / 2 - bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="rear_left_lower_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_left_lower_support"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} -0.1396 ${-lower_support_len / 2 - bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="rear_right_lower_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_right_lower_support"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} 0.1396 ${-lower_support_len / 2 - bar_t / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ========================================================= -->
+  <!-- Wheel supports                                            -->
+  <!-- ========================================================= -->
+
+  <xacro:box_member
+    name="front_wheel_support"
+    sx="${bar_t}"
+    sy="${wheel_support_len}"
+    sz="${bar_t}"
+    mass="1.0"
+    colour="black"/>
+
+  <xacro:box_member
+      name="rear_wheel_support"
+      sx="${bar_t}"
+      sy="${wheel_support_len}"
+      sz="${bar_t}"
+      mass="1.0"
+      colour="black"/>
+
+  <joint name="front_wheel_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_wheel_support"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} 0 ${-lower_support_len - bar_t}" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="rear_wheel_support_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_wheel_support"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} 0 ${-lower_support_len - bar_t}" rpy="0 0 0"/>
   </joint>
 
   <!-- ========================================================= -->
@@ -225,35 +444,31 @@
   <xacro:wheel_link name="rear_left_wheel"/>
   <xacro:wheel_link name="rear_right_wheel"/>
 
-  <!-- ========================================================= -->
-  <!-- Wheel joints                                              -->
-  <!-- ========================================================= -->
-
   <joint name="front_left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="front_left_wheel"/>
-    <origin xyz="${wheel_x_front} ${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} ${wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
   <joint name="front_right_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="front_right_wheel"/>
-    <origin xyz="${wheel_x_front} -${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <origin xyz="${top_long_len / 2 + bar_t / 2} ${-wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
   <joint name="rear_left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="rear_left_wheel"/>
-    <origin xyz="${wheel_x_rear} ${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} ${wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
   <joint name="rear_right_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="rear_right_wheel"/>
-    <origin xyz="${wheel_x_rear} -${wheel_y} ${wheel_z}" rpy="0 0 0"/>
+    <origin xyz="${-top_long_len / 2 - bar_t / 2} ${-wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 

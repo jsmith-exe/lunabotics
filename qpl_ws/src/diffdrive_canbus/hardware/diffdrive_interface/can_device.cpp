@@ -9,6 +9,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <functional>
 
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
@@ -37,6 +38,10 @@ CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, flo
   }
 }
 
+void CANDevice::configure() {
+  set_status_period(0, STATUS0_PERIOD_MS);
+  set_status_period(1, STATUS1_PERIOD_MS);
+}
 
 double CANDevice::clamp_and_apply_deadband_if_finite(double value, double deadband, double min, double max)
 {
@@ -100,6 +105,19 @@ bool CANDevice::clear_faults(bool print)
   }
 
   return can_.send_extended_frame(id, {}, print);
+}
+
+bool CANDevice::set_status_period(uint8_t status_frame_index, uint16_t period_ms)
+{
+  // status_frame_index: 0-4, corresponding to Periodic Status 0-4
+  std::vector<uint8_t> data(2, 0x00);
+
+  const uint32_t id = make_sparkmax_id(0x06, status_frame_index, can_id_);
+
+  data[0] = static_cast<uint8_t>(period_ms & 0xFF);
+  data[1] = static_cast<uint8_t>((period_ms >> 8) & 0xFF);
+
+  return can_.send_extended_frame(id, data, true);
 }
 
 bool CANDevice::send_setpoint(
