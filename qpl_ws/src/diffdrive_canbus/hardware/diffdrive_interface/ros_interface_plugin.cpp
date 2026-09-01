@@ -102,8 +102,6 @@ public:
           return hardware_interface::CallbackReturn::ERROR;
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(250));
-
       RCLCPP_INFO(logger_, "CAN adapter configured");
       std::this_thread::sleep_for(std::chrono::milliseconds(250));
       

@@ -39,7 +39,7 @@ namespace diffdrive_canbus {
   {
       constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f;
       const double setpoint_mm = commanded_pos_mm_ + ACTUATOR_POSITION_CONSTANT;
-      const double abs_error_mm = std::fabs(setpoint_mm - position_);
+      const double abs_error_mm = std::fabs(setpoint_mm - position_ * 1000.0); // convert to mm, for ease of comparison with setpoint_mm
 
       if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM) {
           reached_position_ = true;
@@ -80,6 +80,6 @@ namespace diffdrive_canbus {
 
       const uint16_t packed = le_u16_from_frame_data(frame.data, 0);
       const uint16_t raw_feedback = packed & 0x03FF;
-      position_ = feedback_to_distance(raw_feedback);
+      position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
   }
 }
