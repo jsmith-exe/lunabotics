@@ -19,17 +19,41 @@ def generate_launch_description():
         description='Whether to run camera with low quality.'
     )
 
+    # Turns the RealSense's raw gyro+accel into an attitude estimate on
+    # /imu/data. Both rover EKFs fuse absolute roll/pitch from it as imu1. Yaw
+    # rate comes straight off /camera/camera/imu as imu0, not from here.
     imu_filter = Node(
         package='imu_filter_madgwick',
         executable='imu_filter_madgwick_node',
         name='imu_filter',
         parameters=[{
+            # No magnetometer, so yaw here has no absolute reference. Neither
+            # EKF fuses it.
             'use_mag': False,
+
+            # robot_localization owns the TF tree; this node must not publish.
             'publish_tf': False,
             'world_frame': 'enu',
-            'gain': 0.1,
+
+            # Must not be left at the default of 0.0: it is written straight
+            # into orientation_covariance, and zero is not "unknown" to
+            # robot_localization - it substitutes ~1e-9 and treats the tilt as a
+            # perfect measurement.
+            # TODO(calibration): measure this from a stationary bag on the rover.
+            'orientation_stddev': 0.05,
+
+            # Accelerometer weighting. Halved from the 0.1 default to lean on
+            # the gyro for fast motion. If phantom tilt shows up under
+            # acceleration, lower this first.
+            'gain': 0.05,
+
+            # Gyro bias estimation, off. Next knob to try if roll/pitch wander
+            # at rest.
             'zeta': 0.0,
+
+            # Only consulted when publish_tf is true, which it is not.
             'fixed_frame': 'camera_frame',
+
             'remove_gravity_vector': False,
         }],
         remappings=[
@@ -64,12 +88,9 @@ def get_camera_launch(context):
 def get_remappings():
     # Use ros2 topic list to get topics and paste them here, do not include points (/camera/camera/depth/color/points)
     #
-    # DO NOT add /camera/camera/imu to this list. With unite_imu_method=2 the
-    # driver publishes the fused gyro+accel message there, and both EKFs fuse it
-    # as imu0 under that exact name (see ekf_local_params_rover.yaml). Remapping
-    # it would leave the filters with no gyro and heading would silently fall
-    # back to wheel odometry alone. The gyro/* and accel/* entries below are the
-    # raw split streams and are safe to remap.
+    # DO NOT add /camera/camera/imu to this list: both EKFs fuse it as imu0 under
+    # that exact name (see ekf_local_params_rover.yaml). The gyro/* and accel/*
+    # entries below are the raw split streams and are safe to remap.
     topics_to_remap = """
     /camera/camera/accel/imu_info
     /camera/camera/accel/metadata
@@ -198,22 +219,18 @@ def get_camera_params(use_low_quality: bool):
         'pointcloud__neon_.enable': True,
 
         # Registers depth into the colour frame, producing
-        # aligned_depth_to_color/*. Required by rgbd_odometry (vslam_launch.py):
-        # it needs a colour image and a depth image that share intrinsics, and
-        # the raw depth stream is a different resolution with its own optics.
-        # Output comes out at the COLOUR resolution, so this is also why the
-        # hardware VO config runs fewer features than the sim one.
+        # aligned_depth_to_color/*. Required by rgbd_odometry (vslam_launch.py),
+        # which needs a colour and depth image sharing intrinsics.
         'align_depth.enable': True,
 
         'enable_gyro': True,
         'enable_accel': True,
         'unite_imu_method': 2,
 
-        # These land in the Imu message covariances, which is how robot_localization
-        # decides how far to trust the yaw rate. The driver default of 0.01 is
-        # sigma ~= 5.7 deg/s, far looser than this gyro actually is, which would
-        # make the EKF lag during turns now that the IMU is the primary heading
-        # source. Starting point only - tune against wheel odom on the rover.
+        # These land in the Imu message covariances, which is how
+        # robot_localization decides how far to trust the yaw rate. The driver
+        # default of 0.01 is far looser than this gyro actually is.
+        # TODO(calibration): tune against wheel odom on the rover.
         'angular_velocity_cov': 0.001,
         'linear_accel_cov': 0.01,
 

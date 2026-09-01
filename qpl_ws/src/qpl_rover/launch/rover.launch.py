@@ -39,9 +39,8 @@ def generate_launch_description():
         description='Whether to run the rover with components.'
     )
 
-    # NOTE: enabling this on hardware also requires the RealSense to be running
-    # (realsense_launch is commented out of the returned LaunchDescription
-    # below), since VO consumes its colour + aligned depth streams.
+    # VO consumes the RealSense's colour + aligned depth streams, so this
+    # depends on realsense_launch below.
     use_vslam_parameter = DeclareLaunchArgument(
         'use_vslam',
         default_value='false',
@@ -59,10 +58,9 @@ def generate_launch_description():
     )
 
     # Cameras
-    # Full resolution: 1280x800x30 colour, 848x480x30 depth. aligned_depth_to_color
-    # (needed by visual odometry) comes out at the COLOUR resolution, so this is
-    # also what sets the VO workload. If the Jetson cannot hold frame rate, flip
-    # this to "true" for 424x240x15 - no other change is required.
+    # Full resolution: 1280x800x30 colour, 848x480x30 depth. This also sets the
+    # VO workload. If the Jetson cannot hold frame rate, flip to "true" for
+    # 424x240x15 - no other change is required.
     use_low_quality = "false"
     realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
     orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
@@ -94,15 +92,14 @@ def generate_launch_description():
         realsense_launch,
         # delayed_orbbec_launch,
         # rear_camera_tf_transform,
-        # Splices the RealSense's own frame subtree (including the IMU and colour
-        # optical frames) onto the URDF, so the EKF can transform
-        # /camera/camera/imu into base_footprint and rgbd_odometry can resolve
-        # base_footprint -> the colour image's frame.
+        # Splices the RealSense's frame subtree onto the URDF so the EKF can
+        # transform /camera/camera/imu into base_footprint and rgbd_odometry can
+        # resolve base_footprint -> the colour image's frame.
         #
-        # The child frame below is a best guess at the driver's naming and has
-        # NOT been checked against hardware. If VO or the IMU sit silent, read
-        # the real frame off the image header
-        # (ros2 topic echo --once /depth_camera_front/color/image_raw --field header.frame_id)
-        # and fix it HERE rather than in the URDF.
+        # The child frame is derived: realsense2_camera prefixes camera_name onto
+        # base_frame_id, so "camera" + "camera_link_front" gives
+        # "camera_camera_link_front". If base_frame_id in
+        # camera_realsense.launch.py changes, or camera_name is ever set, this
+        # must change with it or VO/IMU go silent with no error.
         front_camera_tf_transform,
     ])

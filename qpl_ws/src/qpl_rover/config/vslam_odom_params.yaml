@@ -1,15 +1,7 @@
 # RGB-D visual odometry (SIM) — rtabmap_odom/rgbd_odometry
 #
-# Produces a slip-immune body-velocity estimate for the local EKF to fuse as
-# odom1. This is dead reckoning only: it does NOT publish a TF (the local EKF
-# owns odom -> base_footprint) and it does NOT build a map (Nav2's voxel layer
-# replaced the old RTAB-Map perception node in 066ef28).
-#
-# History: an earlier version of this file was deleted in efad12f "Remove
-# vslam". It never actually ran — the EKF was subscribed to
-# /rtabmap/visual_odom while the node published /rtabmap/odom, so no VO ever
-# reached the filter. The output topic is now remapped explicitly in
-# vslam_launch.py so that class of bug can't recur silently.
+# Publishes a body-velocity estimate for the local EKF to fuse as odom1. No TF
+# (the local EKF owns odom -> base_footprint) and no mapping.
 #
 # Hardware equivalent: vslam_odom_params_rover.yaml. Keep the two in sync
 # except where the comments say otherwise.
@@ -18,84 +10,46 @@
   ros__parameters:
     use_sim_time: true
 
-    # ------------------------------------------------------------------
-    # Frames
-    # ------------------------------------------------------------------
-    # frame_id is the ROBOT frame, not the camera frame. rtabmap resolves the
-    # camera pose from the image header's frame_id via TF, so the only hard
-    # requirement is that base_footprint -> <image frame_id> exists.
+    # frame_id is the ROBOT frame. rtabmap resolves the camera pose from the
+    # image header's frame_id via TF, so base_footprint -> <image frame_id>
+    # must exist.
     frame_id: base_footprint
     odom_frame_id: odom
 
-    # The local EKF publishes odom -> base_footprint. If this node also
-    # published it there would be two writers on the same edge and TF would
-    # flap between them.
+    # The local EKF publishes odom -> base_footprint; two writers would flap.
     publish_tf: false
     wait_for_transform: 0.2
 
-    # ------------------------------------------------------------------
-    # Sync
-    # ------------------------------------------------------------------
-    # In sim, colour and depth come from the SAME Gazebo depth sensor
-    # (camera_name depth_camera_front_depth), so they are already registered
-    # and share intrinsics and stamps. approx_sync stays on anyway — it costs
-    # nothing when stamps match and saves the node from stalling if they drift.
+    # In sim, colour and depth come from the same Gazebo depth sensor, so they
+    # already share intrinsics and stamps.
     approx_sync: true
     approx_sync_max_interval: 0.03
     sync_queue_size: 10
     topic_queue_size: 10
 
-    # Gazebo camera plugins publish RELIABLE. See the rover file for why
-    # hardware differs.
+    # Gazebo camera plugins publish RELIABLE.
     #
-    # NB the image parameter is `qos`, NOT `qos_image` — rtabmap only names it
-    # qos_image in its docs for the sync nodes. Verified against
-    # `ros2 param list /visual_odometry`; an undeclared name here is accepted
-    # silently and does nothing.
+    # NB the image parameter is `qos`, NOT `qos_image` - an undeclared name here
+    # is accepted silently and does nothing.
     qos: 1
     qos_camera_info: 1
 
-    # ------------------------------------------------------------------
-    # Planar rover
-    # ------------------------------------------------------------------
-    # Force3DoF constrains the solution to x, y, yaw. Without it, VO on a
-    # rover pitching over regolith burns inliers explaining z/roll/pitch that
-    # two_d_mode in the EKF is going to discard anyway.
+    # Constrain the solution to x, y, yaw.
     Reg/Force3DoF: "true"
 
-    # ------------------------------------------------------------------
-    # Motion prior
-    # ------------------------------------------------------------------
-    # Seed each frame's feature search from the EKF's odom estimate instead of
-    # from nothing. On low-texture regolith this is the single biggest
-    # robustness win available: it turns a global search into a local one and
-    # keeps tracking alive through frames that would otherwise fail to match.
-    # The old deleted config left this empty.
+    # Seed each frame's feature search from the EKF's odom estimate. On
+    # low-texture regolith this is the biggest robustness win available.
     guess_frame_id: odom
     Odom/GuessMotion: "true"
 
-    # ------------------------------------------------------------------
-    # Visual odometry tuning
-    # ------------------------------------------------------------------
     Vis/MaxFeatures: "400"
     Vis/MinInliers: "8"
     Vis/InlierDistance: "0.10"
     Vis/EstimationType: "1"      # 3D->2D PnP; more robust with sparse depth
     Vis/CorGuessWinSize: "40"    # px search window when a guess is available
 
-    # NOTE: the deleted config carried RGBD/LinearUpdate and RGBD/AngularUpdate
-    # here. Those are RTAB-Map *mapping* parameters — valid names, so rtabmap
-    # accepts them without complaint, but OdometryF2M never reads them. Dropped
-    # rather than left in place looking like they do something.
-
-    # ------------------------------------------------------------------
-    # Loss behaviour  ** the part the old config got wrong **
-    # ------------------------------------------------------------------
-    # publish_null_when_lost was unset (default true), so on tracking loss the
-    # node emitted a null odometry message straight into the filter. Combined
-    # with ResetCountdown 0 (never self-recover) that meant a single dust cloud
-    # could poison the estimate permanently. Now: stay silent when lost, and
-    # re-initialise after 1 consecutive failure the way Purdue's config does.
+    # Stay silent when tracking is lost rather than emitting a null odometry
+    # message, and re-initialise after 1 consecutive failure.
     publish_null_when_lost: false
     Odom/ResetCountdown: "1"
     Odom/FilteringStrategy: "0"

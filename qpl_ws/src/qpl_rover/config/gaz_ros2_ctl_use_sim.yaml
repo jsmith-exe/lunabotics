@@ -2,37 +2,14 @@ controller_manager:
   ros__parameters:
     use_sim_time: true
 
-# ---------------------------------------------------------------------------
-# Simulation-only overrides.
-#
-# This file is loaded by the gazebo_ros2_control plugin (see
-# description/ros2_control.xacro) *after* my_controllers.yaml, so anything set
-# here wins in sim only. The real rover loads my_controllers.yaml on its own
-# via controllers.launch.py and is unaffected by this file.
-# ---------------------------------------------------------------------------
+# Simulation-only overrides. Loaded by the gazebo_ros2_control plugin after
+# my_controllers.yaml, so anything set here wins in sim only.
 diff_cont:
   ros__parameters:
 
-    # Effective track width for skid-steer odometry, measured in Gazebo.
+    # Effective track width for skid-steer odometry, measured in Gazebo as
+    # (v_right - v_left) / yaw_rate at +/-0.8 and +/-1.0 rad/s.
     #
-    # my_controllers.yaml carries 0.5836, which is the chassis width and not a
-    # wheel-centre-to-wheel-centre distance. It also predates the chassis being
-    # re-measured (base_y 0.5806 -> 0.745), so it ends up roughly half of what
-    # the odometry actually needs and every turn is reported at ~2x its true
-    # magnitude.
-    #
-    # Two corrections are folded into the value below:
-    #   1. Geometry. Wheels are mounted outboard of the chassis, so the true
-    #      track is base_y + wheel_w = 0.745 + 0.15 = 0.895 m
-    #      (see description/rover_core.xacro, wheel_y).
-    #   2. Skid-steer scrub. This is a 4-wheel skid-steer driven by a 2-wheel
-    #      differential-drive model. The wheels must slide sideways to rotate,
-    #      so the rover turns slower than ideal diff-drive kinematics predict
-    #      and the *effective* track is larger than the geometric one.
-    #
-    # Measured as (v_right - v_left) / yaw_rate against Gazebo ground truth,
-    # at +/-0.8 and +/-1.0 rad/s: 1.148 - 1.176 m, mean 1.161.
-    #
-    # This value is specific to the sim's wheel friction (mu1=1.4, mu2=0.2 in
-    # rover_core.xacro). Retune it if that friction changes.
+    # Specific to the sim's wheel friction (mu1=1.4, mu2=0.2 in
+    # rover_core.xacro). Retune if that friction changes.
     wheel_separation: 1.161

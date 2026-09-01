@@ -1,29 +1,13 @@
 // Arena surface materials.
 //
-// These exist so RGB-D visual odometry (vslam_launch.py) has something to
-// track. The surfaces they replace were solid-colour polygons: the front
-// camera measured 0.39 grey levels per pixel of gradient, and rgbd_odometry
-// could not hold 8 inliers anywhere in the arena. See regolith_texture_gen.py.
-//
-// SCALE IS NOT A FREE PARAMETER. 'scale' is Ogre's texture-coordinate scale,
-// so SMALLER values mean MORE repeats. Box faces are UV mapped 0..1 regardless
-// of their real size, so the correct value depends on the dimensions of the
-// specific model the material is applied to:
+// 'scale' is Ogre's texture-coordinate scale, so smaller values mean more
+// repeats. Box faces are UV mapped 0..1 regardless of real size:
 //
 //     repeats = 1 / scale        tile_size_m = face_length_m * scale
 //
-// Getting this wrong is silent and severe. The previous single Regolith/Wall
-// entry used 'scale 0.1 0.1' on arena_april.world's 0.2 m tall walls, which
-// squashed the entire texture into a 2 cm band and repeated it ten times up
-// the face. Heavy repetition is also actively bad for VO: identical patches
-// a fixed distance apart are exactly what makes feature matching ambiguous.
-//
-// If you resize the ground or the walls, re-derive these or the grain size
-// changes silently.
+// Re-derive these if the ground or walls are resized.
 
-// Ground slab. Used by arena_ucf.world's 12 x 12 m arena_ground.
-// arena_april.world does NOT use this - its ground is a heightmap, which
-// carries its own <texture><size> in metres (see terrain_heightmap/model.sdf).
+// Ground slab, 12 x 12 m (arena_ucf.world). 1/6 -> 2 m tile.
 material Regolith/Ground
 {
   technique
@@ -33,24 +17,17 @@ material Regolith/Ground
       texture_unit
       {
         texture regolith.png
-        // 12 m slab; 1/6 gives a 2 m tile, matching the tile size the texture
-        // generator assumes (GROUND_TILE_M) so feature sizes come out right.
         scale 0.1667 0.1667
-        // Trilinear + mipmaps: without it the fine grain aliases into moving
-        // speckle at range, which produces features that do not survive
-        // between frames - worse for VO than no texture at all.
         filtering trilinear
       }
     }
   }
 }
 
-// Walls, 0.2 m tall in arena_april.world. Vertical scale is 1.0 in both
-// variants: one repeat over the 0.2 m height, so the mid rail and the fastener
-// rows appear once rather than being tiled into a stripe. Horizontal scale is
-// chosen per wall length to keep a ~0.4 m tile on every face.
+// Walls. Vertical scale 1.0 = one repeat over the height. Horizontal scale is
+// per wall length, to keep a ~0.4 m tile on every face.
 
-// North / south walls: 4.4 m long. 1/0.0909 = 11 repeats -> 0.40 m tiles.
+// North / south walls: 4.4 m long. 11 repeats -> 0.40 m tiles.
 material Regolith/WallShort
 {
   technique
@@ -67,7 +44,7 @@ material Regolith/WallShort
   }
 }
 
-// East / west walls: 7.9 m long. 1/0.05 = 20 repeats -> 0.40 m tiles.
+// East / west walls: 7.9 m long. 20 repeats -> 0.40 m tiles.
 material Regolith/WallLong
 {
   technique
@@ -84,8 +61,7 @@ material Regolith/WallLong
   }
 }
 
-// Backwards-compatible alias. arena_ucf.world on the localisation branch
-// references Regolith/Wall for its 0.4 m walls; keep the name resolving.
+// Alias: arena_ucf.world references Regolith/Wall for its 0.4 m walls.
 material Regolith/Wall : Regolith/WallShort
 {
 }

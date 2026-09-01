@@ -7,9 +7,9 @@ ekf_local:
     publish_tf: true
     frequency: 50.0
     sensor_timeout: 0.1
-    # Planar rover: nothing measures z/roll/pitch, so in 3D mode those states
-    # are unobservable and their covariance grows without bound.
-    two_d_mode: true
+    # Roll/pitch are measured by imu1 below, so they stay observable. z is
+    # unmeasured and is held down by process_noise_covariance instead.
+    two_d_mode: false
 
     odom_frame: odom
     base_link_frame: base_footprint
@@ -20,17 +20,11 @@ ekf_local:
 
     # ------------------------------------------------------------------
     # IMU (RealSense gyro)
-    # Yaw RATE only: the RealSense has no magnetometer, so any absolute yaw
-    # is arbitrary at startup and drifts. Yaw rate is the trustworthy signal
-    # and is immune to wheel slip.
-    #
-    # Subscribed direct to the driver rather than to imu_filter_madgwick's
-    # /imu/data: the filter only overwrites `orientation`, which we do not
-    # fuse, so routing through it would add a process to the critical path
-    # for heading without changing a single fused value.
+    # Yaw rate only: the RealSense has no magnetometer, so absolute yaw is
+    # arbitrary at startup and drifts.
     #
     # NB /camera/camera/imu is deliberately NOT in the remap list in
-    # camera_realsense.launch.py — see the note there before "tidying" it.
+    # camera_realsense.launch.py.
     #
     # TODO(calibration): wheel_separation is still uncalibrated on the real
     # rover (see the TODO in my_controllers.yaml). That error no longer reaches
@@ -52,21 +46,31 @@ ekf_local:
 
     imu0_differential: false
     imu0_relative: false
-    imu0_remove_gravitational_acceleration: true
+    imu0_remove_gravitational_acceleration: false
+
+    # ------------------------------------------------------------------
+    # IMU (RealSense accelerometer, via imu_filter_madgwick)
+    # Absolute roll and pitch only - the tilt correction. Not yaw: the filter
+    # runs use_mag: false, so its yaw has no absolute reference. Not
+    # acceleration: ax/ay/az stay false everywhere.
+    # ------------------------------------------------------------------
+    imu1: /imu/data
+    imu1_config: [false, false, false,
+                  true,  true,  false,   # roll, pitch
+                  false, false, false,
+                  false, false, false,
+                  false, false, false]
+
+    imu1_differential: false
+    imu1_relative: false
+    imu1_remove_gravitational_acceleration: false
+    imu1_queue_size: 10
 
     # ------------------------------------------------------------------
     # Wheel odometry
-    # Body-frame velocities only. vyaw stays enabled, but with a deliberately
-    # loose twist_covariance_diagonal in my_controllers.yaml (0.05 vs the IMU's
-    # 0.001) so the IMU dominates during slip while wheel odom still pins the
-    # heading if the RealSense drops out. Removing it entirely would leave a
-    # single non-redundant yaw source that fails open-loop and silently.
-    #
-    # This is the one place the hardware filter deliberately DIVERGES from the
-    # sim one (ekf_local_params.yaml), where odom0 vyaw is false. In sim the IMU
-    # is near-perfect and always present, so wheel yaw only adds its own +11.67
-    # deg/56 deg scale error. On hardware the camera can fail, and a scaled yaw
-    # beats no yaw.
+    # Body-frame velocities only. vyaw stays enabled as a loose fallback (0.05
+    # in my_controllers.yaml vs the IMU's 0.001) so heading survives a RealSense
+    # dropout. The sim config has this false, where the IMU is always present.
     # ------------------------------------------------------------------
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
@@ -80,16 +84,8 @@ ekf_local:
 
     # ------------------------------------------------------------------
     # RGB-D visual odometry (vslam_launch.py, hardware variant)
-    #
-    # Body-frame velocities only — see the long note in ekf_local_params.yaml
-    # for why pose and yaw rate are deliberately excluded.
-    #
-    # Requires the RealSense to be publishing aligned_depth_to_color: that means
-    # align_depth.enable in camera_realsense.launch.py (on) and realsense_launch
-    # actually included in rover.launch.py (it now is). Opt in per run with
-    # use_vslam:=true.
-    #
-    # Nothing breaks if vslam isn't running: this input simply never arrives.
+    # Body-frame velocities only. Requires align_depth.enable in
+    # camera_realsense.launch.py. Opt in per run with use_vslam:=true.
     # ------------------------------------------------------------------
     odom1: /vo/odom
     odom1_config: [false, false, false,
@@ -102,3 +98,24 @@ ekf_local:
     odom1_relative: false
     odom1_queue_size: 10
     odom1_twist_rejection_threshold: 3.0
+
+    # ------------------------------------------------------------------
+    # Process noise
+    # robot_localization defaults, except z/vz/az which are pinned to 1e-6:
+    # nothing measures them, so at default noise they random-walk.
+    # ------------------------------------------------------------------
+    process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
+                              0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
+                              0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
+                              0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # roll
+                              0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # pitch
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # yaw
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vx
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vy
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,  # vroll
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,  # vpitch
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,  # vyaw
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,  # ax
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,  # ay
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06]  # az

@@ -21,11 +21,7 @@ def generate_launch_description():
     use_vslam_parameter = DeclareLaunchArgument(
         'use_vslam',
         default_value='false',
-        description=(
-            'Run RGB-D visual odometry and fuse it into the local EKF as odom1. '
-            'Off by default: VO is an additive dead-reckoning input, and the '
-            'stack must stay launchable without a working front depth camera.'
-        )
+        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1.'
     )
 
     return LaunchDescription([
@@ -50,7 +46,7 @@ def opaque_generate_launch_description(context):
     ]
 
     if use_vslam:
-        # Named vslam_launch.py rather than vslam.launch.py so the long-standing
+        # Named vslam_launch.py rather than vslam.launch.py so the existing
         # `qpl_vslam` alias in process/functions/executables.sh keeps working.
         components.append(
             IncludeLaunchDescription(

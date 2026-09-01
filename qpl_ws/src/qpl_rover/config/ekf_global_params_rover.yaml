@@ -5,7 +5,9 @@ ekf_global:
     sensor_timeout: 0.2
     publish_tf: true
     print_diagnostics: true
-    two_d_mode: true
+    # Roll/pitch are measured by imu1 below. Must stay in step with
+    # ekf_local_params_rover.yaml or the difference lands in map -> odom.
+    two_d_mode: false
     
 
     map_frame: map
@@ -16,24 +18,14 @@ ekf_global:
     transform_time_offset: 0.0
     transform_timeout: 0.1
 
-    # AprilTag poses carry the IMAGE timestamp, which lags by the capture +
-    # detection latency. Without lag smoothing the filter drops any measurement
-    # older than its own time, so tag corrections vanish exactly when the
-    # system is under load. This buffers 1 s of history and rewinds instead.
+    # AprilTag poses carry the image timestamp, so they arrive lagged.
     smooth_lagged_data: true
     history_length: 1.0
 
-    # INPUT 1: body-frame velocities from RAW wheel odometry. Deliberately NOT
-    # /odometry/filtered — see the note in ekf_global_params.yaml: the local
-    # EKF's output stamps can lag under load and stale measurements are
-    # silently dropped by this filter.
-    #
-    # Yaw rate stays TRUE here, deliberately, matching ekf_local_params_rover.yaml:
-    # it is the loose dropout fallback (0.05 in my_controllers.yaml) behind imu0's
-    # gyro (0.001, INPUT 3 below). The sim twin has this bit FALSE because there
-    # the IMU is near-perfect and always present; on hardware the RealSense can
-    # fail, and pose0's AprilTag yaw only exists while the board is in view, so
-    # dropping wheel yaw would leave heading unobservable between tag fixes.
+    # INPUT 1: body-frame velocities from raw wheel odometry. Not
+    # /odometry/filtered - stale measurements are silently dropped by this
+    # filter. Yaw rate stays true as a loose fallback behind imu0, matching
+    # ekf_local_params_rover.yaml.
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
@@ -55,11 +47,9 @@ ekf_global:
     pose0_differential: false
     pose0_relative: false
 
-    # INPUT 3: Yaw rate from the RealSense gyro.
-    # Mirrors ekf_local. Without this the global filter takes yaw rate from the
-    # wheels while the local one takes it from the IMU; on slip the two estimates
-    # diverge and the whole discrepancy is dumped into map -> odom as a rotation
-    # jump, which is the artifact enabling the IMU was meant to remove.
+    # INPUT 3: yaw rate from the RealSense gyro. Mirrors ekf_local - if the two
+    # filters take yaw rate from different sources they diverge on slip and the
+    # difference is dumped into map -> odom as a rotation jump.
     imu0: /camera/camera/imu
     imu0_config: [false, false, false,
                   false, false, false,
@@ -69,4 +59,43 @@ ekf_global:
 
     imu0_differential: false
     imu0_relative: false
-    imu0_remove_gravitational_acceleration: true
+    imu0_remove_gravitational_acceleration: false
+
+    # ------------------------------------------------------------------
+    # IMU (RealSense accelerometer, via imu_filter_madgwick)
+    # Absolute roll and pitch only - the tilt correction. Not yaw: the filter
+    # runs use_mag: false, so its yaw has no absolute reference. Not
+    # acceleration: ax/ay/az stay false everywhere.
+    # ------------------------------------------------------------------
+    imu1: /imu/data
+    imu1_config: [false, false, false,
+                  true,  true,  false,   # roll, pitch
+                  false, false, false,
+                  false, false, false,
+                  false, false, false]
+
+    imu1_differential: false
+    imu1_relative: false
+    imu1_remove_gravitational_acceleration: false
+    imu1_queue_size: 10
+
+    # ------------------------------------------------------------------
+    # Process noise
+    # robot_localization defaults, except z/vz/az which are pinned to 1e-6:
+    # nothing measures them, so at default noise they random-walk.
+    # ------------------------------------------------------------------
+    process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
+                              0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
+                              0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
+                              0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # roll
+                              0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # pitch
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # yaw
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vx
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vy
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,  # vroll
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,  # vpitch
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,  # vyaw
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,  # ax
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,  # ay
+                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06]  # az

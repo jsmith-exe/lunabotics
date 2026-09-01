@@ -1,5 +1,0 @@
-# Output of batch.sh / batch_slip.sh. The committed baseline/ and post_merge/
-# directories are the results referenced by the PR; fresh runs stay local.
-runs/
-runs_slip/
-*.orig

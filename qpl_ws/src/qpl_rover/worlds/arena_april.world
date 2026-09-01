@@ -12,32 +12,7 @@
       <direction>-0.5 0.1 -0.9</direction>
     </light>
 
-    <!-- Ground truth for localisation testing: publishes /gazebo/model_states.
-         Inert otherwise - it adds a topic and nothing else. arena_ucf.world on
-         the localisation branch carries the same plugin for the same reason. -->
-    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
-      <ros>
-        <namespace>/gazebo</namespace>
-      </ros>
-      <update_rate>50.0</update_rate>
-    </plugin>
-
     <!-- PHYSICAL ARENA -->
-    <!-- Ground: flat textured slab, replacing the terrain_heightmap model.
-         Nothing is lost geometrically - heightmap.png is a uniform 128-grey
-         image and the model's <size> has a zero Z scale, so that terrain was
-         already perfectly flat.
-
-         It is a box rather than a heightmap because a heightmap's <texture>
-         <diffuse> is resolved by Ogre's terrain loader, not the normal
-         material path, and pointing it at another model's texture
-         (model://regolith_model/...) made the whole heightmap fail to build -
-         which renders as the sky showing through where the floor should be.
-         A box visual with a material script has no such restriction, and is
-         what arena_ucf.world already does.
-
-         12 x 12 m covers the 4.4 x 7.9 m arena with margin. Top surface sits
-         at z = 0, so the spawn height in sim.launch.py is unchanged. -->
     <model name="arena_ground">
       <static>true</static>
       <link name="link">
@@ -58,18 +33,6 @@
       </link>
     </model>
 
-    <!-- Walls.
-         Textured rather than flat-shaded, for the same reason as the ground:
-         a solid-colour surface gives RGB-D visual odometry no intensity
-         gradient to track. Walls matter disproportionately because they stay
-         in view during turns, which is when VO was measured losing tracking
-         (15-22% zero-inlier frames, clustered in the turning phases).
-
-         North/south are 4.4 m long and east/west 7.9 m, so they use different
-         horizontal scales (WallShort / WallLong) to land on the same ~0.40 m
-         tile. Vertical scale is 1.0 in both: one repeat over the 0.2 m height,
-         so the rail and fastener rows appear once instead of being tiled into
-         a stripe. See regolith.material. -->
     <model name="wall_south">
       <static>true</static>
       <link name="link">
@@ -149,13 +112,6 @@
         <pose>2.2 0 0.1 0 0 0</pose>
       </link>
     </model>
-
-    <!-- BOULDER OBSTACLES removed.
-         They sat in the drive path used for localisation testing - boulder_2 at
-         (0.3, -2.95) is 1.5 m directly in front of the rover spawn - and an
-         open-loop dead-reckoning run that rams a rock is not a repeatable
-         measurement of odometry drift. The arena walls are kept: they are the
-         boundary, not obstacles. -->
 
     <!-- APRILTAG -->
     <model name="apriltag_0">

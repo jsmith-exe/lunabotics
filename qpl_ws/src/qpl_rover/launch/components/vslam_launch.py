@@ -3,28 +3,7 @@ RGB-D visual odometry for dead reckoning.
 
 Runs rtabmap_odom/rgbd_odometry against the FRONT depth camera and publishes a
 body-velocity estimate on /vo/odom for the local EKF to fuse as odom1. It does
-not publish TF and it does not map — Nav2's voxel layer replaced the old
-RTAB-Map perception node in 066ef28, and only the odometry half is wanted here.
-
-Why this exists again: an earlier version was deleted in efad12f "Remove vslam"
-having never worked. Three things were wrong and all three are fixed here:
-
-  1. The EKF subscribed to /rtabmap/visual_odom, but the node published
-     /rtabmap/odom (namespace + default topic name). Nothing ever published
-     the topic the filter was listening to. The output is now remapped to an
-     explicit /vo/odom, stated in one place, matching what the EKF configs say.
-
-  2. The sim remappings pointed at /depth_camera_front/depth/image_raw. That
-     path stopped existing when the front camera was split into two co-located
-     Gazebo sensors: a 1280x800 colour camera (camera_name depth_camera_front)
-     and an 848x480 depth camera (camera_name depth_camera_front_depth). Those
-     two have different resolutions and different camera_info, so they are not
-     a usable RGB-D pair. The depth sensor publishes its own colour image at
-     its own resolution, sharing intrinsics, stamps and optical frame — that is
-     the registered pair this node now uses. No xacro change needed.
-
-  3. It fused absolute pose as well as velocity. See the odom1 block in the EKF
-     configs: twist only.
+not publish TF and it does not map.
 
 Usage:
     ros2 launch qpl_rover vslam_launch.py use_sim_time:=true
@@ -54,8 +33,7 @@ SIM_TOPICS = {
 
 ROVER_TOPICS = {
     # RealSense colour, plus depth registered into the colour frame by the
-    # firmware. Requires align_depth.enable on the camera node — see
-    # camera_realsense.launch.py.
+    # firmware. Requires align_depth.enable in camera_realsense.launch.py.
     "rgb": "/depth_camera_front/color/image_raw",
     "info": "/depth_camera_front/color/camera_info",
     "depth": "/depth_camera_front/aligned_depth_to_color/image_raw",
@@ -95,11 +73,10 @@ def opaque_generate_launch_description(context):
             ("rgb/image", topics["rgb"]),
             ("rgb/camera_info", topics["info"]),
             ("depth/image", topics["depth"]),
-            # The fix for bug 1. The EKF configs' odom1 must match this exactly.
+            # The EKF configs' odom1 must match this exactly.
             ("odom", "/vo/odom"),
         ],
-        # VO is a best-effort input the EKF can live without; if it dies, the
-        # filter coasts on wheel odom + gyro rather than the stack going down.
+        # VO is best-effort: if it dies the filter coasts on wheel odom + gyro.
         respawn=True,
         respawn_delay=4.0,
     )

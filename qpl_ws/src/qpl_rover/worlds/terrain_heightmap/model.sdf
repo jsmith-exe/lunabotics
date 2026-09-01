@@ -20,14 +20,8 @@
             <uri>model://terrain_heightmap/heightmap.png</uri>
             <size>7.9 7.9 0</size>
 
-            <!-- Regolith grain, not heightmap.png. heightmap.png is a uniform
-                 128-grey image: it makes the terrain flat (which is intended)
-                 but as a DIFFUSE map it puts zero intensity gradient on the
-                 ground, and RGB-D visual odometry cannot hold inliers on a
-                 surface with no gradient. <size> is in metres, so 2.0 gives a
-                 2 m tile - roughly the scale of BP-1 clumping and rover tracks.
-                 The normal map is left on heightmap.png: uniform, i.e. neutral.
-                 See worlds/regolith_texture_gen.py. -->
+            <!-- <size> is in metres: 2.0 gives a 2 m tile. Normal map stays
+                 on heightmap.png, which is uniform i.e. neutral. -->
             <texture>
               <size>2.0</size>
               <diffuse>model://regolith_model/materials/textures/regolith.png</diffuse>
