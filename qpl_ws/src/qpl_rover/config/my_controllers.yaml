@@ -24,15 +24,9 @@ diff_cont:
     left_wheel_names:  ["front_left_wheel_joint", "rear_left_wheel_joint"]
     right_wheel_names: ["front_right_wheel_joint", "rear_right_wheel_joint"]
 
-    # TODO(calibration): wheel_separation below is WRONG and needs measuring on
-    # the real rover. 0.5836 is the chassis width, not wheel-centre to
-    # wheel-centre, and this is a 4-wheel skid-steer on a 2-wheel diff-drive
-    # model, so the effective track is larger still and surface-dependent.
-    #
-    # To calibrate: spin in place at a steady rate and compute
-    # (v_right - v_left) / yaw_rate against an external yaw reference (IMU or
-    # AprilTag). Repeat on the competition surface. Expect >= 0.895.
-    # Do NOT copy the sim value from gaz_ros2_ctl_use_sim.yaml.
+    # TODO(calibration): wrong - 0.5836 is the chassis width, not the effective
+    # skid-steer track. Measure as (v_right - v_left) / yaw_rate while spinning
+    # in place, on the competition surface. Expect >= 0.895.
     wheel_separation: 0.5836
     wheel_radius: 0.15   # TODO(calibration): verify against loaded wheels on the real rover
 
@@ -41,22 +35,10 @@ diff_cont:
     odom_frame_id: odom
     enable_odom_tf: false
 
-    # ------------------------------------------------------------------
-    # Odometry covariance
-    # diff_drive_controller defaults both to all zeros, and zero is not
-    # "unknown" - robot_localization substitutes ~1e-9, so the encoders get
-    # fused as near-perfect and outvote every other input.
-    #
-    # Order is [vx, vy, vz, vroll, vpitch, vyaw]. Unfused axes get 1e6. vy must
-    # stay loose: the diff-drive model reports a hard zero for it, and
-    # tightening it would silently outvote visual odometry's vy.
-    #
-    # Applies in sim too - gazebo_ros2_control loads this file, and
-    # gaz_ros2_ctl_use_sim.yaml overrides only wheel_separation.
-    #
+    # [vx, vy, vz, vroll, vpitch, vyaw]; unfused axes get 1e6. Must not be left
+    # at the default zeros, which robot_localization reads as near-perfect.
+    # vy stays loose or it outvotes visual odometry's vy.
     # TODO(calibration): refine from real bag data on the competition surface.
-    # These are starting values, not measured hardware ones.
-    # ------------------------------------------------------------------
     pose_covariance_diagonal:  [0.05, 0.05, 1.0e6, 1.0e6, 1.0e6, 0.1]
     twist_covariance_diagonal: [0.01, 0.05, 1.0e6, 1.0e6, 1.0e6, 0.05]
 

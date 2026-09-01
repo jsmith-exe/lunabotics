@@ -39,8 +39,6 @@ def generate_launch_description():
         description='Whether to run the rover with components.'
     )
 
-    # VO consumes the RealSense's colour + aligned depth streams, so this
-    # depends on realsense_launch below.
     use_vslam_parameter = DeclareLaunchArgument(
         'use_vslam',
         default_value='false',
@@ -58,9 +56,7 @@ def generate_launch_description():
     )
 
     # Cameras
-    # Full resolution: 1280x800x30 colour, 848x480x30 depth. This also sets the
-    # VO workload. If the Jetson cannot hold frame rate, flip to "true" for
-    # 424x240x15 - no other change is required.
+    # Full resolution. Flip to "true" for 424x240x15 if the Jetson can't keep up.
     use_low_quality = "false"
     realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
     orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
@@ -92,14 +88,7 @@ def generate_launch_description():
         realsense_launch,
         # delayed_orbbec_launch,
         # rear_camera_tf_transform,
-        # Splices the RealSense's frame subtree onto the URDF so the EKF can
-        # transform /camera/camera/imu into base_footprint and rgbd_odometry can
-        # resolve base_footprint -> the colour image's frame.
-        #
-        # The child frame is derived: realsense2_camera prefixes camera_name onto
-        # base_frame_id, so "camera" + "camera_link_front" gives
-        # "camera_camera_link_front". If base_frame_id in
-        # camera_realsense.launch.py changes, or camera_name is ever set, this
-        # must change with it or VO/IMU go silent with no error.
+        # Child frame is camera_name + base_frame_id from
+        # camera_realsense.launch.py; must change with it or VO/IMU go silent.
         front_camera_tf_transform,
     ])

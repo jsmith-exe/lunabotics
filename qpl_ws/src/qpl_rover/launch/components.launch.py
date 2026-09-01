@@ -46,8 +46,6 @@ def opaque_generate_launch_description(context):
     ]
 
     if use_vslam:
-        # Named vslam_launch.py rather than vslam.launch.py so the existing
-        # `qpl_vslam` alias in process/functions/executables.sh keeps working.
         components.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(

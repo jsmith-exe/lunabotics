@@ -2,14 +2,10 @@ controller_manager:
   ros__parameters:
     use_sim_time: true
 
-# Simulation-only overrides. Loaded by the gazebo_ros2_control plugin after
-# my_controllers.yaml, so anything set here wins in sim only.
+# Simulation-only overrides, loaded after my_controllers.yaml.
 diff_cont:
   ros__parameters:
 
-    # Effective track width for skid-steer odometry, measured in Gazebo as
-    # (v_right - v_left) / yaw_rate at +/-0.8 and +/-1.0 rad/s.
-    #
-    # Specific to the sim's wheel friction (mu1=1.4, mu2=0.2 in
-    # rover_core.xacro). Retune if that friction changes.
+    # Effective skid-steer track width, measured in Gazebo. Specific to the
+    # sim's wheel friction; retune if that changes.
     wheel_separation: 1.161

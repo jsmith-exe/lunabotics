@@ -49,9 +49,7 @@ ekf_local:
     # Keep pose disabled here to avoid double-using the same encoder source
     # if the odometry pose is derived from the same internal model.
     # ------------------------------------------------------------------
-    # Yaw rate off: wheel yaw is (v_right - v_left) / wheel_separation, so it
-    # inherits the radius error, the separation error and all the scrub. imu0
-    # owns yaw rate.
+    # Yaw rate off: imu0 owns it.
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
@@ -62,12 +60,7 @@ ekf_local:
     odom0_differential: false
     odom0_relative: false
 
-    # ------------------------------------------------------------------
-    # RGB-D visual odometry (vslam_launch.py)
-    # Body-frame velocities only: VO pose drifts in the odom frame like wheel
-    # odom does, and yaw rate stays with the IMU. Optional - if vslam is not
-    # running this input simply never arrives.
-    # ------------------------------------------------------------------
+    # RGB-D visual odometry (vslam_launch.py): body-frame velocities only.
     odom1: /vo/odom
     odom1_config: [false, false, false,
                    false, false, false,
@@ -79,7 +72,6 @@ ekf_local:
     odom1_relative: false
     odom1_queue_size: 10
 
-    # VO fails as a large bogus jump, not gradual noise.
     odom1_twist_rejection_threshold: 3.0
 
     # ------------------------------------------------------------------

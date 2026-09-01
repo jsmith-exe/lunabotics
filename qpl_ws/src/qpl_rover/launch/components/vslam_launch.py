@@ -1,14 +1,9 @@
 """
-RGB-D visual odometry for dead reckoning.
+RGB-D visual odometry. Runs rtabmap_odom/rgbd_odometry against the front depth
+camera and publishes /vo/odom for the local EKF to fuse as odom1. No TF, no map.
 
-Runs rtabmap_odom/rgbd_odometry against the FRONT depth camera and publishes a
-body-velocity estimate on /vo/odom for the local EKF to fuse as odom1. It does
-not publish TF and it does not map.
-
-Usage:
     ros2 launch qpl_rover vslam_launch.py use_sim_time:=true
-    qpl_vslam                                  # alias, hardware defaults
-    qpl_sim use_vslam:=true                    # integrated with the sim stack
+    qpl_sim use_vslam:=true
 """
 
 import os
@@ -20,20 +15,16 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-# The camera the RGB-D pair comes from, per environment. Both entries must name
-# a colour image and a depth image that are mutually registered: same
-# resolution, same intrinsics, same optical frame. Mixing streams from two
-# different sensors will sync but produce garbage odometry.
+# Colour and depth must be mutually registered: same resolution, intrinsics and
+# optical frame. Mixing two sensors will sync but produce garbage odometry.
 SIM_TOPICS = {
-    # Both from the single 848x480 Gazebo depth sensor.
     "rgb": "/depth_camera_front_depth/image_raw",
     "info": "/depth_camera_front_depth/camera_info",
     "depth": "/depth_camera_front_depth/depth/image_raw",
 }
 
 ROVER_TOPICS = {
-    # RealSense colour, plus depth registered into the colour frame by the
-    # firmware. Requires align_depth.enable in camera_realsense.launch.py.
+    # Requires align_depth.enable in camera_realsense.launch.py.
     "rgb": "/depth_camera_front/color/image_raw",
     "info": "/depth_camera_front/color/camera_info",
     "depth": "/depth_camera_front/aligned_depth_to_color/image_raw",
@@ -73,10 +64,9 @@ def opaque_generate_launch_description(context):
             ("rgb/image", topics["rgb"]),
             ("rgb/camera_info", topics["info"]),
             ("depth/image", topics["depth"]),
-            # The EKF configs' odom1 must match this exactly.
+            # The EKF configs' odom1 must match this.
             ("odom", "/vo/odom"),
         ],
-        # VO is best-effort: if it dies the filter coasts on wheel odom + gyro.
         respawn=True,
         respawn_delay=4.0,
     )

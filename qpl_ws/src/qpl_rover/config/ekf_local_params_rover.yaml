@@ -7,8 +7,7 @@ ekf_local:
     publish_tf: true
     frequency: 50.0
     sensor_timeout: 0.1
-    # Roll/pitch are measured by imu1 below, so they stay observable. z is
-    # unmeasured and is held down by process_noise_covariance instead.
+    # z is unmeasured; held down by process_noise_covariance instead.
     two_d_mode: false
 
     odom_frame: odom
@@ -18,25 +17,10 @@ ekf_local:
     print_diagnostics: true
     debug: false
 
-    # ------------------------------------------------------------------
-    # IMU (RealSense gyro)
-    # Yaw rate only: the RealSense has no magnetometer, so absolute yaw is
-    # arbitrary at startup and drifts.
-    #
-    # NB /camera/camera/imu is deliberately NOT in the remap list in
-    # camera_realsense.launch.py.
-    #
-    # TODO(calibration): wheel_separation is still uncalibrated on the real
-    # rover (see the TODO in my_controllers.yaml). That error no longer reaches
-    # heading now the gyro owns it, but it still scales odom0's vx/vy.
-    #
-    # Config order:
-    # [x, y, z,
-    #  roll, pitch, yaw,
-    #  vx, vy, vz,
-    #  vroll, vpitch, vyaw,
-    #  ax, ay, az]
-    # ------------------------------------------------------------------
+    # IMU (RealSense gyro): yaw rate only. /camera/camera/imu must NOT be added
+    # to the remap list in camera_realsense.launch.py.
+    # TODO(calibration): wheel_separation still scales odom0's vx/vy - see
+    # my_controllers.yaml.
     imu0: /camera/camera/imu
     imu0_config: [false, false, false,
                   false, false, false,
@@ -48,12 +32,7 @@ ekf_local:
     imu0_relative: false
     imu0_remove_gravitational_acceleration: false
 
-    # ------------------------------------------------------------------
-    # IMU (RealSense accelerometer, via imu_filter_madgwick)
-    # Absolute roll and pitch only - the tilt correction. Not yaw: the filter
-    # runs use_mag: false, so its yaw has no absolute reference. Not
-    # acceleration: ax/ay/az stay false everywhere.
-    # ------------------------------------------------------------------
+    # IMU (RealSense accelerometer, via imu_filter_madgwick): roll/pitch only.
     imu1: /imu/data
     imu1_config: [false, false, false,
                   true,  true,  false,   # roll, pitch
@@ -67,10 +46,7 @@ ekf_local:
     imu1_queue_size: 10
 
     # ------------------------------------------------------------------
-    # Wheel odometry
-    # Body-frame velocities only. vyaw stays enabled as a loose fallback (0.05
-    # in my_controllers.yaml vs the IMU's 0.001) so heading survives a RealSense
-    # dropout. The sim config has this false, where the IMU is always present.
+    # Wheel odometry. vyaw stays enabled as a loose fallback behind the IMU.
     # ------------------------------------------------------------------
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
@@ -82,11 +58,8 @@ ekf_local:
     odom0_differential: false
     odom0_relative: false
 
-    # ------------------------------------------------------------------
-    # RGB-D visual odometry (vslam_launch.py, hardware variant)
-    # Body-frame velocities only. Requires align_depth.enable in
-    # camera_realsense.launch.py. Opt in per run with use_vslam:=true.
-    # ------------------------------------------------------------------
+    # RGB-D visual odometry (vslam_launch.py): body-frame velocities only.
+    # Requires align_depth.enable. Opt in with use_vslam:=true.
     odom1: /vo/odom
     odom1_config: [false, false, false,
                    false, false, false,
@@ -99,11 +72,7 @@ ekf_local:
     odom1_queue_size: 10
     odom1_twist_rejection_threshold: 3.0
 
-    # ------------------------------------------------------------------
-    # Process noise
-    # robot_localization defaults, except z/vz/az which are pinned to 1e-6:
-    # nothing measures them, so at default noise they random-walk.
-    # ------------------------------------------------------------------
+    # Defaults, except z/vz/az pinned to 1e-6: nothing measures them.
     process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
                               0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
                               0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z

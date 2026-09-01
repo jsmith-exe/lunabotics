@@ -5,8 +5,7 @@ ekf_global:
     sensor_timeout: 0.2
     publish_tf: true
     print_diagnostics: true
-    # Roll/pitch are measured by imu1 below. Must stay in step with
-    # ekf_local_params_rover.yaml or the difference lands in map -> odom.
+    # Must stay in step with ekf_local_params_rover.yaml.
     two_d_mode: false
     
 
@@ -22,10 +21,8 @@ ekf_global:
     smooth_lagged_data: true
     history_length: 1.0
 
-    # INPUT 1: body-frame velocities from raw wheel odometry. Not
-    # /odometry/filtered - stale measurements are silently dropped by this
-    # filter. Yaw rate stays true as a loose fallback behind imu0, matching
-    # ekf_local_params_rover.yaml.
+    # INPUT 1: body-frame velocities from raw wheel odometry. Yaw rate stays
+    # true as a loose fallback behind imu0.
     odom0: /diff_cont/odom
     odom0_config: [false, false, false,
                    false, false, false,
@@ -47,9 +44,7 @@ ekf_global:
     pose0_differential: false
     pose0_relative: false
 
-    # INPUT 3: yaw rate from the RealSense gyro. Mirrors ekf_local - if the two
-    # filters take yaw rate from different sources they diverge on slip and the
-    # difference is dumped into map -> odom as a rotation jump.
+    # INPUT 3: yaw rate from the RealSense gyro. Mirrors ekf_local.
     imu0: /camera/camera/imu
     imu0_config: [false, false, false,
                   false, false, false,
@@ -61,12 +56,7 @@ ekf_global:
     imu0_relative: false
     imu0_remove_gravitational_acceleration: false
 
-    # ------------------------------------------------------------------
-    # IMU (RealSense accelerometer, via imu_filter_madgwick)
-    # Absolute roll and pitch only - the tilt correction. Not yaw: the filter
-    # runs use_mag: false, so its yaw has no absolute reference. Not
-    # acceleration: ax/ay/az stay false everywhere.
-    # ------------------------------------------------------------------
+    # IMU (RealSense accelerometer, via imu_filter_madgwick): roll/pitch only.
     imu1: /imu/data
     imu1_config: [false, false, false,
                   true,  true,  false,   # roll, pitch
@@ -79,11 +69,7 @@ ekf_global:
     imu1_remove_gravitational_acceleration: false
     imu1_queue_size: 10
 
-    # ------------------------------------------------------------------
-    # Process noise
-    # robot_localization defaults, except z/vz/az which are pinned to 1e-6:
-    # nothing measures them, so at default noise they random-walk.
-    # ------------------------------------------------------------------
+    # Defaults, except z/vz/az pinned to 1e-6: nothing measures them.
     process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
                               0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
                               0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z

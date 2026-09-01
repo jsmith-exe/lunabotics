@@ -1,7 +1,6 @@
 # RGB-D visual odometry (HARDWARE) — rtabmap_odom/rgbd_odometry
 #
-# See vslam_odom_params.yaml for the full rationale; only the differences from
-# the sim config are commented here.
+# Only the differences from vslam_odom_params.yaml are commented here.
 
 /**:
   ros__parameters:
@@ -11,21 +10,16 @@
     odom_frame_id: odom
 
     publish_tf: false
-    # Longer than sim: the RealSense driver and robot_state_publisher race at
-    # bringup and the first frames can arrive before the TF chain settles.
+    # Longer than sim: the TF chain may not have settled at bringup.
     wait_for_transform: 0.5
 
-    # On hardware the pair is colour + aligned_depth_to_color: separate streams
-    # with separate stamps, so approx_sync genuinely matters here.
     approx_sync: true
     approx_sync_max_interval: 0.03
     sync_queue_size: 30
     topic_queue_size: 30
 
-    # Best-effort. A best-effort subscriber can receive from a RELIABLE
-    # publisher but not the reverse, so this works regardless of how the
-    # RealSense driver is configured. Getting it wrong is silent: the
-    # subscription never matches and VO receives nothing.
+    # Best-effort: matches the RealSense driver either way. Wrong value fails
+    # silently - the subscription never matches.
     qos: 2
     qos_camera_info: 2
 
@@ -34,21 +28,15 @@
     guess_frame_id: odom
     Odom/GuessMotion: "true"
 
-    # Fewer features than sim: aligned_depth_to_color comes out at the colour
-    # resolution, and extraction at that size dominates cost on the rover.
-    #
-    # TODO: not yet profiled on the Jetson. Watch the `update time=` field in
-    # rgbd_odometry's "Odom:" log lines on first bring-up. If it cannot hold
-    # frame rate, set use_low_quality back to "true" in rover.launch.py before
-    # touching these numbers.
+    # TODO: not yet profiled on the Jetson. If it cannot hold frame rate, set
+    # use_low_quality back to "true" in rover.launch.py before tuning these.
     Vis/MaxFeatures: "300"
     Vis/MinInliers: "10"
     Vis/InlierDistance: "0.10"
     Vis/EstimationType: "1"
     Vis/CorGuessWinSize: "40"
 
-    # Regolith is low-texture and the drum throws dust across the front camera;
-    # tracking will drop. Staying silent lets the EKF coast on wheel odom + gyro.
+    # Stay silent when lost; the EKF coasts on wheel odom + gyro.
     publish_null_when_lost: false
     Odom/ResetCountdown: "1"
     Odom/FilteringStrategy: "0"

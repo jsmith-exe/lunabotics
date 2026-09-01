@@ -1,8 +1,4 @@
 # If you get an error to do with 'Unable to locate package', it may be due to Windows-style newlines
-#
-# rtabmap-odom and realsense2-camera back exec_depends declared in
-# qpl_rover/package.xml. rtabmap-odom arrives transitively via rtabmap-ros but is
-# listed by name so trimming rtabmap-ros cannot silently break visual odometry.
 qpl_packages() {
   sudo apt update
   sudo apt -y install ros-humble-xacro \
