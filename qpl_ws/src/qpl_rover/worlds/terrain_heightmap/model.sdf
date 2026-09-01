@@ -20,11 +20,9 @@
             <uri>model://terrain_heightmap/heightmap.png</uri>
             <size>7.9 7.9 0</size>
 
-            <!-- <size> is in metres: 2.0 gives a 2 m tile. Normal map stays
-                 on heightmap.png, which is uniform i.e. neutral. -->
             <texture>
-              <size>2.0</size>
-              <diffuse>model://regolith_model/materials/textures/regolith.png</diffuse>
+              <size>7.9</size>
+              <diffuse>model://terrain_heightmap/heightmap.png</diffuse>
               <normal>model://terrain_heightmap/heightmap.png</normal>
             </texture>
           </heightmap>

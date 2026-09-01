@@ -13,26 +13,12 @@
     </light>
 
     <!-- PHYSICAL ARENA -->
-    <model name="arena_ground">
-      <static>true</static>
-      <link name="link">
-        <collision name="collision">
-          <geometry><box><size>12 12 0.1</size></box></geometry>
-        </collision>
-        <visual name="visual">
-          <geometry><box><size>12 12 0.1</size></box></geometry>
-          <material>
-            <script>
-              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
-              <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/Ground</name>
-            </script>
-          </material>
-        </visual>
-        <pose>0 0 -0.05 0 0 0</pose>
-      </link>
-    </model>
+    <!-- Terrain -->
+    <include>
+      <uri>model://terrain_heightmap</uri>
+    </include>
 
+    <!-- Walls -->
     <model name="wall_south">
       <static>true</static>
       <link name="link">
@@ -42,11 +28,8 @@
         <visual name="visual">
           <geometry><box><size>4.4 0.1 0.2</size></box></geometry>
           <material>
-            <script>
-              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
-              <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/WallShort</name>
-            </script>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
           </material>
         </visual>
         <pose>0 -3.95 0.1 0 0 0</pose>
@@ -62,11 +45,8 @@
         <visual name="visual">
           <geometry><box><size>4.4 0.1 0.2</size></box></geometry>
           <material>
-            <script>
-              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
-              <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/WallShort</name>
-            </script>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
           </material>
         </visual>
         <pose>0 3.95 0.1 0 0 0</pose>
@@ -82,11 +62,8 @@
         <visual name="visual">
           <geometry><box><size>0.1 7.9 0.2</size></box></geometry>
           <material>
-            <script>
-              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
-              <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/WallLong</name>
-            </script>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
           </material>
         </visual>
         <pose>-2.2 0 0.1 0 0 0</pose>
@@ -102,14 +79,96 @@
         <visual name="visual">
           <geometry><box><size>0.1 7.9 0.2</size></box></geometry>
           <material>
-            <script>
-              <uri>model://regolith_model/materials/scripts/regolith.material</uri>
-              <uri>model://regolith_model/materials/textures/</uri>
-              <name>Regolith/WallLong</name>
-            </script>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
           </material>
         </visual>
         <pose>2.2 0 0.1 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- BOULDER OBSTACLES -->
+    <model name="boulder_1">
+      <pose>0.4 1.2 0.2 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.4 0.4 0.4</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.4 0.4 0.4</size>
+            </box>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>5</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <model name="boulder_2">
+      <pose>0.3 -2.95 0.15 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.3 0.3 0.3</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.3 0.3 0.3</size>
+            </box>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>5</mass>
+        </inertial>
+      </link>
+    </model>
+
+    <model name="boulder_3">
+      <pose>0.9 -1.0 0.15 0 0 0</pose>
+      <static>1</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.3 0.3 0.3</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.4 0.4 0.4 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.3 0.3 0.3</size>
+            </box>
+          </geometry>
+        </collision>
+        <inertial>
+          <mass>5</mass>
+        </inertial>
       </link>
     </model>
 
