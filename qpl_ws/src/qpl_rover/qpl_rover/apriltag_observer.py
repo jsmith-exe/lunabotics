@@ -6,32 +6,86 @@ from cv_bridge import CvBridge
 import tf_transformations
 import numpy as np
 from pupil_apriltags import Detector
-
-
-# THE ARENA GEOFENCE WITH BUFFER
-# Physical Arena: X(0 to 4.4), Y(0 to 7.9)
-buffer = 0.20  # 20cm buffer to allow for jitter and edge-driving
-
-x_min, x_max = 0.0 - buffer, 4.4 + buffer
-y_min, y_max = 0.0 - buffer, 7.9 + buffer
-z_limit = 0.50  # Z is usually the noisiest; give it a little more room
-
+import tf2_ros
+import os
+import yaml
+from ament_index_python.packages import get_package_share_directory
 
 class AprilTagObserver(Node):
     def __init__(self):
         super().__init__('apriltag_observer')
 
+        # Load arena selector
+        arena_config_dir = os.path.join(
+            get_package_share_directory('qpl_rover'),
+            'config',
+            'arena'
+        )
+
+        selector_path = os.path.join(
+            arena_config_dir,
+            'selector.yaml'
+        )
+
+        with open(selector_path, 'r') as file:
+            selector_config = yaml.safe_load(file)
+
+        arena_name = selector_config['arena']
+
+        # Load selected arena configuration
+        config_path = os.path.join(
+            arena_config_dir,
+            f'{arena_name}.yaml'
+        )
+
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(
+                f"Unknown arena '{arena_name}'. "
+                f"Expected configuration at: {config_path}"
+            )
+
+        with open(config_path, 'r') as file:
+            arena_config = yaml.safe_load(file)['arena']
+
+        self.arena_width = arena_config['width']
+        self.arena_length = arena_config['length']
+        self.buffer = arena_config['buffer']
+        self.z_limit = arena_config['z_limit']
+
+        self.x_min = -self.buffer
+        self.x_max = self.arena_width + self.buffer
+        self.y_min = -self.buffer
+        self.y_max = self.arena_length + self.buffer
+
+        # Load AprilTag configuration
+        apriltag_config_path = os.path.join(
+            get_package_share_directory('qpl_rover'),
+            'config',
+            'localisation',
+            'apriltag.yaml'
+        )
+
+        with open(apriltag_config_path, 'r') as file:
+            apriltag_config = yaml.safe_load(file)['apriltag']
+
+        self.tag_family = apriltag_config['family']
+        self.apriltag_physical_size = apriltag_config['physical_size']
+        self.min_decision_margin = apriltag_config['min_decision_margin']
+
+        # Physical tag size includes the white border, as used by Gazebo.
+        # pupil_apriltags expects the black-to-black tag size, excluding the
+        # 1-pixel white border and therefore uses 8/10 of the physical size.
+        self.tag_size = self.apriltag_physical_size * 8 / 10
+
         # 1. INITIALIZE DATA STRUCTURES FIRST
         # This prevents the "AttributeError" if a callback triggers immediately
         self.bridge = CvBridge()
         self.cam_params = {'front': None, 'rear': None}
-        self.tag_id = 0
-        self.tag_size = 0.32 # Tag size is measured between edges of tag's BLACK OUTLINE
 
         # 2. CONFIGURE DETECTOR
         # nthreads=4 to prevent EKF "Failed to meet update rate" errors
         self.detector = Detector(
-            families='tag36h11',
+            families=self.tag_family,
             nthreads=4,
             quad_decimate=1.0,
             quad_sigma=0.0,
@@ -39,18 +93,9 @@ class AprilTagObserver(Node):
             decode_sharpening=0.25
         )
 
-        # 3. CALCULATE STATIC TRANSFORMS
-        # Tag pose in MAP frame
-        tag_pos = [0.0, 0.2, 0.2]
-        tag_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
-        self.T_map_tag = self.make_tf_matrix(tag_pos, tag_q)
-
-        # Front Camera
-        self.T_footprint_cam_front = self.make_tf_matrix([0.465, 0, 0.02], [0, 0, 0, 1])
-
-        # Rear Camera
-        r_q = tf_transformations.quaternion_from_euler(0, 0, np.pi)
-        self.T_footprint_cam_rear = self.make_tf_matrix([-0.465, 0, 0.02], r_q)
+        # TF listener for rover/camera/tag transforms
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # 4. SETUP PUBLISHER
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/apriltag/pose', 10)
@@ -115,6 +160,51 @@ class AprilTagObserver(Node):
             self.process_results(results, msg, cam_id)
         except Exception as e:
             self.get_logger().error(f"Exception during image callback: {e}")
+
+    def get_camera_transform(self, cam_id):
+        camera_frame = f'camera_link_{cam_id}'
+
+        transform = self.tf_buffer.lookup_transform(
+            'base_link',
+            camera_frame,
+            rclpy.time.Time()
+        )
+
+        t = transform.transform.translation
+        q = transform.transform.rotation
+
+        return self.make_tf_matrix(
+            [t.x, t.y, t.z],
+            [q.x, q.y, q.z, q.w]
+        )
+
+    def get_tag_transform(self):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                'map',
+                'tag_0',
+                rclpy.time.Time()
+            )
+
+            t = transform.transform.translation
+            q = transform.transform.rotation
+
+            '''self.get_logger().info(
+                f"Using TF map -> tag_0: "
+                f"x={t.x:.3f}, y={t.y:.3f}, z={t.z:.3f}, "
+                f"q=({q.x:.3f}, {q.y:.3f}, {q.z:.3f}, {q.w:.3f})"
+            )'''
+
+            return self.make_tf_matrix(
+                [t.x, t.y, t.z],
+                [q.x, q.y, q.z, q.w]
+            )
+
+        except tf2_ros.TransformException as e:
+            self.get_logger().warn(
+                f"Unable to get map -> tag_0 transform: {e}"
+            )
+            return None
     
     def process_results(self, results, msg, cam_id):
         if len(results) == 0:
@@ -124,9 +214,7 @@ class AprilTagObserver(Node):
             return
         for r in results:
             # Filter out low-quality detections or high ambiguity
-            # decision_margin: how clear the tag is (higher is better, < 30 is risky)
-            # pose_err: reconstruction error (lower is better)
-            if r.decision_margin < 35:
+            if r.decision_margin < self.min_decision_margin:
                 self.get_logger().warn(f"Ignoring noisy detection (Margin: {r.decision_margin:.1f})")
                 continue
 
@@ -144,26 +232,34 @@ class AprilTagObserver(Node):
             T_cam_tag[0:3, 0:3] = ros_R
             T_cam_tag[0:3, 3] = ros_t
 
-            # Select the correct static transform relative to footprint
-            T_footprint_cam = self.T_footprint_cam_front if cam_id == 'front' else self.T_footprint_cam_rear
+            # Get static transforms from TF
+            T_map_tag = self.get_tag_transform()
+            T_footprint_cam = self.get_camera_transform(cam_id)
+
+            if T_map_tag is None:
+                return
 
             # Calculate Map -> Tag -> Camera -> Footprint
-            T_map_footprint = self.T_map_tag @ np.linalg.inv(T_cam_tag) @ np.linalg.inv(T_footprint_cam)
+            T_map_footprint = (
+                    T_map_tag
+                    @ np.linalg.inv(T_cam_tag)
+                    @ np.linalg.inv(T_footprint_cam)
+            )
 
             # Extract Position (This is now the Ground Projection)
             pos = T_map_footprint[0:3, 3]
 
             # Boundary Check
-            in_x = x_min <= pos[0] <= x_max
-            in_y = y_min <= pos[1] <= y_max
-            in_z = abs(pos[2]) <= z_limit
+            in_x = self.x_min <= pos[0] <= self.x_max
+            in_y = self.y_min <= pos[1] <= self.y_max
+            in_z = abs(pos[2]) <= self.z_limit
 
             if not (in_x and in_y and in_z):
                 self.get_logger().warn(f"Ghost Rejected at X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}; in_x={in_x}, in_y={in_y}, in_z={in_z}")
                 continue
 
             # If we passed the fence, publish to EKF
-            #self.get_logger().warn(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
+            #self.get_logger().info(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
             self.publish_pose(T_map_footprint, msg.header.stamp)
 
     def publish_pose(self, T, stamp):
