@@ -1,7 +1,6 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
-import os
+from qpl_rover.ekf_config import load_ekf_params
 
 from launch.actions import TimerAction, OpaqueFunction, DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -27,22 +26,8 @@ def opaque_generate_launch_description(context):
     print(f"use_sim_time: {use_sim_time}")
 
     package_name = "qpl_rover"
-    rover_pkg = get_package_share_directory(package_name)
 
-    if use_sim_time:
-        ekf_global_params = os.path.join(
-            rover_pkg,
-            "config",
-            "ekf_global_params.yaml"
-        )
-    else:
-        ekf_global_params = os.path.join(
-            rover_pkg,
-            "config",
-            "ekf_global_params_rover.yaml"
-        )
-
-    print(f"Using global EKF params: {ekf_global_params}")
+    ekf_global_params = load_ekf_params("ekf_global_params.yaml", use_sim_time)
 
     # 1. Static Anchor: Where the tag exists in the world
     tag_to_map_static = Node(
@@ -75,10 +60,7 @@ def opaque_generate_launch_description(context):
                 executable="ekf_node",
                 name="ekf_global",
                 output="screen",
-                parameters=[
-                    ekf_global_params,
-                    {"use_sim_time": use_sim_time},
-                ],
+                parameters=[ekf_global_params],
                 remappings=[
                     ("odometry/filtered", "/odometry/global")
                 ],
