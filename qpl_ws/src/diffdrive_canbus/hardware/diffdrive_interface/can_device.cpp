@@ -17,6 +17,7 @@ namespace diffdrive_canbus
 {
 constexpr uint8_t SPARKMAX_API_DUTY_CYCLE_SET = 0x02;
 constexpr uint8_t SPARKMAX_API_VELOCITY_SET   = 0x12;
+constexpr uint8_t SPARKMAX_API_POSITION_SET   = 0x32;
 
 CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
 : name_(std::move(name)),
@@ -278,6 +279,13 @@ bool CANDevice::set_velocity_rad_per_sec(float target_wheel_rad_per_sec)
   const float target_motor_rad_per_sec = target_wheel_rad_per_sec * gear_ratio_;
   const float target_motor_rpm = rad_per_sec_to_rpm(target_motor_rad_per_sec);
   return send_simple_setpoint(SPARKMAX_API_VELOCITY_SET, target_motor_rpm);
+}
+
+bool CANDevice::set_position(float position)
+{
+  // The SPARK MAX interprets this value using its configured position
+  // conversion factor. For the linear actuators that unit is millimetres.
+  return send_simple_setpoint(SPARKMAX_API_POSITION_SET, position);
 }
 
 // --- All below here can go into comms
