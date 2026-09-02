@@ -112,6 +112,7 @@ public:
       drum_motor_->set_native_velocity_pid_slot(pid_slot);
 
       can_system_->configure_devices();
+      can_system_->send_zero_duty_all();
     }
     catch (const std::exception & e)
     {

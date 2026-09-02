@@ -15,7 +15,7 @@ constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
 constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(100);
 
 // Gap between outgoing serial/CAN writes.
-constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(10);
+constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(20);
 
 constexpr auto STOP_TIME = std::chrono::milliseconds(50);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
