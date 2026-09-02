@@ -8,7 +8,7 @@
 #include <rclcpp/logger.hpp>
 #include "diffdrive_canbus/can_device.hpp"
 
-#pragma region Constants
+// Constants
 constexpr double TWO_PI = 2.0 * M_PI;
 
 constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
@@ -33,7 +33,7 @@ constexpr uint16_t STATUS3_PERIOD_MS = 500;
 
 constexpr double MIN_VELOCITY_CHANGE = 0.1;
 constexpr double MIN_ACTUATOR_VELOCITY_CHANGE = 0.1;
-#pragma endregion Constants
+// ^ Constants
 
 namespace diffdrive_canbus {
   // can system
