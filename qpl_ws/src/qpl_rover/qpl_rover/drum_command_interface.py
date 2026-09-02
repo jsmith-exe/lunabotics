@@ -39,8 +39,8 @@ class DrumInterface(Node):
         )
 
         # Automatically zero commands if nothing received.
-        self.zero_timer_check_rate = 2 # seconds
-        self.zero_timer_threshold_seconds = 1.5 # How long there must be no commands before zeroing
+        self.zero_timer_check_rate = 0.1 # seconds
+        self.zero_timer_threshold_seconds = 0.25 # How long there must be no commands before zeroing
         self.zero_timer = self.create_timer(1/self.zero_timer_check_rate, self.send_zero_if_no_recent_messages)
         self.last_message_received_time = 0
 
