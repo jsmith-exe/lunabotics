@@ -47,6 +47,7 @@ namespace diffdrive_canbus {
     void update_joint_state(CANFrame &frame);
     void send_zero_duty_all();
     void send_heartbeat();
+    bool are_all_motors_stopped();
 
   private:
     std::map<uint8_t, CANDevice*> devices_;
