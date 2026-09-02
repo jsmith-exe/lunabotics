@@ -275,8 +275,8 @@ private:
       if (now >= next_command)
       {
         can_system_->send_zero_duty_all();
-          next_command = now + STOP_COMMAND_PERIOD;
-        }
+        next_command = now + STOP_COMMAND_PERIOD;
+      }
 
       if (can_system_->are_all_motors_stopped())
       {
