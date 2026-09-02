@@ -148,7 +148,7 @@ public:
 
     try
     {
-      send_stop_for_duration(STOP_TIME);
+      send_stop_for_duration();
       can_.disconnect();
     }
     catch (const std::exception & e)
@@ -258,7 +258,7 @@ private:
     right_actuator_->write();
   }
 
-  void send_stop_for_duration(std::chrono::milliseconds duration)
+  void send_stop_for_duration()
   {
     using clock = std::chrono::steady_clock;
 
