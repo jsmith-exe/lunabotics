@@ -32,12 +32,8 @@ public:
 
   virtual void configure();
 
-  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
-    throw std::runtime_error("base setup_ros_state_interfaces used");
-  }
-  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
-    throw std::runtime_error("base setup_ros_command_interfaces used");
-  }
+  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) = 0;
+  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) = 0;
 
   std::string name() const { return name_; }
   uint8_t can_id() const { return can_id_; }
@@ -51,14 +47,13 @@ public:
   float wheel_position_rotations() const;
   float applied_output() const;
 
-  virtual void write() { throw std::runtime_error("base write used"); }
+  virtual void write() = 0;
+  virtual void update_joint_state(const CANFrame & frame) = 0;
 
   // TODO hopefully temporary declarations of motor functions; these can be removed once there is clearer separation of concerns
   virtual double commanded_velocity() const { return 0.0; }
   virtual double velocity() const { return 0.0; }
   virtual double rotation_position() const { return 0.0; }
-  // TODO temporary declarations for actuators (see prev todo)
-  virtual void update_joint_state(const CANFrame & frame) { throw std::runtime_error("base update_joint_state used"); }
 
   double clamp_and_apply_deadband_if_finite(double value, double deadband, double min = -1.0, double max = 1.0);
   bool send_heartbeats(bool print = false);
@@ -66,6 +61,7 @@ public:
 
   bool set_duty_cycle(float duty);
   bool set_velocity_rad_per_sec(float target_wheel_rad_per_sec);
+  bool set_position(float position);
 
   void set_native_velocity_pid_slot(uint8_t pid_slot);
 
@@ -92,12 +88,11 @@ protected:
 
   static constexpr uint8_t HEARTBEAT_DEVICE_ID = 0;
 
-  rclcpp::Logger logger_;
-
   std::string name_;
   uint8_t can_id_;
   CANComms & can_;
   float gear_ratio_;
+  rclcpp::Logger logger_;
 
   SparkMaxTelemetry telemetry_;
 

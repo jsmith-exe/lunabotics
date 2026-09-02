@@ -8,16 +8,15 @@
 #include <rclcpp/logger.hpp>
 #include "diffdrive_canbus/can_device.hpp"
 
-#pragma region Constants
+// Constants
 constexpr double TWO_PI = 2.0 * M_PI;
 
 constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
 constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(100);
 
 // Gap between outgoing serial/CAN writes.
-constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(10);
+constexpr auto BUS_FRAME_GAP = std::chrono::milliseconds(20);
 
-constexpr auto STOP_TIME = std::chrono::milliseconds(50);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 
 constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
@@ -33,7 +32,7 @@ constexpr uint16_t STATUS3_PERIOD_MS = 500;
 
 constexpr double MIN_VELOCITY_CHANGE = 0.1;
 constexpr double MIN_ACTUATOR_VELOCITY_CHANGE = 0.1;
-#pragma endregion Constants
+// ^ Constants
 
 namespace diffdrive_canbus {
   // can system
@@ -47,6 +46,7 @@ namespace diffdrive_canbus {
     void update_joint_state(CANFrame &frame);
     void send_zero_duty_all();
     void send_heartbeat();
+    bool are_all_motors_stopped();
 
   private:
     std::map<uint8_t, CANDevice*> devices_;
@@ -94,13 +94,13 @@ namespace diffdrive_canbus {
     void configure() override;
 
     void write() override;
-    double normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage);
+    double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const CANFrame & frame) override;
   private:
-    double command_{0.0};
-    double prev_command_{0.0};
+    double commanded_pos_mm_{0.0};
     double position_{0.0};
-    double voltage_{0.0};
+    bool reached_position_{false};
+    bool stop_sent_{false};
   };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_
