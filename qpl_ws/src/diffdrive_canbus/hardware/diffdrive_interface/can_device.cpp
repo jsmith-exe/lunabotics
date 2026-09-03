@@ -19,7 +19,7 @@ constexpr uint8_t SPARKMAX_API_DUTY_CYCLE_SET = 0x02;
 constexpr uint8_t SPARKMAX_API_VELOCITY_SET   = 0x12;
 constexpr uint8_t SPARKMAX_API_POSITION_SET   = 0x32;
 
-CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
+CANDevice::CANDevice(std::string name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger)
 : name_(std::move(name)),
   can_id_(can_id),
   can_(can),
@@ -79,7 +79,7 @@ bool CANDevice::send_heartbeats(bool print)
               << "\n";
   }
 
-  return can_.send_extended_frame(non_rio_id, data, print);
+  return can_.send_extended_frame(non_rio_id, data);
 }
 
 bool CANDevice::clear_faults(bool print)
@@ -104,7 +104,7 @@ bool CANDevice::clear_faults(bool print)
     std::cerr << "WARNING: clear_faults is targeting SPARK MAX device ID 0\n";
   }
 
-  return can_.send_extended_frame(id, {}, print);
+  return can_.send_extended_frame(id, {});
 }
 
 bool CANDevice::set_status_period(uint8_t status_frame_index, uint16_t period_ms)
@@ -117,7 +117,7 @@ bool CANDevice::set_status_period(uint8_t status_frame_index, uint16_t period_ms
   data[0] = static_cast<uint8_t>(period_ms & 0xFF);
   data[1] = static_cast<uint8_t>((period_ms >> 8) & 0xFF);
 
-  return can_.send_extended_frame(id, data, true);
+  return can_.send_extended_frame(id, data);
 }
 
 bool CANDevice::send_setpoint(
@@ -155,7 +155,7 @@ bool CANDevice::send_setpoint(
   data[6] = static_cast<uint8_t>(pid_slot & 0x03);
   data[7] = 0x00;
 
-  return can_.send_extended_frame(id, data, print);
+  return can_.send_extended_frame(id, data);
 }
 
 bool CANDevice::send_simple_setpoint(
@@ -178,7 +178,7 @@ bool CANDevice::send_simple_setpoint(
   data[6] = static_cast<uint8_t>(native_velocity_pid_slot_ & 0x03);
   data[7] = 0x00;
 
-  return can_.send_extended_frame(id, data, false);
+  return can_.send_extended_frame(id, data);
 }
 
 bool CANDevice::send_setpoint_with_control_type(
@@ -231,7 +231,7 @@ bool CANDevice::send_setpoint_with_control_type(
   data[6] = static_cast<uint8_t>(pid_slot & 0x03);
   data[7] = 0x00;
 
-  return can_.send_extended_frame(id, data, print);
+  return can_.send_extended_frame(id, data);
 }
 
 const SparkMaxTelemetry & CANDevice::telemetry() const

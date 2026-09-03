@@ -6,6 +6,8 @@
 #include <hardware_interface/handle.hpp>
 #include <rclcpp/logger.hpp>
 
+#include "can_socket.hpp"
+
 namespace diffdrive_canbus
 {
 
@@ -27,7 +29,7 @@ struct SparkMaxTelemetry
 class CANDevice
 {
 public:
-  CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger);
+  CANDevice(std::string name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger);
   virtual ~CANDevice() = default;
 
   virtual void configure();
@@ -90,7 +92,7 @@ protected:
 
   std::string name_;
   uint8_t can_id_;
-  CANComms & can_;
+  SocketCanInterface & can_;
   float gear_ratio_;
   rclcpp::Logger logger_;
 

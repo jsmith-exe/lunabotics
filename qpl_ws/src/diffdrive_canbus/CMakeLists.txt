@@ -30,7 +30,7 @@ add_library(
   diffdrive_canbus
   SHARED
   hardware/diffdrive_interface/ros_interface_plugin.cpp
-        hardware/diffdrive_interface/can_device.cpp
+  hardware/diffdrive_interface/can_device.cpp
   hardware/can_comms/can_comms.cpp
   hardware/can_comms/can_utils.cpp
   hardware/can_comms/waveshare_codec.cpp
@@ -38,6 +38,7 @@ add_library(
   hardware/diffdrive_interface/can_system.cpp
   hardware/diffdrive_interface/actuator.cpp
   hardware/diffdrive_interface/motor.cpp
+  hardware/can_comms/can_socket.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)

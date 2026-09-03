@@ -1,4 +1,5 @@
 #include "diffdrive_canbus/can_comms.hpp"
+#include "diffdrive_canbus/can_socket.hpp"
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
@@ -35,15 +36,16 @@ public:
 
     try
     {
-      can_system_ = std::make_unique<CANSystem>(can_, logger_);
+      can_ = std::make_unique<SocketCanInterface>();
+      can_system_ = std::make_unique<CANSystem>(logger_);
 
-      front_left_motor_ = std::make_unique<Motor>("front_left_wheel_joint", 1, can_, 100.0, logger_);
-      front_right_motor_ = std::make_unique<Motor>("front_right_wheel_joint", 2, can_, 100.0, logger_);
-      rear_left_motor_ = std::make_unique<Motor>("rear_left_wheel_joint", 3, can_, 100.0, logger_);
-      rear_right_motor_ = std::make_unique<Motor>("rear_right_wheel_joint", 4, can_, 100.0, logger_);
-      left_actuator_ = std::make_unique<Actuator>("left_linear_actuator_joint", 5, can_, logger_);
-      right_actuator_ = std::make_unique<Actuator>("right_linear_actuator_joint", 6, can_, logger_);
-      drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, can_, 125.0, logger_);
+      front_left_motor_ = std::make_unique<Motor>("front_left_wheel_joint", 1, *can_, 100.0, logger_);
+      front_right_motor_ = std::make_unique<Motor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
+      rear_left_motor_ = std::make_unique<Motor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
+      rear_right_motor_ = std::make_unique<Motor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
+      left_actuator_ = std::make_unique<Actuator>("left_linear_actuator_joint", 5, *can_, logger_);
+      right_actuator_ = std::make_unique<Actuator>("right_linear_actuator_joint", 6, *can_, logger_);
+      drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, *can_, 125.0, logger_);
 
       can_system_->add_device(front_left_motor_);
       can_system_->add_device(front_right_motor_);
@@ -80,29 +82,8 @@ public:
   {
     try
     {
-      const std::string serial_device = "/dev/ttyUSB0";
-      RCLCPP_INFO(logger_, "Connecting to CAN adapter on %s", serial_device.c_str());
-
-      can_.connect(serial_device, 2000000, 5);
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(250));
-
-      const bool configured = can_.configure_adapter(
-        1000000,
-        false,
-        0x00000000,
-        0x00000000,
-        CANMode::NORMAL,
-        false,
-        true);
-
-      if (!configured)
-      {
-        RCLCPP_ERROR(logger_, "Failed to configure CAN adapter");
-        return hardware_interface::CallbackReturn::ERROR;
-      }
-      RCLCPP_INFO(logger_, "CAN adapter configured");
-      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+      RCLCPP_INFO(logger_, "Connecting to can0");
+      can_->connect("can0");
       
       constexpr int pid_slot = 0;
       front_left_motor_->set_native_velocity_pid_slot(pid_slot);
@@ -120,7 +101,7 @@ public:
 
       try
       {
-        can_.disconnect();
+        can_->close();
       }
       catch (...) {}
 
@@ -149,7 +130,7 @@ public:
     try
     {
       send_stop_for_duration();
-      can_.disconnect();
+      can_->close();
     }
     catch (const std::exception & e)
     {
@@ -169,7 +150,7 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-    read_frames_if_due();
+    // read_frames_if_due();
     return hardware_interface::return_type::OK;
   }
 
@@ -229,12 +210,12 @@ private:
     {
       CANFrame frame;
 
-      if (!can_.read_frame(frame, false))
-      {
-        ++empty_reads;
-        std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
-        continue;
-      }
+      // if (!can_.read_frame(frame, false))
+      // {
+      //   ++empty_reads;
+      //   std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
+      //   continue;
+      // }
 
       empty_reads = 0;
       ++frames_read;
@@ -287,7 +268,7 @@ private:
   }
 
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
-  CANComms can_;
+  std::unique_ptr<SocketCanInterface> can_;
   std::unique_ptr<CANSystem> can_system_;
 
   std::unique_ptr<CANDevice> front_left_motor_;

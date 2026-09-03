@@ -6,6 +6,8 @@
 #include <cmath>
 #include <string>
 #include <rclcpp/logger.hpp>
+
+#include "can_socket.hpp"
 #include "diffdrive_canbus/can_device.hpp"
 
 // Constants
@@ -38,7 +40,7 @@ namespace diffdrive_canbus {
   // can system
   class CANSystem {
   public:
-    CANSystem(CANComms &comms, rclcpp::Logger &logger) : comms_(comms), logger_(logger) {}
+    CANSystem(rclcpp::Logger &logger) : logger_(logger) {}
     void add_device(const std::unique_ptr<CANDevice> &device);
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
@@ -50,13 +52,12 @@ namespace diffdrive_canbus {
 
   private:
     std::map<uint8_t, CANDevice*> devices_;
-    CANComms &comms_;
     rclcpp::Logger logger_;
   };
 
   class Motor : public CANDevice {
   public:
-    Motor(const std::string &name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
+    Motor(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger)
       : CANDevice(name, can_id, can, gear_ratio, logger) {}
 
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
@@ -85,7 +86,7 @@ namespace diffdrive_canbus {
 
   class Actuator : public CANDevice {
   public:
-    Actuator(const std::string &name, const uint8_t &can_id, CANComms &can, rclcpp::Logger &logger)
+    Actuator(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, rclcpp::Logger &logger)
       : CANDevice(name, can_id, can, 1.0, logger) {} // TODO remove gear_ratio from actuators and base class
 
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
