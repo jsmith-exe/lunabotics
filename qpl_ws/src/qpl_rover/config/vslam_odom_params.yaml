@@ -1,0 +1,41 @@
+# RGB-D visual odometry (SIM) — rtabmap_odom/rgbd_odometry
+# Publishes /vo/odom for the local EKF to fuse as odom1. No TF, no mapping.
+# Hardware equivalent: vslam_odom_params_rover.yaml.
+
+/**:
+  ros__parameters:
+    use_sim_time: true
+
+    # ROBOT frame, not the camera frame.
+    frame_id: base_footprint
+    odom_frame_id: odom
+
+    publish_tf: false
+    wait_for_transform: 0.2
+
+    approx_sync: true
+    approx_sync_max_interval: 0.03
+    sync_queue_size: 10
+    topic_queue_size: 10
+
+    # NB `qos`, NOT `qos_image` - an undeclared name is silently ignored.
+    qos: 1
+    qos_camera_info: 1
+
+    Reg/Force3DoF: "true"
+
+    # Seed the feature search from the EKF's odom estimate.
+    guess_frame_id: odom
+    Odom/GuessMotion: "true"
+
+    Vis/MaxFeatures: "400"
+    Vis/MinInliers: "8"
+    Vis/InlierDistance: "0.10"
+    Vis/EstimationType: "1"      # 3D->2D PnP; more robust with sparse depth
+    Vis/CorGuessWinSize: "40"    # px search window when a guess is available
+
+    # Stay silent when lost rather than publishing null odometry.
+    publish_null_when_lost: false
+    Odom/ResetCountdown: "1"
+    Odom/FilteringStrategy: "0"
+    Odom/FillInfoData: "true"

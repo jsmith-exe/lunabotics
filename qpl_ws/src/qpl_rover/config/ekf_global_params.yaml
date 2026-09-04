@@ -1,39 +1,116 @@
-ekf_global:
-  ros__parameters:
-    use_sim_time: true
-    frequency: 30.0
-    sensor_timeout: 0.2
-    publish_tf: true
-    print_diagnostics: true
-    two_d_mode: true
-    
+# Global EKF - publishes map -> odom.
+#
+# map_localisation.launch.py merges `common` with either `sim` or `rover`
+# depending on use_sim_time. Keys in an environment block override `common`.
+# To change a value for both environments, edit it in `common`.
+#
+# Sensor config order, used by every *_config list below:
+#   [x,     y,      z,
+#    roll,  pitch,  yaw,
+#    vx,    vy,     vz,
+#    vroll, vpitch, vyaw,
+#    ax,    ay,     az]
 
-    map_frame: map
-    odom_frame: odom
-    base_link_frame: base_footprint
-    world_frame: map
+common:
+  frequency: 30.0
+  sensor_timeout: 0.2
+  publish_tf: true
+  print_diagnostics: true
 
-    transform_time_offset: 0.0
-    transform_timeout: 0.1
+  map_frame: map
+  odom_frame: odom
+  base_link_frame: base_footprint
+  world_frame: map
 
-    # INPUT 1: The "Smooth" movement from Local EKF
-    odom0: /diff_cont/odom
-    odom0_config: [false, false, false,
-                   false, false, false,
-                   true,  true, false,
-                   false, false, true,
-                   false, false, false]
-    odom0_differential: false
-    odom0_relative: false
+  transform_time_offset: 0.0
+  transform_timeout: 0.1
 
-    # INPUT 2: The "Truth" from AprilTags
-    pose0: /apriltag/pose
-    pose0_config: [true,  true,  false, # Fuse X, Y position
-                   false, false, true,  # Fuse Yaw orientation
-                   false, false, false,
-                   false, false, false,
-                   false, false, false]
-    pose0_mahalanobis_distance: 3.0  # 3.0 is a standard starting point for strictness
+  # AprilTag poses carry the image timestamp, so they arrive lagged.
+  smooth_lagged_data: true
+  history_length: 1.0
 
-    pose0_differential: false
-    pose0_relative: false
+  # INPUT 1: body-frame velocities from raw wheel odometry.
+  odom0: /diff_cont/odom
+  odom0_differential: false
+  odom0_relative: false
+
+  # INPUT 2: the "truth" from AprilTags.
+  pose0: /apriltag/pose
+  pose0_config: [true,  true,  false,  # x, y
+                 false, false, true,   # yaw
+                 false, false, false,
+                 false, false, false,
+                 false, false, false]
+  pose0_mahalanobis_distance: 3.0
+  pose0_differential: false
+  pose0_relative: false
+
+  # INPUT 3: IMU yaw rate only.
+  imu0_config: [false, false, false,
+                false, false, false,
+                false, false, false,
+                false, false, true,    # vyaw
+                false, false, false]
+  imu0_differential: false
+  imu0_relative: false
+
+
+sim:
+  use_sim_time: true
+  two_d_mode: true
+
+  imu0: /imu/data
+  imu0_remove_gravitational_acceleration: true
+
+  # Yaw rate off; imu0 owns it.
+  odom0_config: [false, false, false,
+                 false, false, false,
+                 true,  true,  false,
+                 false, false, false,
+                 false, false, false]
+
+
+rover:
+  use_sim_time: false
+
+  # Must stay in step with the rover block in ekf_local_params.yaml.
+  two_d_mode: false
+
+  imu0: /camera/camera/imu
+  imu0_remove_gravitational_acceleration: false
+
+  # IMU (RealSense accelerometer, via imu_filter_madgwick): roll/pitch only.
+  imu1: /imu/data
+  imu1_config: [false, false, false,
+                true,  true,  false,   # roll, pitch
+                false, false, false,
+                false, false, false,
+                false, false, false]
+  imu1_differential: false
+  imu1_relative: false
+  imu1_remove_gravitational_acceleration: false
+  imu1_queue_size: 10
+
+  # Yaw rate stays true as a loose fallback behind imu0.
+  odom0_config: [false, false, false,
+                 false, false, false,
+                 true,  true,  false,
+                 false, false, true,
+                 false, false, false]
+
+  # Defaults, except z/vz/az pinned to 1e-6: nothing measures them.
+  process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
+                             0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
+                             0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
+                             0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # roll
+                             0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # pitch
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # yaw
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vx
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vy
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,  # vroll
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,  # vpitch
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,  # vyaw
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,  # ax
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,  # ay
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06]  # az

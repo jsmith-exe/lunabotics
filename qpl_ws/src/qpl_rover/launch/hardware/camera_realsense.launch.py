@@ -19,17 +19,30 @@ def generate_launch_description():
         description='Whether to run camera with low quality.'
     )
 
+    # Attitude estimate on /imu/data; both rover EKFs fuse roll/pitch as imu1.
     imu_filter = Node(
         package='imu_filter_madgwick',
         executable='imu_filter_madgwick_node',
         name='imu_filter',
         parameters=[{
+            # No magnetometer, so yaw here is unreferenced. Neither EKF fuses it.
             'use_mag': False,
+
             'publish_tf': False,
             'world_frame': 'enu',
-            'gain': 0.1,
+
+            # Must not be 0.0 - robot_localization would read the tilt as perfect.
+            # TODO(calibration): measure from a stationary bag on the rover.
+            'orientation_stddev': 0.05,
+
+            # Halved from the 0.1 default. Lower first if phantom tilt appears.
+            'gain': 0.05,
+
+            # Gyro bias estimation, off.
             'zeta': 0.0,
+
             'fixed_frame': 'camera_frame',
+
             'remove_gravity_vector': False,
         }],
         remappings=[
@@ -63,10 +76,13 @@ def get_camera_launch(context):
 
 def get_remappings():
     # Use ros2 topic list to get topics and paste them here, do not include points (/camera/camera/depth/color/points)
+    # DO NOT add /camera/camera/imu here: both EKFs fuse it as imu0 by that name.
     topics_to_remap = """
     /camera/camera/accel/imu_info
     /camera/camera/accel/metadata
     /camera/camera/accel/sample
+    /camera/camera/aligned_depth_to_color/camera_info
+    /camera/camera/aligned_depth_to_color/image_raw
     /camera/camera/color/camera_info
     /camera/camera/color/image_raw
     /camera/camera/color/image_raw/compressed
@@ -187,11 +203,17 @@ def get_camera_params(use_low_quality: bool):
         **ffmpeg_cfg,
 
         'pointcloud__neon_.enable': True,
-        # 'align_depth.enable': True,
+
+        # Required by rgbd_odometry: colour and depth sharing intrinsics.
+        'align_depth.enable': True,
 
         'enable_gyro': True,
         'enable_accel': True,
         'unite_imu_method': 2,
+
+        # TODO(calibration): tune against wheel odom on the rover.
+        'angular_velocity_cov': 0.001,
+        'linear_accel_cov': 0.01,
 
         'initial_reset': True,
         'base_frame_id': 'camera_link_front',

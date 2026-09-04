@@ -1,73 +1,122 @@
-ekf_local:
-  ros__parameters:
-    # ------------------------------------------------------------------
-    # Core filter settings
-    # ------------------------------------------------------------------
-    use_sim_time: true
-    publish_tf: true
-    frequency: 50.0
-    sensor_timeout: 0.1
-    two_d_mode: false
+# Local EKF - publishes odom -> base_footprint.
+#
+# odom_localisation.launch.py merges `common` with either `sim` or `rover`
+# depending on use_sim_time. Keys in an environment block override `common`.
+# To change a value for both environments, edit it in `common`.
+#
+# Sensor config order, used by every *_config list below:
+#   [x,     y,      z,
+#    roll,  pitch,  yaw,
+#    vx,    vy,     vz,
+#    vroll, vpitch, vyaw,
+#    ax,    ay,     az]
 
-    # Local EKF:
-    # - this filter publishes odom -> base_footprint
-    # - a separate global source/filter should publish map -> odom
-    odom_frame: odom
-    base_link_frame: base_footprint
-    world_frame: odom
+common:
+  publish_tf: true
+  frequency: 50.0
+  sensor_timeout: 0.1
 
-    # Helpful while bringing the system up
-    print_diagnostics: true
-    debug: false
+  odom_frame: odom
+  base_link_frame: base_footprint
+  world_frame: odom
 
-    # ------------------------------------------------------------------
-    # IMU
-    # Fuse yaw and yaw rate.
-    # In two_d_mode, roll / pitch / z are constrained by the filter.
-    #
-    # Config order:
-    # [x, y, z,
-    #  roll, pitch, yaw,
-    #  vx, vy, vz,
-    #  vroll, vpitch, vyaw,
-    #  ax, ay, az]
-    # ------------------------------------------------------------------
-    imu0: /imu/data_disabled # Change to /imu/data to enable
-    imu0_config: [false, false, false,
-                  false, false, true,
-                  false, false, false,
-                  false, false, true,
-                  false, false, false]
+  print_diagnostics: true
+  debug: false
 
-    imu0_differential: false
-    imu0_relative: false
-    imu0_remove_gravitational_acceleration: true
+  imu0_differential: false
+  imu0_relative: false
 
-    # ------------------------------------------------------------------
-    # Wheel odometry
-    # Fuse body-frame velocities from wheel odom.
-    # Keep pose disabled here to avoid double-using the same encoder source
-    # if the odometry pose is derived from the same internal model.
-    # ------------------------------------------------------------------
-    odom0: /diff_cont/odom
-    odom0_config: [false, false, false,
-                   false, false, false,
-                   true,  true,  false,
-                   false, false, true,
-                   false, false, false]
+  # Wheel odometry. Body-frame velocities; pose stays off so the encoders are
+  # not double-used.
+  odom0: /diff_cont/odom
+  odom0_differential: false
+  odom0_relative: false
 
-    odom0_differential: false
-    odom0_relative: false
+  # RGB-D visual odometry (vslam_launch.py): body-frame velocities only.
+  # Opt in with use_vslam:=true.
+  odom1: /vo/odom
+  odom1_config: [false, false, false,
+                 false, false, false,
+                 true,  true,  false,
+                 false, false, false,
+                 false, false, false]
+  odom1_differential: false
+  odom1_relative: false
+  odom1_queue_size: 10
+  odom1_twist_rejection_threshold: 3.0
 
-    # If VO later fights wheel odom, try twist-only fusion instead:
-    # odom1_config: [false, false, false,
-    #                false, false, false,
-    #                true,  false, false,
-    #                false, false, true,
-    #                false, false, false]
 
-    # ------------------------------------------------------------------
-    # Optional timing settings
-    # ------------------------------------------------------------------
-    # transform_time_offset: 0.0
-    # transform_timeout: 0.0
+sim:
+  use_sim_time: true
+  two_d_mode: true
+
+  # Gazebo IMU: yaw and yaw rate.
+  imu0: /imu/data
+  imu0_config: [false, false, false,
+                false, false, true,
+                false, false, false,
+                false, false, true,
+                false, false, false]
+  imu0_remove_gravitational_acceleration: true
+
+  # Yaw rate off: imu0 owns it.
+  odom0_config: [false, false, false,
+                 false, false, false,
+                 true,  true,  false,
+                 false, false, false,
+                 false, false, false]
+
+
+rover:
+  use_sim_time: false
+
+  # z is unmeasured; held down by process_noise_covariance instead.
+  two_d_mode: false
+
+  # IMU (RealSense gyro): yaw rate only. /camera/camera/imu must NOT be added
+  # to the remap list in camera_realsense.launch.py.
+  # TODO(calibration): wheel_separation still scales odom0's vx/vy - see
+  # my_controllers.yaml.
+  imu0: /camera/camera/imu
+  imu0_config: [false, false, false,
+                false, false, false,
+                false, false, false,
+                false, false, true,    # vyaw
+                false, false, false]
+  imu0_remove_gravitational_acceleration: false
+
+  # IMU (RealSense accelerometer, via imu_filter_madgwick): roll/pitch only.
+  imu1: /imu/data
+  imu1_config: [false, false, false,
+                true,  true,  false,   # roll, pitch
+                false, false, false,
+                false, false, false,
+                false, false, false]
+  imu1_differential: false
+  imu1_relative: false
+  imu1_remove_gravitational_acceleration: false
+  imu1_queue_size: 10
+
+  # vyaw stays enabled as a loose fallback behind the IMU.
+  odom0_config: [false, false, false,
+                 false, false, false,
+                 true,  true,  false,   # vx, vy
+                 false, false, true,    # vyaw (loose fallback only)
+                 false, false, false]
+
+  # Defaults, except z/vz/az pinned to 1e-6: nothing measures them.
+  process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
+                             0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
+                             0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
+                             0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # roll
+                             0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # pitch
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # yaw
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vx
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vy
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,  # vroll
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,  # vpitch
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,  # vyaw
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,  # ax
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,  # ay
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06]  # az

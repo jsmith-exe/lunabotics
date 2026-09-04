@@ -21,9 +21,11 @@ qpl_packages() {
     ros-humble-robot-localization \
     ros-humble-pointcloud-to-laserscan \
     ros-humble-camera-info-manager \
+    ros-humble-realsense2-camera \
     ros-humble-v4l2-camera \
     v4l-utils \
     ros-humble-rtabmap-ros \
+    ros-humble-rtabmap-odom \
     ros-humble-image-pipeline \
     ros-humble-tf-transformations \
     ros-humble-cv-bridge \

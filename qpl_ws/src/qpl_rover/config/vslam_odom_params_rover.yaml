@@ -1,0 +1,43 @@
+# RGB-D visual odometry (HARDWARE) — rtabmap_odom/rgbd_odometry
+#
+# Only the differences from vslam_odom_params.yaml are commented here.
+
+/**:
+  ros__parameters:
+    use_sim_time: false
+
+    frame_id: base_footprint
+    odom_frame_id: odom
+
+    publish_tf: false
+    # Longer than sim: the TF chain may not have settled at bringup.
+    wait_for_transform: 0.5
+
+    approx_sync: true
+    approx_sync_max_interval: 0.03
+    sync_queue_size: 30
+    topic_queue_size: 30
+
+    # Best-effort: matches the RealSense driver either way. Wrong value fails
+    # silently - the subscription never matches.
+    qos: 2
+    qos_camera_info: 2
+
+    Reg/Force3DoF: "true"
+
+    guess_frame_id: odom
+    Odom/GuessMotion: "true"
+
+    # TODO: not yet profiled on the Jetson. If it cannot hold frame rate, set
+    # use_low_quality back to "true" in rover.launch.py before tuning these.
+    Vis/MaxFeatures: "300"
+    Vis/MinInliers: "10"
+    Vis/InlierDistance: "0.10"
+    Vis/EstimationType: "1"
+    Vis/CorGuessWinSize: "40"
+
+    # Stay silent when lost; the EKF coasts on wheel odom + gyro.
+    publish_null_when_lost: false
+    Odom/ResetCountdown: "1"
+    Odom/FilteringStrategy: "0"
+    Odom/FillInfoData: "true"
