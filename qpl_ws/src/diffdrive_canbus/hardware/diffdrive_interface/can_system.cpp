@@ -7,8 +7,6 @@
 
 
 namespace diffdrive_canbus {
-  bool CANSystem::runaway_latched_ = false;
-
   void CANSystem::add_device(const std::unique_ptr<CANDevice> &device) {
     devices_[device->can_id()] = device.get();
   }
@@ -22,6 +20,12 @@ namespace diffdrive_canbus {
   void CANSystem::setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
     for (auto & [can_id, device] : devices_) {
       device->setup_ros_command_interfaces(command_interfaces);
+    }
+  }
+
+  void CANSystem::configure_devices() {
+    for (auto & [can_id, device] : devices_) {
+      device->configure();
     }
   }
 

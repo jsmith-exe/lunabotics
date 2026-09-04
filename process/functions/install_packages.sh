@@ -39,7 +39,8 @@ qpl_packages() {
     ros-humble-spatio-temporal-voxel-layer \
     ros-humble-imu-tools \
     ros-humble-ament-cmake-vendor-package \
-    socat
+    socat \
+    python3-yaml
   python3 -m pip install --user \
     pupil-apriltags \
     imageio \

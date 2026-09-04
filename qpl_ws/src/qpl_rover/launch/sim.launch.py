@@ -7,7 +7,7 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Tim
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
-selected_world = "arena_april.world"
+selected_world = "us_arena.world"
 rover_pkg: str = get_package_share_directory("qpl_rover")
 gazebo_directory: str = get_package_share_directory("gazebo_ros")
 
@@ -121,8 +121,8 @@ def generate_launch_description():
                 arguments=[
                     "-topic", "robot_description",
                     "-entity", "rover",
-                    "-x", "-1.2", # set to 0 (default) if not using april_arena.world
-                    "-y", "-2.95", # set to 0 (default) if not using april_arena.world
+                    "-x", "3.45", # set to 0 (default) if not using april_arena.world
+                    "-y", "1.13", # set to 0 (default) if not using april_arena.world
                     "-z", "0.2"], # set to 0 (default) if not using april_arena.world
                 output="screen",
             )

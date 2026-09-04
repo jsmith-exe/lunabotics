@@ -1,8 +1,6 @@
 #ifndef DIFFDRIVE_CANBUS__CAN_COMMS_HPP_
 #define DIFFDRIVE_CANBUS__CAN_COMMS_HPP_
 
-#include <cstdint>
-#include <functional>
 #include <string>
 #include <vector>
 

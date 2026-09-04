@@ -3,6 +3,7 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
+#include <iostream>
 
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
@@ -25,22 +26,21 @@ namespace diffdrive_canbus {
       &command_);
   }
 
-  void Actuator::request_actuator_status3_period(CANComms & can_)
-  {
-    const uint32_t status3_id = SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(can_id_);
-
-    std::vector<uint8_t> data(2, 0x00);
-    data[0] = static_cast<uint8_t>(LINEAR_ACTUATOR_STATUS3_PERIOD_MS & 0xFF);
-    data[1] = static_cast<uint8_t>((LINEAR_ACTUATOR_STATUS3_PERIOD_MS >> 8) & 0xFF);
-
-    can_.send_extended_frame(status3_id, data, false);
-
-    sleep_bus_gap();
+  void Actuator::configure() {
+    CANDevice::configure();
+    set_status_period(2, STATUS3_PERIOD_MS);
   }
 
   void Actuator::write()
   {
     double safe_throttle = clamp_and_apply_deadband_if_finite(command_, ACTUATOR_DEADBAND);
+
+    if (abs(command_ - prev_command_) < MIN_ACTUATOR_VELOCITY_CHANGE)
+    {
+      return;
+    }
+    prev_command_ = command_;
+
     set_duty_cycle(static_cast<float>(safe_throttle));
     sleep_bus_gap();
   }
