@@ -21,21 +21,6 @@
 namespace diffdrive_canbus
 {
 
-CANFrame &can_frame_to_CANFrame(const can_frame &frame, CANFrame &custom_frame)
-{
-  custom_frame.extended = (frame.can_id & CAN_EFF_FLAG) != 0;
-  custom_frame.remote   = (frame.can_id & CAN_RTR_FLAG) != 0;
-
-  custom_frame.id = custom_frame.extended
-      ? (frame.can_id & CAN_EFF_MASK)
-      : (frame.can_id & CAN_SFF_MASK);
-
-  custom_frame.dlc = std::min<uint8_t>(frame.can_dlc, CAN_MAX_DLEN);
-  std::memcpy(custom_frame.data, frame.data, custom_frame.dlc);
-
-  return custom_frame;
-}
-
 class DiffDriveCanbusHardware : public hardware_interface::SystemInterface
 {
 public:
@@ -234,8 +219,7 @@ private:
       empty_reads = 0;
       ++frames_read;
 
-      CANFrame can_frame;
-      can_system_->update_joint_state(can_frame_to_CANFrame(frame, can_frame));
+      can_system_->update_joint_state(frame);
     }
   }
 

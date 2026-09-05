@@ -81,36 +81,4 @@ SparkMaxCanIdFields parse_frc_extended_can_id(uint32_t id)
     return fields;
 }
 
-/// Format a CANFrame as a human-readable string for logging.
-/// Example output: EXT ID=0x02051841 DLC=8 DATA=[0x39 0x8A 0xF8 0x43 ...]
-std::string frame_to_string(const CANFrame & frame)
-{
-  std::ostringstream ss;
-  ss << (frame.extended ? "EXT" : "STD")
-     << " ID=0x" << std::hex << std::uppercase << frame.id
-     << " DLC=" << std::dec << static_cast<int>(frame.dlc)
-     << " DATA=[";
-
-  for (uint8_t i = 0; i < frame.dlc; ++i)
-  {
-    ss << "0x" << std::hex << std::uppercase
-       << std::setw(2) << std::setfill('0')
-       << static_cast<int>(frame.data[i]);
-
-    if (i + 1 < frame.dlc)
-    {
-      ss << ' ';
-    }
-  }
-
-  ss << "]";
-
-  if (frame.remote)
-  {
-    ss << " RTR";
-  }
-
-  return ss.str();
-}
-
 }  // namespace diffdrive_canbus

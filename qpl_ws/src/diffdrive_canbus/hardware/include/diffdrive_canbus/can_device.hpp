@@ -20,7 +20,6 @@ struct SparkMaxTelemetry
   float encoder_position_rotations = 0.0f;
   float wheel_position_rotations = 0.0f;
 
-  bool has_applied_output = false;
   float applied_output = 0.0f;
 };
 
@@ -48,7 +47,7 @@ public:
   float applied_output() const;
 
   virtual void write() = 0;
-  virtual void update_joint_state(const CANFrame & frame) = 0;
+  virtual void update_joint_state(const can_frame &frame) = 0;
 
   // TODO hopefully temporary declarations of motor functions; these can be removed once there is clearer separation of concerns
   virtual double commanded_velocity() const { return 0.0; }
@@ -71,21 +70,16 @@ protected:
   static constexpr uint8_t DEVICE_TYPE_MOTOR_CONTROLLER = 2;
   static constexpr uint8_t MANUFACTURER_REV = 5;
 
-  static constexpr uint8_t API_CLASS_PERIODIC_STATUS = 46;
+  static constexpr uint8_t API_CLASS_PERIODIC_STATUS = 6;
   static constexpr uint8_t API_INDEX_STATUS_0 = 0;
   static constexpr uint8_t API_INDEX_STATUS_1 = 1;
   static constexpr uint8_t API_INDEX_STATUS_2 = 2;
-  static constexpr uint8_t API_INDEX_STATUS_5 = 5;
 
   static constexpr uint8_t API_CLASS_CLEAR_FAULTS = 6;
   static constexpr uint8_t API_INDEX_CLEAR_FAULTS = 14;
 
-  static constexpr uint8_t API_CLASS_ROBORIO = 9;
-  static constexpr uint8_t API_INDEX_ROBORIO_HEARTBEAT = 2;
-
   static constexpr uint8_t API_CLASS_NON_RIO = 11;
   static constexpr uint8_t API_INDEX_NON_RIO_HEARTBEAT = 2;
-
   static constexpr uint8_t HEARTBEAT_DEVICE_ID = 0;
 
   std::string name_;

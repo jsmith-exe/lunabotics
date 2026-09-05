@@ -8,20 +8,10 @@
 namespace diffdrive_canbus
 {
 
-struct CANFrame
-{
-  uint32_t id = 0;
-  uint8_t dlc = 0;
-  uint8_t data[8] = {0};
-  bool extended = true;
-  bool remote = false;
-};
-
 // can comms helpers
 uint8_t get_frc_device_id_from_can_id(uint32_t can_id);
 bool is_actuator_status3_id(uint32_t can_id, uint8_t device_id);
 uint16_t le_u16_from_frame_data(const uint8_t data[8], std::size_t offset);
-std::string frame_to_string(const CANFrame & frame);
 
 struct SparkMaxCanIdFields
 {

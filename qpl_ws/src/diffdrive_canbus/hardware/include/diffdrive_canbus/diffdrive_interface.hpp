@@ -40,7 +40,7 @@ namespace diffdrive_canbus {
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
     void configure_devices();
-    void update_joint_state(CANFrame &frame);
+    void update_joint_state(const can_frame &frame);
     void send_zero_duty_all();
     void send_heartbeat();
     bool are_all_motors_stopped();
@@ -61,8 +61,8 @@ namespace diffdrive_canbus {
     double rotation_position() const override { return rotation_position_; }
     double velocity() const override { return velocity_; }
     double commanded_velocity() const override { return commanded_velocity_; }
-    void update_joint_state(const CANFrame &frame) override;
-    bool handle_status_frame(const CANFrame &frame, bool print_status_frame);
+    void update_joint_state(const can_frame &frame) override;
+    bool handle_status_frame(const can_frame &frame);
 
     void write() override;
 
@@ -91,7 +91,7 @@ namespace diffdrive_canbus {
 
     void write() override;
     double feedback_to_distance(uint16_t raw_voltage_feedback);
-    void update_joint_state(const CANFrame & frame) override;
+    void update_joint_state(const can_frame & frame) override;
   private:
     double commanded_pos_mm_{0.0};
     double position_{0.0};

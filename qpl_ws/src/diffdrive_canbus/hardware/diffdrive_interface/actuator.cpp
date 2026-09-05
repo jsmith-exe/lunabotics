@@ -67,17 +67,17 @@ namespace diffdrive_canbus {
       return DISTANCE_MIN_MM + clamped * (DISTANCE_MAX_MM - DISTANCE_MIN_MM);
   }
 
-  void Actuator::update_joint_state(const CANFrame & frame)
+  void Actuator::update_joint_state(const can_frame & frame)
   {
-      // CAN ID must match this device's and the frame must be status3.
-      if (get_frc_device_id_from_can_id(frame.id) != can_id_
-          || !is_actuator_status3_id(frame.id, can_id_))
-      {
-          return;
-      }
+    // CAN ID must match this device's and the frame must be status3.
+    if (get_frc_device_id_from_can_id(frame.can_id) != can_id_
+        || !is_actuator_status3_id(frame.can_id, can_id_))
+    {
+        return;
+    }
 
-      const uint16_t packed = le_u16_from_frame_data(frame.data, 0);
-      const uint16_t raw_feedback = packed & 0x03FF;
-      position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
+    const uint16_t packed = le_u16_from_frame_data(frame.data, 0);
+    const uint16_t raw_feedback = packed & 0x03FF;
+    position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
   }
 }
