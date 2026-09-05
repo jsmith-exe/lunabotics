@@ -18,10 +18,6 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 
-# Find system LibSerial
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBSERIAL REQUIRED libserial)
-
 # -------------------------------------------------------------------
 # Hardware interface plugin library
 # -------------------------------------------------------------------
@@ -29,12 +25,10 @@ pkg_check_modules(LIBSERIAL REQUIRED libserial)
 add_library(
   diffdrive_canbus
   SHARED
-  hardware/diffdrive_interface/ros_interface_plugin.cpp
-        hardware/diffdrive_interface/can_device.cpp
-  hardware/can_comms/can_comms.cpp
+  hardware/can_comms/can_socket.cpp
   hardware/can_comms/can_utils.cpp
-  hardware/can_comms/waveshare_codec.cpp
-  hardware/can_comms/can_comms_helpers.cpp
+  hardware/diffdrive_interface/ros_interface_plugin.cpp
+  hardware/diffdrive_interface/can_device.cpp
   hardware/diffdrive_interface/can_system.cpp
   hardware/diffdrive_interface/actuator.cpp
   hardware/diffdrive_interface/motor.cpp
@@ -45,29 +39,11 @@ target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)
 target_include_directories(diffdrive_canbus PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/hardware/include>
   $<INSTALL_INTERFACE:include>
-  ${LIBSERIAL_INCLUDE_DIRS}
 )
 
 ament_target_dependencies(
   diffdrive_canbus
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
-)
-
-target_link_directories(
-  diffdrive_canbus
-  PUBLIC
-  ${LIBSERIAL_LIBRARY_DIRS}
-)
-
-target_link_libraries(
-  diffdrive_canbus
-  ${LIBSERIAL_LIBRARIES}
-)
-
-target_compile_options(
-  diffdrive_canbus
-  PUBLIC
-  ${LIBSERIAL_CFLAGS_OTHER}
 )
 
 target_compile_definitions(diffdrive_canbus PRIVATE

@@ -29,7 +29,7 @@ namespace diffdrive_canbus {
     }
   }
 
-  void CANSystem::update_joint_state(CANFrame &frame) {
+  void CANSystem::update_joint_state(const can_frame &frame) {
     for (auto & [can_id, device] : devices_) {
       device->update_joint_state(frame);
     }
@@ -44,5 +44,14 @@ namespace diffdrive_canbus {
   void CANSystem::send_heartbeat() {
     // Send heartbeat from arbitrary device - in this case, whichever was added first.
     devices_.begin()->second->send_heartbeats(false);
+  }
+
+  bool CANSystem::are_all_motors_stopped() {
+    for (auto & [can_id, device] : devices_) {
+      if (device->encoder_velocity_rpm() > 0.01) {
+        return false;
+      }
+    }
+    return true;
   }
 }

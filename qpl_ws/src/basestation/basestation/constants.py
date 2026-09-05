@@ -54,7 +54,7 @@ class ControllerInputs:
 NAV_TOPIC = '/cmd_vel_teleop'
 DRUM_ROTATION_TOPIC = '/drum_spin_control/teleop'
 DRUM_LIFT_TOPIC = '/drum_lift_control/teleop'
-PUBLISHER_UPDATE_RATE = 2
+PUBLISHER_UPDATE_RATE = 5
 INVERT_BACKWARDS_STEERING = True
 MOTOR_DRIVE_BUTTON_FACTOR = 0.3
 MOTOR_STEER_BUTTON_FACTOR = 0.3

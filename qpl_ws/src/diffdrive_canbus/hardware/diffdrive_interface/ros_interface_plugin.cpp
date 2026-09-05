@@ -14,13 +14,13 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
 namespace diffdrive_canbus
 {
+
 class DiffDriveCanbusHardware : public hardware_interface::SystemInterface
 {
 public:
@@ -35,15 +35,16 @@ public:
 
     try
     {
-      can_system_ = std::make_unique<CANSystem>(can_, logger_);
+      can_ = std::make_unique<SocketCanInterface>();
+      can_system_ = std::make_unique<CANSystem>(logger_);
 
-      front_left_motor_ = std::make_unique<Motor>("front_left_wheel_joint", 1, can_, 100.0, logger_);
-      front_right_motor_ = std::make_unique<Motor>("front_right_wheel_joint", 2, can_, 100.0, logger_);
-      rear_left_motor_ = std::make_unique<Motor>("rear_left_wheel_joint", 3, can_, 100.0, logger_);
-      rear_right_motor_ = std::make_unique<Motor>("rear_right_wheel_joint", 4, can_, 100.0, logger_);
-      left_actuator_ = std::make_unique<Actuator>("left_linear_actuator_joint", 5, can_, logger_);
-      right_actuator_ = std::make_unique<Actuator>("right_linear_actuator_joint", 6, can_, logger_);
-      drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, can_, 125.0, logger_);
+      front_left_motor_ = std::make_unique<Motor>("front_left_wheel_joint", 1, *can_, 100.0, logger_);
+      front_right_motor_ = std::make_unique<Motor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
+      rear_left_motor_ = std::make_unique<Motor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
+      rear_right_motor_ = std::make_unique<Motor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
+      left_actuator_ = std::make_unique<Actuator>("left_linear_actuator_joint", 5, *can_, logger_);
+      right_actuator_ = std::make_unique<Actuator>("right_linear_actuator_joint", 6, *can_, logger_);
+      drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, *can_, 125.0, logger_);
 
       can_system_->add_device(front_left_motor_);
       can_system_->add_device(front_right_motor_);
@@ -80,29 +81,8 @@ public:
   {
     try
     {
-      const std::string serial_device = "/dev/ttyUSB0";
-      RCLCPP_INFO(logger_, "Connecting to CAN adapter on %s", serial_device.c_str());
-
-      can_.connect(serial_device, 2000000, 5);
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(250));
-
-      const bool configured = can_.configure_adapter(
-        1000000,
-        false,
-        0x00000000,
-        0x00000000,
-        CANMode::NORMAL,
-        false,
-        true);
-
-      if (!configured)
-      {
-        RCLCPP_ERROR(logger_, "Failed to configure CAN adapter");
-        return hardware_interface::CallbackReturn::ERROR;
-      }
-      RCLCPP_INFO(logger_, "CAN adapter configured");
-      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+      RCLCPP_INFO(logger_, "Connecting to can0");
+      can_->connect("can0");
       
       constexpr int pid_slot = 0;
       front_left_motor_->set_native_velocity_pid_slot(pid_slot);
@@ -112,6 +92,7 @@ public:
       drum_motor_->set_native_velocity_pid_slot(pid_slot);
 
       can_system_->configure_devices();
+      can_system_->send_zero_duty_all();
     }
     catch (const std::exception & e)
     {
@@ -119,7 +100,7 @@ public:
 
       try
       {
-        can_.disconnect();
+        can_->close();
       }
       catch (...) {}
 
@@ -147,8 +128,8 @@ public:
 
     try
     {
-      send_stop_for_duration(STOP_TIME);
-      can_.disconnect();
+      send_stop_for_duration();
+      can_->close();
     }
     catch (const std::exception & e)
     {
@@ -226,9 +207,9 @@ private:
 
     while (frames_read < max_frames && empty_reads < FEEDBACK_EMPTY_READ_RETRIES)
     {
-      CANFrame frame;
+      can_frame frame{};
 
-      if (!can_.read_frame(frame, false))
+      if (!can_->read_frame(frame))
       {
         ++empty_reads;
         std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
@@ -257,46 +238,36 @@ private:
     right_actuator_->write();
   }
 
-  void send_stop_for_duration(std::chrono::milliseconds duration)
+  void send_stop_for_duration()
   {
     using clock = std::chrono::steady_clock;
 
     const auto start = clock::now();
     auto next_command = start;
-    auto next_heartbeat = start;
 
-    while (clock::now() - start < duration)
+    bool safely_stopped = false;
+    while (!safely_stopped)
     {
+      send_heartbeat_if_due();
+      read_frames_if_due();
+
       const auto now = clock::now();
-
-      if (now >= next_heartbeat)
-      {
-        can_system_->send_heartbeat();
-
-        next_heartbeat += HEARTBEAT_PERIOD;
-        if (next_heartbeat < now - HEARTBEAT_PERIOD)
-        {
-          next_heartbeat = now + HEARTBEAT_PERIOD;
-        }
-      }
-
       if (now >= next_command)
       {
         can_system_->send_zero_duty_all();
-
-        next_command += STOP_COMMAND_PERIOD;
-        if (next_command < now - STOP_COMMAND_PERIOD)
-        {
-          next_command = now + STOP_COMMAND_PERIOD;
-        }
+        next_command = now + STOP_COMMAND_PERIOD;
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      if (can_system_->are_all_motors_stopped())
+      {
+        safely_stopped = true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
   }
 
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
-  CANComms can_;
+  std::unique_ptr<SocketCanInterface> can_;
   std::unique_ptr<CANSystem> can_system_;
 
   std::unique_ptr<CANDevice> front_left_motor_;

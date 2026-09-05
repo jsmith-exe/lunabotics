@@ -30,7 +30,6 @@ qpl_packages() {
     ros-humble-vision-opencv \
     libopencv-dev \
     mesa-utils \
-    libserial-dev \
     ros-humble-rmw-cyclonedds-cpp \
     ros-humble-ffmpeg-image-transport \
     ros-humble-nav2-common \
