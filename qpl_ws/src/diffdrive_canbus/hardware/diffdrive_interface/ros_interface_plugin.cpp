@@ -166,7 +166,7 @@ public:
     const rclcpp::Time &,
     const rclcpp::Duration &) override
   {
-    // read_frames_if_due();
+    read_frames_if_due();
     return hardware_interface::return_type::OK;
   }
 
