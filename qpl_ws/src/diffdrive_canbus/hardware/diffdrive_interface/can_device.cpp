@@ -124,8 +124,7 @@ bool CANDevice::send_setpoint(
   uint8_t api_class,
   uint8_t api_index,
   float setpoint,
-  uint8_t pid_slot,
-  bool print)
+  uint8_t pid_slot)
 {
   const uint32_t id = make_sparkmax_id(api_class, api_index, can_id_);
 
@@ -176,59 +175,6 @@ bool CANDevice::send_simple_setpoint(
   data[4] = 0x00;
   data[5] = 0x00;
   data[6] = static_cast<uint8_t>(native_velocity_pid_slot_ & 0x03);
-  data[7] = 0x00;
-
-  return can_.send_extended_frame(id, data);
-}
-
-bool CANDevice::send_setpoint_with_control_type(
-  uint8_t api_class,
-  uint8_t api_index,
-  float setpoint,
-  uint8_t control_type,
-  uint8_t pid_slot,
-  bool print)
-{
-  const uint32_t id = make_sparkmax_id(
-    api_class,
-    api_index,
-    can_id_);
-
-  std::cout << "DEBUG TX SETPOINT_WITH_CONTROL_TYPE:"
-            << " api_class=" << static_cast<int>(api_class)
-            << " api_index=" << static_cast<int>(api_index)
-            << " device_id_=" << static_cast<int>(can_id_)
-            << " can_id=0x"
-            << std::hex << std::uppercase << id
-            << std::dec
-            << " setpoint=" << setpoint
-            << " control_type=" << static_cast<int>(control_type)
-            << " pid_slot=" << static_cast<int>(pid_slot)
-            << "\n";
-
-  if (can_id_ == 0)
-  {
-    std::cerr << "WARNING: send_setpoint_with_control_type is targeting SPARK MAX device ID 0\n";
-  }
-
-  if (can_id_ == 0)
-  {
-    std::cerr << "WARNING: send_setpoint_with_control_type is targeting SPARK MAX device ID 0\n";
-  }
-
-  std::vector<uint8_t> data(8, 0x00);
-
-  uint8_t target[4];
-  float_to_le_bytes(setpoint, target);
-
-  data[0] = target[0];
-  data[1] = target[1];
-  data[2] = target[2];
-  data[3] = target[3];
-
-  data[4] = control_type;
-  data[5] = 0x00;
-  data[6] = static_cast<uint8_t>(pid_slot & 0x03);
   data[7] = 0x00;
 
   return can_.send_extended_frame(id, data);

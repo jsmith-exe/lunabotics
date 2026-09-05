@@ -10,9 +10,9 @@
 #include <sys/types.h>
 #include <linux/can.h>
 
-#include "diffdrive_canbus/can_socket.hpp"
-
 #include "diffdrive_canbus/can_comms.hpp"
+
+namespace diffdrive_canbus {
 
 void SocketCanInterface::connect(const std::string & interface_name_)
 {
@@ -86,4 +86,6 @@ bool SocketCanInterface::read_frame(can_frame & received_frame, int timeout_ms)
 
   const ssize_t bytes_read = read(file_descriptor_, &received_frame, sizeof(received_frame));
   return bytes_read == sizeof(received_frame);
+}
+
 }

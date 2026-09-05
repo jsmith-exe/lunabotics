@@ -6,8 +6,6 @@
 #include <hardware_interface/handle.hpp>
 #include <rclcpp/logger.hpp>
 
-#include "can_socket.hpp"
-
 namespace diffdrive_canbus
 {
 
@@ -122,20 +120,11 @@ protected:
     uint8_t api_class,
     uint8_t api_index,
     float setpoint,
-    uint8_t pid_slot,
-    bool print);
+    uint8_t pid_slot);
 
   bool send_simple_setpoint(
     uint8_t api_id,
     float setpoint);
-
-  bool send_setpoint_with_control_type(
-    uint8_t api_class,
-    uint8_t api_index,
-    float setpoint,
-    uint8_t control_type,
-    uint8_t pid_slot,
-    bool print);
 };
 
 }  // namespace diffdrive_canbus

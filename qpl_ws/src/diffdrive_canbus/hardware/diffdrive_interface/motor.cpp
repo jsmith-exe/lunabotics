@@ -141,7 +141,7 @@ namespace diffdrive_canbus {
     if (print_status_frame)
     {
       std::cout << "RX SPARK STATUS: "
-                << CANComms::frame_to_string(frame)
+                << frame_to_string(frame)
                 << " | api_class=" << static_cast<int>(fields.api_class)
                 << " api_index=" << static_cast<int>(fields.api_index)
                 << " device_id=" << static_cast<int>(fields.device_id);

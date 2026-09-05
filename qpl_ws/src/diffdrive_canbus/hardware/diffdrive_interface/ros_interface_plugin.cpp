@@ -1,5 +1,4 @@
 #include "diffdrive_canbus/can_comms.hpp"
-#include "diffdrive_canbus/can_socket.hpp"
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
@@ -15,7 +14,6 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
