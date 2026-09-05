@@ -12,6 +12,8 @@
 
 #include "diffdrive_canbus/can_socket.hpp"
 
+#include "diffdrive_canbus/can_comms.hpp"
+
 void SocketCanInterface::connect(const std::string & interface_name_)
 {
   file_descriptor_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
@@ -75,7 +77,7 @@ bool SocketCanInterface::send_extended_frame(uint32_t can_id, const std::vector<
 }
 
 // Blocking receive with timeout. Returns false on timeout or error.
-bool SocketCanInterface::receive_frame(can_frame & received_frame, int timeout_ms)
+bool SocketCanInterface::read_frame(can_frame & received_frame, int timeout_ms)
 {
   timeval timeout {};
   timeout.tv_sec = timeout_ms / 1000;
