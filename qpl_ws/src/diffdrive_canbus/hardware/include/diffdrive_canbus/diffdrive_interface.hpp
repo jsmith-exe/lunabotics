@@ -9,6 +9,10 @@
 
 #include "diffdrive_canbus/can_device.hpp"
 
+// Toggles
+constexpr bool SOFTWARE_SIDE_MOTOR_SMOOTHING = false;
+constexpr bool SEND_ZERO_DUTY_FOR_MOTORS = false; // Replaces sending zero velocity with zero duty commands; bypasses PID.
+
 // Constants
 constexpr double TWO_PI = 2.0 * M_PI;
 
@@ -58,13 +62,16 @@ namespace diffdrive_canbus {
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
 
-    double rotation_position() const override { return rotation_position_; }
-    double velocity() const override { return velocity_; }
-    double commanded_velocity() const override { return commanded_velocity_; }
+    void write() override;
+    void calculate_smoothed_velocity();
+    bool has_command_significantly_changed(double velocity_to_write);
+
     void update_joint_state(const can_frame &frame) override;
     bool handle_status_frame(const can_frame &frame);
 
-    void write() override;
+    double rotation_position() const override { return rotation_position_; }
+    double velocity() const override { return velocity_; }
+    double commanded_velocity() const override { return commanded_velocity_; }
 
   protected:
     double rotation_position_{0.0};
