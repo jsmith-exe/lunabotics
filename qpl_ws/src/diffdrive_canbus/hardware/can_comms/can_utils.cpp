@@ -1,36 +1,14 @@
-/// Helper functions for CAN parsing
-
-#include "diffdrive_canbus/can_comms.hpp"
-
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <stdexcept>
+#include <cstring>
+
+#include "diffdrive_canbus/diffdrive_interface.hpp"
+#include "diffdrive_canbus/can_comms.hpp"
 
 namespace diffdrive_canbus
 {
-
-/// Convert an integer baud rate to the LibSerial enum value.
-/// LibSerial requires an enum rather than a raw integer, so this maps the
-/// common rates supported by the Waveshare adapter.
-LibSerial::BaudRate convert_baud_rate(int baud_rate)
-{
-    switch (baud_rate)
-    {
-        case 9600:    return LibSerial::BaudRate::BAUD_9600;
-        case 19200:   return LibSerial::BaudRate::BAUD_19200;
-        case 38400:   return LibSerial::BaudRate::BAUD_38400;
-        case 115200:  return LibSerial::BaudRate::BAUD_115200;
-        case 230400:  return LibSerial::BaudRate::BAUD_230400;
-        case 460800:  return LibSerial::BaudRate::BAUD_460800;
-        case 921600:  return LibSerial::BaudRate::BAUD_921600;
-        case 2000000: return LibSerial::BaudRate::BAUD_2000000;
-        default:
-            throw std::runtime_error(
-              "Unsupported serial baud rate: " + std::to_string(baud_rate));
-    }
-}
 
 // ---------------------------------------------------------------------------
 // FRC CAN ID layout
@@ -46,6 +24,30 @@ LibSerial::BaudRate convert_baud_rate(int baud_rate)
 //   bits  5- 0  device id    (6 bits)  — which physical controller (1-63)
 //
 // ---------------------------------------------------------------------------
+
+uint8_t get_frc_device_id_from_can_id(uint32_t can_id)
+{
+  // FRC extended CAN IDs store the device ID in the lowest 6 bits.
+  return static_cast<uint8_t>(can_id & 0x3F);
+}
+
+bool is_actuator_status3_id(uint32_t can_id, uint8_t device_id)
+{
+  const uint32_t clean_id = can_id & 0x1FFFFFFF;
+  return clean_id == (SPARKMAX_PERIODIC_STATUS_3_BASE_ID + static_cast<uint32_t>(device_id));
+}
+
+uint16_t le_u16_from_frame_data(const uint8_t data[8], std::size_t offset)
+{
+  if (offset + sizeof(uint16_t) > 8)
+  {
+    return 0;
+  }
+
+  uint16_t value = 0;
+  std::memcpy(&value, data + offset, sizeof(uint16_t));
+  return value;
+}
 
 /// Pack the five FRC CAN ID fields into a single 29-bit value.
 /// Each field is masked to its declared width before shifting to prevent
@@ -77,38 +79,6 @@ SparkMaxCanIdFields parse_frc_extended_can_id(uint32_t id)
     fields.api_index    = static_cast<uint8_t>((id >>  6) & 0x0F);
     fields.device_id    = static_cast<uint8_t>((id >>  0) & 0x3F);
     return fields;
-}
-
-/// Format a CANFrame as a human-readable string for logging.
-/// Example output: EXT ID=0x02051841 DLC=8 DATA=[0x39 0x8A 0xF8 0x43 ...]
-std::string CANComms::frame_to_string(const CANFrame & frame)
-{
-  std::ostringstream ss;
-  ss << (frame.extended ? "EXT" : "STD")
-     << " ID=0x" << std::hex << std::uppercase << frame.id
-     << " DLC=" << std::dec << static_cast<int>(frame.dlc)
-     << " DATA=[";
-
-  for (uint8_t i = 0; i < frame.dlc; ++i)
-  {
-    ss << "0x" << std::hex << std::uppercase
-       << std::setw(2) << std::setfill('0')
-       << static_cast<int>(frame.data[i]);
-
-    if (i + 1 < frame.dlc)
-    {
-      ss << ' ';
-    }
-  }
-
-  ss << "]";
-
-  if (frame.remote)
-  {
-    ss << " RTR";
-  }
-
-  return ss.str();
 }
 
 }  // namespace diffdrive_canbus

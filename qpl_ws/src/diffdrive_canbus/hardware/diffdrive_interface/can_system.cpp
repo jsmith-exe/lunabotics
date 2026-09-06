@@ -29,7 +29,7 @@ namespace diffdrive_canbus {
     }
   }
 
-  void CANSystem::update_joint_state(CANFrame &frame) {
+  void CANSystem::update_joint_state(const can_frame &frame) {
     for (auto & [can_id, device] : devices_) {
       device->update_joint_state(frame);
     }
