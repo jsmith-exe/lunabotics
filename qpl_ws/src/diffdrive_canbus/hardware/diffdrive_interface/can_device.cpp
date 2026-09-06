@@ -224,7 +224,12 @@ bool CANDevice::set_velocity_rad_per_sec(float target_wheel_rad_per_sec)
 {
   const float target_motor_rad_per_sec = target_wheel_rad_per_sec * gear_ratio_;
   const float target_motor_rpm = rad_per_sec_to_rpm(target_motor_rad_per_sec);
-  return send_simple_setpoint(SPARKMAX_API_VELOCITY_SET, std::clamp(target_motor_rpm, -MAX_MOTOR_RPM, MAX_MOTOR_RPM));
+  return set_velocity_rpm(target_motor_rpm);
+}
+
+bool CANDevice::set_velocity_rpm(float velocity_rpm)
+{
+  return send_simple_setpoint(SPARKMAX_API_VELOCITY_SET, std::clamp(velocity_rpm, -MAX_MOTOR_RPM, MAX_MOTOR_RPM));
 }
 
 bool CANDevice::set_position(float position)

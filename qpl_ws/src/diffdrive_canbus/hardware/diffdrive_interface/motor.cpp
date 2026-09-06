@@ -30,15 +30,9 @@ namespace diffdrive_canbus {
       &commanded_velocity_);
   }
 
-  void Motor::write()
+  void Motor::write() // Velocity should be interpreted as a proportion of max RPM, -1.0 to 1.0.
   {
-    double velocity_to_write = commanded_velocity_;
-    if (SOFTWARE_SIDE_MOTOR_SMOOTHING)
-    {
-      calculate_smoothed_velocity();
-      velocity_to_write = smoothed_velocity_;
-    }
-
+    const double velocity_to_write = preprocess_velocity();
     if (!has_command_significantly_changed(velocity_to_write))
     {
       return;
@@ -49,8 +43,22 @@ namespace diffdrive_canbus {
       this->set_duty_cycle(0.0);
     }
     else {
-      this->set_velocity_rad_per_sec(static_cast<float>(velocity_to_write));
+      set_velocity(velocity_to_write);
     }
+  }
+
+  void Motor::set_velocity(double velocity) {
+    set_velocity_rpm(static_cast<float>(velocity * MAX_MOTOR_RPM));
+  }
+
+  double Motor::preprocess_velocity() {
+    double velocity_to_write = commanded_velocity_;
+    if (SOFTWARE_SIDE_MOTOR_SMOOTHING)
+    {
+      calculate_smoothed_velocity();
+      velocity_to_write = smoothed_velocity_;
+    }
+    return velocity_to_write;
   }
 
   void Motor::calculate_smoothed_velocity() {
@@ -62,7 +70,7 @@ namespace diffdrive_canbus {
     const auto ms_since_last_write = std::chrono::duration_cast<std::chrono::milliseconds>(time_since_last_write);
     const double seconds_since_last_write = ms_since_last_write.count() / 1000.0;
 
-    const double max_velocity_change = seconds_since_last_write * rate_of_velocity_change_;
+    const double max_velocity_change = seconds_since_last_write * max_rate_of_velocity_change_;
     // Set velocity to commanded if it's within the max velocity change
     if (max_velocity_change >= abs(commanded_velocity_ - smoothed_velocity_))
     {
@@ -82,7 +90,7 @@ namespace diffdrive_canbus {
   bool Motor::has_command_significantly_changed(double velocity_to_write)
   {
     const bool new_zero_sent = velocity_to_write == 0.0 && prev_commanded_velocity_ != 0.0;
-    const bool significant_change = abs(velocity_to_write - prev_commanded_velocity_) >= MIN_VELOCITY_CHANGE;
+    const bool significant_change = abs(velocity_to_write - prev_commanded_velocity_) >= min_rate_of_velocity_change_;
     return new_zero_sent || significant_change;
   }
 

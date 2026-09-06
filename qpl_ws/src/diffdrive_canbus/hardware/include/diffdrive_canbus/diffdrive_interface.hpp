@@ -66,6 +66,8 @@ namespace diffdrive_canbus {
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
 
     void write() override;
+    double preprocess_velocity();
+    void set_velocity(double velocity_to_write);
     void calculate_smoothed_velocity();
     bool has_command_significantly_changed(double velocity_to_write);
 
@@ -77,17 +79,32 @@ namespace diffdrive_canbus {
     double commanded_velocity() const override { return commanded_velocity_; }
 
   protected:
+    // In the context of the Motor class, velocity is a proportion of max RPM. In DiffdriveMotor class, velocity is rad/s.
     double rotation_position_{0.0};
     double velocity_{0.0};
-    double commanded_velocity_{0.0}; // TODO rename to command_rad_per_sec??
+    double commanded_velocity_{0.0};
+
     double prev_commanded_velocity_{0.0};
     double smoothed_velocity_{0.0};
     std::chrono::system_clock::time_point last_write_time_{std::chrono::system_clock::now()};
-    double rate_of_velocity_change_{3.0};
+    double max_rate_of_velocity_change_{0.4}; // If enabled, smooths change
+    double min_rate_of_velocity_change_{0.1}; // Limits traffic
+
     double position_offset_rad_{0.0};
     bool position_offset_valid_{false};
   };
 
+  class DiffdriveMotor : public Motor {
+  public:
+    DiffdriveMotor(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger)
+      : Motor(name, can_id, can, gear_ratio, logger) {}
+
+    void write() override;
+
+  protected:
+    double max_rate_of_velocity_change_{3.0};
+    double min_rate_of_velocity_change_{0.1};
+  };
 
   class Actuator : public CANDevice {
   public:
