@@ -34,8 +34,8 @@ constexpr uint16_t STATUS3_PERIOD_MS = 500;
 constexpr double MIN_VELOCITY_CHANGE = 0.1;
 constexpr double MIN_ACTUATOR_VELOCITY_CHANGE = 0.1;
 
-// Motor is capable of going 7500+ when elevated; 5676 is from the datasheet on https://www.revrobotics.com/rev-21-1650/
-constexpr float MAX_MOTOR_RPM = 5676.0;
+// Motor is capable of going 7500+ when elevated; 5600 is based on the datasheet on https://www.revrobotics.com/rev-21-1650/
+constexpr float MAX_MOTOR_RPM = 5600.0;
 // ^ Constants
 
 namespace diffdrive_canbus {
