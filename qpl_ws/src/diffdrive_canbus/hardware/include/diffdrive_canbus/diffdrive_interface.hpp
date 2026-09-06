@@ -97,13 +97,12 @@ namespace diffdrive_canbus {
   class DiffdriveMotor : public Motor {
   public:
     DiffdriveMotor(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger)
-      : Motor(name, can_id, can, gear_ratio, logger) {}
+      : Motor(name, can_id, can, gear_ratio, logger) {
+        max_rate_of_velocity_change_ = 2.0;
+        min_rate_of_velocity_change_ = 0.2;
+      }
 
     void set_velocity(double velocity) override;
-
-  protected:
-    double max_rate_of_velocity_change_{3.0};
-    double min_rate_of_velocity_change_{0.1};
   };
 
   class Actuator : public CANDevice {
