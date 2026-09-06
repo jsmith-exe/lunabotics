@@ -45,4 +45,13 @@ namespace diffdrive_canbus {
     // Send heartbeat from arbitrary device - in this case, whichever was added first.
     devices_.begin()->second->send_heartbeats(false);
   }
+
+  bool CANSystem::are_all_motors_stopped() {
+    for (auto & [can_id, device] : devices_) {
+      if (device->encoder_velocity_rpm() > 0.01) {
+        return false;
+      }
+    }
+    return true;
+  }
 }

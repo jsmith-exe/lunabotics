@@ -112,6 +112,7 @@ public:
       drum_motor_->set_native_velocity_pid_slot(pid_slot);
 
       can_system_->configure_devices();
+      can_system_->send_zero_duty_all();
     }
     catch (const std::exception & e)
     {
@@ -147,7 +148,7 @@ public:
 
     try
     {
-      send_stop_for_duration(STOP_TIME);
+      send_stop_for_duration();
       can_.disconnect();
     }
     catch (const std::exception & e)
@@ -257,41 +258,31 @@ private:
     right_actuator_->write();
   }
 
-  void send_stop_for_duration(std::chrono::milliseconds duration)
+  void send_stop_for_duration()
   {
     using clock = std::chrono::steady_clock;
 
     const auto start = clock::now();
     auto next_command = start;
-    auto next_heartbeat = start;
 
-    while (clock::now() - start < duration)
+    bool safely_stopped = false;
+    while (!safely_stopped)
     {
+      send_heartbeat_if_due();
+      read_frames_if_due();
+
       const auto now = clock::now();
-
-      if (now >= next_heartbeat)
-      {
-        can_system_->send_heartbeat();
-
-        next_heartbeat += HEARTBEAT_PERIOD;
-        if (next_heartbeat < now - HEARTBEAT_PERIOD)
-        {
-          next_heartbeat = now + HEARTBEAT_PERIOD;
-        }
-      }
-
       if (now >= next_command)
       {
         can_system_->send_zero_duty_all();
-
-        next_command += STOP_COMMAND_PERIOD;
-        if (next_command < now - STOP_COMMAND_PERIOD)
-        {
-          next_command = now + STOP_COMMAND_PERIOD;
-        }
+        next_command = now + STOP_COMMAND_PERIOD;
       }
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      if (can_system_->are_all_motors_stopped())
+      {
+        safely_stopped = true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
   }
 

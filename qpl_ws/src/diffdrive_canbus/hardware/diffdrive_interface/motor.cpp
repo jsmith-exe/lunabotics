@@ -74,8 +74,6 @@ namespace diffdrive_canbus {
 
   void Motor::write()
   {
-    // TODO use clamp_and_apply_deadband_if_finite
-
     // Calculate time since last write
     const auto now = std::chrono::system_clock::now();
     const auto time_since_last_write = now - last_write_time_;
@@ -110,10 +108,12 @@ namespace diffdrive_canbus {
     }
     prev_commanded_velocity_ = velocity_to_write;
 
-    this->send_heartbeats(false);
-    sleep_bus_gap();
-    this->set_velocity_rad_per_sec(static_cast<float>(velocity_to_write));
-    sleep_bus_gap();
+    if (velocity_to_write == 0.0) {
+      this->set_duty_cycle(0.0);
+    }
+    else {
+      this->set_velocity_rad_per_sec(static_cast<float>(velocity_to_write));
+    }
   }
 
   bool Motor::handle_status_frame(const CANFrame & frame, bool print_status_frame)

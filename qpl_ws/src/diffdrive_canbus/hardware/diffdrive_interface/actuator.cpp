@@ -51,12 +51,10 @@ namespace diffdrive_canbus {
       if (reached_position_ && !stop_sent_) {
           set_duty_cycle(0.0f);
           stop_sent_ = true;
-          sleep_bus_gap();
       }
       else if (!reached_position_) {
           set_position(static_cast<float>(setpoint_mm));
           stop_sent_ = false;
-          sleep_bus_gap();
       }
   }
 

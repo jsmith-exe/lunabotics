@@ -145,6 +145,7 @@ void CANComms::write_bytes(const std::vector<uint8_t> & bytes)
     bytes.size());
 
   serial_conn_.Write(raw);
+  sleep_bus_gap();
 }
 
 /// Encode and transmit a CANFrame over the serial link.
