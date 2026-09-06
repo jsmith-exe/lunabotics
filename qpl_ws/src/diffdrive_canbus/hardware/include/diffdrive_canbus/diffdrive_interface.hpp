@@ -67,7 +67,7 @@ namespace diffdrive_canbus {
 
     void write() override;
     double preprocess_velocity();
-    void set_velocity(double velocity_to_write);
+    virtual void set_velocity(double velocity_to_write);
     void calculate_smoothed_velocity();
     bool has_command_significantly_changed(double velocity_to_write);
 
@@ -99,7 +99,7 @@ namespace diffdrive_canbus {
     DiffdriveMotor(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger)
       : Motor(name, can_id, can, gear_ratio, logger) {}
 
-    void write() override;
+    void set_velocity(double velocity) override;
 
   protected:
     double max_rate_of_velocity_change_{3.0};
