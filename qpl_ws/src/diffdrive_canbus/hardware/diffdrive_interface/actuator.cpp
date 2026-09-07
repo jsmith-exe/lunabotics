@@ -1,5 +1,6 @@
 #include <string>
 #include <iomanip>
+#include <iostream>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
@@ -8,8 +9,10 @@
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
 
-constexpr double ACTUATOR_STOP_TOLERANCE_MM = 20.0;
-constexpr double ACTUATOR_RESUME_TOLERANCE_MM = 40.0;
+// Minimum obsered error is about 12-13mm; allow the actuator to stop at this point.
+constexpr double ACTUATOR_STOP_TOLERANCE_MM = 15.0;
+// If the error becomes significantly larger than the stop tolerance, resume movement to reach the commanded position. Protects against spikes.
+constexpr double ACTUATOR_RESUME_TOLERANCE_MM = 20.0;
 
 constexpr double RAW_MIN = 46.0;
 constexpr double RAW_MAX = 318.0;
@@ -17,6 +20,7 @@ constexpr double DISTANCE_MIN_MM = 22.6;
 constexpr double DISTANCE_MAX_MM = 228.0;
 constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f;
 
+// Protects against spikes.
 double low_pass_filter(double prev_val, double new_val, double alpha) {
   return alpha * prev_val + (1 - alpha) * new_val;
 }
@@ -42,8 +46,8 @@ namespace diffdrive_canbus {
 
   void Actuator::write()
   {
-      const double filtered_position = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA);
-      const double setpoint_mm = commanded_pos_ + ACTUATOR_POSITION_CONSTANT;
+      const double filtered_position = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
+      const double setpoint_mm = commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
       const double abs_error_mm = std::fabs(setpoint_mm - filtered_position);
 
       if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM) {
