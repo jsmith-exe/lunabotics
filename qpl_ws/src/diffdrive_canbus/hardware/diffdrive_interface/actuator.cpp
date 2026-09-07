@@ -8,10 +8,11 @@
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
-
-// Minimum obsered error is about 12-13mm; allow the actuator to stop at this point.
+// When the actuators move towards a position, they tend to have a minimum error of about 12-13mm - positive after extending,
+// but negative after retracting.
 constexpr double ACTUATOR_STOP_TOLERANCE_MM = 15.0;
-// If the error becomes significantly larger than the stop tolerance, resume movement to reach the commanded position. Protects against spikes.
+// If the error becomes significantly larger than the stop tolerance, resume movement to reach the commanded position.
+// Protects against spikes.
 constexpr double ACTUATOR_RESUME_TOLERANCE_MM = 20.0;
 
 constexpr double RAW_MIN = 46.0;
@@ -46,11 +47,11 @@ namespace diffdrive_canbus {
 
   void Actuator::write()
   {
-      const double filtered_position = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
       const double setpoint_mm = commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
-      const double abs_error_mm = std::fabs(setpoint_mm - filtered_position);
+      const double abs_error_mm = std::fabs(setpoint_mm - filtered_position_mm_);
+      const double direction = filtered_position_mm_ < prev_filtered_position_mm_ ? -1.0 : 1.0;
 
-      if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM) {
+      if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM * direction) {
           reached_position_ = true;
       }
       else if (reached_position_ && abs_error_mm >= ACTUATOR_RESUME_TOLERANCE_MM) {
@@ -89,5 +90,7 @@ namespace diffdrive_canbus {
     const uint16_t raw_feedback = packed & 0x03FF;
     previous_position_ = position_;
     position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
+    prev_filtered_position_mm_ = filtered_position_mm_;
+    filtered_position_mm_ = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
   }
 }
