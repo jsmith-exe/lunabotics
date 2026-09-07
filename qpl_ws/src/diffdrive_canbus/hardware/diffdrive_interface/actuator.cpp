@@ -8,13 +8,20 @@
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
 
-constexpr double ACTUATOR_STOP_TOLERANCE_MM = 20.0;
-constexpr double ACTUATOR_RESUME_TOLERANCE_MM = 40.0;
+constexpr double ACTUATOR_STOP_TOLERANCE = 20.0 / 1000;
+constexpr double ACTUATOR_RESUME_TOLERANCE = 40.0 / 1000;
 
-constexpr double RAW_MIN = 46.0;
-constexpr double RAW_MAX = 318.0;
-constexpr double DISTANCE_MIN_MM = 22.6;
-constexpr double DISTANCE_MAX_MM = 228.0;
+constexpr double RAW_MIN = 46.0 / 1000;
+constexpr double RAW_MAX = 318.0 / 1000;
+constexpr double DISTANCE_MIN = 22.6 / 1000;
+constexpr double DISTANCE_MAX = 228.0 / 1000;
+constexpr double ACTUATOR_POSITION_CONSTANT = 14.0 / 1000;
+
+
+double low_pass_filter(double prev_val, double new_val, double alpha) {
+  return alpha * prev_val + (1 - alpha) * new_val;
+}
+
 
 namespace diffdrive_canbus {
   void Actuator::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
@@ -27,7 +34,7 @@ namespace diffdrive_canbus {
     command_interfaces.emplace_back(
       this->name_,
       hardware_interface::HW_IF_POSITION,
-      &commanded_pos_mm_);
+      &commanded_pos_);
   }
 
   void Actuator::configure() {
@@ -37,14 +44,14 @@ namespace diffdrive_canbus {
 
   void Actuator::write()
   {
-      constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f;
-      const double setpoint_mm = commanded_pos_mm_ + ACTUATOR_POSITION_CONSTANT;
-      const double abs_error_mm = std::fabs(setpoint_mm - position_ * 1000.0); // convert to mm, for ease of comparison with setpoint_mm
+      const double filtered_position = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA);
+      const double setpoint_mm = commanded_pos_ + ACTUATOR_POSITION_CONSTANT;
+      const double abs_error_mm = std::fabs(setpoint_mm - filtered_position);
 
-      if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM) {
+      if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE) {
           reached_position_ = true;
       }
-      else if (reached_position_ && abs_error_mm >= ACTUATOR_RESUME_TOLERANCE_MM) {
+      else if (reached_position_ && abs_error_mm >= ACTUATOR_RESUME_TOLERANCE) {
           reached_position_ = false;
       }
 
@@ -64,7 +71,7 @@ namespace diffdrive_canbus {
 
       const double clamped = std::clamp(normalised, 0.0, 1.0);
 
-      return DISTANCE_MIN_MM + clamped * (DISTANCE_MAX_MM - DISTANCE_MIN_MM);
+      return DISTANCE_MIN + clamped * (DISTANCE_MAX - DISTANCE_MIN);
   }
 
   void Actuator::update_joint_state(const can_frame & frame)
@@ -78,6 +85,7 @@ namespace diffdrive_canbus {
 
     const uint16_t packed = le_u16_from_frame_data(frame.data, 0);
     const uint16_t raw_feedback = packed & 0x03FF;
+    previous_position_ = position_;
     position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
   }
 }

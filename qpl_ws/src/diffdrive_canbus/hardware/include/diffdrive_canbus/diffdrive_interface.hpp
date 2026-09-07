@@ -36,6 +36,8 @@ constexpr double MIN_ACTUATOR_VELOCITY_CHANGE = 0.1;
 
 // Motor is capable of going 7500+ when elevated; 5600 is based on the datasheet on https://www.revrobotics.com/rev-21-1650/
 constexpr float MAX_MOTOR_RPM = 5600.0;
+
+constexpr double ACTUATOR_POSITION_LOW_PASS_ALPHA = 0.1;
 // ^ Constants
 
 namespace diffdrive_canbus {
@@ -119,8 +121,9 @@ namespace diffdrive_canbus {
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
   private:
-    double commanded_pos_mm_{0.0};
+    double commanded_pos_{0.0};
     double position_{0.0};
+    double previous_position_{0.0};
     bool reached_position_{false};
     bool stop_sent_{false};
   };
