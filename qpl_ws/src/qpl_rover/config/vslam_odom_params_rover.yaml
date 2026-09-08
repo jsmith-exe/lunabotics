@@ -25,7 +25,8 @@
 
     Reg/Force3DoF: "true"
 
-    guess_frame_id: odom
+    # See vslam_odom_params.yaml: no guess_frame_id, VO's own last motion
+    # is the prior.
     Odom/GuessMotion: "true"
 
     # TODO: not yet profiled on the Jetson. If it cannot hold frame rate, set

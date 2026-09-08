@@ -24,15 +24,20 @@
 
     Reg/Force3DoF: "true"
 
-    # Seed the feature search from the EKF's odom estimate.
-    guess_frame_id: odom
+    # Motion prior comes from VO's own last motion, not from TF.
+    # Do NOT set guess_frame_id: odom - ekf_local publishes that frame and
+    # fuses /vo/odom, so it would feed VO's output back in as its own prior
+    # and drop every frame until ekf_local starts.
     Odom/GuessMotion: "true"
 
     Vis/MaxFeatures: "400"
     Vis/MinInliers: "8"
     Vis/InlierDistance: "0.10"
     Vis/EstimationType: "1"      # 3D->2D PnP; more robust with sparse depth
-    Vis/CorGuessWinSize: "40"    # px search window when a guess is available
+    # 100 px, not 40: the sim camera is 10 Hz and 1280 px over a 1.51844 rad
+    # FOV (843 px/rad), so a 1.0 rad/s spin moves features ~84 px/frame.
+    # The rover config keeps 40 - at 30 Hz the same spin is only ~28 px.
+    Vis/CorGuessWinSize: "100"
 
     # Stay silent when lost rather than publishing null odometry.
     publish_null_when_lost: false

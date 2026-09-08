@@ -34,18 +34,53 @@ common:
   odom0_differential: false
   odom0_relative: false
 
-  # INPUT 2: the "truth" from AprilTags.
+  # INPUT 2: RGB-D visual odometry, body-frame velocities only.
+  odom1: /vo/odom
+  odom1_config: [false, false, false,
+                 false, false, false,
+                 true,  true,  false,
+                 false, false, false,
+                 false, false, false]
+  odom1_differential: false
+  odom1_relative: false
+  odom1_queue_size: 10
+  odom1_twist_rejection_threshold: 3.0
+
+  # INPUT 3: the "truth" from AprilTags.
   pose0: /apriltag/pose
   pose0_config: [true,  true,  false,  # x, y
                  false, false, true,   # yaw
                  false, false, false,
                  false, false, false,
                  false, false, false]
-  pose0_mahalanobis_distance: 3.0
+  # Mahalanobis gate on AprilTag poses. Was pose0_mahalanobis_distance,
+  # which robot_localization does not define, so it was silently ignored.
+  pose0_rejection_threshold: 3.0
   pose0_differential: false
   pose0_relative: false
 
-  # INPUT 3: IMU yaw rate only.
+  # x/y/yaw are unknown at bringup - the rover does not start at the map
+  # origin - so they need a large initial variance or pose0_rejection_threshold
+  # gates out every AprilTag fix until process noise inflates P (~29 s).
+  # Everything else keeps robot_localization's 1.0e-9 default: do not enlarge
+  # states that are never measured directly.
+  initial_estimate_covariance: [100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
+                                  0.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
+                                  0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
+                                  0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # roll
+                                  0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # pitch
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # yaw
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vx
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vy
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0, 0.0,  # vroll
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0, 0.0,  # vpitch
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0, 0.0,  # vyaw
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0, 0.0,  # ax
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9, 0.0,  # ay
+                                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-9]  # az
+
+  # INPUT 4: IMU yaw rate only.
   imu0_config: [false, false, false,
                 false, false, false,
                 false, false, false,
@@ -101,16 +136,16 @@ rover:
   # Defaults, except z/vz/az pinned to 1e-6: nothing measures them.
   process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
                              0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
-                             0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
+                             0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
                              0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # roll
                              0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # pitch
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # yaw
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vx
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vy
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,  # vroll
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,  # vpitch
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,  # vyaw
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,  # ax
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,  # ay
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06]  # az
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-6]  # az

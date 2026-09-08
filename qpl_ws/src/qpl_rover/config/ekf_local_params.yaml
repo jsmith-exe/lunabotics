@@ -50,12 +50,12 @@ sim:
   use_sim_time: true
   two_d_mode: true
 
-  # Gazebo IMU: yaw and yaw rate.
+  # Gazebo IMU: yaw rate only, matching the rover.
   imu0: /imu/data
   imu0_config: [false, false, false,
-                false, false, true,
                 false, false, false,
-                false, false, true,
+                false, false, false,
+                false, false, true,    # vyaw
                 false, false, false]
   imu0_remove_gravitational_acceleration: true
 
@@ -75,8 +75,8 @@ rover:
 
   # IMU (RealSense gyro): yaw rate only. /camera/camera/imu must NOT be added
   # to the remap list in camera_realsense.launch.py.
-  # TODO(calibration): wheel_separation still scales odom0's vx/vy - see
-  # my_controllers.yaml.
+  # TODO(calibration): wheel_separation still scales odom0's vyaw - see
+  # my_controllers.yaml. vx is (v_l+v_r)/2 and is unaffected.
   imu0: /camera/camera/imu
   imu0_config: [false, false, false,
                 false, false, false,
@@ -107,16 +107,16 @@ rover:
   # Defaults, except z/vz/az pinned to 1e-6: nothing measures them.
   process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
                              0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # y
-                             0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
+                             0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # z
                              0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # roll
                              0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # pitch
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # yaw
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vx
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vy
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,  # vz
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,  # vroll
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,  # vpitch
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,  # vyaw
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,  # ax
                              0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,  # ay
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-06]  # az
+                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-6]  # az
