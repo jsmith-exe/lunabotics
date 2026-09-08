@@ -122,10 +122,10 @@ namespace diffdrive_canbus {
     void update_joint_state(const can_frame & frame) override;
   private:
     double commanded_pos_{0.0};
+    double prev_commanded_pos_{0.0};
     double position_{0.0};
     double previous_position_{0.0};
     double filtered_position_mm_{0.0};
-    double prev_filtered_position_mm_{0.0};
     bool reached_position_{false};
     bool stop_sent_{false};
   };

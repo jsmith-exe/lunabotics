@@ -8,18 +8,16 @@
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
-// When the actuators move towards a position, they tend to have a minimum error of about 12-13mm - positive after extending,
-// but negative after retracting.
-constexpr double ACTUATOR_STOP_TOLERANCE_MM = 15.0;
-// If the error becomes significantly larger than the stop tolerance, resume movement to reach the commanded position.
-// Protects against spikes.
-constexpr double ACTUATOR_RESUME_TOLERANCE_MM = 20.0;
-
 constexpr double RAW_MIN = 46.0;
 constexpr double RAW_MAX = 318.0;
 constexpr double DISTANCE_MIN_MM = 22.6;
 constexpr double DISTANCE_MAX_MM = 228.0;
-constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f;
+constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f; // Commands to the actuators must be offset
+
+// The feedback is off by about 12-13mm (possibly the ACTUATOR_POSITION_CONSTANT above).
+// Actuator should be stopped at STOP_POSITION +/- STOP_TOLERANCE.
+constexpr double ACTUATOR_STOP_POSITION_MM = 13.0;
+constexpr double ACTUATOR_STOP_TOLERANCE_MM = 3.0;
 
 // Protects against spikes.
 double low_pass_filter(double prev_val, double new_val, double alpha) {
@@ -48,24 +46,23 @@ namespace diffdrive_canbus {
   void Actuator::write()
   {
       const double setpoint_mm = commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
-      const double abs_error_mm = std::fabs(setpoint_mm - filtered_position_mm_);
-      const double direction = filtered_position_mm_ < prev_filtered_position_mm_ ? -1.0 : 1.0;
+      const double error_mm = setpoint_mm - filtered_position_mm_; // Positive if setpoint is greater than current position (i.e., need to go up)
 
-      if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM * direction) {
-          reached_position_ = true;
-      }
-      else if (reached_position_ && abs_error_mm >= ACTUATOR_RESUME_TOLERANCE_MM) {
-          reached_position_ = false;
-      }
+      bool reached_position = error_mm > ACTUATOR_STOP_POSITION_MM - ACTUATOR_STOP_TOLERANCE_MM
+        && error_mm < ACTUATOR_STOP_POSITION_MM + ACTUATOR_STOP_TOLERANCE_MM;
 
-      if (reached_position_ && !stop_sent_) {
-          set_duty_cycle(0.0f);
-          stop_sent_ = true;
-      }
-      else if (!reached_position_) {
+      // Only send position command if new position sent, to reduce bandwidth use.
+      if (prev_commanded_pos_ != commanded_pos_) {
           set_position(static_cast<float>(setpoint_mm));
           stop_sent_ = false;
       }
+      // If the actuator has reached the commanded position, send a stop command to hold it in place.
+      else if (reached_position && !stop_sent_) {
+          set_duty_cycle(0.0f);
+          stop_sent_ = true;
+      }
+
+      prev_commanded_pos_ = commanded_pos_;
   }
 
   double Actuator::feedback_to_distance(uint16_t raw_voltage_feedback)
@@ -90,7 +87,6 @@ namespace diffdrive_canbus {
     const uint16_t raw_feedback = packed & 0x03FF;
     previous_position_ = position_;
     position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
-    prev_filtered_position_mm_ = filtered_position_mm_;
     filtered_position_mm_ = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
   }
 }
