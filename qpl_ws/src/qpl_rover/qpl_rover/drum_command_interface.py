@@ -100,7 +100,6 @@ class DrumInterface(Node):
     def send_zero_if_no_recent_messages(self):
         if time.time() - self.last_message_received_time >= self.zero_timer_threshold_seconds:
             self.set_drum_spin_rate(0.0)
-            self.set_drum_lift_rate(0.0)
 
 # Unused, as clamped at control level
 def clamp(value, min_value, max_value):

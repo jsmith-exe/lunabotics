@@ -47,7 +47,7 @@ namespace diffdrive_canbus {
   class CANSystem {
   public:
     CANSystem(rclcpp::Logger &logger) : logger_(logger) {}
-    void add_device(const std::unique_ptr<CANDevice> &device);
+    void add_device(const std::shared_ptr<CANDevice> &device);
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces);
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces);
     void configure_devices();
@@ -120,6 +120,7 @@ namespace diffdrive_canbus {
     void configure() override;
 
     void write() override;
+    double preprocess_commanded_pos();
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
 
@@ -127,7 +128,7 @@ namespace diffdrive_canbus {
     static double min_lift_mm;
     static double max_lift_mm;
 
-  private:
+  protected:
     double commanded_pos_{0.0};
     double prev_commanded_pos_{0.0};
     double position_{0.0};
@@ -135,6 +136,20 @@ namespace diffdrive_canbus {
     double filtered_position_mm_{0.0};
     bool reached_position_{false};
     bool stop_sent_{false};
+  };
+
+  class SynchronisedActuator : public Actuator {
+  public:
+    SynchronisedActuator(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, rclcpp::Logger &logger)
+      : Actuator(name, can_id, can, logger) {}
+    void set_other_actuator(std::shared_ptr<SynchronisedActuator> &other_actuator) {
+      other_actuator_ = other_actuator;
+    }
+    void write() override;
+
+  protected:
+    std::shared_ptr<SynchronisedActuator> other_actuator_{nullptr};
+    bool stopped_due_to_desync_{false};
   };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_

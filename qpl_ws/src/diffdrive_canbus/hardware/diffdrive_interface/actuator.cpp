@@ -2,7 +2,7 @@
 #include <iostream>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
-#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
@@ -49,12 +49,7 @@ namespace diffdrive_canbus {
 
   void Actuator::write()
   {
-    if (commanded_pos_ == 0.0) {
-      commanded_pos_ = default_lift_mm / 1000.0; // convert to meters
-    }
-    commanded_pos_ = std::clamp(commanded_pos_, min_lift_mm / 1000, max_lift_mm / 1000);
-
-    const double setpoint_mm = commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
+    const double setpoint_mm = preprocess_commanded_pos();
     const double error_mm = setpoint_mm - filtered_position_mm_; // Positive if setpoint is greater than current position (i.e., need to go up)
 
     bool reached_position = error_mm > ACTUATOR_STOP_POSITION_MM - ACTUATOR_STOP_TOLERANCE_MM
@@ -72,6 +67,16 @@ namespace diffdrive_canbus {
     }
 
     prev_commanded_pos_ = commanded_pos_;
+  }
+
+  // Returns the commanded position in mm, clamped, and offset by the actuator position constant
+  double Actuator::preprocess_commanded_pos() {
+    if (commanded_pos_ == 0.0) {
+      commanded_pos_ = default_lift_mm / 1000.0; // convert to meters
+    }
+    commanded_pos_ = std::clamp(commanded_pos_, min_lift_mm / 1000, max_lift_mm / 1000);
+
+    return commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
   }
 
   double Actuator::feedback_to_distance(uint16_t raw_voltage_feedback)
@@ -97,5 +102,35 @@ namespace diffdrive_canbus {
     previous_position_ = position_;
     position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
     filtered_position_mm_ = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
+  }
+
+  void SynchronisedActuator::write()
+  {
+    if (other_actuator_ == nullptr) {
+      RCLCPP_ERROR(logger_, "Other actuator not set for synchronised actuator %s", name_.c_str());
+      return;
+    }
+
+    // double setpoint_mm = preprocess_commanded_pos();
+    // double error_mm = setpoint_mm - filtered_position_mm_;
+    // double other_error_mm = setpoint_mm - other_actuator_->position_ * 1000.0; // convert to mm
+
+    // double error_difference = error_mm - other_error_mm;
+    // std::cout << "Error difference: " << error_difference << std::endl;
+    // if (std::fabs(error_difference) >= 10.0 && error_mm < other_error_mm && !stopped_due_to_desync_) {
+    //   RCLCPP_WARN(logger_, "Actuator %s and %s are out of sync by %.2f mm", name_.c_str(), other_actuator_->name_.c_str(), error_difference);
+    //   set_duty_cycle(0.0f);
+    //   stopped_due_to_desync_ = true;
+    //   stop_sent_ = true;
+    //   return;
+    // }
+    // else if (stopped_due_to_desync_ && std::fabs(error_difference) <= 5.0) {
+    //   set_position(static_cast<float>(setpoint_mm));
+    //   stopped_due_to_desync_ = false;
+    //   stop_sent_ = false;
+    //   return;
+    // }
+
+    Actuator::write();
   }
 }
