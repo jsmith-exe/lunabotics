@@ -25,6 +25,8 @@ double low_pass_filter(double prev_val, double new_val, double alpha) {
 }
 
 namespace diffdrive_canbus {
+  double Actuator::default_lift_mm = 0.0;
+
   void Actuator::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
     state_interfaces.emplace_back(
       this->name_,
@@ -47,7 +49,7 @@ namespace diffdrive_canbus {
   void Actuator::write()
   {
     if (commanded_pos_ == 0.0) {
-      commanded_pos_ = default_lift_mm;
+      commanded_pos_ = Actuator::default_lift_mm / 1000.0; // convert to meters
     }
 
     const double setpoint_mm = commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
