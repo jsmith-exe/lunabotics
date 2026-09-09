@@ -37,7 +37,8 @@ qpl_packages() {
     ros-humble-imu-tools \
     ros-humble-ament-cmake-vendor-package \
     socat \
-    python3-yaml
+    python3-yaml \
+    libyaml-cpp-dev
   python3 -m pip install --user \
     pupil-apriltags \
     imageio \

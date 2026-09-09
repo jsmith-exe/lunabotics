@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 namespace diffdrive_canbus
 {
@@ -35,6 +36,8 @@ public:
 
     try
     {
+      load_config();
+
       can_ = std::make_unique<SocketCanInterface>();
       can_system_ = std::make_unique<CANSystem>(logger_);
 
@@ -163,6 +166,10 @@ public:
   }
 
 private:
+  void load_config() {
+    YAML::Node config = YAML::LoadFile(CONFIG_FILE_PATH);
+    Actuator::default_lift_mm = config["drum"]["default_lift_mm"].as<double>();
+  }
 
   void send_heartbeat_if_due()
   {

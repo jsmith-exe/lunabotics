@@ -14,6 +14,8 @@ constexpr bool SOFTWARE_SIDE_MOTOR_SMOOTHING = false;
 constexpr bool SEND_ZERO_DUTY_FOR_MOTORS = false; // Replaces sending zero velocity with zero duty commands; bypasses PID.
 
 // Constants
+constexpr auto CONFIG_FILE_PATH = "qpl_ws/src/diffdrive_canbus/hardware/config.yaml";
+
 constexpr double TWO_PI = 2.0 * M_PI;
 
 constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
@@ -120,6 +122,9 @@ namespace diffdrive_canbus {
     void write() override;
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
+
+    static double default_lift_mm;
+
   private:
     double commanded_pos_{0.0};
     double prev_commanded_pos_{0.0};
