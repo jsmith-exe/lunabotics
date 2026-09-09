@@ -47,9 +47,13 @@ namespace diffdrive_canbus {
     set_status_period(2, STATUS3_PERIOD_MS);
   }
 
-  void Actuator::write()
+  void Actuator::write() {
+    const double setpoint_mm = preprocess_pos(commanded_pos_);
+    go_to_position(setpoint_mm);
+  }
+
+  void Actuator::go_to_position(double setpoint_mm)
   {
-    const double setpoint_mm = preprocess_commanded_pos();
     const double error_mm = setpoint_mm - filtered_position_mm_; // Positive if setpoint is greater than current position (i.e., need to go up)
 
     bool reached_position = error_mm > ACTUATOR_STOP_POSITION_MM - ACTUATOR_STOP_TOLERANCE_MM
@@ -70,13 +74,13 @@ namespace diffdrive_canbus {
   }
 
   // Returns the commanded position in mm, clamped, and offset by the actuator position constant
-  double Actuator::preprocess_commanded_pos() {
-    if (commanded_pos_ == 0.0) {
-      commanded_pos_ = default_lift_mm / 1000.0; // convert to meters
+  double Actuator::preprocess_pos(double position_m) {
+    if (position_m == 0.0) {
+      position_m = default_lift_mm / 1000.0; // convert to meters
     }
-    commanded_pos_ = std::clamp(commanded_pos_, min_lift_mm / 1000, max_lift_mm / 1000);
+    position_m = std::clamp(position_m, min_lift_mm / 1000, max_lift_mm / 1000);
 
-    return commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
+    return position_m * 1000.0 + ACTUATOR_POSITION_CONSTANT;
   }
 
   double Actuator::feedback_to_distance(uint16_t raw_voltage_feedback)
@@ -110,27 +114,44 @@ namespace diffdrive_canbus {
       RCLCPP_ERROR(logger_, "Other actuator not set for synchronised actuator %s", name_.c_str());
       return;
     }
+    if (other_actuator_->is_dominant_actuator && !other_actuator_->resync_checkpoints.empty()) {
+      RCLCPP_ERROR(logger_, "%s must setup resync checkpoints first.", other_actuator_->name_.c_str());
+      return;
+    }
 
-    // double setpoint_mm = preprocess_commanded_pos();
-    // double error_mm = setpoint_mm - filtered_position_mm_;
-    // double other_error_mm = setpoint_mm - other_actuator_->position_ * 1000.0; // convert to mm
+    if (is_dominant_actuator) {
+      bool position_met = stop_sent_ && other_actuator_->stop_sent_;
 
-    // double error_difference = error_mm - other_error_mm;
-    // std::cout << "Error difference: " << error_difference << std::endl;
-    // if (std::fabs(error_difference) >= 10.0 && error_mm < other_error_mm && !stopped_due_to_desync_) {
-    //   RCLCPP_WARN(logger_, "Actuator %s and %s are out of sync by %.2f mm", name_.c_str(), other_actuator_->name_.c_str(), error_difference);
-    //   set_duty_cycle(0.0f);
-    //   stopped_due_to_desync_ = true;
-    //   stop_sent_ = true;
-    //   return;
-    // }
-    // else if (stopped_due_to_desync_ && std::fabs(error_difference) <= 5.0) {
-    //   set_position(static_cast<float>(setpoint_mm));
-    //   stopped_due_to_desync_ = false;
-    //   stop_sent_ = false;
-    //   return;
-    // }
+      // Regenerate resync checkpoints on command change
+      if (prev_commanded_pos_ != commanded_pos_) {
+        resync_checkpoints = generate_resync_points(position_, commanded_pos_, 20);
+        iterator_ = resync_checkpoints.begin();
+      }
+      else if (position_met && iterator_ != resync_checkpoints.end()) {
+        ++iterator_;
+      }
+    }
 
-    Actuator::write();
+    go_to_position(preprocess_pos(*iterator_));
+  }
+
+  std::vector<double> SynchronisedActuator::generate_resync_points(const double from, const double to, double max_distance_between_points_mm) {
+    if (max_distance_between_points_mm <= 0.0 || from == to) {
+      return {from, to};
+    }
+
+    std::vector<double> points;
+    double distance = to - from;
+    double direction = (distance >= 0) ? 1.0 : -1.0;
+    double step = std::abs(max_distance_between_points_mm) * direction;
+
+    double checkpoint = from + step;
+    while (std::abs(checkpoint - from) < std::abs(distance)) {
+      points.push_back(checkpoint);
+      checkpoint += step;
+    }
+
+    points.push_back(to);
+    return points;
   }
 }

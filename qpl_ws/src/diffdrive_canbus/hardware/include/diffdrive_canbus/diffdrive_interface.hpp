@@ -120,7 +120,8 @@ namespace diffdrive_canbus {
     void configure() override;
 
     void write() override;
-    double preprocess_commanded_pos();
+    void go_to_position(double setpoint_mm);
+    double preprocess_pos(double position_m);
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
 
@@ -140,16 +141,24 @@ namespace diffdrive_canbus {
 
   class SynchronisedActuator : public Actuator {
   public:
-    SynchronisedActuator(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, rclcpp::Logger &logger)
-      : Actuator(name, can_id, can, logger) {}
+    SynchronisedActuator(const std::string &name, const uint8_t &can_id, SocketCanInterface &can,
+      rclcpp::Logger &logger, bool is_dominant_actuator)
+      : Actuator(name, can_id, can, logger), is_dominant_actuator(is_dominant_actuator) {}
+
     void set_other_actuator(std::shared_ptr<SynchronisedActuator> &other_actuator) {
       other_actuator_ = other_actuator;
     }
+
+    std::vector<double> generate_resync_points(double from, double to, double max_distance_between_points_mm);
+
     void write() override;
 
   protected:
+    bool is_dominant_actuator{false};
     std::shared_ptr<SynchronisedActuator> other_actuator_{nullptr};
-    bool stopped_due_to_desync_{false};
+    std::vector<double> resync_checkpoints;
+    std::vector<double>::iterator iterator_;
+    double current_checkpoint_{0.0};
   };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_

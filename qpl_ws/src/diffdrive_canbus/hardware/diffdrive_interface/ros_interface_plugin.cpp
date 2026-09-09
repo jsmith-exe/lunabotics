@@ -45,8 +45,8 @@ public:
       front_right_motor_ = std::make_unique<DiffdriveMotor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
       rear_left_motor_ = std::make_unique<DiffdriveMotor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
       rear_right_motor_ = std::make_unique<DiffdriveMotor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
-      left_actuator_ = std::make_unique<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_);
-      right_actuator_ = std::make_unique<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_);
+      left_actuator_ = std::make_unique<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_, true);
+      right_actuator_ = std::make_unique<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_, false);
       drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, *can_, 125.0, logger_);
 
       left_actuator_->set_other_actuator(right_actuator_);
