@@ -1,4 +1,15 @@
 from enum import Enum
+from pathlib import Path
+
+NAV_TOPIC = '/cmd_vel_teleop'
+DRUM_ROTATION_TOPIC = '/drum_spin_control/teleop'
+DRUM_LIFT_TOPIC = '/drum_lift_control/teleop'
+PUBLISHER_UPDATE_RATE = 5
+INVERT_BACKWARDS_STEERING = True
+DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR = 0.3
+DEFAULT_MOTOR_STEER_BUTTON_FACTOR = 0.25
+DEFAULT_MOTOR_DRUM_BUTTON_FACTOR = 0.4
+CANBUS_CONFIG_PATH = Path('../diffdrive_canbus/hardware/config.yaml')
 
 class MessageOptions(Enum):
     """ Commands that can be sent to the robot. """
@@ -54,12 +65,3 @@ class ControllerInputs:
 
 class GUIInputs:
     DRUM_HEIGHT_SLIDER = 'drum_height_slider'
-
-NAV_TOPIC = '/cmd_vel_teleop'
-DRUM_ROTATION_TOPIC = '/drum_spin_control/teleop'
-DRUM_LIFT_TOPIC = '/drum_lift_control/teleop'
-PUBLISHER_UPDATE_RATE = 5
-INVERT_BACKWARDS_STEERING = True
-DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR = 0.3
-DEFAULT_MOTOR_STEER_BUTTON_FACTOR = 0.25
-DEFAULT_MOTOR_DRUM_BUTTON_FACTOR = 0.4

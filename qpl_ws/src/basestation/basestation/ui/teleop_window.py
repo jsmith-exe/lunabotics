@@ -57,7 +57,7 @@ def set_interval(func, interval_seconds: float):
 
 
 class TeleopWindow:
-    def __init__(self, base_station_state: BaseStationState, publish_function: Callable):
+    def __init__(self, base_station_state: BaseStationState, publish_function: Callable, canbus_config: dict):
         self.base_station_state = base_station_state
         self.controller = BaseController(publish_function, base_station_state, 0.002)
 
@@ -95,9 +95,10 @@ class TeleopWindow:
                             {"value": DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, "from_": 0, "to": 1},
                             {"side": "left", "padx": 5})
 
+        drum_config = canbus_config['drum']
         make_labeled_slider("Drum Lift", self.root, 0,
                             lambda value: self.controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
-                            {"from_": 22.6, "to": 228.0, "value": 100})
+                            {"from_": 22.6, "to": 228.0, "value": drum_config['default_lift_mm']})
 
         self.stop_flashing_interval = lambda : None  # Placeholder for the flashing interval function
         self.showing_danger = False
