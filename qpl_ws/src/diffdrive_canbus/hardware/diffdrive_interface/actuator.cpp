@@ -61,6 +61,7 @@ namespace diffdrive_canbus {
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (prev_commanded_pos_ != commanded_pos_) {
+      std::cout << "Set actuator " << name_ << " to go to " << setpoint_mm << std::endl;
       set_position(static_cast<float>(setpoint_mm));
       stop_sent_ = false;
     }
@@ -114,25 +115,28 @@ namespace diffdrive_canbus {
       RCLCPP_ERROR(logger_, "Other actuator not set for synchronised actuator %s", name_.c_str());
       return;
     }
-    if (other_actuator_->is_dominant_actuator && !other_actuator_->resync_checkpoints.empty()) {
-      RCLCPP_ERROR(logger_, "%s must setup resync checkpoints first.", other_actuator_->name_.c_str());
-      return;
-    }
 
     if (is_dominant_actuator) {
       bool position_met = stop_sent_ && other_actuator_->stop_sent_;
 
-      // Regenerate resync checkpoints on command change
       if (prev_commanded_pos_ != commanded_pos_) {
-        resync_checkpoints = generate_resync_points(position_, commanded_pos_, 20);
+        resync_checkpoints = generate_resync_points(position_, commanded_pos_, 0.04);
         iterator_ = resync_checkpoints.begin();
+        iterator_initialised_ = true;
       }
-      else if (position_met && iterator_ != resync_checkpoints.end()) {
+      else if (position_met && std::next(iterator_) != resync_checkpoints.end()) {
         ++iterator_;
       }
     }
+    else if (!other_actuator_->iterator_initialised_) {
+      RCLCPP_ERROR(logger_, "%s must setup resync checkpoints first.", other_actuator_->name_.c_str());
+      return;
+    }
 
-    go_to_position(preprocess_pos(*iterator_));
+    const SynchronisedActuator* leader = is_dominant_actuator ? this : other_actuator_.get();
+    if (leader->iterator_initialised_) {
+      go_to_position(preprocess_pos(*leader->iterator_));
+    }
   }
 
   std::vector<double> SynchronisedActuator::generate_resync_points(const double from, const double to, double max_distance_between_points_mm) {

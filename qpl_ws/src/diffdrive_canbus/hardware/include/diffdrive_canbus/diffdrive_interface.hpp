@@ -157,7 +157,8 @@ namespace diffdrive_canbus {
     bool is_dominant_actuator{false};
     std::shared_ptr<SynchronisedActuator> other_actuator_{nullptr};
     std::vector<double> resync_checkpoints;
-    std::vector<double>::iterator iterator_;
+    std::vector<double>::iterator iterator_{};
+    bool iterator_initialised_{false};
     double current_checkpoint_{0.0};
   };
 }
