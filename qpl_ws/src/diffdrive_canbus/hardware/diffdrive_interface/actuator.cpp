@@ -1,5 +1,4 @@
 #include <string>
-#include <iomanip>
 #include <iostream>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
@@ -26,6 +25,8 @@ double low_pass_filter(double prev_val, double new_val, double alpha) {
 
 namespace diffdrive_canbus {
   double Actuator::default_lift_mm = 0.0;
+  double Actuator::min_lift_mm = 0.0;
+  double Actuator::max_lift_mm = 0.0;
 
   void Actuator::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
     state_interfaces.emplace_back(
@@ -49,8 +50,9 @@ namespace diffdrive_canbus {
   void Actuator::write()
   {
     if (commanded_pos_ == 0.0) {
-      commanded_pos_ = Actuator::default_lift_mm / 1000.0; // convert to meters
+      commanded_pos_ = default_lift_mm / 1000.0; // convert to meters
     }
+    commanded_pos_ = std::clamp(commanded_pos_, min_lift_mm / 1000, max_lift_mm / 1000);
 
     const double setpoint_mm = commanded_pos_ * 1000.0 + ACTUATOR_POSITION_CONSTANT;
     const double error_mm = setpoint_mm - filtered_position_mm_; // Positive if setpoint is greater than current position (i.e., need to go up)

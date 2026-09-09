@@ -98,7 +98,7 @@ class TeleopWindow:
         drum_config = canbus_config['drum']
         make_labeled_slider("Drum Lift", self.root, 0,
                             lambda value: self.controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
-                            {"from_": 22.6, "to": 228.0, "value": drum_config['default_lift_mm']})
+                            {"from_": drum_config['min_lift_mm'], "to": drum_config['max_lift_mm'], "value": drum_config['default_lift_mm']})
 
         self.stop_flashing_interval = lambda : None  # Placeholder for the flashing interval function
         self.showing_danger = False
