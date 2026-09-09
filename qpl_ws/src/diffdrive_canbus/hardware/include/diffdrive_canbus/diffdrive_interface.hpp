@@ -131,7 +131,7 @@ namespace diffdrive_canbus {
 
   protected:
     double commanded_pos_{0.0};
-    double prev_commanded_pos_{0.0};
+    double prev_setpoint_mm_{0.0};
     double position_{0.0};
     double previous_position_{0.0};
     double filtered_position_mm_{0.0};
@@ -160,6 +160,7 @@ namespace diffdrive_canbus {
     std::vector<double>::iterator iterator_{};
     bool iterator_initialised_{false};
     double current_checkpoint_{0.0};
+    double prev_commanded_pos_{0.0};
   };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_

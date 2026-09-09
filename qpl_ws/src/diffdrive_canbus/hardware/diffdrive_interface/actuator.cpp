@@ -60,7 +60,7 @@ namespace diffdrive_canbus {
       && error_mm < ACTUATOR_STOP_POSITION_MM + ACTUATOR_STOP_TOLERANCE_MM;
 
     // Only send position command if new position sent, to reduce bandwidth use.
-    if (prev_commanded_pos_ != commanded_pos_) {
+    if (prev_setpoint_mm_ != setpoint_mm) {
       std::cout << "Set actuator " << name_ << " to go to " << setpoint_mm << std::endl;
       set_position(static_cast<float>(setpoint_mm));
       stop_sent_ = false;
@@ -71,7 +71,7 @@ namespace diffdrive_canbus {
       stop_sent_ = true;
     }
 
-    prev_commanded_pos_ = commanded_pos_;
+    prev_setpoint_mm_ = setpoint_mm;
   }
 
   // Returns the commanded position in mm, clamped, and offset by the actuator position constant
@@ -123,6 +123,7 @@ namespace diffdrive_canbus {
         resync_checkpoints = generate_resync_points(position_, commanded_pos_, 0.04);
         iterator_ = resync_checkpoints.begin();
         iterator_initialised_ = true;
+        prev_commanded_pos_ = commanded_pos_;
       }
       else if (position_met && std::next(iterator_) != resync_checkpoints.end()) {
         ++iterator_;
