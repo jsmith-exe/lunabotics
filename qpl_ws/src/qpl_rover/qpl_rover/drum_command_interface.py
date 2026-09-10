@@ -54,7 +54,7 @@ class DrumInterface(Node):
 
     def lift_autonomy_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.AUTONOMY): return
-        self.set_drum_lift_rate(msg.data)
+        self.set_drum_position(msg.data)
 
     def spin_autonomy_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.AUTONOMY): return
@@ -62,23 +62,23 @@ class DrumInterface(Node):
 
     def lift_teleop_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.TELEOP): return
-        self.set_drum_lift_rate(msg.data)
+        self.set_drum_position(msg.data)
 
     def spin_teleop_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.TELEOP): return
         self.set_drum_spin_rate(msg.data)
 
-    def set_drum_lift_rate(self, lift: float):
-        """ Sets the drum lift rate.
-        :param lift: The desired lift rate, between 0 and 1 inclusive.
+    def set_drum_position(self, lift: float):
+        """
+        :param lift: The desired position of the actuators, in metres.
         """
         float_array = Float64MultiArray()
         float_array.data = [lift, lift]
         self.drum_lift_pub.publish(float_array)
 
     def set_drum_spin_rate(self, spin: float):
-        """ Sets the drum spin rate
-        :param spin: The desired spin rate, between -1 and 1 inclusive.
+        """
+        :param spin: The desired spin rate as a proportion of max speed, between -1 and 1 inclusive.
         """
         float_array = Float64MultiArray()
         float_array.data = [spin]
