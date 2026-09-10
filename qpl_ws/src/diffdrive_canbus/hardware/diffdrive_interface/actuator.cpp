@@ -61,7 +61,6 @@ namespace diffdrive_canbus {
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (prev_setpoint_mm_ != setpoint_mm) {
-      std::cout << "Set actuator " << name_ << " to go to " << setpoint_mm << std::endl;
       set_position(static_cast<float>(setpoint_mm));
       stop_sent_ = false;
     }
@@ -109,6 +108,10 @@ namespace diffdrive_canbus {
     filtered_position_mm_ = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
   }
 
+
+
+  double SynchronisedActuator::max_distance_between_points_metres;
+
   void SynchronisedActuator::write()
   {
     if (other_actuator_ == nullptr) {
@@ -119,8 +122,10 @@ namespace diffdrive_canbus {
     if (is_dominant_actuator) {
       bool position_met = stop_sent_ && other_actuator_->stop_sent_;
 
+      // Note that on startup, this condition isn't true until commands are sent. The default position therefore never kicks in.
       if (prev_commanded_pos_ != commanded_pos_) {
-        resync_checkpoints = generate_resync_points(position_, commanded_pos_, 0.04);
+        resync_checkpoints = generate_resync_points(position_, commanded_pos_,
+          SynchronisedActuator::max_distance_between_points_metres);
         iterator_ = resync_checkpoints.begin();
         iterator_initialised_ = true;
         prev_commanded_pos_ = commanded_pos_;
@@ -130,7 +135,6 @@ namespace diffdrive_canbus {
       }
     }
     else if (!other_actuator_->iterator_initialised_) {
-      RCLCPP_ERROR(logger_, "%s must setup resync checkpoints first.", other_actuator_->name_.c_str());
       return;
     }
 
@@ -140,15 +144,15 @@ namespace diffdrive_canbus {
     }
   }
 
-  std::vector<double> SynchronisedActuator::generate_resync_points(const double from, const double to, double max_distance_between_points_mm) {
-    if (max_distance_between_points_mm <= 0.0 || from == to) {
+  std::vector<double> SynchronisedActuator::generate_resync_points(const double from, const double to, double max_distance_between_points) {
+    if (max_distance_between_points <= 0.0 || from == to) {
       return {from, to};
     }
 
     std::vector<double> points;
     double distance = to - from;
     double direction = (distance >= 0) ? 1.0 : -1.0;
-    double step = std::abs(max_distance_between_points_mm) * direction;
+    double step = std::abs(max_distance_between_points) * direction;
 
     double checkpoint = from + step;
     while (std::abs(checkpoint - from) < std::abs(distance)) {

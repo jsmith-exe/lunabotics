@@ -1,4 +1,0 @@
-drum:
-  default_lift_mm: 150
-  min_lift_mm: 40
-  max_lift_mm: 200

@@ -9,7 +9,7 @@ INVERT_BACKWARDS_STEERING = True
 DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR = 0.3
 DEFAULT_MOTOR_STEER_BUTTON_FACTOR = 0.25
 DEFAULT_MOTOR_DRUM_BUTTON_FACTOR = 0.4
-CANBUS_CONFIG_PATH = Path('../diffdrive_canbus/hardware/config.yaml')
+CANBUS_CONFIG_PATH = Path('../diffdrive_canbus/hardware/can_config.yaml')
 
 class MessageOptions(Enum):
     """ Commands that can be sent to the robot. """

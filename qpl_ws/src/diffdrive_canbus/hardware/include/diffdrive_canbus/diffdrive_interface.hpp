@@ -14,7 +14,7 @@ constexpr bool SOFTWARE_SIDE_MOTOR_SMOOTHING = false;
 constexpr bool SEND_ZERO_DUTY_FOR_MOTORS = false; // Replaces sending zero velocity with zero duty commands; bypasses PID.
 
 // Constants
-constexpr auto CONFIG_FILE_PATH = "qpl_ws/src/diffdrive_canbus/hardware/config.yaml";
+constexpr auto CONFIG_FILE_PATH = "qpl_ws/src/diffdrive_canbus/hardware/can_config.yaml";
 
 constexpr double TWO_PI = 2.0 * M_PI;
 
@@ -152,6 +152,8 @@ namespace diffdrive_canbus {
     std::vector<double> generate_resync_points(double from, double to, double max_distance_between_points_mm);
 
     void write() override;
+
+    static double max_distance_between_points_metres;
 
   protected:
     bool is_dominant_actuator{false};
