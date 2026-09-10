@@ -7,7 +7,7 @@
 
 
 namespace diffdrive_canbus {
-  void CANSystem::add_device(const std::unique_ptr<CANDevice> &device) {
+  void CANSystem::add_device(const std::shared_ptr<CANDevice> &device) {
     devices_[device->can_id()] = device.get();
   }
 

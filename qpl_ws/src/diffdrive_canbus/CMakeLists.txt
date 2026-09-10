@@ -13,6 +13,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 )
 
 find_package(ament_cmake REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
@@ -32,6 +33,7 @@ add_library(
   hardware/diffdrive_interface/can_system.cpp
   hardware/diffdrive_interface/actuator.cpp
   hardware/diffdrive_interface/motor.cpp
+  hardware/diffdrive_interface/diffdrive_motor.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)
@@ -45,6 +47,13 @@ ament_target_dependencies(
   diffdrive_canbus
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
+
+if(TARGET yaml-cpp::yaml-cpp)
+  target_link_libraries(diffdrive_canbus yaml-cpp::yaml-cpp)
+else()
+  target_link_libraries(diffdrive_canbus ${YAML_CPP_LIBRARIES})
+  target_include_directories(diffdrive_canbus PRIVATE ${YAML_CPP_INCLUDE_DIR})
+endif()
 
 target_compile_definitions(diffdrive_canbus PRIVATE
   CANBUS_BUILDING_DLL

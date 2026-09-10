@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 namespace diffdrive_canbus
 {
@@ -35,16 +36,21 @@ public:
 
     try
     {
+      load_config();
+
       can_ = std::make_unique<SocketCanInterface>();
       can_system_ = std::make_unique<CANSystem>(logger_);
 
-      front_left_motor_ = std::make_unique<Motor>("front_left_wheel_joint", 1, *can_, 100.0, logger_);
-      front_right_motor_ = std::make_unique<Motor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
-      rear_left_motor_ = std::make_unique<Motor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
-      rear_right_motor_ = std::make_unique<Motor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
-      left_actuator_ = std::make_unique<Actuator>("left_linear_actuator_joint", 5, *can_, logger_);
-      right_actuator_ = std::make_unique<Actuator>("right_linear_actuator_joint", 6, *can_, logger_);
+      front_left_motor_ = std::make_unique<DiffdriveMotor>("front_left_wheel_joint", 1, *can_, 100.0, logger_);
+      front_right_motor_ = std::make_unique<DiffdriveMotor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
+      rear_left_motor_ = std::make_unique<DiffdriveMotor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
+      rear_right_motor_ = std::make_unique<DiffdriveMotor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
+      left_actuator_ = std::make_unique<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_, true);
+      right_actuator_ = std::make_unique<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_, false);
       drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, *can_, 125.0, logger_);
+
+      left_actuator_->set_other_actuator(right_actuator_);
+      right_actuator_->set_other_actuator(left_actuator_);
 
       can_system_->add_device(front_left_motor_);
       can_system_->add_device(front_right_motor_);
@@ -163,6 +169,12 @@ public:
   }
 
 private:
+  void load_config() {
+    YAML::Node config = YAML::LoadFile(CONFIG_FILE_PATH);
+    Actuator::default_lift_mm = config["drum"]["default_lift_mm"].as<double>();
+    Actuator::min_lift_mm = config["drum"]["min_lift_mm"].as<double>();
+    Actuator::max_lift_mm = config["drum"]["max_lift_mm"].as<double>();
+  }
 
   void send_heartbeat_if_due()
   {
@@ -270,13 +282,13 @@ private:
   std::unique_ptr<SocketCanInterface> can_;
   std::unique_ptr<CANSystem> can_system_;
 
-  std::unique_ptr<CANDevice> front_left_motor_;
-  std::unique_ptr<CANDevice> front_right_motor_;
-  std::unique_ptr<CANDevice> rear_left_motor_;
-  std::unique_ptr<CANDevice> rear_right_motor_;
-  std::unique_ptr<CANDevice> left_actuator_;
-  std::unique_ptr<CANDevice> right_actuator_;
-  std::unique_ptr<CANDevice> drum_motor_;
+  std::shared_ptr<CANDevice> front_left_motor_;
+  std::shared_ptr<CANDevice> front_right_motor_;
+  std::shared_ptr<CANDevice> rear_left_motor_;
+  std::shared_ptr<CANDevice> rear_right_motor_;
+  std::shared_ptr<SynchronisedActuator> left_actuator_;
+  std::shared_ptr<SynchronisedActuator> right_actuator_;
+  std::shared_ptr<CANDevice> drum_motor_;
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{std::chrono::steady_clock::now()};
   std::chrono::steady_clock::time_point next_feedback_read_time_{std::chrono::steady_clock::now()};
