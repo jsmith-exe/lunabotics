@@ -77,7 +77,7 @@ rover:
   # to the remap list in camera_realsense.launch.py.
   # TODO(calibration): wheel_separation still scales odom0's vyaw - see
   # my_controllers.yaml. vx is (v_l+v_r)/2 and is unaffected.
-  imu0: /camera/camera/imu
+  imu0: /camera/camera/imu_standard
   imu0_config: [false, false, false,
                 false, false, false,
                 false, false, false,

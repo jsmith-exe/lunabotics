@@ -111,7 +111,7 @@ rover:
   # Must stay in step with the rover block in ekf_local_params.yaml.
   two_d_mode: false
 
-  imu0: /camera/camera/imu
+  imu0: /camera/camera/imu_standard
   imu0_remove_gravitational_acceleration: false
 
   # IMU (RealSense accelerometer, via imu_filter_madgwick): roll/pitch only.

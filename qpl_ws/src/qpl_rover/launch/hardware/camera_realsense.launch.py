@@ -41,19 +41,27 @@ def generate_launch_description():
             # Gyro bias estimation, off.
             'zeta': 0.0,
 
-            'fixed_frame': 'camera_frame',
+            'fixed_frame': 'camera_imu_frame',
 
             'remove_gravity_vector': False,
         }],
         remappings=[
-            ('/imu/data_raw', '/camera/camera/imu'),
+            ('/imu/data_raw', '/camera/camera/imu_standard'),
         ]
+    )
+
+    imu_optical_to_ros = Node(
+        package='qpl_rover',
+        executable='imu_optical_to_standard',
+        output='screen',
+        respawn=True,
     )
 
     return LaunchDescription([
         use_low_quality_parameter,
         OpaqueFunction(function=get_camera_launch),
         imu_filter,
+        imu_optical_to_ros,
     ])
 
 
