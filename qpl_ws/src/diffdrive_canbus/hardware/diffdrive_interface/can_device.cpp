@@ -17,8 +17,9 @@ namespace diffdrive_canbus
 {
 constexpr uint8_t SPARKMAX_API_DUTY_CYCLE_SET = 0x02;
 constexpr uint8_t SPARKMAX_API_VELOCITY_SET   = 0x12;
+constexpr uint8_t SPARKMAX_API_POSITION_SET   = 0x32;
 
-CANDevice::CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger)
+CANDevice::CANDevice(std::string name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger)
 : name_(std::move(name)),
   can_id_(can_id),
   can_(can),
@@ -78,7 +79,7 @@ bool CANDevice::send_heartbeats(bool print)
               << "\n";
   }
 
-  return can_.send_extended_frame(non_rio_id, data, print);
+  return can_.send_extended_frame(non_rio_id, data);
 }
 
 bool CANDevice::clear_faults(bool print)
@@ -103,7 +104,7 @@ bool CANDevice::clear_faults(bool print)
     std::cerr << "WARNING: clear_faults is targeting SPARK MAX device ID 0\n";
   }
 
-  return can_.send_extended_frame(id, {}, print);
+  return can_.send_extended_frame(id, {});
 }
 
 bool CANDevice::set_status_period(uint8_t status_frame_index, uint16_t period_ms)
@@ -116,15 +117,14 @@ bool CANDevice::set_status_period(uint8_t status_frame_index, uint16_t period_ms
   data[0] = static_cast<uint8_t>(period_ms & 0xFF);
   data[1] = static_cast<uint8_t>((period_ms >> 8) & 0xFF);
 
-  return can_.send_extended_frame(id, data, true);
+  return can_.send_extended_frame(id, data);
 }
 
 bool CANDevice::send_setpoint(
   uint8_t api_class,
   uint8_t api_index,
   float setpoint,
-  uint8_t pid_slot,
-  bool print)
+  uint8_t pid_slot)
 {
   const uint32_t id = make_sparkmax_id(api_class, api_index, can_id_);
 
@@ -154,7 +154,7 @@ bool CANDevice::send_setpoint(
   data[6] = static_cast<uint8_t>(pid_slot & 0x03);
   data[7] = 0x00;
 
-  return can_.send_extended_frame(id, data, print);
+  return can_.send_extended_frame(id, data);
 }
 
 bool CANDevice::send_simple_setpoint(
@@ -177,60 +177,7 @@ bool CANDevice::send_simple_setpoint(
   data[6] = static_cast<uint8_t>(native_velocity_pid_slot_ & 0x03);
   data[7] = 0x00;
 
-  return can_.send_extended_frame(id, data, false);
-}
-
-bool CANDevice::send_setpoint_with_control_type(
-  uint8_t api_class,
-  uint8_t api_index,
-  float setpoint,
-  uint8_t control_type,
-  uint8_t pid_slot,
-  bool print)
-{
-  const uint32_t id = make_sparkmax_id(
-    api_class,
-    api_index,
-    can_id_);
-
-  std::cout << "DEBUG TX SETPOINT_WITH_CONTROL_TYPE:"
-            << " api_class=" << static_cast<int>(api_class)
-            << " api_index=" << static_cast<int>(api_index)
-            << " device_id_=" << static_cast<int>(can_id_)
-            << " can_id=0x"
-            << std::hex << std::uppercase << id
-            << std::dec
-            << " setpoint=" << setpoint
-            << " control_type=" << static_cast<int>(control_type)
-            << " pid_slot=" << static_cast<int>(pid_slot)
-            << "\n";
-
-  if (can_id_ == 0)
-  {
-    std::cerr << "WARNING: send_setpoint_with_control_type is targeting SPARK MAX device ID 0\n";
-  }
-
-  if (can_id_ == 0)
-  {
-    std::cerr << "WARNING: send_setpoint_with_control_type is targeting SPARK MAX device ID 0\n";
-  }
-
-  std::vector<uint8_t> data(8, 0x00);
-
-  uint8_t target[4];
-  float_to_le_bytes(setpoint, target);
-
-  data[0] = target[0];
-  data[1] = target[1];
-  data[2] = target[2];
-  data[3] = target[3];
-
-  data[4] = control_type;
-  data[5] = 0x00;
-  data[6] = static_cast<uint8_t>(pid_slot & 0x03);
-  data[7] = 0x00;
-
-  return can_.send_extended_frame(id, data, print);
+  return can_.send_extended_frame(id, data);
 }
 
 const SparkMaxTelemetry & CANDevice::telemetry() const
@@ -278,6 +225,13 @@ bool CANDevice::set_velocity_rad_per_sec(float target_wheel_rad_per_sec)
   const float target_motor_rad_per_sec = target_wheel_rad_per_sec * gear_ratio_;
   const float target_motor_rpm = rad_per_sec_to_rpm(target_motor_rad_per_sec);
   return send_simple_setpoint(SPARKMAX_API_VELOCITY_SET, target_motor_rpm);
+}
+
+bool CANDevice::set_position(float position)
+{
+  // The SPARK MAX interprets this value using its configured position
+  // conversion factor. For the linear actuators that unit is millimetres.
+  return send_simple_setpoint(SPARKMAX_API_POSITION_SET, position);
 }
 
 // --- All below here can go into comms

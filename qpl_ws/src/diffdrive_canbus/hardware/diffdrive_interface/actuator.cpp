@@ -3,14 +3,18 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
-#include <iostream>
 
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
-constexpr double ACTUATOR_MIN_VOLTAGE = 0.279;
-constexpr double ACTUATOR_MAX_VOLTAGE = 1.85;
-constexpr double ACTUATOR_DEADBAND = 0.02;
+
+constexpr double ACTUATOR_STOP_TOLERANCE_MM = 20.0;
+constexpr double ACTUATOR_RESUME_TOLERANCE_MM = 40.0;
+
+constexpr double RAW_MIN = 46.0;
+constexpr double RAW_MAX = 318.0;
+constexpr double DISTANCE_MIN_MM = 22.6;
+constexpr double DISTANCE_MAX_MM = 228.0;
 
 namespace diffdrive_canbus {
   void Actuator::setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
@@ -23,7 +27,7 @@ namespace diffdrive_canbus {
     command_interfaces.emplace_back(
       this->name_,
       hardware_interface::HW_IF_POSITION,
-      &command_);
+      &commanded_pos_mm_);
   }
 
   void Actuator::configure() {
@@ -33,51 +37,47 @@ namespace diffdrive_canbus {
 
   void Actuator::write()
   {
-    double safe_throttle = clamp_and_apply_deadband_if_finite(command_, ACTUATOR_DEADBAND);
+      constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f;
+      const double setpoint_mm = commanded_pos_mm_ + ACTUATOR_POSITION_CONSTANT;
+      const double abs_error_mm = std::fabs(setpoint_mm - position_ * 1000.0); // convert to mm, for ease of comparison with setpoint_mm
 
-    if (abs(command_ - prev_command_) < MIN_ACTUATOR_VELOCITY_CHANGE)
-    {
-      return;
-    }
-    prev_command_ = command_;
+      if (!reached_position_ && abs_error_mm <= ACTUATOR_STOP_TOLERANCE_MM) {
+          reached_position_ = true;
+      }
+      else if (reached_position_ && abs_error_mm >= ACTUATOR_RESUME_TOLERANCE_MM) {
+          reached_position_ = false;
+      }
 
-    set_duty_cycle(static_cast<float>(safe_throttle));
-    sleep_bus_gap();
+      if (reached_position_ && !stop_sent_) {
+          set_duty_cycle(0.0f);
+          stop_sent_ = true;
+      }
+      else if (!reached_position_) {
+          set_position(static_cast<float>(setpoint_mm));
+          stop_sent_ = false;
+      }
   }
 
-  double Actuator::normalise_actuator_voltage(double voltage, double min_voltage, double max_voltage)
+  double Actuator::feedback_to_distance(uint16_t raw_voltage_feedback)
   {
-    const double span = max_voltage - min_voltage;
+      const double normalised = (static_cast<double>(raw_voltage_feedback) - RAW_MIN) / (RAW_MAX - RAW_MIN);
 
-    if (!std::isfinite(voltage) || std::fabs(span) < 1e-9)
-    {
-      return 0.0;
-    }
+      const double clamped = std::clamp(normalised, 0.0, 1.0);
 
-    return std::clamp((voltage - min_voltage) / span,0.0, 1.0);
+      return DISTANCE_MIN_MM + clamped * (DISTANCE_MAX_MM - DISTANCE_MIN_MM);
   }
 
-  void Actuator::update_joint_state(const CANFrame & frame)
+  void Actuator::update_joint_state(const can_frame & frame)
   {
-    if (get_frc_device_id_from_can_id(frame.id) != can_id_)
+    // CAN ID must match this device's and the frame must be status3.
+    if (get_frc_device_id_from_can_id(frame.can_id) != can_id_
+        || !is_actuator_status3_id(frame.can_id, can_id_))
     {
-      return;
+        return;
     }
 
-    // SPARK MAX analogue sensor data is expected on Periodic Status 3.
-    // Use the exact Status 3 CAN ID instead of only the API index so Status 0/1/2
-    // frames cannot be mistaken for analogue feedback.
-    if (!is_actuator_status3_id(frame.id, can_id_))
-    {
-      return;
-    }
-
-    // Per the non-FRC SPARK MAX CAN reference, Periodic Status 3 starts with
-    // adcVoltage in 2q8 fixed-point format. That means the raw 16-bit
-    // little-endian value is voltage * 256.
-    const uint16_t raw_adc_voltage_2q8 = le_u16_from_frame_data(frame.data, 0);
-    const double analog_voltage = static_cast<double>(raw_adc_voltage_2q8) / 256.0;
-    voltage_ = analog_voltage;
-    position_ = normalise_actuator_voltage(analog_voltage, ACTUATOR_MIN_VOLTAGE, ACTUATOR_MAX_VOLTAGE);
+    const uint16_t packed = le_u16_from_frame_data(frame.data, 0);
+    const uint16_t raw_feedback = packed & 0x03FF;
+    position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
   }
 }

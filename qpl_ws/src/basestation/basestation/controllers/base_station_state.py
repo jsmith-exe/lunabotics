@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 
 from ..control_maps import default_control_map
-from ...constants import NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC
+from ..constants import NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
+    DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_DRUM_BUTTON_FACTOR
 
 
 def generate_base_twist_state(topic):
@@ -30,5 +31,15 @@ def generate_topic_state():
 class BaseStationState:
     """ Stores the state of the base station, for communication between instances. """
     teleop_enabled: bool = True
+    motor_drive_button_factor: float = DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR
+    motor_steer_button_factor: float = DEFAULT_MOTOR_STEER_BUTTON_FACTOR
+    motor_drum_button_factor: float = DEFAULT_MOTOR_DRUM_BUTTON_FACTOR
     control_map: dict = field(default_factory=lambda: default_control_map)
     topic_target_states: dict = field(default_factory=generate_topic_state)
+
+    def set_motor_drive_button_factor(self, value: float):
+        self.motor_drive_button_factor = value
+    def set_motor_steer_button_factor(self, value: float):
+        self.motor_steer_button_factor = value
+    def set_motor_drum_button_factor(self, value: float):
+        self.motor_drum_button_factor = value

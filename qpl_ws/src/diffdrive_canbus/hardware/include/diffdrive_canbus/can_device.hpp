@@ -20,24 +20,19 @@ struct SparkMaxTelemetry
   float encoder_position_rotations = 0.0f;
   float wheel_position_rotations = 0.0f;
 
-  bool has_applied_output = false;
   float applied_output = 0.0f;
 };
 
 class CANDevice
 {
 public:
-  CANDevice(std::string name, const uint8_t &can_id, CANComms &can, float gear_ratio, rclcpp::Logger &logger);
+  CANDevice(std::string name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger);
   virtual ~CANDevice() = default;
 
   virtual void configure();
 
-  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) {
-    throw std::runtime_error("base setup_ros_state_interfaces used");
-  }
-  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) {
-    throw std::runtime_error("base setup_ros_command_interfaces used");
-  }
+  void virtual setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) = 0;
+  void virtual setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) = 0;
 
   std::string name() const { return name_; }
   uint8_t can_id() const { return can_id_; }
@@ -51,14 +46,13 @@ public:
   float wheel_position_rotations() const;
   float applied_output() const;
 
-  virtual void write() { throw std::runtime_error("base write used"); }
+  virtual void write() = 0;
+  virtual void update_joint_state(const can_frame &frame) = 0;
 
   // TODO hopefully temporary declarations of motor functions; these can be removed once there is clearer separation of concerns
   virtual double commanded_velocity() const { return 0.0; }
   virtual double velocity() const { return 0.0; }
   virtual double rotation_position() const { return 0.0; }
-  // TODO temporary declarations for actuators (see prev todo)
-  virtual void update_joint_state(const CANFrame & frame) { throw std::runtime_error("base update_joint_state used"); }
 
   double clamp_and_apply_deadband_if_finite(double value, double deadband, double min = -1.0, double max = 1.0);
   bool send_heartbeats(bool print = false);
@@ -66,6 +60,7 @@ public:
 
   bool set_duty_cycle(float duty);
   bool set_velocity_rad_per_sec(float target_wheel_rad_per_sec);
+  bool set_position(float position);
 
   void set_native_velocity_pid_slot(uint8_t pid_slot);
 
@@ -75,29 +70,23 @@ protected:
   static constexpr uint8_t DEVICE_TYPE_MOTOR_CONTROLLER = 2;
   static constexpr uint8_t MANUFACTURER_REV = 5;
 
-  static constexpr uint8_t API_CLASS_PERIODIC_STATUS = 46;
+  static constexpr uint8_t API_CLASS_PERIODIC_STATUS = 6;
   static constexpr uint8_t API_INDEX_STATUS_0 = 0;
   static constexpr uint8_t API_INDEX_STATUS_1 = 1;
   static constexpr uint8_t API_INDEX_STATUS_2 = 2;
-  static constexpr uint8_t API_INDEX_STATUS_5 = 5;
 
   static constexpr uint8_t API_CLASS_CLEAR_FAULTS = 6;
   static constexpr uint8_t API_INDEX_CLEAR_FAULTS = 14;
 
-  static constexpr uint8_t API_CLASS_ROBORIO = 9;
-  static constexpr uint8_t API_INDEX_ROBORIO_HEARTBEAT = 2;
-
   static constexpr uint8_t API_CLASS_NON_RIO = 11;
   static constexpr uint8_t API_INDEX_NON_RIO_HEARTBEAT = 2;
-
   static constexpr uint8_t HEARTBEAT_DEVICE_ID = 0;
-
-  rclcpp::Logger logger_;
 
   std::string name_;
   uint8_t can_id_;
-  CANComms & can_;
+  SocketCanInterface & can_;
   float gear_ratio_;
+  rclcpp::Logger logger_;
 
   SparkMaxTelemetry telemetry_;
 
@@ -125,20 +114,11 @@ protected:
     uint8_t api_class,
     uint8_t api_index,
     float setpoint,
-    uint8_t pid_slot,
-    bool print);
+    uint8_t pid_slot);
 
   bool send_simple_setpoint(
     uint8_t api_id,
     float setpoint);
-
-  bool send_setpoint_with_control_type(
-    uint8_t api_class,
-    uint8_t api_index,
-    float setpoint,
-    uint8_t control_type,
-    uint8_t pid_slot,
-    bool print);
 };
 
 }  // namespace diffdrive_canbus
