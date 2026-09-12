@@ -30,6 +30,70 @@ namespace diffdrive_canbus {
       &commanded_velocity_);
   }
 
+  void Motor::write() // Velocity should be interpreted as a proportion of max RPM, -1.0 to 1.0.
+  {
+    const double velocity_to_write = preprocess_velocity();
+    if (!has_command_significantly_changed(velocity_to_write))
+    {
+      return;
+    }
+
+    prev_commanded_velocity_ = velocity_to_write;
+    if (SEND_ZERO_DUTY_FOR_MOTORS && velocity_to_write == 0.0) {
+      this->set_duty_cycle(0.0);
+    }
+    else {
+      set_velocity(velocity_to_write);
+    }
+  }
+
+  void Motor::set_velocity(double velocity) {
+    set_velocity_rpm(static_cast<float>(velocity * MAX_MOTOR_RPM));
+  }
+
+  double Motor::preprocess_velocity() {
+    double velocity_to_write = commanded_velocity_;
+    if (SOFTWARE_SIDE_MOTOR_SMOOTHING)
+    {
+      calculate_smoothed_velocity();
+      velocity_to_write = smoothed_velocity_;
+    }
+    return velocity_to_write;
+  }
+
+  void Motor::calculate_smoothed_velocity() {
+    // Calculate time since last write
+    const auto now = std::chrono::system_clock::now();
+    const auto time_since_last_write = now - last_write_time_;
+    last_write_time_ = now;
+    // To ms
+    const auto ms_since_last_write = std::chrono::duration_cast<std::chrono::milliseconds>(time_since_last_write);
+    const double seconds_since_last_write = ms_since_last_write.count() / 1000.0;
+
+    const double max_velocity_change = seconds_since_last_write * max_rate_of_velocity_change_;
+    // Set velocity to commanded if it's within the max velocity change
+    if (max_velocity_change >= abs(commanded_velocity_ - smoothed_velocity_))
+    {
+      smoothed_velocity_ = commanded_velocity_;
+    }
+    else // Otherwise add/subtract
+    {
+      if (commanded_velocity_ < smoothed_velocity_) { // If we need to slow down to meet commanded vel
+        smoothed_velocity_ -= max_velocity_change;
+      }
+      else { // We need to speed up to meet commanded vel
+        smoothed_velocity_ += max_velocity_change;
+      }
+    }
+  }
+
+  bool Motor::has_command_significantly_changed(double velocity_to_write)
+  {
+    const bool new_zero_sent = velocity_to_write == 0.0 && prev_commanded_velocity_ != 0.0;
+    const bool significant_change = abs(velocity_to_write - prev_commanded_velocity_) >= min_rate_of_velocity_change_;
+    return new_zero_sent || significant_change;
+  }
+
   void Motor::update_joint_state(const can_frame &frame)
   {
     handle_status_frame(frame);
@@ -52,50 +116,6 @@ namespace diffdrive_canbus {
       }
 
       rotation_position_ = absolute_position_rad - position_offset_rad_;
-    }
-  }
-
-  void Motor::write()
-  {
-    // Calculate time since last write
-    const auto now = std::chrono::system_clock::now();
-    const auto time_since_last_write = now - last_write_time_;
-    last_write_time_ = now;
-    // To ms
-    const auto ms_since_last_write = std::chrono::duration_cast<std::chrono::milliseconds>(time_since_last_write);
-    const double seconds_since_last_write = ms_since_last_write.count() / 1000.0;
-    
-    const double max_velocity_change = seconds_since_last_write * rate_of_velocity_change_;
-    // Set velocity to commanded if it's within the max velocity change
-    if (max_velocity_change >= abs(commanded_velocity_ - smoothed_velocity_))
-    {
-      smoothed_velocity_ = commanded_velocity_;
-    }
-    else // Otherwise add/subtract
-    {
-      if (commanded_velocity_ < smoothed_velocity_) { // If we need to slow down to meet commanded vel
-        smoothed_velocity_ -= max_velocity_change;
-      }
-      else { // We need to speed up to meet commanded vel
-        smoothed_velocity_ += max_velocity_change;
-      }
-    }
-    const double velocity_to_write = smoothed_velocity_;
-
-    // Limit writes to significant changes
-    const bool new_zero_sent = velocity_to_write == 0.0 && prev_commanded_velocity_ != 0.0;
-    const bool insignificant_change = abs(velocity_to_write - prev_commanded_velocity_) < MIN_VELOCITY_CHANGE;
-    if (!new_zero_sent && insignificant_change)
-    {
-      return;
-    }
-    prev_commanded_velocity_ = velocity_to_write;
-
-    if (velocity_to_write == 0.0) {
-      this->set_duty_cycle(0.0);
-    }
-    else {
-      this->set_velocity_rad_per_sec(static_cast<float>(velocity_to_write));
     }
   }
 

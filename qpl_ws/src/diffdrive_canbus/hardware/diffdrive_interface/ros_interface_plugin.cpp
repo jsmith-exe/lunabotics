@@ -38,10 +38,10 @@ public:
       can_ = std::make_unique<SocketCanInterface>();
       can_system_ = std::make_unique<CANSystem>(logger_);
 
-      front_left_motor_ = std::make_unique<Motor>("front_left_wheel_joint", 1, *can_, 100.0, logger_);
-      front_right_motor_ = std::make_unique<Motor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
-      rear_left_motor_ = std::make_unique<Motor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
-      rear_right_motor_ = std::make_unique<Motor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
+      front_left_motor_ = std::make_unique<DiffdriveMotor>("front_left_wheel_joint", 1, *can_, 100.0, logger_);
+      front_right_motor_ = std::make_unique<DiffdriveMotor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
+      rear_left_motor_ = std::make_unique<DiffdriveMotor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
+      rear_right_motor_ = std::make_unique<DiffdriveMotor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
       left_actuator_ = std::make_unique<Actuator>("left_linear_actuator_joint", 5, *can_, logger_);
       right_actuator_ = std::make_unique<Actuator>("right_linear_actuator_joint", 6, *can_, logger_);
       drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, *can_, 125.0, logger_);
