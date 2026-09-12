@@ -10,7 +10,7 @@ class BaseController:
     """
     Base class controller for handling shared implementations of button and analogue inputs.
     """
-    def __init__(self, publish_function: Callable, state: BaseStationState):
+    def __init__(self, publish_function: Callable, state: BaseStationState, minimum_analogue_change: float = MINIMUM_ANALOGUE_CHANGE):
         """
         :param publish_function: a function that takes in one first argument, the command, and an arbitrary number of arguments.
         :param state: the state object to use.
@@ -18,6 +18,7 @@ class BaseController:
         self.publish_function = publish_function
         self.state = state
         self.previous_analogue_values = dict()
+        self.minimum_analogue_change = minimum_analogue_change
 
     def handle_button(self, button: str | ControllerInputs | GUIInputs, pressed: bool) -> None:
         """
@@ -50,7 +51,7 @@ class BaseController:
         prev_value = self.previous_analogue_values.get(input_)
         if (command is None or
             # Ignore insignificant inputs if there was a previous value and there is a non-zero value from the input.
-            (prev_value is not None and abs(value - prev_value) < MINIMUM_ANALOGUE_CHANGE)):
+            (prev_value is not None and abs(value - prev_value) < self.minimum_analogue_change)):
             return
 
         normalised_value = self._post_process_value(value, command)
