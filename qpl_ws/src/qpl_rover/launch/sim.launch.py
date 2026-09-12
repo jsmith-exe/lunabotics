@@ -39,10 +39,11 @@ def setup_components(context):
             path.join(rover_pkg, "launch", "components.launch.py")
         ),
         launch_arguments={
-            "use_sim_time": "true"
+            "use_sim_time": "true",
+            "use_vslam": LaunchConfiguration("use_vslam").perform(context),
         }.items()
     )
-    
+
     return [components]
 
 def make_relay(name: str, source: str, destination: str):
@@ -90,6 +91,12 @@ def generate_launch_description():
         description='Whether to run the simulation with components.'
     )
 
+    use_vslam_parameter = DeclareLaunchArgument(
+        'use_vslam',
+        default_value='false',
+        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1.'
+    )
+
     # tell gazebo where to find the apriltag model so the texture loads on any machine
     models_path = path.join(rover_pkg, "worlds")
     gazebo_model_path = SetEnvironmentVariable(
@@ -125,6 +132,7 @@ def generate_launch_description():
     return LaunchDescription([
         headless_parameter,
         run_components_parameter,
+        use_vslam_parameter,
         gazebo_model_path,
         rsp,
         OpaqueFunction(function=setup_gazebo),

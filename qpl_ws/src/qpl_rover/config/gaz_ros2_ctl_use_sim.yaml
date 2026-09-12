@@ -1,3 +1,11 @@
 controller_manager:
   ros__parameters:
     use_sim_time: true
+
+# Simulation-only overrides, loaded after my_controllers.yaml.
+diff_cont:
+  ros__parameters:
+
+    # Effective skid-steer track width, measured in Gazebo. Specific to the
+    # sim's wheel friction; retune if that changes.
+    wheel_separation: 1.161

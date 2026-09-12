@@ -1,7 +1,6 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
-import os
+from qpl_rover.ekf_config import load_ekf_params
 
 from launch.actions import TimerAction, OpaqueFunction, DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -13,22 +12,7 @@ def opaque_generate_launch_description(context):
 
     print(f"use_sim_time: {use_sim_time}")
 
-    rover_pkg = get_package_share_directory("qpl_rover")
-
-    if use_sim_time:
-        ekf_local_params = os.path.join(
-            rover_pkg,
-            "config",
-            "ekf_local_params.yaml"
-        )
-    else:
-        ekf_local_params = os.path.join(
-            rover_pkg,
-            "config",
-            "ekf_local_params_rover.yaml"
-        )
-
-    print(f"Using EKF params: {ekf_local_params}")
+    ekf_local_params = load_ekf_params("ekf_local_params.yaml", use_sim_time)
 
     ekf_local_node = TimerAction(
         period=6.0,
@@ -38,10 +22,7 @@ def opaque_generate_launch_description(context):
                 executable="ekf_node",
                 name="ekf_local",
                 output="screen",
-                parameters=[
-                    ekf_local_params,
-                    {"use_sim_time": use_sim_time},
-                ],
+                parameters=[ekf_local_params],
             )
         ],
     )
