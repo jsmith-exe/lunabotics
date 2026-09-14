@@ -5,9 +5,10 @@
 # https://excess.org/speedometer/
 # Another good option is nload: sudo apt install nload
 
-# DEPRECATED:
-# wondershaper was used for network limiting; install it with these instructions:
+# wondershaper is used for network limiting (upload and download); install it with these instructions:
 # https://github.com/magnific0/wondershaper?tab=readme-ov-file#system-installation-optional
+# The stock Jetson kernel is missing the modules wondershaper needs (ifb, sch_htb, sch_sfq, cls_u32);
+# see docs/jetson-network-limiting.md for how to build a kernel that has them.
 
 export DEFAULT_LIMITED_INTERFACE="eno1"
 
@@ -30,14 +31,11 @@ qpl_net_limit_set() {
   local MIN_UPLOAD_KBITS MIN_DOWNLOAD_KBITS
   MIN_UPLOAD_KBITS=100
   MIN_DOWNLOAD_KBITS=100
-  if (( UPLOAD_KBITS < MIN_UPLOAD_KBITS|| MIN_DOWNLOAD_KBITS < 100 )); then
+  if (( UPLOAD_KBITS < MIN_UPLOAD_KBITS || DOWNLOAD_KBITS < MIN_DOWNLOAD_KBITS )); then
     echo "UPLOAD_KBITS cannot be less than $MIN_UPLOAD_KBITS ($UPLOAD_KBITS)"
     echo "DOWNLOAD_KBITS cannot be less than $MIN_DOWNLOAD_KBITS ($DOWNLOAD_KBITS)"
     return
   fi
-
-  # hashlimit uses kilobytes/sec — divide kbps by 8
-  local DOWNLOAD_KBYTES=$(echo "$DOWNLOAD_KBITS / 8" | bc)
 
   qpl_net_limit_clear "$INTERFACE" >/dev/null 2>/dev/null
 
@@ -47,66 +45,38 @@ Limiting $INTERFACE to ${MAX_KBITS} Kbps
     Ingress/download: $DOWNLOAD_KBITS Kbps ($((100 - EGRESS_PERCENT))%)
 EOF
 
-  # Use tc for egress
-  # Add queuing disciplice (qdisc) to interface/device (dev) to the egress/outbound (root),
-  # using token bucket filter (tbf), with the rate at which the bucket fills (rate).
-  # Key params:
-  # rate     — how fast the bucket refills
-  # burst    — how large the bucket is
-  # latency  — how long a packet waits before being dropped if bucket is empty
-  sudo tc qdisc add dev "$INTERFACE" root tbf \
-    rate "${UPLOAD_KBITS}kbit" \
-    burst 15360 \
-    latency 50ms
-
-  # Use iptables; limit IPv4 and 6
-  for TABLE in iptables ip6tables; do
-    # Creates a new 'chain' - think of this as a pipeline of sorts
-    sudo $TABLE -N QPL_LIMIT_IN
-    # Add (-A) rule to INPUT chain, for interface (-i), redirect (-j) to QPL_LIMIT_IN chain
-    sudo $TABLE -A INPUT -i "$INTERFACE" -j QPL_LIMIT_IN
-    # Add rule to our new QPL_LIMIT_IN chain for limiting network by dropping traffic
-    sudo $TABLE -A QPL_LIMIT_IN \
-      -m hashlimit \
-      --hashlimit-name "qpl_ingress" \
-      --hashlimit-above "${DOWNLOAD_KBYTES}kb/s" \
-      --hashlimit-burst "${DOWNLOAD_KBYTES}kb" \
-      -j DROP
-  done
+  # wondershaper shapes egress with a hierarchical token bucket (htb) qdisc on the interface.
+  # Ingress can't be queued directly, so wondershaper redirects incoming traffic to an intermediate
+  # functional block device (ifb0) and shapes that device's egress with htb instead. This delays packets
+  # rather than dropping them on arrival, which TCP handles far more smoothly. Rates are in Kbps.
+  # Note: only IPv4 ingress is redirected to ifb0, so IPv6 downloads are not limited.
+  sudo wondershaper -a "$INTERFACE" -u "$UPLOAD_KBITS" -d "$DOWNLOAD_KBITS"
 }
 
 qpl_net_limit_clear() {
   local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
 
-  # Remove egress shaping
-  echo "Clearing egress on $INTERFACE"
-  sudo tc qdisc del dev "$INTERFACE" root
+  echo "Clearing limits on $INTERFACE"
+  sudo wondershaper -c -a "$INTERFACE"
 
-  # Remove ingress iptables chains
+  # Remove the iptables ingress limiter used by earlier versions of these functions, if still present
   for TABLE in iptables ip6tables; do
-    echo "Clearing egress $TABLE on $INTERFACE"
-    # Delete rule (D), flush (F), delete chain (X)
-    sudo $TABLE -D INPUT -i "$INTERFACE" -j QPL_LIMIT_IN 
-    sudo $TABLE -F QPL_LIMIT_IN 
-    sudo $TABLE -X QPL_LIMIT_IN 
+    sudo $TABLE -D INPUT -i "$INTERFACE" -j QPL_LIMIT_IN 2>/dev/null
+    sudo $TABLE -F QPL_LIMIT_IN 2>/dev/null
+    sudo $TABLE -X QPL_LIMIT_IN 2>/dev/null
   done
 }
 
 qpl_net_limit_status() {
   local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
 
-  echo "=== Egress (tc with $INTERFACE) ==="
-  sudo tc -s qdisc show dev "$INTERFACE"
+  echo "=== Egress/upload (tc with $INTERFACE) ==="
+  sudo wondershaper -s -a "$INTERFACE"
 
   echo ""
-  for TABLE in iptables ip6tables; do
-    echo "=== Ingress ($TABLE) ==="
-    echo "--- Jump rule ---"
-    sudo $TABLE -L INPUT -v -n | grep QPL_LIMIT_IN
-    echo "--- Ingress rules ---"
-    sudo $TABLE -L QPL_LIMIT_IN -v -n 2>/dev/null || echo "  (no chain)"
-    echo ""
-  done
+  echo "=== Ingress/download (tc with ifb0) ==="
+  sudo tc -s qdisc show dev ifb0 2>/dev/null || echo "  (no ifb0 device)"
+  sudo tc -s class show dev ifb0 2>/dev/null
 }
 
 qpl_net_limit_status_simple() {
@@ -114,8 +84,8 @@ qpl_net_limit_status_simple() {
 
   local HAS_EGRESS HAS_INGRESS
   # Count for expected values if enabled
-  HAS_EGRESS=$(sudo tc qdisc show dev "$INTERFACE" | grep -c tbf)
-  HAS_INGRESS=$(sudo iptables -L QPL_LIMIT_IN -v -n 2>/dev/null | grep -c hashlimit)
+  HAS_EGRESS=$(sudo tc qdisc show dev "$INTERFACE" | grep -c htb)
+  HAS_INGRESS=$(sudo tc qdisc show dev "$INTERFACE" | grep -c ingress)
 
   if [[ $HAS_EGRESS -gt 0 || $HAS_INGRESS -gt 0 ]]; then
     echo "Limited"
