@@ -42,6 +42,7 @@ setup(
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
             'drum_command_interface = qpl_rover.drum_command_interface:main',
+            'imu_optical_to_standard = qpl_rover.imu_optical_to_standard:main',
         ],
     },
 )

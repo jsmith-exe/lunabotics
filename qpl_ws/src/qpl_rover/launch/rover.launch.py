@@ -23,7 +23,8 @@ def setup_components(context):
             path.join(rover_pkg, "launch", "components.launch.py")
         ),
         launch_arguments={
-            "use_sim_time": "false"
+            "use_sim_time": "false",
+            "use_vslam": LaunchConfiguration("use_vslam").perform(context),
         }.items()
     )
 
@@ -38,6 +39,12 @@ def generate_launch_description():
         description='Whether to run the rover with components.'
     )
 
+    use_vslam_parameter = DeclareLaunchArgument(
+        'use_vslam',
+        default_value='false',
+        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1.'
+    )
+
     rsp = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             path.join(rover_pkg, "launch", "rsp.launch.py")
@@ -49,7 +56,8 @@ def generate_launch_description():
     )
 
     # Cameras
-    use_low_quality = "true"
+    # Full resolution. Flip to "true" for 424x240x15 if the Jetson can't keep up.
+    use_low_quality = "false"
     realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
     orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
     realsense_launch = IncludeLaunchDescription(realsense_launch_source, launch_arguments={"use_low_quality": use_low_quality}.items())
@@ -74,10 +82,13 @@ def generate_launch_description():
 
     return LaunchDescription([
         run_components_parameter,
+        use_vslam_parameter,
         rsp,
         OpaqueFunction(function=setup_components),
-        # realsense_launch,
+        realsense_launch,
         # delayed_orbbec_launch,
         # rear_camera_tf_transform,
-        # front_camera_tf_transform,
+        # Child frame is camera_name + base_frame_id from
+        # camera_realsense.launch.py; must change with it or VO/IMU go silent.
+        front_camera_tf_transform,
     ])

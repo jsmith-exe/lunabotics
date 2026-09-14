@@ -32,6 +32,7 @@ add_library(
   hardware/diffdrive_interface/can_system.cpp
   hardware/diffdrive_interface/actuator.cpp
   hardware/diffdrive_interface/motor.cpp
+  hardware/diffdrive_interface/diffdrive_motor.cpp
 )
 
 target_compile_features(diffdrive_canbus PUBLIC cxx_std_17)

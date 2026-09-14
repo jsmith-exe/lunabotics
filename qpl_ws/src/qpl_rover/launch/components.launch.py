@@ -18,24 +18,44 @@ def generate_launch_description():
         description='Enable if using simulation'
     )
 
+    use_vslam_parameter = DeclareLaunchArgument(
+        'use_vslam',
+        default_value='false',
+        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1.'
+    )
+
     return LaunchDescription([
         use_sim_time_parameter,
+        use_vslam_parameter,
         OpaqueFunction(function=opaque_generate_launch_description),
     ])
 
 def opaque_generate_launch_description(context):
     use_sim_time = LaunchConfiguration('use_sim_time').perform(context)
+    use_vslam = LaunchConfiguration('use_vslam').perform(context).lower() in ["true", "1", "yes"]
 
     launch_arguments = {"use_sim_time": use_sim_time}.items()
     controllers = IncludeLaunchDescription(get_component_python_launch("controllers"), launch_arguments=launch_arguments)
     odom_localisation = IncludeLaunchDescription(get_component_python_launch("odom_localisation"), launch_arguments=launch_arguments)
     map_localisation = IncludeLaunchDescription(get_component_python_launch("map_localisation"), launch_arguments=launch_arguments)
 
-    return [
+    components = [
         controllers,
         odom_localisation,
         map_localisation,
     ]
+
+    if use_vslam:
+        components.append(
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(rover_pkg, "launch", "vslam_launch.py")
+                ),
+                launch_arguments=launch_arguments,
+            )
+        )
+
+    return components
 
 def get_component_python_launch(name: str) -> PythonLaunchDescriptionSource:
     return PythonLaunchDescriptionSource(
