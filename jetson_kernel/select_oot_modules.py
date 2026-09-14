@@ -10,6 +10,7 @@ Prints one tab-separated line per module: <path under updates/> <file to install
 """
 import argparse
 import collections
+import functools
 import glob
 import os
 import subprocess
@@ -42,6 +43,7 @@ def module_imports(ko):
     return {symbol: int(crc, 16) for crc, symbol in (line.split() for line in output.splitlines())}
 
 
+@functools.lru_cache(maxsize=None)
 def srcversion(ko):
     return subprocess.run(["modinfo", "-F", "srcversion", ko], capture_output=True, text=True).stdout.strip()
 
@@ -57,6 +59,11 @@ def main():
     kernel = read_symvers(args.kernel_symvers)
     stock = {os.path.relpath(p, args.stock_updates): p
              for p in glob.glob(f"{args.stock_updates}/**/*.ko", recursive=True)}
+
+    # An empty stock tree means the caller pointed at a release that isn't installed. Returning an empty
+    # selection here would install a kernel with none of NVIDIA's drivers, so refuse instead.
+    if not stock:
+        sys.exit(f"error: no stock modules found under {args.stock_updates}")
 
     rebuilt_by_name = collections.defaultdict(list)
     for directory in args.rebuilt_dir:
@@ -77,11 +84,17 @@ def main():
 
     exports_cache, imports_cache = {}, {}
 
+    # setdefault would evaluate module_exports/module_imports on every call, so these have to check for
+    # the key first; each pass of the fix-point loop below re-reads every module otherwise
     def exports(ko):
-        return exports_cache.setdefault(ko, module_exports(ko))
+        if ko not in exports_cache:
+            exports_cache[ko] = module_exports(ko)
+        return exports_cache[ko]
 
     def imports(ko):
-        return imports_cache.setdefault(ko, module_imports(ko))
+        if ko not in imports_cache:
+            imports_cache[ko] = module_imports(ko)
+        return imports_cache[ko]
 
     # Switch modules to rebuilt copies until every import's CRC matches the symbol that will provide it
     while True:
