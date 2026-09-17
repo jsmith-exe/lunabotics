@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, OpaqueFunction, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import SetParameter
+from launch_ros.actions import SetParameter, Node
 from launch.substitutions import LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -10,13 +10,20 @@ import os
 def generate_launch_description():
     use_low_quality_parameter = DeclareLaunchArgument(
         'use_low_quality',
-        default_value='false',
+        default_value='true',
         description='Whether to run camera with low quality.'
+    )
+
+    rear_camera_tf_transform = Node(
+        package='tf2_ros', executable='static_transform_publisher',
+        arguments=['0','0','0','0','0','0',
+                   'camera_link_rear', 'depth_camera_rear_link'],
     )
 
     return LaunchDescription([
         use_low_quality_parameter,
         OpaqueFunction(function=get_camera_launch),
+        rear_camera_tf_transform,
     ])
 
 
@@ -107,6 +114,11 @@ def get_camera_params(use_low_quality: bool):
         'ir_height': depth_height,
         'ir_fps': depth_fps,
         'ir_format': 'Y10',
+
+        'enable_point_cloud': 'false',
+
+        'enable_decimation_filter': 'true',
+        'decimation_filter_scale': '50',
 
         'color_info_url': f'file://{calibration_folder}/rear_calib_{color_width}_cam_info.yaml',
 
