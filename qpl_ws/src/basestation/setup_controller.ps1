@@ -20,6 +20,7 @@ uv pip install pynput==1.8.1
 uv pip install pydualsense==0.7.5
 uv pip install sv-ttk==2.6.1
 uv pip install ttkbootstrap==2.2.2
+uv pip install PyYAML
 
 Rename-Item -Path ".\venv\Lib" -NewName "libtemp"
 Rename-Item -Path ".\venv\libtemp" -NewName "lib"

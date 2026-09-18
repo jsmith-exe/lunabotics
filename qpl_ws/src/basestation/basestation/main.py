@@ -1,13 +1,17 @@
 import json
 from time import sleep
 from threading import Thread
+import yaml
 
 from .controllers.desktop_controller import DesktopController
 from .controllers.physical_controller import PhysicalController
 from .controllers.base_station_state import BaseStationState
 from .forwarding.tcp_transmitter import TCPTransmitter
-from .constants import MessageOptions, INVERT_BACKWARDS_STEERING, NAV_TOPIC
+from .constants import MessageOptions, INVERT_BACKWARDS_STEERING, NAV_TOPIC, CANBUS_CONFIG_PATH
 from .ui.teleop_window import open_teleop_window
+
+with open(CANBUS_CONFIG_PATH, "r") as file:
+    canbus_config = yaml.safe_load(file)
 
 state = BaseStationState()
 
@@ -58,7 +62,7 @@ while not connected:
         print("Connection refused, retrying in 3s...")
         sleep(3)
 
-window_thread = Thread(target=open_teleop_window, args=(state, publish_function), daemon=True)
+window_thread = Thread(target=open_teleop_window, args=(state, publish_function, canbus_config), daemon=True)
 desktop_controller = DesktopController(publish_function, state)
 physical_controller = PhysicalController(publish_function, state)
 try:
