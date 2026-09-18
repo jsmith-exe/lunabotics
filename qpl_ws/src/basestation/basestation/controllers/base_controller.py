@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 from ..constants import ControllerInputs, CmdMeta, GUIInputs
-from .base_station_state import BaseStationState
+from ..base_station_state import BaseStationState
 from ..control_maps import Command
 
 MINIMUM_ANALOGUE_CHANGE = 0.05 # Changes in analogue values must be at least this much to be sent

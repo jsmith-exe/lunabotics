@@ -7,7 +7,7 @@ Helpful documentation:
 from pynput import keyboard, mouse
 
 from .base_controller import BaseController
-from .base_station_state import BaseStationState
+from ..base_station_state import BaseStationState
 
 class DesktopController(BaseController):
     """ Translates keyboard and mouse inputs to commands. """

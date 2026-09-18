@@ -10,7 +10,7 @@ from pydualsense import pydualsense
 
 from ..control_maps import Con
 from .base_controller import BaseController
-from .base_station_state import BaseStationState
+from ..base_station_state import BaseStationState
 
 JOYSTICK_DEAD_ZONE = 0.1
 
