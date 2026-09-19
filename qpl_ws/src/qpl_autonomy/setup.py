@@ -30,6 +30,7 @@ setup(
             'full_autonomy_node = qpl_autonomy.full_autonomy_node:main',
             'blind_excavation_node = qpl_autonomy.blind_excavation_node:main',
             'blind_construction_node = qpl_autonomy.blind_construction_node:main',
+            'competition_autonomy_node = qpl_autonomy.blind.competition_autonomy_node:main',
         ],
     },
 )
