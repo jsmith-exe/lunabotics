@@ -1,4 +1,3 @@
-import threading
 from collections.abc import Callable
 from tkinter import font, ttk
 
@@ -36,41 +35,20 @@ def make_labeled_slider(label_text: str, parent, dp: int, on_change: Callable | 
 
     return slider
 
-def set_interval(func, interval_seconds: float):
-    """
-    Recreates setInterval functionality.
-    Returns a function to stop the interval.
-    """
-    stop_event = threading.Event()
-
-    def worker():
-        while not stop_event.is_set():
-            stop_event.wait(interval_seconds)
-            if not stop_event.is_set():
-                func()
-
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-
-    def stop():
-        stop_event.set()
-    return stop
-
-
 class TeleopWindow:
     def __init__(self, base_station_state: BaseStationState, publish_function: Callable, canbus_config: dict):
         self.base_station_state = base_station_state
-        self.controller = BaseController(publish_function, base_station_state, 0.002)
 
         self.style = Style(themename='cyborg')
         self.root = self.style.master
         self.root.title("Rover Teleop")
         # self.root.resizable(False, False)
 
+        self.slider_controller = BaseController(publish_function, base_station_state, 0.002)
+        self.keyboard_controller = TkinterKeyboardController(publish_function, base_station_state, self.root)
+
         x, y = 0, 0
         self.root.geometry(f"{480}x{240}+{x}+{y}")
-
-        self.keyboard_controller = TkinterKeyboardController(publish_function, base_station_state, self.root)
 
         bold_font = font.Font(family="Helvetica", size=22, weight="bold")
 
@@ -100,10 +78,10 @@ class TeleopWindow:
 
         drum_config = canbus_config['drum']
         make_labeled_slider("Drum Lift", self.root, 0,
-                            lambda value: self.controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
+                            lambda value: self.slider_controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
                             {"from_": drum_config['min_lift_mm'], "to": drum_config['max_lift_mm'], "value": drum_config['default_lift_mm']})
 
-        self.stop_flashing_interval = lambda : None  # Placeholder for the flashing interval function
+        self._flash_after_id = None
         self.showing_danger = False
 
         self.enable()
@@ -122,7 +100,7 @@ class TeleopWindow:
             text="Disable",
         )
 
-        self.stop_flashing_interval = set_interval(self.flash_message, 0.7)
+        self._schedule_flash()
 
     def disable(self):
         self.base_station_state.teleop_enabled = False
@@ -138,7 +116,7 @@ class TeleopWindow:
         )
 
         self.message_label.configure(foreground="")
-        self.stop_flashing_interval()
+        self._cancel_flash()
 
     def toggle(self):
         if self.base_station_state.teleop_enabled:
@@ -152,6 +130,15 @@ class TeleopWindow:
             self.message_label.configure(foreground=DANGER_COLOR)
         else:
             self.message_label.configure(foreground="")
+
+    def _schedule_flash(self):
+        self.flash_message()
+        self._flash_after_id = self.root.after(700, self._schedule_flash)
+
+    def _cancel_flash(self):
+        if self._flash_after_id is not None:
+            self.root.after_cancel(self._flash_after_id)
+            self._flash_after_id = None
 
     def run(self):
         self.root.mainloop()
