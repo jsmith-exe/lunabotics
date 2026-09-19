@@ -13,6 +13,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 )
 
 find_package(ament_cmake REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
@@ -46,6 +47,13 @@ ament_target_dependencies(
   diffdrive_canbus
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
+
+if(TARGET yaml-cpp::yaml-cpp)
+  target_link_libraries(diffdrive_canbus yaml-cpp::yaml-cpp)
+else()
+  target_link_libraries(diffdrive_canbus ${YAML_CPP_LIBRARIES})
+  target_include_directories(diffdrive_canbus PRIVATE ${YAML_CPP_INCLUDE_DIR})
+endif()
 
 target_compile_definitions(diffdrive_canbus PRIVATE
   CANBUS_BUILDING_DLL
