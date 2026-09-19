@@ -6,8 +6,9 @@ from ttkbootstrap import Style, LabeledScale
 
 from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
     DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs
-from ..controllers.base_station_state import BaseStationState
+from ..base_station_state import BaseStationState
 from ..controllers.base_controller import BaseController
+from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
 
 DANGER_COLOR = "#ff1e39"
 
@@ -69,6 +70,8 @@ class TeleopWindow:
         x, y = 0, 0
         self.root.geometry(f"{480}x{240}+{x}+{y}")
 
+        self.keyboard_controller = TkinterKeyboardController(publish_function, base_station_state, self.root)
+
         bold_font = font.Font(family="Helvetica", size=22, weight="bold")
 
         self.message_label = ttk.Label(self.root, text="", font=bold_font)
@@ -109,7 +112,7 @@ class TeleopWindow:
         self.base_station_state.teleop_enabled = True
 
         self.root.attributes("-topmost", True)
-        self.root.overrideredirect(True)
+        self.root.focus_force()
 
         self.message_label.config(
             text="⚠ Teleoperation active",
@@ -125,7 +128,6 @@ class TeleopWindow:
         self.base_station_state.teleop_enabled = False
 
         self.root.attributes("-topmost", False)
-        self.root.overrideredirect(False)
 
         self.message_label.config(
             text="✓ Teleoperation disabled",
