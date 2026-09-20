@@ -17,7 +17,7 @@ class ExcavationState(Enum):
 
 
 class ExcavationSequence:
-    """Feedback-based FSM for the competition excavation sequence."""
+    """Feedback-based FSM for the excavation sequence."""
 
     def __init__(
         self,
@@ -45,115 +45,72 @@ class ExcavationSequence:
         self.start_x = None
         self.start_y = None
 
-    # =============================================================
-    # Sequence lifecycle
-    # =============================================================
+    """Sequence lifecycle"""
 
-    def start(self, actuator_positions, odom_position):
-        """Start a new excavation sequence."""
-
+    def start(self, odom_position):
+        # Start a new excavation sequence
         self.complete = False
         self.state = ExcavationState.STOP_WHEELS
-
         self.start_x = None
         self.start_y = None
-
         if odom_position[0] is not None and odom_position[1] is not None:
             self.start_x = odom_position[0]
             self.start_y = odom_position[1]
 
     def update(self, actuator_positions, odom_position):
-        """Run one non-blocking update of the FSM."""
-
+        # Run one non-blocking update of the FSM
         if self.complete:
             return
 
-        # ---------------------------------------------------------
         # 1. Stop wheels
-        # ---------------------------------------------------------
         if self.state == ExcavationState.STOP_WHEELS:
             self.stop_wheels()
             self.state = ExcavationState.LOWER_TO_CONTACT
 
-        # ---------------------------------------------------------
         # 2. Lower bucket to contact while spinning
-        # ---------------------------------------------------------
         elif self.state == ExcavationState.LOWER_TO_CONTACT:
             self.spin_bucket()
             self.command_lift(self.contact_position_m)
-
-            if self.actuators_at_position(
-                actuator_positions,
-                self.contact_position_m,
-            ):
+            if self.actuators_at_position(actuator_positions, self.contact_position_m):
                 self.state = ExcavationState.LOWER_TO_MAX
 
-        # ---------------------------------------------------------
         # 3. Lower bucket to maximum excavation depth
-        # ---------------------------------------------------------
         elif self.state == ExcavationState.LOWER_TO_MAX:
             self.spin_bucket()
             self.command_lift(self.max_excavation_position_m)
-
-            if self.actuators_at_position(
-                actuator_positions,
-                self.max_excavation_position_m,
-            ):
-                if (
-                    odom_position[0] is not None
-                    and odom_position[1] is not None
-                ):
+            if self.actuators_at_position(actuator_positions, self.max_excavation_position_m):
+                if odom_position[0] is not None and odom_position[1] is not None:
                     self.start_x = odom_position[0]
                     self.start_y = odom_position[1]
-
                 self.state = ExcavationState.DRIVE_FORWARD
 
-        # ---------------------------------------------------------
         # 4. Drive forward while drum is spinning
-        # ---------------------------------------------------------
         elif self.state == ExcavationState.DRIVE_FORWARD:
             self.spin_bucket()
             self.drive_forward()
-
-            if self.has_travelled_distance(
-                odom_position,
-                self.drive_distance_m,
-            ):
+            if self.has_travelled_distance(odom_position, self.drive_distance_m):
                 self.state = ExcavationState.STOP_WHEELS_AFTER_DRIVE
 
-        # ---------------------------------------------------------
         # 5. Stop wheels
-        # ---------------------------------------------------------
         elif self.state == ExcavationState.STOP_WHEELS_AFTER_DRIVE:
             self.stop_wheels()
             self.state = ExcavationState.LIFT_BUCKET
 
-        # ---------------------------------------------------------
         # 6. Lift bucket while drum is spinning
-        # ---------------------------------------------------------
         elif self.state == ExcavationState.LIFT_BUCKET:
             self.spin_bucket()
             self.command_lift(self.raised_position_m)
-
-            if self.actuators_at_position(
-                actuator_positions,
-                self.raised_position_m,
-            ):
+            if self.actuators_at_position(actuator_positions, self.raised_position_m):
                 self.state = ExcavationState.STOP_BUCKET
 
-        # ---------------------------------------------------------
         # 7. Stop drum
-        # ---------------------------------------------------------
         elif self.state == ExcavationState.STOP_BUCKET:
             self.stop_wheels()
             self.stop_bucket()
             self.state = ExcavationState.COMPLETE
             self.complete = True
 
-    # =============================================================
-    # Outputs
-    # =============================================================
-
+    """Outputs"""
     def drive_forward(self):
         command = Twist()
         command.linear.x = self.drive_speed
@@ -183,10 +140,7 @@ class ExcavationSequence:
         command.data = position
         self.drum_lift_pub.publish(command)
 
-    # =============================================================
-    # Feedback
-    # =============================================================
-
+    """Feedback"""
     def actuators_at_position(self, actuator_positions, target):
         left, right = actuator_positions
 
@@ -219,18 +173,16 @@ class ExcavationSequence:
 
         return distance >= target_distance
 
-    # =============================================================
-    # Stop / completion
-    # =============================================================
-
+    """Stop / completion"""
     def stop(self, actuator_positions):
-        """Stop autonomous motion without changing lift position."""
-
+        # Stop autonomous motion and hold the current bucket position
         self.stop_wheels()
         self.stop_bucket()
 
-        # Do not publish a lift command.
-        # The bucket remains at its current controller position.
+        left, right = actuator_positions
+        if left is not None and right is not None:
+            hold_position = (left + right) / 2.0
+            self.command_lift(hold_position)
 
         self.complete = False
         self.state = ExcavationState.COMPLETE
