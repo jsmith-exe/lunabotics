@@ -32,6 +32,8 @@ class TeleopPublisher(Node):
         :param message_option: the value to modify; a twist attribute, or ignored for float topics.
         :param throttle: the throttle to set the twist option, or float value.
         """
+        if not self.state.teleop_enabled: return
+
         topic_state = self.state.topic_target_states[topic_name]
         if topic_state['type'] == 'float':
             topic_state['value'] = throttle
@@ -67,5 +69,6 @@ class TeleopPublisher(Node):
 
     def republish(self) -> None:
         """ Republish the most recent state for each topic at a fixed rate. """
+        if not self.state.teleop_enabled: return
         for topic_name, topic_state in self.state.topic_target_states.items():
             self.publishers_[topic_name].publish(self._to_message(topic_state))
