@@ -1,6 +1,7 @@
 #!/bin/bash -xe
 
 # Based on https://github.com/realsenseai/librealsense/blob/master/scripts/libuvc_installation.sh
+# Builds and installs librealsense from source using RSUSB/libuvc backend.
 
 #Locally suppress stderr to avoid raising not relevant messages
 exec 3>&2
