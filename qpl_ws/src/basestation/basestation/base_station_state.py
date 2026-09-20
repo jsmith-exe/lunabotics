@@ -43,3 +43,6 @@ class BaseStationState:
         self.motor_steer_button_factor = value
     def set_motor_drum_button_factor(self, value: float):
         self.motor_drum_button_factor = value
+
+    def reset_topic_states(self):
+        self.topic_target_states = generate_topic_state()

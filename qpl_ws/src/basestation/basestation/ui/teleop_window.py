@@ -81,35 +81,20 @@ class TeleopWindow:
 
     def enable(self):
         self.base_station_state.teleop_enabled = True
-
         self.root.attributes("-topmost", True)
         self.root.focus_force()
-
-        self.message_label.config(
-            text="⚠ Teleoperation active",
-        )
-
-        self.toggle_button.config(
-            text="Disable",
-        )
-
+        self.message_label.config(text="⚠ Teleoperation active")
+        self.toggle_button.config(text="Disable")
         self._schedule_flash()
 
     def disable(self):
         self.base_station_state.teleop_enabled = False
-
         self.root.attributes("-topmost", False)
-
-        self.message_label.config(
-            text="✓ Teleoperation disabled",
-        )
-
-        self.toggle_button.config(
-            text="Enable",
-        )
-
+        self.message_label.config(text="✓ Teleoperation disabled")
+        self.toggle_button.config(text="Enable")
         self.message_label.configure(foreground="")
         self._cancel_flash()
+        self.base_station_state.reset_topic_states()
 
     def toggle(self):
         if self.base_station_state.teleop_enabled:
