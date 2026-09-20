@@ -41,6 +41,7 @@ setup(
     entry_points={
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
+            'camera_sim = qpl_rover.camera_sim:main',
             'cloud_restamper = qpl_rover.cloud_restamper:main',
             'drum_command_interface = qpl_rover.drum_command_interface:main',
             'imu_optical_to_standard = qpl_rover.imu_optical_to_standard:main',
