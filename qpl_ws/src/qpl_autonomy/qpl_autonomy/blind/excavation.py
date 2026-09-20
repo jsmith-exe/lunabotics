@@ -20,35 +20,25 @@ class ExcavationState(Enum):
 class ExcavationSequence:
     """Feedback-based FSM for the competition excavation sequence."""
 
-    # ---------------------------------------------------------
-    # Calibration values
-    # ---------------------------------------------------------
-
-    DRIVE_SPEED = 0.2
-
-    # Tune these during mechanical testing.
-    CONTACT_POSITION_M = 0.01
-    MAX_EXCAVATION_POSITION_M = 0.20
-    RAISED_POSITION_M = 0.00
-
-    DRIVE_DISTANCE_M = 1.0
-
-    DRUM_SPIN_SPEED = 0.8
-
-    # Change to -1.0 if the physical drum spins the wrong way.
-    DRUM_SPIN_DIRECTION = 1.0
-
-    POSITION_TOLERANCE_M = 0.005
-
     def __init__(
-        self,
-        cmd_vel_pub,
-        drum_lift_pub,
-        drum_spin_pub,
+            self,
+            cmd_vel_pub,
+            drum_lift_pub,
+            drum_spin_pub,
+            config,
     ):
         self.cmd_vel_pub = cmd_vel_pub
         self.drum_lift_pub = drum_lift_pub
         self.drum_spin_pub = drum_spin_pub
+
+        self.drive_speed = config["drive_speed"]
+        self.drive_distance_m = config["drive_distance_m"]
+        self.drum_spin_speed = config["drum_spin_speed"]
+        self.drum_spin_direction = config["drum_spin_direction"]
+        self.contact_position_m = config["contact_position_m"]
+        self.max_excavation_position_m = config["max_excavation_position_m"]
+        self.raised_position_m = config["raised_position_m"]
+        self.position_tolerance_m = config["position_tolerance_m"]
 
         self.state = ExcavationState.COMPLETE
         self.complete = False
@@ -89,20 +79,20 @@ class ExcavationSequence:
             self.state = ExcavationState.LOWER_TO_CONTACT
 
         elif self.state == ExcavationState.LOWER_TO_CONTACT:
-            self.command_lift(self.CONTACT_POSITION_M)
+            self.command_lift(self.contact_position_m)
 
             if self.actuators_at_position(
                 actuator_positions,
-                self.CONTACT_POSITION_M,
+                self.contact_position_m,
             ):
                 self.state = ExcavationState.LOWER_TO_MAX
 
         elif self.state == ExcavationState.LOWER_TO_MAX:
-            self.command_lift(self.MAX_EXCAVATION_POSITION_M)
+            self.command_lift(self.max_excavation_position_m)
 
             if self.actuators_at_position(
                 actuator_positions,
-                self.MAX_EXCAVATION_POSITION_M,
+                self.max_excavation_position_m,
             ):
                 self.state = ExcavationState.DRIVE_FORWARD
 
@@ -116,7 +106,7 @@ class ExcavationSequence:
 
             if self.has_travelled_distance(
                 odom_position,
-                self.DRIVE_DISTANCE_M,
+                self.drive_distance_m,
             ):
                 self.state = ExcavationState.STOP_WHEELS_AFTER_DRIVE
 
@@ -125,11 +115,11 @@ class ExcavationSequence:
             self.state = ExcavationState.LIFT_BUCKET
 
         elif self.state == ExcavationState.LIFT_BUCKET:
-            self.command_lift(self.RAISED_POSITION_M)
+            self.command_lift(self.raised_position_m)
 
             if self.actuators_at_position(
                 actuator_positions,
-                self.RAISED_POSITION_M,
+                self.raised_position_m,
             ):
                 self.state = ExcavationState.STOP_BUCKET
 
@@ -144,7 +134,7 @@ class ExcavationSequence:
 
     def drive_forward(self):
         command = Twist()
-        command.linear.x = self.DRIVE_SPEED
+        command.linear.x = self.drive_speed
         self.cmd_vel_pub.publish(command)
 
     def stop_wheels(self):
@@ -156,7 +146,7 @@ class ExcavationSequence:
     def spin_bucket(self):
         command = Float64()
         command.data = (
-            self.DRUM_SPIN_DIRECTION * self.DRUM_SPIN_SPEED
+            self.drum_spin_direction * self.drum_spin_speed
         )
         self.drum_spin_pub.publish(command)
 
@@ -184,8 +174,8 @@ class ExcavationSequence:
         right_error = abs(right - target)
 
         return (
-            left_error <= self.POSITION_TOLERANCE_M
-            and right_error <= self.POSITION_TOLERANCE_M
+            left_error <= self.position_tolerance_m
+            and right_error <= self.position_tolerance_m
         )
 
     def has_travelled_distance(self, odom_position, target_distance):

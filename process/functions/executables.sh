@@ -18,13 +18,18 @@ alias qpl_logs_cat="cat ~/rosout_combined.log"
 alias qpl_logs_clear="rm ~/rosout_combined.log"
 
 # Autonomy aliases:
-alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'
-alias qpl_excavate='ros2 launch qpl_autonomy excavation.launch.py'
-alias qpl_construct='ros2 launch qpl_autonomy construction.launch.py'
-alias qpl_full_auto='ros2 launch qpl_autonomy full_autonomy.launch.py'
-alias qpl_blind_excavate='ros2 launch qpl_autonomy blind_excavation.launch.py'
-alias qpl_blind_construct='ros2 launch qpl_autonomy blind_construction.launch.py'
-alias qpl_blind='ros2 launch qpl_autonomy blind_autonomy.launch.py' # alias for blind autonomy for use in the competition
+alias qpl_autonomy='ros2 launch qpl_autonomy blind_autonomy.launch.py' # alias for blind autonomy for use in the competition
+alias qpl_excavate='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'EXCAVATE'\"'\"'}"'
+alias qpl_deposit='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'DEPOSIT'\"'\"'}"'
+alias qpl_stop='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
+
+# Legacy - to be removed
+#alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'
+#alias qpl_excavate='ros2 launch qpl_autonomy excavation.launch.py'
+#alias qpl_construct='ros2 launch qpl_autonomy construction.launch.py'
+#alias qpl_full_auto='ros2 launch qpl_autonomy full_autonomy.launch.py'
+#alias qpl_blind_excavate='ros2 launch qpl_autonomy blind_excavation.launch.py'
+#alias qpl_blind_construct='ros2 launch qpl_autonomy blind_construction.launch.py'
 
 # -------------------- Simulation + RViz --------------------
 # Add 'export LIBGL_ALWAYS_SOFTWARE=true' to bashrc if problems with rendering

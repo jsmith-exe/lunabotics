@@ -16,6 +16,82 @@ class CompetitionAutonomyNode(Node):
     def __init__(self):
         super().__init__("competition_autonomy")
 
+        self.declare_parameter("excavation.drive_speed", 0.2)
+        self.declare_parameter("excavation.drive_distance_m", 1.0)
+        self.declare_parameter("excavation.drum_spin_speed", 0.8)
+        self.declare_parameter("excavation.drum_spin_direction", 1.0)
+        self.declare_parameter("excavation.contact_position_m", 0.01)
+        self.declare_parameter("excavation.max_excavation_position_m", 0.20)
+        self.declare_parameter("excavation.raised_position_m", 0.00)
+        self.declare_parameter("excavation.position_tolerance_m", 0.005)
+
+        self.declare_parameter("deposition.drive_to_zone_speed", 0.2)
+        self.declare_parameter("deposition.drive_to_zone_distance_m", 1.5)
+        self.declare_parameter("deposition.deposit_drive_speed", 0.1)
+        self.declare_parameter("deposition.deposit_drive_distance_m", 2.0)
+        self.declare_parameter("deposition.max_height_position_m", 0.20)
+        self.declare_parameter("deposition.normal_height_position_m", 0.00)
+        self.declare_parameter("deposition.drum_spin_speed", 0.4)
+        self.declare_parameter("deposition.drum_spin_direction", 1.0)
+        self.declare_parameter("deposition.position_tolerance_m", 0.005)
+
+        excavation_config = {
+            "drive_speed": self.get_parameter(
+                "excavation.drive_speed"
+            ).value,
+            "drive_distance_m": self.get_parameter(
+                "excavation.drive_distance_m"
+            ).value,
+            "drum_spin_speed": self.get_parameter(
+                "excavation.drum_spin_speed"
+            ).value,
+            "drum_spin_direction": self.get_parameter(
+                "excavation.drum_spin_direction"
+            ).value,
+            "contact_position_m": self.get_parameter(
+                "excavation.contact_position_m"
+            ).value,
+            "max_excavation_position_m": self.get_parameter(
+                "excavation.max_excavation_position_m"
+            ).value,
+            "raised_position_m": self.get_parameter(
+                "excavation.raised_position_m"
+            ).value,
+            "position_tolerance_m": self.get_parameter(
+                "excavation.position_tolerance_m"
+            ).value,
+        }
+
+        deposition_config = {
+            "drive_to_zone_speed": self.get_parameter(
+                "deposition.drive_to_zone_speed"
+            ).value,
+            "drive_to_zone_distance_m": self.get_parameter(
+                "deposition.drive_to_zone_distance_m"
+            ).value,
+            "deposit_drive_speed": self.get_parameter(
+                "deposition.deposit_drive_speed"
+            ).value,
+            "deposit_drive_distance_m": self.get_parameter(
+                "deposition.deposit_drive_distance_m"
+            ).value,
+            "max_height_position_m": self.get_parameter(
+                "deposition.max_height_position_m"
+            ).value,
+            "normal_height_position_m": self.get_parameter(
+                "deposition.normal_height_position_m"
+            ).value,
+            "drum_spin_speed": self.get_parameter(
+                "deposition.drum_spin_speed"
+            ).value,
+            "drum_spin_direction": self.get_parameter(
+                "deposition.drum_spin_direction"
+            ).value,
+            "position_tolerance_m": self.get_parameter(
+                "deposition.position_tolerance_m"
+            ).value,
+        }
+
         # Top-level autonomy state.
         self.state = "IDLE"
 
@@ -73,12 +149,14 @@ class CompetitionAutonomyNode(Node):
             cmd_vel_pub=self.cmd_vel_pub,
             drum_lift_pub=self.drum_lift_pub,
             drum_spin_pub=self.drum_spin_pub,
+            config=excavation_config,
         )
 
         self.deposition = DepositionSequence(
             cmd_vel_pub=self.cmd_vel_pub,
             drum_lift_pub=self.drum_lift_pub,
             drum_spin_pub=self.drum_spin_pub,
+            config=deposition_config,
         )
 
         # ---------------------------------------------------------

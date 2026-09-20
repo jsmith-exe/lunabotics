@@ -18,36 +18,26 @@ class DepositionState(Enum):
 class DepositionSequence:
     """Feedback-based FSM for the competition deposition sequence."""
 
-    # ---------------------------------------------------------
-    # Calibration values
-    # ---------------------------------------------------------
-
-    DRIVE_SPEED_TO_ZONE = 0.2
-    DEPOSIT_DRIVE_SPEED = 0.1
-
-    DRIVE_TO_ZONE_DISTANCE_M = 1.5
-    DEPOSIT_DRIVE_DISTANCE_M = 2.0
-
-    # Tune these during mechanical testing.
-    MAX_HEIGHT_POSITION_M = 0.20
-    NORMAL_HEIGHT_POSITION_M = 0.00
-
-    DRUM_SPIN_SPEED = 0.4
-
-    # Change to -1.0 if the physical drum spins the wrong way.
-    DRUM_SPIN_DIRECTION = 1.0
-
-    POSITION_TOLERANCE_M = 0.005
-
     def __init__(
-        self,
-        cmd_vel_pub,
-        drum_lift_pub,
-        drum_spin_pub,
+            self,
+            cmd_vel_pub,
+            drum_lift_pub,
+            drum_spin_pub,
+            config,
     ):
         self.cmd_vel_pub = cmd_vel_pub
         self.drum_lift_pub = drum_lift_pub
         self.drum_spin_pub = drum_spin_pub
+
+        self.drive_to_zone_speed = config["drive_to_zone_speed"]
+        self.drive_to_zone_distance_m = config["drive_to_zone_distance_m"]
+        self.deposit_drive_speed = config["deposit_drive_speed"]
+        self.deposit_drive_distance_m = config["deposit_drive_distance_m"]
+        self.max_height_position_m = config["max_height_position_m"]
+        self.normal_height_position_m = config["normal_height_position_m"]
+        self.drum_spin_speed = config["drum_spin_speed"]
+        self.drum_spin_direction = config["drum_spin_direction"]
+        self.position_tolerance_m = config["position_tolerance_m"]
 
         self.state = DepositionState.COMPLETE
         self.complete = False
@@ -79,11 +69,11 @@ class DepositionSequence:
             return
 
         if self.state == DepositionState.DRIVE_TO_CONSTRUCTION_ZONE:
-            self.drive_forward(self.DRIVE_SPEED_TO_ZONE)
+            self.drive_forward(self.drive_to_zone_speed)
 
             if self.has_travelled_distance(
                 odom_position,
-                self.DRIVE_TO_ZONE_DISTANCE_M,
+                self.drive_to_zone_distance_m,
             ):
                 self.stop_wheels()
 
@@ -94,11 +84,11 @@ class DepositionSequence:
 
         elif self.state == DepositionState.LIFT_BUCKET:
             self.stop_wheels()
-            self.command_lift(self.MAX_HEIGHT_POSITION_M)
+            self.command_lift(self.max_height_position_m)
 
             if self.actuators_at_position(
                 actuator_positions,
-                self.MAX_HEIGHT_POSITION_M,
+                self.max_height_position_m,
             ):
                 self.start_x = odom_position[0]
                 self.start_y = odom_position[1]
@@ -107,11 +97,11 @@ class DepositionSequence:
 
         elif self.state == DepositionState.DEPOSIT_REGOLITH:
             self.spin_bucket()
-            self.drive_forward(self.DEPOSIT_DRIVE_SPEED)
+            self.drive_forward(self.deposit_drive_speed)
 
             if self.has_travelled_distance(
                 odom_position,
-                self.DEPOSIT_DRIVE_DISTANCE_M,
+                self.deposit_drive_distance_m,
             ):
                 self.state = DepositionState.STOP_WHEELS
 
@@ -124,11 +114,11 @@ class DepositionSequence:
             self.state = DepositionState.RETURN_TO_NORMAL_HEIGHT
 
         elif self.state == DepositionState.RETURN_TO_NORMAL_HEIGHT:
-            self.command_lift(self.NORMAL_HEIGHT_POSITION_M)
+            self.command_lift(self.normal_height_position_m)
 
             if self.actuators_at_position(
                 actuator_positions,
-                self.NORMAL_HEIGHT_POSITION_M,
+                self.normal_height_position_m,
             ):
                 self.state = DepositionState.COMPLETE
                 self.complete = True
@@ -152,7 +142,7 @@ class DepositionSequence:
     def spin_bucket(self):
         command = Float64()
         command.data = (
-            self.DRUM_SPIN_DIRECTION * self.DRUM_SPIN_SPEED
+            self.drum_spin_direction * self.drum_spin_speed
         )
         self.drum_spin_pub.publish(command)
 
@@ -180,8 +170,8 @@ class DepositionSequence:
         right_error = abs(right - target)
 
         return (
-            left_error <= self.POSITION_TOLERANCE_M
-            and right_error <= self.POSITION_TOLERANCE_M
+            left_error <= self.position_tolerance_m
+            and right_error <= self.position_tolerance_m
         )
 
     def has_travelled_distance(self, odom_position, target_distance):

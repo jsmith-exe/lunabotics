@@ -1,0 +1,37 @@
+competition_autonomy:
+  ros__parameters:
+
+    # =========================================================
+    # Excavation tuning
+    # =========================================================
+
+    excavation.drive_speed: 0.2
+    excavation.drive_distance_m: 1.0
+
+    excavation.drum_spin_speed: 0.8
+    excavation.drum_spin_direction: 1.0
+
+    excavation.contact_position_m: 0.01
+    excavation.max_excavation_position_m: 0.20
+    excavation.raised_position_m: 0.00
+
+    excavation.position_tolerance_m: 0.005
+
+
+    # =========================================================
+    # Deposition tuning
+    # =========================================================
+
+    deposition.drive_to_zone_speed: 0.2
+    deposition.drive_to_zone_distance_m: 1.5
+
+    deposition.deposit_drive_speed: 0.1
+    deposition.deposit_drive_distance_m: 2.0
+
+    deposition.max_height_position_m: 0.20
+    deposition.normal_height_position_m: 0.00
+
+    deposition.drum_spin_speed: 0.4
+    deposition.drum_spin_direction: 1.0
+
+    deposition.position_tolerance_m: 0.005
