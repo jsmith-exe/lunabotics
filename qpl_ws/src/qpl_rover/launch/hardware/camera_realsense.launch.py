@@ -217,23 +217,11 @@ def get_camera_params(use_low_quality: bool):
 
         **ffmpeg_cfg,
 
-        # Runs ahead of the pointcloud filter, so the cloud is built from a quarter
-        # as many pixels. 848x480 was ~407k points per frame, which the Jetson could
-        # not generate at stream rate - the filter's queue overflowed and the cloud
-        # dropped out intermittently. The costmap is 0.05 m over a <=1.5 m range, so
-        # the discarded density was never representable anyway.
-        # NOTE: this decimates the published depth image and its camera_info too,
-        # not just the cloud - depth/image_rect_raw becomes 424x240.
         'decimation_filter.enable': True,
         'decimation_filter.filter_magnitude': 4,
 
         'pointcloud__neon_.enable': True,
 
-        # The filter is handed a depth-only frameset, so no texture stream ever
-        # matches and it logs "No stream match for pointcloud chosen texture" on
-        # every start. allow_no_texture_points is what makes that harmless: without
-        # it the filter discards every frame and the cloud topic stays silent.
-        # Nav2's voxel layer reads XYZ only, so untextured points are all we need.
         'pointcloud__neon_.stream_filter': 3,  # RS2_STREAM_INFRARED
         'pointcloud__neon_.stream_index_filter': 1,
         'pointcloud__neon_.allow_no_texture_points': True,
@@ -245,10 +233,7 @@ def get_camera_params(use_low_quality: bool):
         # ASIC regardless, so streaming it only costs bus bandwidth and CPU.
         'enable_infra2': False,
 
-        # Only colour is viewed remotely. Every other stream defaults to spinning up
-        # x264/theora/compressed encoders nobody reads, which starves the UVC
-        # delivery thread and trips librealsense's streamer watchdog.
-        # 'camera.depth.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
+        # Limit topics
         'camera.infra1.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.infra2.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.aligned_depth_to_color.image_raw.enable_pub_plugins': ['image_transport/raw'],
