@@ -35,6 +35,7 @@ Some highlights:
 - While teleop is enabled (toggleable via the UI), it will republish the previous controller state.
 This is due to the receivers (the Twist mux and drum command interface) requiring constant input, else it will forward zeros.
 This is a security mechanism to avoid loss of control in the event of network problems.
+- Can configure window scale via `QPL_TELEOP_WINDOW_SCALE` environment variable.
 
 ## RViz
 We use RViz to visualise the robot state and view camera feeds.

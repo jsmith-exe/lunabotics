@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from tkinter import font, ttk, PhotoImage
+from os import environ
 
 from ttkbootstrap import Style, LabeledScale
 
@@ -10,7 +11,7 @@ from ..controllers.base_controller import BaseController
 from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
 
 DANGER_COLOR = "#ff1e39"
-UI_SCALE = 2.0  # Match this to your OS display-scaling percentage (e.g. 2.0 for 200%).
+UI_SCALE = float(environ.get('QPL_TELEOP_WINDOW_SCALE', 1.0))
 
 class TeleopWindow:
     def __init__(self, base_station_state: BaseStationState, publish_function: Callable, canbus_config: dict):
