@@ -16,24 +16,49 @@ class CompetitionAutonomyNode(Node):
     def __init__(self):
         super().__init__("competition_autonomy")
 
+        # ---------------------------------------------------------
+        # Parameters
+        # ---------------------------------------------------------
+
+        self.declare_parameter(
+            "autonomy.update_rate_hz",
+            5.0,
+        )
+
         self.declare_parameter("excavation.drive_speed", 0.2)
         self.declare_parameter("excavation.drive_distance_m", 1.0)
         self.declare_parameter("excavation.drum_spin_speed", 0.8)
         self.declare_parameter("excavation.drum_spin_direction", 1.0)
         self.declare_parameter("excavation.contact_position_m", 0.01)
-        self.declare_parameter("excavation.max_excavation_position_m", 0.20)
+        self.declare_parameter(
+            "excavation.max_excavation_position_m",
+            0.20,
+        )
         self.declare_parameter("excavation.raised_position_m", 0.00)
         self.declare_parameter("excavation.position_tolerance_m", 0.005)
 
         self.declare_parameter("deposition.drive_to_zone_speed", 0.2)
-        self.declare_parameter("deposition.drive_to_zone_distance_m", 1.5)
+        self.declare_parameter(
+            "deposition.drive_to_zone_distance_m",
+            1.5,
+        )
         self.declare_parameter("deposition.deposit_drive_speed", 0.1)
-        self.declare_parameter("deposition.deposit_drive_distance_m", 2.0)
+        self.declare_parameter(
+            "deposition.deposit_drive_distance_m",
+            2.0,
+        )
         self.declare_parameter("deposition.max_height_position_m", 0.20)
-        self.declare_parameter("deposition.normal_height_position_m", 0.00)
+        self.declare_parameter(
+            "deposition.normal_height_position_m",
+            0.00,
+        )
         self.declare_parameter("deposition.drum_spin_speed", 0.4)
         self.declare_parameter("deposition.drum_spin_direction", 1.0)
         self.declare_parameter("deposition.position_tolerance_m", 0.005)
+
+        update_rate_hz = self.get_parameter(
+            "autonomy.update_rate_hz"
+        ).value
 
         excavation_config = {
             "drive_speed": self.get_parameter(
@@ -170,13 +195,17 @@ class CompetitionAutonomyNode(Node):
             10,
         )
 
-        # Update the active FSM at 10 Hz.
+        # Update the active FSM and refresh active commands at the
+        # configured rate.
         self.sequence_timer = self.create_timer(
-            0.1,
+            1.0 / update_rate_hz,
             self.update_sequence,
         )
 
         self.get_logger().info("Competition autonomy started.")
+        self.get_logger().info(
+            f"Autonomy update rate: {update_rate_hz:.1f} Hz"
+        )
         self.get_logger().info("State: IDLE")
         self.get_logger().info(
             "Waiting for EXCAVATE, DEPOSIT, or STOP command."

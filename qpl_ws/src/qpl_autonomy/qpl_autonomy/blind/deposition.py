@@ -19,11 +19,11 @@ class DepositionSequence:
     """Feedback-based FSM for the competition deposition sequence."""
 
     def __init__(
-            self,
-            cmd_vel_pub,
-            drum_lift_pub,
-            drum_spin_pub,
-            config,
+        self,
+        cmd_vel_pub,
+        drum_lift_pub,
+        drum_spin_pub,
+        config,
     ):
         self.cmd_vel_pub = cmd_vel_pub
         self.drum_lift_pub = drum_lift_pub
@@ -68,6 +68,9 @@ class DepositionSequence:
         if self.complete:
             return
 
+        # ---------------------------------------------------------
+        # 1. Drive into construction zone
+        # ---------------------------------------------------------
         if self.state == DepositionState.DRIVE_TO_CONSTRUCTION_ZONE:
             self.drive_forward(self.drive_to_zone_speed)
 
@@ -77,11 +80,14 @@ class DepositionSequence:
             ):
                 self.stop_wheels()
 
-                self.start_x = odom_position[0]
-                self.start_y = odom_position[1]
+                self.start_x = None
+                self.start_y = None
 
                 self.state = DepositionState.LIFT_BUCKET
 
+        # ---------------------------------------------------------
+        # 2. Lift bucket to maximum height
+        # ---------------------------------------------------------
         elif self.state == DepositionState.LIFT_BUCKET:
             self.stop_wheels()
             self.command_lift(self.max_height_position_m)
@@ -90,11 +96,18 @@ class DepositionSequence:
                 actuator_positions,
                 self.max_height_position_m,
             ):
-                self.start_x = odom_position[0]
-                self.start_y = odom_position[1]
+                if (
+                    odom_position[0] is not None
+                    and odom_position[1] is not None
+                ):
+                    self.start_x = odom_position[0]
+                    self.start_y = odom_position[1]
 
                 self.state = DepositionState.DEPOSIT_REGOLITH
 
+        # ---------------------------------------------------------
+        # 3. Spin drum and slowly drive forward
+        # ---------------------------------------------------------
         elif self.state == DepositionState.DEPOSIT_REGOLITH:
             self.spin_bucket()
             self.drive_forward(self.deposit_drive_speed)
@@ -105,15 +118,27 @@ class DepositionSequence:
             ):
                 self.state = DepositionState.STOP_WHEELS
 
+        # ---------------------------------------------------------
+        # 4. Stop wheels
+        # ---------------------------------------------------------
         elif self.state == DepositionState.STOP_WHEELS:
             self.stop_wheels()
             self.state = DepositionState.STOP_BUCKET
 
+        # ---------------------------------------------------------
+        # 5. Stop drum
+        # ---------------------------------------------------------
         elif self.state == DepositionState.STOP_BUCKET:
+            self.stop_wheels()
             self.stop_bucket()
             self.state = DepositionState.RETURN_TO_NORMAL_HEIGHT
 
+        # ---------------------------------------------------------
+        # 6. Return bucket to normal height
+        # ---------------------------------------------------------
         elif self.state == DepositionState.RETURN_TO_NORMAL_HEIGHT:
+            self.stop_wheels()
+            self.stop_bucket()
             self.command_lift(self.normal_height_position_m)
 
             if self.actuators_at_position(
@@ -197,21 +222,13 @@ class DepositionSequence:
     # =============================================================
 
     def stop(self, actuator_positions):
-        """Stop all autonomous outputs and hold the lift position."""
+        """Stop autonomous motion without changing lift position."""
 
         self.stop_wheels()
         self.stop_bucket()
 
-        left, right = actuator_positions
-
-        if left is not None and right is not None:
-            lift_command = Float64()
-            lift_command.data = left
-            self.drum_lift_pub.publish(lift_command)
-
-            lift_command = Float64()
-            lift_command.data = right
-            self.drum_lift_pub.publish(lift_command)
+        # Do not publish a lift command.
+        # The bucket remains at its current controller position.
 
         self.complete = False
         self.state = DepositionState.COMPLETE
