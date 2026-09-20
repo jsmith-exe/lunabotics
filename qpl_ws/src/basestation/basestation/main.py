@@ -1,6 +1,7 @@
 from threading import Thread
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 import yaml
 
 from .base_station_state import BaseStationState
@@ -18,19 +19,29 @@ def main(args=None):
     state = BaseStationState()
     node = TeleopPublisher(state)
 
-    window_thread = Thread(target=open_teleop_window, args=(state, node.publish, canbus_config), daemon=True)
     physical_controller = PhysicalController(node.publish, state)
 
-    window_thread.start()
+    teleop_node_thread = Thread(target=spin_node, args=(node,), daemon=True)
+    teleop_node_thread.start()
+
     try:
-        rclpy.spin(node)
+        open_teleop_window(state, node.publish, canbus_config) # Should run in main thread
     except KeyboardInterrupt:
         pass
 
+    # Cleanup
     physical_controller.stop()
     node.destroy_node()
-    if rclpy.ok():
-        rclpy.shutdown()
+    node.get_logger().info('Teleop node destroyed')
+    rclpy.try_shutdown()
+    teleop_node_thread.join()
+
+
+def spin_node(node):
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
 
 
 if __name__ == '__main__':

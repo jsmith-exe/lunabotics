@@ -23,6 +23,14 @@ class TeleopWindow:
         base_scaling = self.root.tk.call('tk', 'scaling')
         self.root.tk.call('tk', 'scaling', base_scaling * UI_SCALE)
 
+        # Default exception hanlder prints error; in the event of KeyboardInterrupt, ignore error and close window.
+        def report_callback_exception(exc, val, tb):
+            if issubclass(exc, KeyboardInterrupt):
+                self.root.destroy()
+            else:
+                self.root.__class__.report_callback_exception(self.root, exc, val, tb)
+        self.root.report_callback_exception = report_callback_exception
+
         self.slider_controller = BaseController(publish_function, base_station_state, 0.002)
         self.keyboard_controller = TkinterKeyboardController(publish_function, base_station_state, self.root)
 
