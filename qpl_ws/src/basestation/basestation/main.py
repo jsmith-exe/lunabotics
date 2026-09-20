@@ -30,11 +30,11 @@ def main(args=None):
         pass
 
     # Cleanup
-    physical_controller.stop()
-    node.destroy_node()
-    node.get_logger().info('Teleop node destroyed')
     rclpy.try_shutdown()
     teleop_node_thread.join()
+    node.destroy_node()
+    node.get_logger().info('Teleop node destroyed')
+    physical_controller.stop()
 
 
 def spin_node(node):
