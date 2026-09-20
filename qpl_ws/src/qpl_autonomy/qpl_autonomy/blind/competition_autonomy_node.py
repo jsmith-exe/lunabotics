@@ -1,8 +1,13 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+
 from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Float64, String
+
 from qpl_autonomy.blind.excavation import ExcavationSequence
+from qpl_autonomy.blind.deposition import DepositionSequence
 
 
 class CompetitionAutonomyNode(Node):
@@ -11,22 +16,75 @@ class CompetitionAutonomyNode(Node):
     def __init__(self):
         super().__init__("competition_autonomy")
 
-        # Current autonomy state
+        # Top-level autonomy state.
         self.state = "IDLE"
 
-        # Publisher used by autonomy to command the drivetrain
+        # ---------------------------------------------------------
+        # Command publishers
+        # ---------------------------------------------------------
+
         self.cmd_vel_pub = self.create_publisher(
             Twist,
             "/cmd_vel_nav",
             10,
         )
 
-        # Excavation sequence
-        self.excavation = ExcavationSequence(
-            cmd_vel_pub=self.cmd_vel_pub,
+        self.drum_lift_pub = self.create_publisher(
+            Float64,
+            "/drum_lift_control/autonomy",
+            10,
         )
 
-        # Receive commands from the basestation.
+        self.drum_spin_pub = self.create_publisher(
+            Float64,
+            "/drum_spin_control/autonomy",
+            10,
+        )
+
+        # ---------------------------------------------------------
+        # Feedback
+        # ---------------------------------------------------------
+
+        self.left_actuator_position = None
+        self.right_actuator_position = None
+
+        self.odom_x = None
+        self.odom_y = None
+
+        self.joint_state_subscription = self.create_subscription(
+            JointState,
+            "/joint_states",
+            self.joint_state_callback,
+            10,
+        )
+
+        self.odom_subscription = self.create_subscription(
+            Odometry,
+            "/diff_cont/odom",
+            self.odom_callback,
+            10,
+        )
+
+        # ---------------------------------------------------------
+        # Sequences
+        # ---------------------------------------------------------
+
+        self.excavation = ExcavationSequence(
+            cmd_vel_pub=self.cmd_vel_pub,
+            drum_lift_pub=self.drum_lift_pub,
+            drum_spin_pub=self.drum_spin_pub,
+        )
+
+        self.deposition = DepositionSequence(
+            cmd_vel_pub=self.cmd_vel_pub,
+            drum_lift_pub=self.drum_lift_pub,
+            drum_spin_pub=self.drum_spin_pub,
+        )
+
+        # ---------------------------------------------------------
+        # Basestation command input
+        # ---------------------------------------------------------
+
         self.command_subscription = self.create_subscription(
             String,
             "/autonomy/command",
@@ -34,7 +92,7 @@ class CompetitionAutonomyNode(Node):
             10,
         )
 
-        # Update the active autonomy sequence at 10 Hz
+        # Update the active FSM at 10 Hz.
         self.sequence_timer = self.create_timer(
             0.1,
             self.update_sequence,
@@ -42,56 +100,144 @@ class CompetitionAutonomyNode(Node):
 
         self.get_logger().info("Competition autonomy started.")
         self.get_logger().info("State: IDLE")
-        self.get_logger().info("Waiting for EXCAVATE, DEPOSIT, or STOP command.")
+        self.get_logger().info(
+            "Waiting for EXCAVATE, DEPOSIT, or STOP command."
+        )
 
-    def command_callback(self, msg): # Handle commands received from the basestation
+    # =============================================================
+    # Feedback callbacks
+    # =============================================================
+
+    def joint_state_callback(self, msg):
+        """Store the latest linear actuator positions."""
+
+        for name, position in zip(msg.name, msg.position):
+            if name == "left_linear_actuator_joint":
+                self.left_actuator_position = position
+
+            elif name == "right_linear_actuator_joint":
+                self.right_actuator_position = position
+
+    def odom_callback(self, msg):
+        """Store the latest drivetrain odometry position."""
+
+        self.odom_x = msg.pose.pose.position.x
+        self.odom_y = msg.pose.pose.position.y
+
+    # =============================================================
+    # Basestation commands
+    # =============================================================
+
+    def command_callback(self, msg):
+        """Handle commands received from the basestation."""
+
         command = msg.data.strip().upper()
         self.get_logger().info(f"Received autonomy command: {command}")
 
         if command == "EXCAVATE":
             self.handle_excavate()
+
         elif command == "DEPOSIT":
             self.handle_deposit()
+
         elif command == "STOP":
             self.handle_stop()
-        else:
-            self.get_logger().warning(f"Unknown autonomy command: {command}")
 
-    def handle_excavate(self): # Start the excavation sequence
+        else:
+            self.get_logger().warning(
+                f"Unknown autonomy command: {command}"
+            )
+
+    def handle_excavate(self):
+        """Start the excavation sequence."""
+
         if self.state != "IDLE":
-            self.get_logger().warning(f"Cannot start excavation while in state: {self.state}")
+            self.get_logger().warning(
+                f"Cannot start excavation while in state: {self.state}"
+            )
             return
 
         self.state = "EXCAVATING"
-        self.get_logger().info("Starting excavation sequence.")
-        self.excavation.start()
 
-    def handle_deposit(self): # Start the deposition sequence
+        self.excavation.start(
+            actuator_positions=(
+                self.left_actuator_position,
+                self.right_actuator_position,
+            ),
+            odom_position=(self.odom_x, self.odom_y),
+        )
+
+        self.get_logger().info("Starting excavation sequence.")
+
+    def handle_deposit(self):
+        """Start the deposition sequence."""
+
         if self.state != "IDLE":
-            self.get_logger().warning(f"Cannot start deposition while in state: {self.state}")
+            self.get_logger().warning(
+                f"Cannot start deposition while in state: {self.state}"
+            )
             return
 
         self.state = "DEPOSITING"
-        self.get_logger().info("Starting deposition sequence.")
-        # TODO:
-        # Start the deposition sequence here
 
-    def handle_stop(self): # Stop the current autonomy sequence
+        self.deposition.start(
+            actuator_positions=(
+                self.left_actuator_position,
+                self.right_actuator_position,
+            ),
+            odom_position=(self.odom_x, self.odom_y),
+        )
+
+        self.get_logger().info("Starting deposition sequence.")
+
+    def handle_stop(self):
+        """Stop the active autonomy sequence in its current position."""
+
         if self.state == "IDLE":
             self.get_logger().info("Autonomy already idle.")
             return
 
-        self.get_logger().info(f"Stopping autonomy from state: {self.state}")
+        self.get_logger().info(
+            f"Stopping autonomy from state: {self.state}"
+        )
+
+        actuator_positions = (
+            self.left_actuator_position,
+            self.right_actuator_position,
+        )
 
         if self.state == "EXCAVATING":
-            self.excavation.stop()
+            self.excavation.stop(actuator_positions)
+
+        elif self.state == "DEPOSITING":
+            self.deposition.stop(actuator_positions)
 
         self.state = "IDLE"
+
         self.get_logger().info("Autonomy stopped. State: IDLE")
 
-    def update_sequence(self): # Update the currently active autonomy sequence
+    # =============================================================
+    # FSM update
+    # =============================================================
+
+    def update_sequence(self):
+        """Update whichever autonomy sequence is currently active."""
+
+        actuator_positions = (
+            self.left_actuator_position,
+            self.right_actuator_position,
+        )
+
+        odom_position = (
+            self.odom_x,
+            self.odom_y,
+        )
+
         if self.state == "EXCAVATING":
-            self.excavation.update()
+            self.excavation.update(
+                actuator_positions=actuator_positions,
+                odom_position=odom_position,
+            )
 
             if self.excavation.is_complete():
                 self.state = "IDLE"
@@ -100,14 +246,31 @@ class CompetitionAutonomyNode(Node):
                     "Excavation complete. State: IDLE"
                 )
 
+        elif self.state == "DEPOSITING":
+            self.deposition.update(
+                actuator_positions=actuator_positions,
+                odom_position=odom_position,
+            )
+
+            if self.deposition.is_complete():
+                self.state = "IDLE"
+
+                self.get_logger().info(
+                    "Deposition complete. State: IDLE"
+                )
+
+
 def main(args=None):
     rclpy.init(args=args)
+
     node = CompetitionAutonomyNode()
 
     try:
         rclpy.spin(node)
+
     except KeyboardInterrupt:
         pass
+
     finally:
         node.destroy_node()
         rclpy.shutdown()
