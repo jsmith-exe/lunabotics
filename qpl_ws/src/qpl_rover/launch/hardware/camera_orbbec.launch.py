@@ -10,7 +10,7 @@ import os
 def generate_launch_description():
     use_low_quality_parameter = DeclareLaunchArgument(
         'use_low_quality',
-        default_value='true',
+        default_value='false',
         description='Whether to run camera with low quality.'
     )
 
@@ -115,7 +115,7 @@ def get_camera_params(use_low_quality: bool):
         'ir_fps': depth_fps,
         'ir_format': 'Y10',
 
-        'enable_point_cloud': 'false',
+        # 'enable_point_cloud': 'false',
 
         'enable_decimation_filter': 'true',
         'decimation_filter_scale': '50',
