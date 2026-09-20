@@ -1,10 +1,10 @@
 from collections.abc import Callable
-from tkinter import font, ttk
+from tkinter import font, ttk, PhotoImage
 
 from ttkbootstrap import Style, LabeledScale
 
 from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
-    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs
+    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs, ICON_PATH
 from ..base_station_state import BaseStationState
 from ..controllers.base_controller import BaseController
 from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
@@ -22,6 +22,10 @@ class TeleopWindow:
         self.root.resizable(False, False)
         base_scaling = self.root.tk.call('tk', 'scaling')
         self.root.tk.call('tk', 'scaling', base_scaling * UI_SCALE)
+
+        # Icon
+        photo = PhotoImage(file=ICON_PATH)
+        self.root.wm_iconphoto(False, photo)
 
         # Default exception hanlder prints error; in the event of KeyboardInterrupt, ignore error and close window.
         def report_callback_exception(exc, val, tb):

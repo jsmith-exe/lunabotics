@@ -10,6 +10,7 @@ DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR = 0.3
 DEFAULT_MOTOR_STEER_BUTTON_FACTOR = 0.25
 DEFAULT_MOTOR_DRUM_BUTTON_FACTOR = 0.4
 CANBUS_CONFIG_PATH = Path(__file__).resolve().parents[2] / 'diffdrive_canbus' / 'hardware' / 'can_config.yaml'
+ICON_PATH = Path(__file__).resolve().parents[0] / 'ui' / 'icon.png'
 
 class MessageOptions(Enum):
     """ Commands that can be sent to the robot. """
