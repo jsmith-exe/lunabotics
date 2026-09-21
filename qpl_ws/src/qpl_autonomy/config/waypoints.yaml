@@ -2,28 +2,39 @@
 # high-level autonomy_node and the excavation/deposition task nodes read
 # from this file, so a change here propagates everywhere.
 #
+# US (UCF) arena — zones from qpl_rover/config/arena/us.yaml, map origin at the
+# bottom-left interior corner, arena 9.14 (x) by 8.10 (y) m:
+#   Starting zone     x 2.32..4.57, y 0.00..2.25 (rover starts here)
+#   Excavation zone   x 0.00..9.14, y 0.00..3.00 (includes the starting zone)
+#   Construction zone x 7.14..9.14, y 4.69..8.10
+#   Berm target       x 7.69..8.59, y 5.295..7.495 (long axis along Y)
+#
 # *_zone  : navigation target / start of the dig or dump pass
 # *_finish: end of the dig (excavation) or dump (construction) pass; the
 #           task node drives from the zone to the finish while running the drum.
-# NOTE: the *_finish values below are best-guess in-bounds defaults — tune
-#       them against the real arena before relying on a mission run.
+# Keep zone->finish well above Nav2's xy_goal_tolerance, and keep the rover
+# centre >= robot_radius (0.70 m) from the walls.
+# NOTE: tune against the real arena before relying on a mission run.
 
+# Dig pass: west -> east through the excavation zone, east of the starting
+# zone and on the side nearest the construction zone.
 excavation_zone:
-  x: 1
-  y: 6.5
+  x: 5.0
+  y: 1.5
   yaw: 0.0
 
 excavation_finish:
-  x: 2
-  y: 6.5
+  x: 7.0
+  y: 1.5
   yaw: 0.0
 
+# Dump pass: enter the berm from the north and drive south along its long axis.
 construction_zone:
-  x: 3.65
-  y: 1.3
+  x: 8.14
+  y: 7.2
   yaw: -1.5708  # -pi/2 radians, faces -Y (the dump-pass travel direction)
 
 construction_finish:
-  x: 3.65
-  y: 1
+  x: 8.14
+  y: 5.6
   yaw: -1.5708  # -pi/2 radians, faces -Y (the dump-pass travel direction)
