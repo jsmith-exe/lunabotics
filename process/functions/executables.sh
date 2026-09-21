@@ -2,6 +2,7 @@
 
 # Aliases
 alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=cmd_vel_teleop'
+alias qpl_teleop='ros2 run basestation teleop'
 alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
 alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias qpl_rover='ros2 launch qpl_rover rover.launch.py'
@@ -12,9 +13,7 @@ alias qpl_full_auto='ros2 launch qpl_autonomy full_autonomy.launch.py'
 alias qpl_blind_excavate='ros2 launch qpl_autonomy blind_excavation.launch.py'
 alias qpl_blind_construct='ros2 launch qpl_autonomy blind_construction.launch.py'
 alias qpl_components='ros2 launch qpl_rover components.launch.py'
-alias diffbot='ros2 launch diffdrive_canbus diffbot.launch.py'
 alias qpl_restart_daemon="ros2 daemon stop && ros2 daemon start"
-alias qpl_bro="qpl_build && qpl_rover"
 alias qpl_spare="ros2 launch qpl_rover spare.launch.py"
 alias qpl_can_sim="ros2 launch can_sim can_sim.launch.py"
 alias qpl_canbus_system="ros2 launch qpl_rover canbus_system.launch.py"
