@@ -46,7 +46,7 @@ class DrumInterface(Node):
 
         self.prioritised_source = ControlSource.TELEOP
         self.last_priority_message_time = 0
-        self.priority_timeout_seconds = 5 # How long to wait before accepting deprioritised messages
+        self.priority_timeout_seconds = 3 # How long to wait before accepting deprioritised messages
         self.get_logger().info("Drum command interface node initialised")
 
     def set_last_message_time(self):

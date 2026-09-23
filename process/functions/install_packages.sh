@@ -39,12 +39,15 @@ qpl_packages() {
     ros-humble-ament-cmake-vendor-package \
     socat \
     python3-yaml \
-    libyaml-cpp-dev
+    libyaml-cpp-dev \
+    libhidapi-dev
     # Don't add ros-humble-realsense2-camera, it should be built from source.
   python3 -m pip install --user \
     pupil-apriltags \
     imageio \
-    urwid
+    urwid \
+    pydualsense \
+    ttkbootstrap
 }
 
 qpl_gazebo_packages() {
