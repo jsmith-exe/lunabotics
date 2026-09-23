@@ -74,6 +74,29 @@ qpl_rviz_rover() {
   ros2 launch basestation rviz.launch.py "$@"
 }
 
+# Teleop layout: two rviz windows tiled across the screen (big driving camera on
+# the left, corner camera over the top-down map on the right). qpl_cam_swap flips
+# which camera is in the big pane.
+qpl_rviz_teleop() { # Against the sim; Gazebo only relays the compressed transport
+  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    qpl_use_gpu_render
+  fi
+  qpl_print_renderer
+
+  ros2 launch basestation teleop.launch.py use_sim_time:=true transport:=compressed "$@"
+}
+
+qpl_rviz_teleop_rover() { # Against the real rover; h264 over the teleop link
+  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    qpl_use_gpu_render
+  fi
+  qpl_print_renderer
+
+  ros2 launch basestation teleop.launch.py "$@"
+}
+
+alias qpl_cam_swap="$QPL_PROJECT/qpl_ws/src/basestation/scripts/cam_swap.sh"
+
 
 # -------------------- Render mode helpers --------------------
 qpl_use_software_render() {
