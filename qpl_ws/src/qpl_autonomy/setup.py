@@ -1,3 +1,4 @@
+import os
 from glob import glob
 
 from setuptools import setup
@@ -13,7 +14,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
-        ('share/' + package_name + '/config', ['config/waypoints.yaml']),
+        ('share/' + package_name + '/config', glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,11 +26,6 @@ setup(
     entry_points={
         'console_scripts': [
             'autonomy_node = qpl_autonomy.autonomy_node:main',
-            'excavation_node = qpl_autonomy.excavation_node:main',
-            'deposition_node = qpl_autonomy.deposition_node:main',
-            'full_autonomy_node = qpl_autonomy.full_autonomy_node:main',
-            'blind_excavation_node = qpl_autonomy.blind_excavation_node:main',
-            'blind_construction_node = qpl_autonomy.blind_construction_node:main',
         ],
     },
 )

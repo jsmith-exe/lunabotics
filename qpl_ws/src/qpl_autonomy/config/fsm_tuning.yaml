@@ -1,0 +1,34 @@
+autonomy:
+  ros__parameters:
+    autonomy.update_rate_hz: 5.0 # Autonomy update / command publish rate
+
+    # EXCAVATION TUNING
+    # wheels
+    excavation.drive_speed: 0.2
+    excavation.drive_distance_m: 1.0
+
+    # actuators
+    excavation.contact_position_m: 0.01 # Actuator position where bucket reaches regolith
+    excavation.max_excavation_position_m: 0.20 # Maximum bucket lowering depth during excavation
+    excavation.raised_position_m: 0.00 # Bucket position after excavation
+    excavation.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
+
+    # drum bucket
+    excavation.drum_spin_speed: 0.8
+    excavation.drum_spin_direction: 1.0 # sign will determine what direction the drum spins
+
+    # DEPOSITION TUNING
+    # wheels
+    deposition.drive_to_zone_speed: 0.2
+    deposition.drive_to_zone_distance_m: 1.5
+    deposition.deposit_drive_speed: 0.1
+    deposition.deposit_drive_distance_m: 2.0
+
+    # actuators
+    deposition.max_height_position_m: 0.20 # Bucket height for depositing regolith
+    deposition.normal_height_position_m: 0.00 # Bucket height after deposition
+    deposition.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
+
+    # drum bucket
+    deposition.drum_spin_speed: 0.4
+    deposition.drum_spin_direction: 1.0
