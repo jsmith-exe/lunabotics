@@ -21,7 +21,6 @@ qpl_packages() {
     ros-humble-robot-localization \
     ros-humble-pointcloud-to-laserscan \
     ros-humble-camera-info-manager \
-    ros-humble-realsense2-camera \
     ros-humble-v4l2-camera \
     v4l-utils \
     ros-humble-rtabmap-ros \
@@ -42,6 +41,7 @@ qpl_packages() {
     python3-yaml \
     libyaml-cpp-dev \
     libhidapi-dev
+    # Don't add ros-humble-realsense2-camera, it should be built from source.
   python3 -m pip install --user \
     pupil-apriltags \
     imageio \

@@ -57,11 +57,18 @@ def generate_launch_description():
         respawn=True,
     )
 
+    front_camera_tf_transform = Node(
+        package='tf2_ros', executable='static_transform_publisher',
+        arguments=['0','0','0','0','0','0',
+                   'camera_link_front', 'camera_camera_link_front'],
+    )
+
     return LaunchDescription([
         use_low_quality_parameter,
         OpaqueFunction(function=get_camera_launch),
         imu_filter,
         imu_optical_to_ros,
+        front_camera_tf_transform,
     ])
 
 
@@ -210,10 +217,27 @@ def get_camera_params(use_low_quality: bool):
 
         **ffmpeg_cfg,
 
+        'decimation_filter.enable': True,
+        'decimation_filter.filter_magnitude': 4,
+
         'pointcloud__neon_.enable': True,
 
-        # Required by rgbd_odometry: colour and depth sharing intrinsics.
+        'pointcloud__neon_.stream_filter': 3,  # RS2_STREAM_INFRARED
+        'pointcloud__neon_.stream_index_filter': 1,
+        'pointcloud__neon_.allow_no_texture_points': True,
+
+        # # Required by rgbd_odometry: colour and depth sharing intrinsics.
         'align_depth.enable': True,
+
+        # Nothing subscribes to infra2, and the depth stereo pair is computed on the
+        # ASIC regardless, so streaming it only costs bus bandwidth and CPU.
+        'enable_infra2': False,
+
+        # Limit topics
+        'camera.infra1.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
+        'camera.infra2.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
+        'camera.aligned_depth_to_color.image_raw.enable_pub_plugins': ['image_transport/raw'],
+        'camera.aligned_depth_to_infra1.image_raw.enable_pub_plugins': ['image_transport/raw'],
 
         'enable_gyro': True,
         'enable_accel': True,
