@@ -40,7 +40,8 @@ qpl_packages() {
     socat \
     python3-yaml \
     libyaml-cpp-dev \
-    libhidapi-dev
+    libhidapi-dev \
+    python3-pip
     # Don't add ros-humble-realsense2-camera, it should be built from source.
   python3 -m pip install --user \
     pupil-apriltags \
