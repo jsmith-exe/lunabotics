@@ -44,6 +44,7 @@ setup(
             'cloud_restamper = qpl_rover.cloud_restamper:main',
             'drum_command_interface = qpl_rover.drum_command_interface:main',
             'imu_optical_to_standard = qpl_rover.imu_optical_to_standard:main',
+            'teleop_watchdog = qpl_rover.teleop_watchdog:main',
         ],
     },
 )
