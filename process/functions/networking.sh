@@ -10,8 +10,8 @@
 # The stock Jetson kernel is missing the modules wondershaper needs (ifb, sch_htb, sch_sfq, cls_u32);
 # see docs/jetson-network-limiting.md for how to build a kernel that has them.
 
-# The rover is on wifi; eno1 is the unused wired port
 export DEFAULT_LIMITED_INTERFACE="wlP1p1s0"
+export DEFAULT_CLIENT_LIMITED_INTERFACE="wlo1"
 
 # --------------------- Network monitoring and limiting --------------------
 _qpl_net_redirecting_interfaces() {
@@ -25,9 +25,9 @@ qpl_speedometer() {
 }
 
 qpl_net_limit_set() {
-  local EGRESS_PERCENT=${1:-90}
-  local MAX_KBITS=${2:-4000}
-  local INTERFACE=${3:-"$DEFAULT_LIMITED_INTERFACE"}
+  local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
+  local EGRESS_PERCENT=${2:-90}
+  local MAX_KBITS=${3:-4000}
 
   local UPLOAD_KBITS DOWNLOAD_KBITS
   UPLOAD_KBITS=$(echo "$MAX_KBITS * $EGRESS_PERCENT / 100" | bc)
@@ -87,13 +87,6 @@ qpl_net_limit_clear() {
 
   echo "Clearing limits on $INTERFACE"
   sudo wondershaper -c -a "$INTERFACE"
-
-  # Remove the iptables ingress limiter used by earlier versions of these functions, if still present
-  for TABLE in iptables ip6tables; do
-    sudo $TABLE -D INPUT -i "$INTERFACE" -j QPL_LIMIT_IN 2>/dev/null
-    sudo $TABLE -F QPL_LIMIT_IN 2>/dev/null
-    sudo $TABLE -X QPL_LIMIT_IN 2>/dev/null
-  done
 }
 
 qpl_net_limit_status() {
@@ -127,6 +120,14 @@ qpl_net_limit_status_simple() {
   else
     echo "Unlimited"
   fi
+}
+
+qpl_net_limit_client() {
+  local CLIENT_EGRESS=10
+  qpl_net_limit_set "$DEFAULT_CLIENT_LIMITED_INTERFACE" $CLIENT_EGRESS
+}
+qpl_net_limit_clear_client() {
+  qpl_net_limit_clear "$DEFAULT_CLIENT_LIMITED_INTERFACE"
 }
 
 
