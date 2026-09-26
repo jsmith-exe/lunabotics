@@ -11,7 +11,7 @@ constexpr double RAW_MIN = 46.0;
 constexpr double RAW_MAX = 318.0;
 constexpr double DISTANCE_MIN_MM = 22.6;
 constexpr double DISTANCE_MAX_MM = 228.0;
-constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f; // Commands to the actuators must be offset
+constexpr double ACTUATOR_POSITION_CONSTANT = -27.9; // Commands to the actuators must be offset
 
 // The feedback is off by about 12-13mm (possibly the ACTUATOR_POSITION_CONSTANT above).
 // Actuator should be stopped at STOP_POSITION +/- STOP_TOLERANCE.
