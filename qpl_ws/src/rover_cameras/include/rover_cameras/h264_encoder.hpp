@@ -32,6 +32,9 @@ struct EncoderConfig
   std::vector<std::pair<std::string, std::string>> av_options;
 };
 
+// True if libavcodec has an encoder with this name (e.g. "libx264").
+bool encoderExists(const std::string & name);
+
 // Parses "key=value,key=value". Values may contain '=' and ':' (e.g. x264-params), not ','.
 std::vector<std::pair<std::string, std::string>> parseAvOptions(const std::string & text);
 

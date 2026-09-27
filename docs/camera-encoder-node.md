@@ -65,8 +65,9 @@ Measured on the Orin Nano:
 - **Output** is `ffmpeg_image_transport_msgs/FFMPEGPacket` with encoding
   `h264;yuv420p;bgr8;<rgb8|bgr8|mono8>`, on `<camera>/color/teleop_stream/ffmpeg`, plus
   `camera_info` rescaled to the output size.
-- **Drivers now publish only** `raw` and `compressed` for colour. Nothing encodes to ffmpeg
-  inside the drivers any more.
+- **Drivers now publish raw colour only.** With intra-process comms both drivers use a
+  plain ROS publisher (default QoS: reliable, depth 10) instead of image_transport, so there
+  is no driver-side `/compressed` or `/ffmpeg`, and `color_qos` is ignored.
 - **Stats** are logged every 5 s and published on `/diagnostics`:
   - input and output fps, overwritten and throttled frames
   - kbit/s and largest frame

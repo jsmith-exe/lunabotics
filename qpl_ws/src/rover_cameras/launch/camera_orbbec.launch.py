@@ -9,7 +9,7 @@ from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode
 
 from rover_cameras.launch_utils import (
-    DRIVER_IMAGE_PLUGINS, INTRA_PROCESS, respawning_container, stream_encoder)
+    INTRA_PROCESS, respawning_container, stream_encoder)
 
 direction = 'rear'  # front or rear
 camera_name = f'depth_camera_{direction}'
@@ -49,7 +49,6 @@ def get_camera_launch(context):
         namespace=camera_name,
         parameters=[
             orbbec_parameters(context, get_camera_params(use_low_quality)),
-            {'color.image_raw.enable_pub_plugins': DRIVER_IMAGE_PLUGINS},
         ],
         extra_arguments=INTRA_PROCESS,
     )

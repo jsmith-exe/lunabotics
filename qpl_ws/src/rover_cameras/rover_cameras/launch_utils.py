@@ -7,10 +7,11 @@ from launch.event_handlers import OnProcessStart
 from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes, Node
 from launch_ros.descriptions import ComposableNode
 
-# Drivers keep raw (for on-board consumers) and compressed (for local debugging);
-# the basestation views <camera>/color/teleop_stream/ffmpeg from the stream encoder instead.
-DRIVER_IMAGE_PLUGINS = ['image_transport/raw', 'image_transport/compressed']
-
+# With intra-process comms, both drivers (realsense2_camera, orbbec_camera) publish images
+# through a plain rclcpp publisher instead of image_transport, with the default QoS
+# (reliable, depth 10). So their colour image is raw only - no /compressed - and their
+# image QoS settings (color_qos) and transport-plugin parameters are ignored. The
+# basestation views <camera>/color/teleop_stream/ffmpeg from the stream encoder instead.
 INTRA_PROCESS = [{'use_intra_process_comms': True}]
 
 

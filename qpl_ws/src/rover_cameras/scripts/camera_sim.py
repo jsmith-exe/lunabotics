@@ -63,10 +63,11 @@ class CameraSim(Node):
         self.burn_block_size = int(self.declare_parameter('burn_block_size', 32).value)
 
         camera_info_url = self.declare_parameter('camera_info_url', '').value
-        # Both camera launch files set color_qos: SENSOR_DATA (best effort, depth 5), so
-        # the default matches. QoS changes network behaviour more than image content does.
-        reliability = self.declare_parameter('qos_reliability', 'best_effort').value
-        qos_depth = int(self.declare_parameter('qos_depth', 5).value)
+        # With intra-process comms (camera launch files) both drivers publish colour with
+        # the default QoS (reliable, depth 10), whatever color_qos says, so the default
+        # matches. QoS changes network behaviour more than image content does.
+        reliability = self.declare_parameter('qos_reliability', 'reliable').value
+        qos_depth = int(self.declare_parameter('qos_depth', 10).value)
         self.stats_period = float(self.declare_parameter('stats_period', 5.0).value)
 
         # The stream encoder rounds odd sizes down to even (I420/x264 need it), so the

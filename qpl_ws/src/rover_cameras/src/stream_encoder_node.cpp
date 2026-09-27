@@ -13,6 +13,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -67,7 +68,7 @@ public:
     info_topic_ = declare_parameter(
       "camera_info_topic", "camera_info", read_only("Input camera_info; empty disables"));
     output_topic_ = declare_parameter(
-      "output_topic", "stream",
+      "output_topic", "teleop_stream",
       read_only("Output base topic: publishes <base>/ffmpeg and <base>/camera_info"));
     const auto reliability = declare_parameter(
       "output_reliability", "best_effort", read_only("best_effort or reliable"));
@@ -150,6 +151,10 @@ private:
     double latency_ms = 0.0;
   };
 
+  // Parameters whose change needs the encoder reopened (and so costs a keyframe).
+  inline static const std::set<std::string> kReopenParams = {
+    "width", "height", "codec", "preset", "tune", "threads", "av_options"};
+
   inline static const std::vector<std::string> kLiveParams = {
     "width", "height", "max_fps", "codec", "preset", "tune", "threads", "bit_rate",
     "vbv_buffer_ms", "keyframe_interval", "av_options"};
@@ -181,6 +186,7 @@ private:
     if (s.bit_rate <= 0) {throw std::invalid_argument("bit_rate must be > 0");}
     if (s.vbv_buffer_ms < 0) {throw std::invalid_argument("vbv_buffer_ms must be >= 0");}
     if (s.threads < 0) {throw std::invalid_argument("threads must be >= 0");}
+    if (!encoderExists(s.codec)) {throw std::invalid_argument("unknown encoder: " + s.codec);}
     parseAvOptions(s.av_options);
     return s;
   }
@@ -203,8 +209,8 @@ private:
       const auto & n = p.get_name();
       if (n == "bit_rate" || n == "vbv_buffer_ms") {
         rate_changed_ = true;
-      } else if (n != "max_fps" && n != "keyframe_interval") {
-        reopen_ = true;  // everything else changes the codec setup
+      } else if (kReopenParams.count(n)) {
+        reopen_ = true;  // changes the codec setup
       }
     }
     settings_ = next;
@@ -296,6 +302,8 @@ private:
   }
 
   // Token bucket for max_fps: evenly thins e.g. 30 fps to 20 by keeping 2 frames in 3.
+  // Admitting from 0.75 credit (borrowing the rest) tolerates timing jitter when the input
+  // rate is at or just under max_fps; the long-run rate still cannot exceed max_fps.
   bool admit(double max_fps)
   {
     const auto now = SteadyClock::now();
@@ -306,7 +314,7 @@ private:
     const double dt = std::chrono::duration<double>(now - last_admit_).count();
     last_admit_ = now;
     credit_ = std::min(credit_ + dt * max_fps, 1.5);
-    if (credit_ < 1.0) {
+    if (credit_ < 0.75) {
       return false;
     }
     credit_ -= 1.0;
@@ -317,10 +325,26 @@ private:
     const Image & msg, const Settings & s, bool reopen, bool force_key, bool rate_changed,
     const CameraInfo::ConstSharedPtr & info)
   {
+    if (msg.width == 0 || msg.height == 0 || msg.step == 0 ||
+      msg.data.size() < static_cast<size_t>(msg.step) * msg.height)
+    {
+      throw std::invalid_argument("malformed image: " + std::to_string(msg.width) + "x" +
+              std::to_string(msg.height) + ", step " + std::to_string(msg.step) + ", " +
+              std::to_string(msg.data.size()) + " bytes");
+    }
+    const int64_t stamp_ms = rclcpp::Time(msg.header.stamp).nanoseconds() / 1000000;
+    // Stamps jumping back more than a second (sim reset, driver clock re-sync) would otherwise
+    // be nudged forward 1 ms per frame, which rate control reads as ~1000 fps. Start afresh.
+    const bool clock_jumped = last_pts_ >= 0 && stamp_ms < last_pts_ - 1000;
+    if (clock_jumped) {
+      RCLCPP_WARN(get_logger(), "frame stamps jumped back %.1f s; reopening encoder",
+        (last_pts_ - stamp_ms) / 1000.0);
+    }
+
     const auto [out_w, out_h] = outputSize(
       static_cast<int>(msg.width), static_cast<int>(msg.height), s.width, s.height);
     const auto & cfg = encoder_.config();
-    if (!encoder_.isOpen() || reopen || msg.encoding != input_encoding_ ||
+    if (!encoder_.isOpen() || reopen || clock_jumped || msg.encoding != input_encoding_ ||
       out_w != cfg.width || out_h != cfg.height)
     {
       openEncoder(msg, s, out_w, out_h);
@@ -335,7 +359,7 @@ private:
       msg.encoding, out_w, out_h, scratch_, i420_);
     const auto t1 = SteadyClock::now();
 
-    int64_t pts = rclcpp::Time(msg.header.stamp).nanoseconds() / 1000000;
+    int64_t pts = stamp_ms;
     if (pts <= last_pts_) {
       pts = last_pts_ + 1;
     }

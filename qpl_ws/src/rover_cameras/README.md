@@ -63,13 +63,16 @@ in an rviz Image display. `basestation/rviz/default.rviz` (what `basestation`'s
   subscribes.
 - The encoder only runs while someone is watching, so an unviewed stream costs nothing.
 
-Other colour topics are still published for use on the rover:
+The drivers also publish `.../color/image_raw`, raw, for AprilTag detection and visual
+odometry on the rover. Because the drivers share a process with the encoder
+(intra-process comms), they publish it through a plain ROS publisher, not image_transport.
+So:
 
-- `.../color/image_raw`: raw, used by AprilTag detection and visual odometry.
-- `.../color/image_raw/compressed`: JPEG, for debugging. At 1080p this is too big for the
-  link.
-
-The drivers no longer publish `.../image_raw/ffmpeg`.
+- There is no `.../color/image_raw/compressed` (or `/ffmpeg`) from the drivers any more.
+  Use the teleop stream.
+- The raw image uses the default QoS (reliable, depth 10). `color_qos` in the launch files
+  is ignored. Don't subscribe to raw from off the rover: a slow remote reader can hold up
+  the driver.
 
 ## Tuning the stream
 

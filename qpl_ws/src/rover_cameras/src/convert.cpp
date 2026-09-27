@@ -18,6 +18,9 @@ std::string decodedEncoding(const std::string & input_encoding)
 
 std::pair<int, int> outputSize(int in_width, int in_height, int req_width, int req_height)
 {
+  if (in_width <= 0 || in_height <= 0) {
+    throw std::invalid_argument("input image has no size");
+  }
   int w = req_width;
   int h = req_height;
   if (w <= 0 && h <= 0) {
@@ -53,6 +56,9 @@ void toI420(
     throw std::invalid_argument("unsupported image encoding: " + encoding);
   }
 
+  if (width <= 0 || height <= 0 || step < static_cast<size_t>(width) * CV_ELEM_SIZE(type)) {
+    throw std::invalid_argument("image size/step inconsistent with encoding " + encoding);
+  }
   const cv::Mat src(height, width, type, const_cast<uint8_t *>(data), step);
   const cv::Mat * scaled = &src;
   if (out_width != width || out_height != height) {

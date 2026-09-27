@@ -5,7 +5,7 @@ from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode
 
 from rover_cameras.launch_utils import (
-    DRIVER_IMAGE_PLUGINS, INTRA_PROCESS, respawning_container, stream_encoder)
+    INTRA_PROCESS, respawning_container, stream_encoder)
 
 
 direction = 'front' # front or rear
@@ -223,7 +223,6 @@ def get_camera_params(use_low_quality: bool):
         'enable_infra2': False,
 
         # Limit topics. The basestation views the stream encoder's output, not the driver's.
-        'camera.color.image_raw.enable_pub_plugins': DRIVER_IMAGE_PLUGINS,
         'camera.infra1.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.infra2.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.aligned_depth_to_color.image_raw.enable_pub_plugins': ['image_transport/raw'],

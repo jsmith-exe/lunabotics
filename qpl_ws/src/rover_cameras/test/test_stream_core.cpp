@@ -20,6 +20,23 @@ TEST(Convert, OutputSizeKeepsAspectAndEven)
   EXPECT_EQ(rover_cameras::outputSize(641, 481, 0, 0), std::make_pair(640, 480));
 }
 
+TEST(Convert, RejectsMalformedInput)
+{
+  EXPECT_THROW(rover_cameras::outputSize(0, 480, 640, 0), std::invalid_argument);
+  std::vector<uint8_t> buf(64 * 48 * 3);
+  cv::Mat scratch, i420;
+  // step shorter than a row of bgr8 pixels
+  EXPECT_THROW(
+    rover_cameras::toI420(buf.data(), 64, 48, 64, "bgr8", 64, 48, scratch, i420),
+    std::invalid_argument);
+}
+
+TEST(Encoder, EncoderExists)
+{
+  EXPECT_TRUE(rover_cameras::encoderExists("libx264"));
+  EXPECT_FALSE(rover_cameras::encoderExists("libx265x"));
+}
+
 TEST(Convert, DecodedEncoding)
 {
   EXPECT_EQ(rover_cameras::decodedEncoding("rgba8"), "rgb8");

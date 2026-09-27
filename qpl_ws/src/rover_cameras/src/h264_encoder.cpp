@@ -31,6 +31,11 @@ std::string trim(const std::string & s)
 }
 }  // namespace
 
+bool encoderExists(const std::string & name)
+{
+  return avcodec_find_encoder_by_name(name.c_str()) != nullptr;
+}
+
 std::vector<std::pair<std::string, std::string>> parseAvOptions(const std::string & text)
 {
   std::vector<std::pair<std::string, std::string>> out;
