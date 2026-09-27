@@ -1,14 +1,12 @@
-# Stream encoder for the rear (Orbbec) colour camera. See docs/camera-encoder-node.md.
-# bit_rate and vbv_buffer_ms can be changed live:  ros2 param set /depth_camera_rear/stream_encoder bit_rate 2000000
 /depth_camera_rear/stream_encoder:
   ros__parameters:
     input_topic: /depth_camera_rear/color/image_raw
     camera_info_topic: /depth_camera_rear/color/camera_info
     output_topic: /depth_camera_rear/color/stream
-    output_reliability: best_effort
+    output_reliability: reliable
 
-    width: 640         # 1080p downscaled to 720p: more bits per pixel on the same link
-    height: 480
+    width: 640
+    height: 0
     max_fps: 15.0
 
     codec: libx264
@@ -17,5 +15,5 @@
     threads: 4
     bit_rate: 1300000
     vbv_buffer_ms: 200
-    keyframe_interval: 1.0
+    keyframe_interval: 0.5
     av_options: ""

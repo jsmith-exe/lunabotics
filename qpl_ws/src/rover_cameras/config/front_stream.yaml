@@ -1,14 +1,12 @@
-# Stream encoder for the front (RealSense) colour camera. See docs/camera-encoder-node.md.
-# bit_rate and vbv_buffer_ms can be changed live:  ros2 param set /depth_camera_front/stream_encoder bit_rate 2000000
 /depth_camera_front/stream_encoder:
   ros__parameters:
     input_topic: /depth_camera_front/color/image_raw
     camera_info_topic: /depth_camera_front/color/camera_info
     output_topic: /depth_camera_front/color/stream
-    output_reliability: best_effort
+    output_reliability: reliable
 
     width: 640
-    height: 480
+    height: 0
     max_fps: 15.0
 
     codec: libx264
@@ -17,5 +15,5 @@
     threads: 4
     bit_rate: 1300000   # ~1/3 of the 3.6 Mbit/s egress per camera; the rest is telemetry
     vbv_buffer_ms: 200
-    keyframe_interval: 1.0
+    keyframe_interval: 0.5
     av_options: ""
