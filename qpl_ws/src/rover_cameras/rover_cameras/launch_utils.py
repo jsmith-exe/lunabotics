@@ -4,7 +4,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch.actions import RegisterEventHandler, TimerAction
 from launch.event_handlers import OnProcessStart
-from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes
+from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes, Node
 from launch_ros.descriptions import ComposableNode
 
 # Drivers keep raw (for on-board consumers) and compressed (for local debugging);
@@ -39,6 +39,39 @@ def stream_encoder(camera, use_low_quality):
         parameters=stream_encoder_parameters(camera, use_low_quality),
         extra_arguments=INTRA_PROCESS,
     )
+
+
+def stream_encoder_process(camera, use_low_quality=False, overrides=None):
+    """Stream encoder for <camera> as its own process.
+
+    For image sources that can't share a container: camera_sim (Python) and Gazebo. Frames
+    arrive over local DDS instead of intra-process, which costs a copy per frame.
+    `overrides` replace YAML values, e.g. input topics or use_sim_time.
+    """
+    return Node(
+        package='rover_cameras',
+        executable='stream_encoder_node',
+        name='stream_encoder',
+        namespace=camera,
+        output='screen',
+        parameters=stream_encoder_parameters(camera, use_low_quality) + [overrides or {}],
+    )
+
+
+def gazebo_stream_encoders(cameras=('depth_camera_front', 'depth_camera_rear')):
+    """Stream encoders for the Gazebo cameras, on the same output topics as the rover.
+
+    gazebo_ros_camera publishes <camera>/image_raw and <camera>/camera_info (sim.launch.py
+    relays them to <camera>/color/...); the encoder reads the originals to skip the relay.
+    """
+    return [
+        stream_encoder_process(camera, overrides={
+            'input_topic': f'/{camera}/image_raw',
+            'camera_info_topic': f'/{camera}/camera_info',
+            'use_sim_time': True,
+        })
+        for camera in cameras
+    ]
 
 
 def respawning_container(name, namespace, nodes, reload_delay=12.0):

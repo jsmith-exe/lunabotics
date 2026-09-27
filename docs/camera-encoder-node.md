@@ -15,7 +15,8 @@ ros2 launch rover_cameras camera_sim.launch.py         # no hardware
 ```
 
 **On the basestation:** view `/depth_camera_{front,rear}/color/stream/ffmpeg` with
-Reliable reliability (`rover.rviz` is already set up this way). With Best Effort, frames lost
+Reliable reliability (`basestation/rviz/default.rviz` is already set up this way, for the
+rover and the Gazebo sim alike). With Best Effort, frames lost
 over Wi-Fi showed up as smeared, garbled blocks during motion. The stock
 `ffmpeg_image_transport` plugin decodes it, including with `h264_cuvid`.
 
@@ -35,6 +36,8 @@ Measured on the Orin Nano:
 
 ## How it works
 
+- **In the Gazebo sim** (`qpl_rover` `sim.launch.py`), an encoder per camera runs as its own
+  process, reading Gazebo's `<camera>/image_raw` with sim time, and publishing the same topics.
 - **Same process as the driver.** Each launch file runs the driver and a `StreamEncoder` in
   one component container, with intra-process communication, so frames are handed over
   without copying.

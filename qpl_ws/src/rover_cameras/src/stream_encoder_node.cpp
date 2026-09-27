@@ -417,8 +417,10 @@ private:
     out->flags = key ? 1 : 0;
     out->is_bigendian = false;
     out->data.assign(data, data + size);
+    // Node clock: wall time on the rover, /clock in the sim (use_sim_time), matching the stamps.
+    const auto clock = get_clock();
     const double latency_ms =
-      (rclcpp::Clock(RCL_SYSTEM_TIME).now() - rclcpp::Time(out->header.stamp, RCL_SYSTEM_TIME)).seconds() * 1e3;
+      (clock->now() - rclcpp::Time(out->header.stamp, clock->get_clock_type())).seconds() * 1e3;
     packet_pub_->publish(std::move(out));
 
     if (key) {

@@ -27,7 +27,8 @@ target_include_directories(stream_core PUBLIC
 target_link_libraries(stream_core PUBLIC PkgConfig::LIBAV ${OpenCV_LIBS})
 target_compile_features(stream_core PUBLIC cxx_std_17)
 
-add_library(stream_encoder SHARED src/stream_encoder.cpp)
+# The compression node: rover_cameras::StreamEncoder (component + stream_encoder_node executable)
+add_library(stream_encoder SHARED src/stream_encoder_node.cpp)
 target_link_libraries(stream_encoder stream_core)
 ament_target_dependencies(stream_encoder
   rclcpp rclcpp_components sensor_msgs diagnostic_msgs ffmpeg_image_transport_msgs)
@@ -40,8 +41,10 @@ install(TARGETS stream_encoder
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
 ament_python_install_package(${PROJECT_NAME})
-install(PROGRAMS scripts/camera_sim scripts/imu_optical_to_standard
-  DESTINATION lib/${PROJECT_NAME})
+# Python nodes, installed without the .py so `ros2 run rover_cameras camera_sim` works
+install(PROGRAMS scripts/camera_sim.py DESTINATION lib/${PROJECT_NAME} RENAME camera_sim)
+install(PROGRAMS scripts/imu_optical_to_standard.py
+  DESTINATION lib/${PROJECT_NAME} RENAME imu_optical_to_standard)
 install(DIRECTORY launch config calibration
   DESTINATION share/${PROJECT_NAME})
 

@@ -7,6 +7,8 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Tim
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
+from rover_cameras.launch_utils import gazebo_stream_encoders
+
 selected_world = "us_arena.world"
 rover_pkg: str = get_package_share_directory("qpl_rover")
 gazebo_directory: str = get_package_share_directory("gazebo_ros")
@@ -140,4 +142,5 @@ def generate_launch_description():
         OpaqueFunction(function=setup_components),
         *make_camera_relays("depth_camera_front"),
         *make_camera_relays("depth_camera_rear"),
+        *gazebo_stream_encoders(),
     ])

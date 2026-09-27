@@ -18,7 +18,7 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from rover_cameras.launch_utils import stream_encoder_parameters
+from rover_cameras.launch_utils import stream_encoder_process
 
 CALIBRATION_FOLDER = os.path.join(get_package_share_directory('rover_cameras'), 'calibration')
 
@@ -103,13 +103,6 @@ def build_cameras(context):
 
         if enable_stream:
             # The same encoder and settings the camera launch files load beside the drivers.
-            actions.append(Node(
-                package='rover_cameras',
-                executable='stream_encoder_node',
-                name='stream_encoder',
-                namespace=cam['camera_name'],
-                output='screen',
-                parameters=stream_encoder_parameters(cam['camera_name'], low),
-            ))
+            actions.append(stream_encoder_process(cam['camera_name'], low))
 
     return actions

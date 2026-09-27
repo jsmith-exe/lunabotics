@@ -7,7 +7,6 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
 
-config_name = "default" # default or rover
 
 
 def generate_launch_description():
@@ -21,11 +20,7 @@ def generate_launch_description():
         description="Use simulation time if true."
     )
 
-    rviz_config = os.path.join(
-        basestation_pkg_path,
-        "rviz",
-        f"{config_name}.rviz"
-    )
+    rviz_config = os.path.join(basestation_pkg_path, "rviz", "default.rviz")
 
     rviz = Node(
         package="rviz2",

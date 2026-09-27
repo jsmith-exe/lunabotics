@@ -4,6 +4,12 @@ Launch files, configuration and calibration for the rover's two cameras, plus
 `StreamEncoder`, which turns each camera's colour image into a low-latency H.264 stream
 the basestation can watch over the 4 Mbit/s link.
 
+**The compression node is `StreamEncoder`, in
+[`src/stream_encoder_node.cpp`](src/stream_encoder_node.cpp).** It's built as a component
+(`rover_cameras::StreamEncoder`) and as a standalone executable (`stream_encoder_node`).
+Everything else in the package runs a camera or feeds that node; see
+[Package layout](#package-layout).
+
 | Camera | Driver | Namespace | Colour |
 |---|---|---|---|
 | Front | Intel RealSense (`realsense2_camera`) | `/depth_camera_front` | 1280x800 @ 30 |
@@ -30,10 +36,22 @@ If the container crashes it restarts, and both components are loaded again about
 later. That delay is how long the dead container's DDS entry takes to expire. Until then,
 a load request would go to the dead process.
 
+## Gazebo sim
+
+`qpl_rover`'s `sim.launch.py` also runs a stream encoder per camera, as a separate process
+beside Gazebo. The encoders read Gazebo's `/depth_camera_{front,rear}/image_raw` and publish
+the same `.../color/stream/ffmpeg` topics as the rover, so the basestation views the sim and
+the rover identically. They use sim time and the same YAML settings (see
+`gazebo_stream_encoders()` in `rover_cameras/launch_utils.py`).
+
+Gazebo renders the cameras at 1280x720 @ 10 Hz, so the stream runs at 10 fps at most. The
+machine running the sim needs this package built, which needs `libavcodec-dev`.
+
 ## Viewing on the basestation
 
 Show `/depth_camera_front/color/stream/ffmpeg` and `/depth_camera_rear/color/stream/ffmpeg`
-in an rviz Image display. `basestation/rviz/rover.rviz` is already set up this way.
+in an rviz Image display. `basestation/rviz/default.rviz` (what `basestation`'s
+`rviz.launch.py` opens) is already set up this way, for both the rover and the sim.
 
 - Set **Reliability** to **Reliable**. The stream is published Reliable (with a queue of
   1), so DDS resends fragments lost over Wi-Fi. A Best Effort display still connects, but
@@ -61,8 +79,8 @@ overrides them from `LOW_QUALITY_ENCODER` in `rover_cameras/launch_utils.py`.
 | Parameter | Default | Meaning | Changeable live? |
 |---|---|---|---|
 | `bit_rate` | `1300000` | Target bits/s. Two cameras at 1.3 Mbit/s leaves room for telemetry in the 3.6 Mbit/s uplink. | yes |
-| `max_fps` | `30.0` | Frame-rate cap (frames are thinned evenly). `0` = camera rate. | yes |
-| `width`, `height` | front `0`/`0`, rear `1280`/`0` | Output size. `0` keeps the input size, or keeps the aspect ratio if the other is set. Rounded down to even. | reopens encoder |
+| `max_fps` | `15.0` | Frame-rate cap (frames are thinned evenly). `0` = camera rate. | yes |
+| `width`, `height` | `640`/`480` | Output size. `0` keeps the input size, or keeps the aspect ratio if the other is set. Rounded down to even. | reopens encoder |
 | `keyframe_interval` | `0.5` | Seconds between keyframes: the longest a stream takes to recover from a lost frame. | yes |
 | `vbv_buffer_ms` | `200` | Caps how far one frame (mostly keyframes) can overshoot the bit rate, which bounds latency spikes. `0` = off. | yes |
 | `preset` | `superfast` | x264 speed/quality trade-off. Slower presets compress better and cost more CPU. | reopens encoder |
@@ -111,7 +129,7 @@ in 30.0 fps, out 30.0 fps (0 overwritten, 0 throttled), 1290 kbit/s, max frame 2
 |---|---|
 | `overwritten` | Frames the encoder couldn't keep up with and skipped. Above zero means it's CPU-bound: lower the size, fps or preset. The camera itself is never slowed. |
 | `throttled` | Frames skipped deliberately by `max_fps`. |
-| `latency` | Camera timestamp to publish, on the rover only. Excludes the network and decoding. |
+| `latency` | Camera timestamp to publish, on the rover or sim machine only (sim time in the sim). Excludes the network and decoding. |
 
 The same numbers are published on `/diagnostics`.
 
@@ -150,24 +168,31 @@ Build requirements: libavcodec/libavutil (`libavcodec-dev`), OpenCV and
 `ffmpeg_image_transport_msgs`. The Orbbec driver comes from the separate `OrbbecSDK_ROS2`
 workspace, so source it before launching.
 
+The Python nodes in `scripts/` are installed as copies, renamed without `.py`, so after
+editing them rebuild the package, even with `--symlink-install`.
+
 ## Package layout
 
 ```
+src/
+  stream_encoder_node.cpp        THE COMPRESSION NODE: StreamEncoder (component + executable)
+  h264_encoder.cpp               its libavcodec/libx264 wrapper (no ROS dependency)
+  convert.cpp                    its OpenCV resize + I420 conversion (no ROS dependency)
+include/rover_cameras/           headers for the two helpers above
+scripts/
+  camera_sim.py                  synthetic camera node          (runs as `camera_sim`)
+  imu_optical_to_standard.py     RealSense IMU axes for the EKFs (runs as `imu_optical_to_standard`)
 launch/
-  camera_realsense.launch.py    front driver + encoder in one container; IMU nodes
-  camera_orbbec.launch.py       rear driver + encoder in one container
-  camera_sim.launch.py          synthetic cameras + encoders, no hardware
+  camera_realsense.launch.py     front driver + encoder in one container; IMU nodes
+  camera_orbbec.launch.py        rear driver + encoder in one container
+  camera_sim.launch.py           synthetic cameras + encoders, no hardware
+rover_cameras/launch_utils.py    shared launch helpers: encoder setup (container, standalone,
+                                 Gazebo), respawning container
 config/
-  front_stream.yaml             encoder settings per camera
+  front_stream.yaml              encoder settings per camera
   rear_stream.yaml
-calibration/                    rear colour calibration (1280 and 1920 wide)
-rover_cameras/launch_utils.py   shared launch helpers (container with reload, encoder setup)
-src/stream_encoder.cpp          the StreamEncoder component
-src/h264_encoder.cpp            libavcodec wrapper (no ROS dependency)
-src/convert.cpp                 OpenCV resize + I420 conversion (no ROS dependency)
-scripts/camera_sim              synthetic camera node
-scripts/imu_optical_to_standard RealSense IMU axis conversion for the EKFs
-test/test_stream_core.cpp       unit tests
+calibration/                     rear colour calibration (1280 and 1920 wide)
+test/test_stream_core.cpp        unit tests for the two helpers
 ```
 
 ## Notes for maintainers
@@ -184,5 +209,3 @@ test/test_stream_core.cpp       unit tests
   stream was viewed, the whole colour topic, including AprilTag detection, slowed to
   11–21 fps and lagged. It also left x264 single-threaded and assumed 100 fps for its bit
   rate. The full write-up is in `docs/camera-encoder-node.md`.
-- **The root `.gitignore` ignores every directory named `test`.** Add `test/` with
-  `git add -f`.
