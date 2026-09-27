@@ -26,15 +26,13 @@
 
   <!-- Localisation + IMU chain -->
   <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>imu_filter_madgwick</exec_depend>
-  <exec_depend>realsense2_camera</exec_depend>
 
-  <!-- camera_sim: synthetic colour source for network testing (camera_sim.launch.py).
-       image_transport supplies republish; ffmpeg_image_transport is the plugin it loads. -->
+  <!-- Camera drivers, launch files and the stream encoder -->
+  <exec_depend>rover_cameras</exec_depend>
+
+  <!-- apriltag_observer, cloud_restamper -->
   <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>image_transport</exec_depend>
-  <exec_depend>ffmpeg_image_transport</exec_depend>
-  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
 

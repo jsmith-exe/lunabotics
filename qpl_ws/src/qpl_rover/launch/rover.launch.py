@@ -9,6 +9,7 @@ from launch.substitutions import LaunchConfiguration
 
 
 rover_pkg: str = get_package_share_directory("qpl_rover")
+cameras_pkg: str = get_package_share_directory("rover_cameras")
 
 
 def setup_components(context):
@@ -58,8 +59,8 @@ def generate_launch_description():
     # Cameras
     # Full resolution. Flip to "true" for 424x240x15 if the Jetson can't keep up.
     use_low_quality = "false"
-    realsense_launch_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_realsense.launch.py"))
-    orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(rover_pkg, "launch", "camera_orbbec.launch.py"))
+    realsense_launch_source = PythonLaunchDescriptionSource(path.join(cameras_pkg, "launch", "camera_realsense.launch.py"))
+    orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(cameras_pkg, "launch", "camera_orbbec.launch.py"))
     realsense_launch = IncludeLaunchDescription(realsense_launch_source, launch_arguments={"use_low_quality": use_low_quality}.items())
     orbbec_launch = IncludeLaunchDescription(orbbec_launch_path_source, launch_arguments={"use_low_quality": use_low_quality}.items())
     delayed_orbbec_launch = TimerAction(period=20.0, actions=[orbbec_launch])
@@ -89,6 +90,6 @@ def generate_launch_description():
         delayed_orbbec_launch,
         rear_camera_tf_transform,
         # Child frame is camera_name + base_frame_id from
-        # camera_realsense.launch.py; must change with it or VO/IMU go silent.
+        # rover_cameras/launch/camera_realsense.launch.py; must change with it or VO/IMU go silent.
         front_camera_tf_transform,
     ])

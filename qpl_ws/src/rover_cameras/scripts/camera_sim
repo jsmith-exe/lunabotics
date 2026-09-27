@@ -5,11 +5,9 @@ Stands in place of realsense2_camera_node / the Orbbec node: publishes
 <camera_name>/color/image_raw + camera_info on the same topic names, so the
 basestation, apriltag and rviz subscribe unchanged.
 
-/ffmpeg is NOT produced here. The real drivers never encode anything themselves -
-they create an image_transport publisher and the transport plugins do the work.
-We keep that property by publishing raw and letting `image_transport republish`
-(see camera_sim.launch.py) run the same ffmpeg plugin with the same parameters.
-/compressed is the one exception: the compressed plugin is cv2.imencode under the
+The H.264 stream is NOT produced here: as on the rover, the stream encoder
+(camera_sim.launch.py starts one per camera) subscribes to raw and encodes it.
+/compressed is the exception: the compressed plugin is cv2.imencode under the
 hood, so doing it here directly is equivalent and saves a second raw hop.
 """
 import array
@@ -65,22 +63,18 @@ class CameraSim(Node):
         self.burn_block_size = int(self.declare_parameter('burn_block_size', 32).value)
 
         camera_info_url = self.declare_parameter('camera_info_url', '').value
-        # The Orbbec driver leaves image_qos at "default" (rmw_qos_profile_default,
-        # i.e. RELIABLE depth 10) and camera_orbbec.launch.py has color_qos commented
-        # out, so the real cameras publish reliably. Matched here because QoS changes
-        # network behaviour more than image content does - reliable turns loss into
-        # retransmission. It is also what republish's subscriber requires.
-        reliability = self.declare_parameter('qos_reliability', 'reliable').value
-        qos_depth = int(self.declare_parameter('qos_depth', 10).value)
+        # Both camera launch files set color_qos: SENSOR_DATA (best effort, depth 5), so
+        # the default matches. QoS changes network behaviour more than image content does.
+        reliability = self.declare_parameter('qos_reliability', 'best_effort').value
+        qos_depth = int(self.declare_parameter('qos_depth', 5).value)
         self.stats_period = float(self.declare_parameter('stats_period', 5.0).value)
 
-        # libx264 refuses odd dimensions ("width not divisible by 2"), so /ffmpeg
-        # would die in the republish process while raw and /compressed carry on -
-        # a dead topic with the error buried in another node's log.
+        # The stream encoder rounds odd sizes down to even (I420/x264 need it), so the
+        # stream would not be quite the size asked for.
         if self.width % 2 or self.height % 2:
             self.get_logger().warn(
-                f'{self.width}x{self.height} has an odd dimension. libx264 will refuse it, so '
-                '/ffmpeg will publish nothing; raw and /compressed are unaffected.')
+                f'{self.width}x{self.height} has an odd dimension; the stream will be cropped '
+                'to even by resizing.')
 
         if self.get_parameter('use_sim_time').value:
             self.get_logger().warn(
@@ -93,10 +87,6 @@ class CameraSim(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=qos_depth,
         )
-        if reliability == 'best_effort':
-            self.get_logger().warn(
-                'qos_reliability=best_effort: image_transport republish subscribes RELIABLE, '
-                'so /ffmpeg will receive nothing. Use this only with ffmpeg disabled.')
 
         base = f'/{self.camera_name}/color/image_raw'
         self.pub_image = self.create_publisher(Image, base, qos)

@@ -2,7 +2,7 @@ source "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash" > /dev/null 2>&1
 
 # RealSense
 qpl_realsense_run() {
-  ros2 launch qpl_rover camera_realsense.launch.py
+  ros2 launch rover_cameras camera_realsense.launch.py
 }
 
 # ORBBEC
@@ -41,5 +41,5 @@ qpl_orbbecsdk_build() {
 }
 
 qpl_orbbecsdk_run() {
-  ros2 launch qpl_rover camera_orbbec.launch.py
+  ros2 launch rover_cameras camera_orbbec.launch.py
 }

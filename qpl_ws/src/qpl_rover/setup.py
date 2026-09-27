@@ -14,7 +14,6 @@ setup(
     (os.path.join("share",  package_name, "description"), glob("description/*")),
     (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
     (os.path.join("share", package_name, "launch"), glob("launch/components/*.py")),
-    (os.path.join("share", package_name, "launch"), glob("launch/hardware/*.py")),
     (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model'), glob('worlds/apriltag_model/model.config')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'scripts'), glob('worlds/apriltag_model/materials/scripts/*')),
@@ -41,10 +40,8 @@ setup(
     entry_points={
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
-            'camera_sim = qpl_rover.camera_sim:main',
             'cloud_restamper = qpl_rover.cloud_restamper:main',
             'drum_command_interface = qpl_rover.drum_command_interface:main',
-            'imu_optical_to_standard = qpl_rover.imu_optical_to_standard:main',
             'teleop_watchdog = qpl_rover.teleop_watchdog:main',
         ],
     },

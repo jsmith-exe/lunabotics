@@ -1,13 +1,11 @@
 from launch import LaunchDescription
-from launch_ros.actions import Node
-
-from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, OpaqueFunction, DeclareLaunchArgument
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import SetParameter
+from launch.actions import OpaqueFunction, DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from ament_index_python.packages import get_package_share_directory
-import os
+from launch_ros.actions import Node
+from launch_ros.descriptions import ComposableNode
+
+from rover_cameras.launch_utils import (
+    DRIVER_IMAGE_PLUGINS, INTRA_PROCESS, respawning_container, stream_encoder)
 
 
 direction = 'front' # front or rear
@@ -51,7 +49,7 @@ def generate_launch_description():
     )
 
     imu_optical_to_ros = Node(
-        package='qpl_rover',
+        package='rover_cameras',
         executable='imu_optical_to_standard',
         output='screen',
         respawn=True,
@@ -77,16 +75,20 @@ def get_camera_launch(context):
     use_low_quality = LaunchConfiguration('use_low_quality').perform(context).lower() == 'true'
     print(f'use_low_quality: {use_low_quality}')
 
-    camera_launch = Node(
-            package='realsense2_camera',
-            executable='realsense2_camera_node',
-            parameters=[get_camera_params(use_low_quality)],
-            output='screen',
-            remappings=get_remappings(),
-            respawn=True,
-        )
+    # The driver and its stream encoder share one process, so colour frames reach the
+    # encoder intra-process without being copied or serialised.
+    camera = ComposableNode(
+        package='realsense2_camera',
+        plugin='realsense2_camera::RealSenseNodeFactory',
+        name='camera',
+        namespace='camera',
+        parameters=[get_camera_params(use_low_quality)],
+        remappings=get_remappings(),
+        extra_arguments=INTRA_PROCESS,
+    )
+    encoder = stream_encoder(f'depth_camera_{direction}', use_low_quality)
 
-    return [camera_launch]
+    return respawning_container('camera_container', f'depth_camera_{direction}', [camera, encoder])
 
 
 def get_remappings():
@@ -187,25 +189,12 @@ def get_camera_params(use_low_quality: bool):
     color_fmt = 'BGR8'
     depth_fmt = 'Z16'
     infra_fmt = 'BGR8'
-    ffmpeg_cfg = {
-        'camera.color.image_raw.ffmpeg.encoder': 'libx264',
-        'camera.color.image_raw.ffmpeg.bit_rate': 1000000,
-        'camera.color.image_raw.ffmpeg.qmax': 40,
-        'camera.color.image_raw.ffmpeg.gop_size': 10,
-    }
 
     if use_low_quality:
         color_profile = '424x240x15'
         depth_profile = '424x240x15'
         color_fmt = 'BGR8'
         infra_fmt = 'UYVY'
-        ffmpeg_cfg = {
-            'camera.color.image_raw.ffmpeg.encoder': 'libx264rgb',
-            'camera.color.image_raw.ffmpeg.bit_rate': 1000000,
-            'camera.color.image_raw.ffmpeg.qmax': 40,
-            'camera.color.image_raw.ffmpeg.gop_size': 1,
-            'camera.color.image_raw.ffmpeg.encoder_av_options': 'tune:zerolatency,preset:ultrafast',
-        }
 
     camera_params = {
         'rgb_camera.color_profile': color_profile,
@@ -215,7 +204,7 @@ def get_camera_params(use_low_quality: bool):
         'depth_module.depth_format': depth_fmt,
         'depth_module.infra_format': infra_fmt,
 
-        **ffmpeg_cfg,
+        'color_qos': 'SENSOR_DATA',
 
         'decimation_filter.enable': True,
         'decimation_filter.filter_magnitude': 4,
@@ -233,7 +222,8 @@ def get_camera_params(use_low_quality: bool):
         # ASIC regardless, so streaming it only costs bus bandwidth and CPU.
         'enable_infra2': False,
 
-        # Limit topics
+        # Limit topics. The basestation views the stream encoder's output, not the driver's.
+        'camera.color.image_raw.enable_pub_plugins': DRIVER_IMAGE_PLUGINS,
         'camera.infra1.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.infra2.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.aligned_depth_to_color.image_raw.enable_pub_plugins': ['image_transport/raw'],
