@@ -55,7 +55,7 @@ def generate_launch_description():
         DeclareLaunchArgument('scene_cut_period', default_value='0.0',
                               description='Seconds between forced scene cuts; 0 disables.'),
         DeclareLaunchArgument('enable_stream', default_value='true',
-                              description='Run the stream encoder to produce color/stream/ffmpeg.'),
+                              description='Run the stream encoder to produce color/teleop_stream/ffmpeg.'),
         DeclareLaunchArgument('enable_compressed', default_value='true',
                               description='Publish /compressed directly from the node.'),
         OpaqueFunction(function=build_cameras),

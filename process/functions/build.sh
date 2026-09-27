@@ -16,7 +16,7 @@ qpl_build() {
     rm -rf build/ install/ log/
   fi
 
-  colcon build --symlink-install
+  colcon build --symlink-install --cmake-args -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
   source "$QPL_PROJECT/qpl_ws/install/setup.bash"
 
   cd "$previous_path" || {

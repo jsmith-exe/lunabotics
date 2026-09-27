@@ -14,7 +14,7 @@ ros2 launch rover_cameras camera_orbbec.launch.py      # rear;  qpl_orbbecsdk_ru
 ros2 launch rover_cameras camera_sim.launch.py         # no hardware
 ```
 
-**On the basestation:** view `/depth_camera_{front,rear}/color/stream/ffmpeg` with
+**On the basestation:** view `/depth_camera_{front,rear}/color/teleop_stream/ffmpeg` with
 Reliable reliability (`basestation/rviz/default.rviz` is already set up this way, for the
 rover and the Gazebo sim alike). With Best Effort, frames lost
 over Wi-Fi showed up as smeared, garbled blocks during motion. The stock
@@ -63,7 +63,7 @@ Measured on the Orin Nano:
     rescaled to match, so `bit_rate` holds at any frame rate. (x264's variable-frame-rate
     mode would do the same, but adds a frame of delay.)
 - **Output** is `ffmpeg_image_transport_msgs/FFMPEGPacket` with encoding
-  `h264;yuv420p;bgr8;<rgb8|bgr8|mono8>`, on `<camera>/color/stream/ffmpeg`, plus
+  `h264;yuv420p;bgr8;<rgb8|bgr8|mono8>`, on `<camera>/color/teleop_stream/ffmpeg`, plus
   `camera_info` rescaled to the output size.
 - **Drivers now publish only** `raw` and `compressed` for colour. Nothing encodes to ffmpeg
   inside the drivers any more.

@@ -2,7 +2,7 @@
   ros__parameters:
     input_topic: /depth_camera_rear/color/image_raw
     camera_info_topic: /depth_camera_rear/color/camera_info
-    output_topic: /depth_camera_rear/color/stream
+    output_topic: /depth_camera_rear/color/teleop_stream
     output_reliability: reliable
 
     width: 640

@@ -8,7 +8,7 @@ from launch_ros.actions import ComposableNodeContainer, LoadComposableNodes, Nod
 from launch_ros.descriptions import ComposableNode
 
 # Drivers keep raw (for on-board consumers) and compressed (for local debugging);
-# the basestation views <camera>/color/stream/ffmpeg from the stream encoder instead.
+# the basestation views <camera>/color/teleop_stream/ffmpeg from the stream encoder instead.
 DRIVER_IMAGE_PLUGINS = ['image_transport/raw', 'image_transport/compressed']
 
 INTRA_PROCESS = [{'use_intra_process_comms': True}]

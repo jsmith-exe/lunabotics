@@ -40,7 +40,7 @@ a load request would go to the dead process.
 
 `qpl_rover`'s `sim.launch.py` also runs a stream encoder per camera, as a separate process
 beside Gazebo. The encoders read Gazebo's `/depth_camera_{front,rear}/image_raw` and publish
-the same `.../color/stream/ffmpeg` topics as the rover, so the basestation views the sim and
+the same `.../color/teleop_stream/ffmpeg` topics as the rover, so the basestation views the sim and
 the rover identically. They use sim time and the same YAML settings (see
 `gazebo_stream_encoders()` in `rover_cameras/launch_utils.py`).
 
@@ -49,7 +49,7 @@ machine running the sim needs this package built, which needs `libavcodec-dev`.
 
 ## Viewing on the basestation
 
-Show `/depth_camera_front/color/stream/ffmpeg` and `/depth_camera_rear/color/stream/ffmpeg`
+Show `/depth_camera_front/color/teleop_stream/ffmpeg` and `/depth_camera_rear/color/teleop_stream/ffmpeg`
 in an rviz Image display. `basestation/rviz/default.rviz` (what `basestation`'s
 `rviz.launch.py` opens) is already set up this way, for both the rover and the sim.
 
