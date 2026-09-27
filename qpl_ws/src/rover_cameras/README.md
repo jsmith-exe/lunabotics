@@ -35,8 +35,10 @@ a load request would go to the dead process.
 Show `/depth_camera_front/color/stream/ffmpeg` and `/depth_camera_rear/color/stream/ffmpeg`
 in an rviz Image display. `basestation/rviz/rover.rviz` is already set up this way.
 
-- Set **Reliability** to **Best Effort**. The stream is published Best Effort, and a
-  Reliable subscriber won't connect.
+- Set **Reliability** to **Reliable**. The stream is published Reliable (with a queue of
+  1), so DDS resends fragments lost over Wi-Fi. A Best Effort display still connects, but
+  gets Best Effort delivery: one lost fragment drops the whole frame, and the picture
+  smears and garbles until the next keyframe, especially during motion.
 - The viewer needs the `ffmpeg_image_transport` plugin (`ros-humble-ffmpeg-image-transport`).
   It decodes the stream, including with the NVIDIA `h264_cuvid` decoder.
 - A new viewer gets a picture straight away: the encoder sends a keyframe whenever someone
@@ -61,14 +63,15 @@ overrides them from `LOW_QUALITY_ENCODER` in `rover_cameras/launch_utils.py`.
 | `bit_rate` | `1300000` | Target bits/s. Two cameras at 1.3 Mbit/s leaves room for telemetry in the 3.6 Mbit/s uplink. | yes |
 | `max_fps` | `30.0` | Frame-rate cap (frames are thinned evenly). `0` = camera rate. | yes |
 | `width`, `height` | front `0`/`0`, rear `1280`/`0` | Output size. `0` keeps the input size, or keeps the aspect ratio if the other is set. Rounded down to even. | reopens encoder |
-| `keyframe_interval` | `1.0` | Seconds between keyframes: the longest a stream takes to recover from a lost packet. | yes |
+| `keyframe_interval` | `0.5` | Seconds between keyframes: the longest a stream takes to recover from a lost frame. | yes |
 | `vbv_buffer_ms` | `200` | Caps how far one frame (mostly keyframes) can overshoot the bit rate, which bounds latency spikes. `0` = off. | yes |
 | `preset` | `superfast` | x264 speed/quality trade-off. Slower presets compress better and cost more CPU. | reopens encoder |
 | `tune` | `zerolatency` | Keep this: other tunes add frames of delay. | reopens encoder |
 | `threads` | `4` | Encoder slice threads. These add no latency. | reopens encoder |
 | `codec` | `libx264` | Any libavcodec H.264/H.265 encoder. The Orin Nano has no hardware encoder. | reopens encoder |
 | `av_options` | `""` | Extra encoder options as `key=value,key=value`, e.g. `profile=main,x264-params=aq-mode=2`. | reopens encoder |
-| `input_topic`, `camera_info_topic`, `output_topic`, `output_reliability` | see YAML | Wiring. | no (set at startup) |
+| `output_reliability` | `reliable` | `reliable` or `best_effort`. Keep `reliable`: see [Viewing on the basestation](#viewing-on-the-basestation). | no (set at startup) |
+| `input_topic`, `camera_info_topic`, `output_topic` | see YAML | Wiring. | no (set at startup) |
 
 Change a setting on a running camera:
 
@@ -86,8 +89,12 @@ Rough guidance:
   Halving the frame rate roughly doubles the bits each frame gets.
 - **Stuttering or lag on the laptop:** the link is probably saturated. Lower `bit_rate`, or
   check what else is being pulled off the rover.
-- **Garbled picture after a Wi-Fi drop:** it clears at the next keyframe. Shorten
-  `keyframe_interval` for faster recovery, at some cost in quality.
+- **Garbled or smeared blocks that drag with motion:** frames are being lost. Check that
+  the viewer is set to Reliable. Anything still lost clears at the next keyframe; a shorter
+  `keyframe_interval` recovers faster, at some cost in quality.
+- **Soft or blocky picture during motion (but not garbled):** try `preset: faster`. At
+  640x480 @ 15 it measured noticeably better than `superfast` in motion, for ~9 ms per
+  frame instead of ~4.
 - **Don't enable x264 intra-refresh.** The laptop's `h264_cuvid` decoder can't start from
   an intra-refresh stream, and the feed never appears.
 

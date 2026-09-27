@@ -15,7 +15,8 @@ ros2 launch rover_cameras camera_sim.launch.py         # no hardware
 ```
 
 **On the basestation:** view `/depth_camera_{front,rear}/color/stream/ffmpeg` with
-Best Effort reliability (`rover.rviz` is already set up this way). The stock
+Reliable reliability (`rover.rviz` is already set up this way). With Best Effort, frames lost
+over Wi-Fi showed up as smeared, garbled blocks during motion. The stock
 `ffmpeg_image_transport` plugin decodes it, including with `h264_cuvid`.
 
 ## Why a separate encoder
@@ -52,7 +53,7 @@ Measured on the Orin Nano:
   3. libx264 through libavcodec: `superfast`, `zerolatency`, slice threads, no B-frames.
      Packets come out in the same call, with no frame of delay.
 - **Rate control:**
-  - A keyframe (IDR) is forced every `keyframe_interval` seconds. There is no
+  - A keyframe (IDR) is forced every `keyframe_interval` seconds (0.5 s). There is no
     intra-refresh, because the laptop's `h264_cuvid` decoder needs real IDR frames.
   - A VBV buffer (`vbv_buffer_ms`) caps how far any single frame can overshoot.
   - The real frame rate is measured from the timestamps and the rate given to libx264 is
