@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+"""Re-publishes the RealSense IMU in ROS axes (x forward, y left, z up) for the EKFs."""
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 class ImuOpticalToStandard(Node):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__('imu_optical_to_standard')
         
         input_qos = QoSProfile(
@@ -22,8 +23,11 @@ class ImuOpticalToStandard(Node):
 
         self.sub = self.create_subscription(Imu, '/camera/camera/imu', self.cb, input_qos)
         self.pub = self.create_publisher(Imu, '/camera/camera/imu_standard', output_qos)
+        self.get_logger().info(
+            'Converting RealSense IMU from optical to ROS axes: '
+            '/camera/camera/imu -> /camera/camera/imu_standard (frame camera_imu_frame)')
 
-    def cb(self, msg: Imu):
+    def cb(self, msg: Imu) -> None:
         out = Imu()
         out.header = msg.header
         out.header.frame_id = 'camera_imu_frame'  # standard-convention frame
@@ -47,7 +51,7 @@ class ImuOpticalToStandard(Node):
 
         self.pub.publish(out)
 
-def main():
+def main() -> None:
     rclpy.init()
     rclpy.spin(ImuOpticalToStandard())
 

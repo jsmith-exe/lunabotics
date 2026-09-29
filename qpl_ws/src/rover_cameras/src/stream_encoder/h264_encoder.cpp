@@ -1,4 +1,4 @@
-#include "rover_cameras/h264_encoder.hpp"
+#include "h264_encoder.hpp"
 
 #include <cmath>
 #include <sstream>

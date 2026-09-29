@@ -27,8 +27,8 @@
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
 
-#include "rover_cameras/convert.hpp"
-#include "rover_cameras/h264_encoder.hpp"
+#include "convert.hpp"
+#include "h264_encoder.hpp"
 
 extern "C" {
 #include <libavutil/log.h>
@@ -106,9 +106,11 @@ public:
       std::chrono::duration<double>(stats_period_), [this] {publishStats();});
     last_stats_ = SteadyClock::now();
 
+    input_name_ = resolve(input_topic_);
+    output_name_ = packet_pub_->get_topic_name();
     RCLCPP_INFO(
-      get_logger(), "%s -> %s/ffmpeg (%s)", resolve(input_topic_).c_str(),
-      resolve(output_topic_).c_str(), reliability.c_str());
+      get_logger(), "Teleop stream encoder ready: will encode %s to H.264 on %s (%s) while "
+      "anyone is viewing it", input_name_.c_str(), output_name_.c_str(), reliability.c_str());
   }
 
   ~StreamEncoder() override
@@ -241,14 +243,15 @@ private:
             camera_info_ = std::move(msg);
           });
       }
-      RCLCPP_INFO(get_logger(), "viewer connected, subscribing to %s",
-        image_sub_->get_topic_name());
+      RCLCPP_INFO(get_logger(), "Teleop stream viewer connected to %s: subscribing to camera "
+        "images on %s and encoding", output_name_.c_str(), input_name_.c_str());
     } else if (viewers == 0 && image_sub_) {
       image_sub_.reset();
       info_sub_.reset();
       std::lock_guard<std::mutex> lock(mutex_);
       pending_.reset();
-      RCLCPP_INFO(get_logger(), "no viewers, unsubscribed");
+      RCLCPP_INFO(get_logger(), "No viewers left on %s: unsubscribed from %s, encoder idle",
+        output_name_.c_str(), input_name_.c_str());
     }
   }
 
@@ -295,7 +298,9 @@ private:
       try {
         process(*msg, s, reopen, force_key, rate_changed, info);
       } catch (const std::exception & e) {
-        RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "encode failed: %s", e.what());
+        RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000,
+          "Failed to encode a frame from %s: %s. Dropping it and reopening the encoder on the "
+          "next frame", input_name_.c_str(), e.what());
         encoder_.close();  // reopened (with a keyframe) on the next frame
       }
     }
@@ -337,8 +342,8 @@ private:
     // be nudged forward 1 ms per frame, which rate control reads as ~1000 fps. Start afresh.
     const bool clock_jumped = last_pts_ >= 0 && stamp_ms < last_pts_ - 1000;
     if (clock_jumped) {
-      RCLCPP_WARN(get_logger(), "frame stamps jumped back %.1f s; reopening encoder",
-        (last_pts_ - stamp_ms) / 1000.0);
+      RCLCPP_WARN(get_logger(), "Frame timestamps on %s jumped back %.1f s (sim reset or clock "
+        "re-sync?); restarting the encoder", input_name_.c_str(), (last_pts_ - stamp_ms) / 1000.0);
     }
 
     const auto [out_w, out_h] = outputSize(
@@ -351,7 +356,8 @@ private:
       force_key = true;
     } else if (rate_changed) {
       encoder_.setBitRate(s.bit_rate, s.vbv_buffer_ms);
-      RCLCPP_INFO(get_logger(), "bit_rate %ld, vbv %d ms", s.bit_rate, s.vbv_buffer_ms);
+      RCLCPP_INFO(get_logger(), "Teleop stream %s: bit rate now %.2f Mbit/s, VBV buffer %d ms",
+        output_name_.c_str(), s.bit_rate / 1e6, s.vbv_buffer_ms);
     }
 
     const auto t0 = SteadyClock::now();
@@ -409,7 +415,8 @@ private:
     cfg.fps_hint = s.max_fps > 0.0 ? s.max_fps : 30.0;
     cfg.av_options = parseAvOptions(s.av_options);
     for (const auto & unused : encoder_.open(cfg)) {
-      RCLCPP_WARN(get_logger(), "%s ignored AV option %s", s.codec.c_str(), unused.c_str());
+      RCLCPP_WARN(get_logger(), "Encoder %s does not recognise av_options entry '%s'; ignoring it",
+        s.codec.c_str(), unused.c_str());
     }
     input_encoding_ = msg.encoding;
     // Layout ffmpeg_image_transport 3.x expects: codec;av pixel format;cv_bridge format;
@@ -418,9 +425,10 @@ private:
     last_pts_ = -1;
     headers_.clear();
     RCLCPP_INFO(
-      get_logger(), "encoder %s %dx%d -> %dx%d, %.2f Mbit/s, vbv %d ms, preset %s, %d threads",
-      s.codec.c_str(), msg.width, msg.height, out_w, out_h, s.bit_rate / 1e6, s.vbv_buffer_ms,
-      s.preset.c_str(), s.threads);
+      get_logger(), "Encoding %s (%ux%u %s) to %s: %dx%d, %s preset %s, %d threads, target "
+      "%.2f Mbit/s, VBV %d ms, keyframe every %.1f s", input_name_.c_str(), msg.width, msg.height,
+      msg.encoding.c_str(), output_name_.c_str(), out_w, out_h, s.codec.c_str(), s.preset.c_str(),
+      s.threads, s.bit_rate / 1e6, s.vbv_buffer_ms, s.keyframe_interval);
   }
 
   void publishPacket(
@@ -428,7 +436,9 @@ private:
   {
     auto it = headers_.find(pts);
     if (it == headers_.end()) {
-      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, "packet pts %ld has no header", pts);
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+        "Dropped an encoded packet (pts %ld) whose frame header is gone; happens only if the "
+        "encoder is configured with delay (lookahead, B-frames)", pts);
       return;
     }
     auto out = std::make_unique<FFMPEGPacket>();
@@ -498,10 +508,12 @@ private:
     const double kbps = st.bytes * 8.0 / dt / 1000.0;
     RCLCPP_INFO(
       get_logger(),
-      "in %.1f fps, out %.1f fps (%lu overwritten, %lu throttled), %.0f kbit/s, "
-      "max frame %.1f KB, %lu keyframes, convert %.1f ms, encode %.1f ms, latency %.0f ms",
-      in_fps, out_fps, st.overwritten, st.throttled, kbps, st.max_packet / 1024.0, st.keyframes,
-      st.convert_ms / n, st.encode_ms / n, st.latency_ms / n);
+      "Teleop stream %s: camera %.1f fps -> sent %.1f fps (%lu dropped as encoder busy, %lu "
+      "skipped by max_fps), %.0f kbit/s, largest frame %.1f KB, %lu keyframes; per frame "
+      "convert %.1f ms + encode %.1f ms; camera-to-publish latency %.0f ms",
+      output_name_.c_str(), in_fps, out_fps, st.overwritten, st.throttled, kbps,
+      st.max_packet / 1024.0, st.keyframes, st.convert_ms / n, st.encode_ms / n,
+      st.latency_ms / n);
 
     DiagnosticArray arr;
     arr.header.stamp = now_ros();
@@ -533,6 +545,7 @@ private:
 
   // Configuration
   std::string input_topic_, info_topic_, output_topic_;
+  std::string input_name_, output_name_;  // fully resolved, for logs
   double stats_period_ = 5.0;
 
   // ROS interfaces

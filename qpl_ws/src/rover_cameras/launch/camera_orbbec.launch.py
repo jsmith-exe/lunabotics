@@ -1,21 +1,24 @@
+"""Rear camera (Orbbec Astra Pro Plus): driver + teleop stream encoder in one container."""
 import importlib.util
 import os
+import sys
+from typing import Dict, List
 
 from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch import Action, LaunchContext, LaunchDescription
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode
 
-from rover_cameras.launch_utils import (
-    INTRA_PROCESS, respawning_container, stream_encoder)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # launch_utils.py sits beside this file
+from launch_utils import INTRA_PROCESS, respawning_container, stream_encoder  # noqa: E402
 
 direction = 'rear'  # front or rear
 camera_name = f'depth_camera_{direction}'
 
 
-def generate_launch_description():
+def generate_launch_description() -> LaunchDescription:
     use_low_quality_parameter = DeclareLaunchArgument(
         'use_low_quality',
         default_value='false',
@@ -35,10 +38,11 @@ def generate_launch_description():
     ])
 
 
-def get_camera_launch(context):
+def get_camera_launch(context: LaunchContext) -> List[Action]:
     """ Returns camera configuration depending on launch parameter """
     use_low_quality = LaunchConfiguration('use_low_quality').perform(context).lower() == 'true'
-    print(f'use_low_quality: {use_low_quality}')
+    params = get_camera_params(use_low_quality)
+    logs: List[Action] = []
 
     # Same node and container names as astra_pro_plus.launch.py, but our own container so
     # the stream encoder can share the process and receive frames intra-process.
@@ -47,17 +51,22 @@ def get_camera_launch(context):
         plugin='orbbec_camera::OBCameraNodeDriver',
         name=camera_name,
         namespace=camera_name,
-        parameters=[
-            orbbec_parameters(context, get_camera_params(use_low_quality)),
-        ],
+        parameters=[orbbec_parameters(context, params, logs)],
         extra_arguments=INTRA_PROCESS,
     )
     encoder = stream_encoder(camera_name, use_low_quality)
 
-    return respawning_container('camera_container', camera_name, [camera, encoder])
+    logs.insert(0, LogInfo(msg=(
+        f'Rear Orbbec ({"low" if use_low_quality else "high"} quality): colour '
+        f'{params["color_width"]}x{params["color_height"]} {params["color_format"]}, depth '
+        f'{params["depth_width"]}x{params["depth_height"]}@{params["depth_fps"]}, topics under '
+        f'/{camera_name}; teleop stream on /{camera_name}/color/teleop_stream/ffmpeg')))
+    return [*logs, *respawning_container('camera_container', camera_name, [camera, encoder])]
 
 
-def orbbec_parameters(context, overrides):
+def orbbec_parameters(
+    context: LaunchContext, overrides: Dict[str, str], logs: List[Action],
+) -> Dict[str, TextSubstitution]:
     """Node parameters exactly as astra_pro_plus.launch.py would pass them.
 
     That launch file turns each of its declared arguments into a node parameter, so defaults
@@ -74,7 +83,7 @@ def orbbec_parameters(context, overrides):
     declared = [e for e in module.generate_launch_description().entities
                 if isinstance(e, DeclareLaunchArgument)]
 
-    params = {}
+    params: Dict[str, TextSubstitution] = {}
     for arg in declared:
         if arg.name in overrides:
             value = overrides[arg.name]
@@ -83,11 +92,13 @@ def orbbec_parameters(context, overrides):
         params[arg.name] = TextSubstitution(text=value)
     ignored = sorted(set(overrides) - set(params))
     if ignored:
-        print(f'Orbbec driver does not take (ignored, as before): {ignored}')
+        logs.append(LogInfo(msg=(
+            f'Rear Orbbec: ignoring {", ".join(ignored)} - astra_pro_plus.launch.py does not '
+            'declare them, so they never reached the driver')))
     return params
 
 
-def get_camera_params(use_low_quality: bool):
+def get_camera_params(use_low_quality: bool) -> Dict[str, str]:
     """
     Possible depth profiles:
      - 1280x1024 7fps
@@ -153,6 +164,4 @@ def get_camera_params(use_low_quality: bool):
         # 'depth_registration': 'true',
         # 'enable_colored_point_cloud': 'true',
     }
-
-    print(camera_params)
     return camera_params

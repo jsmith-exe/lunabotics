@@ -42,7 +42,14 @@ qpl_packages() {
     libyaml-cpp-dev \
     libhidapi-dev \
     python3-pip \
-    ccache
+    ccache \
+    libavcodec-dev \
+    libavutil-dev \
+    pkg-config \
+    ros-humble-ffmpeg-image-transport-msgs \
+    ros-humble-diagnostic-msgs \
+    python3-numpy \
+    python3-opencv
     # Don't add ros-humble-realsense2-camera, it should be built from source.
   python3 -m pip install --user \
     pupil-apriltags \

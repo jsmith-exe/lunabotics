@@ -1,16 +1,22 @@
-from launch import LaunchDescription
-from launch.actions import OpaqueFunction, DeclareLaunchArgument
+"""Front camera (Intel RealSense): driver + teleop stream encoder in one container, IMU nodes."""
+import os
+import sys
+from typing import Any, Dict, List, Tuple
+
+from launch import Action, LaunchContext, LaunchDescription
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ComposableNode
 
-from rover_cameras.launch_utils import (
-    INTRA_PROCESS, respawning_container, stream_encoder)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # launch_utils.py sits beside this file
+from launch_utils import INTRA_PROCESS, respawning_container, stream_encoder  # noqa: E402
+
+direction = 'front'  # front or rear
+camera_name = f'depth_camera_{direction}'
 
 
-direction = 'front' # front or rear
-
-def generate_launch_description():
+def generate_launch_description() -> LaunchDescription:
     use_low_quality_parameter = DeclareLaunchArgument(
         'use_low_quality',
         default_value='false',
@@ -70,10 +76,10 @@ def generate_launch_description():
     ])
 
 
-def get_camera_launch(context):
+def get_camera_launch(context: LaunchContext) -> List[Action]:
     """ Returns camera configuration depending on launch parameter """
     use_low_quality = LaunchConfiguration('use_low_quality').perform(context).lower() == 'true'
-    print(f'use_low_quality: {use_low_quality}')
+    params = get_camera_params(use_low_quality)
 
     # The driver and its stream encoder share one process, so colour frames reach the
     # encoder intra-process without being copied or serialised.
@@ -82,16 +88,20 @@ def get_camera_launch(context):
         plugin='realsense2_camera::RealSenseNodeFactory',
         name='camera',
         namespace='camera',
-        parameters=[get_camera_params(use_low_quality)],
+        parameters=[params],
         remappings=get_remappings(),
         extra_arguments=INTRA_PROCESS,
     )
-    encoder = stream_encoder(f'depth_camera_{direction}', use_low_quality)
+    encoder = stream_encoder(camera_name, use_low_quality)
 
-    return respawning_container('camera_container', f'depth_camera_{direction}', [camera, encoder])
+    summary = LogInfo(msg=(
+        f'Front RealSense ({"low" if use_low_quality else "high"} quality): colour '
+        f'{params["rgb_camera.color_profile"]}, depth {params["depth_module.depth_profile"]}, '
+        f'topics under /{camera_name}; teleop stream on /{camera_name}/color/teleop_stream/ffmpeg'))
+    return [summary, *respawning_container('camera_container', camera_name, [camera, encoder])]
 
 
-def get_remappings():
+def get_remappings() -> List[Tuple[str, str]]:
     # Use ros2 topic list to get topics and paste them here, do not include points (/camera/camera/depth/color/points)
     # DO NOT add /camera/camera/imu here: both EKFs fuse it as imu0 by that name.
     topics_to_remap = """
@@ -145,13 +155,10 @@ def get_remappings():
     remappings += [
         (f'/camera/camera/depth/color/points', f'{topic_name_base}/depth/points'),
     ]
-
-    print('Remappings:')
-    [print(remapping) for remapping in remappings]
     return remappings
 
 
-def get_camera_params(use_low_quality: bool):
+def get_camera_params(use_low_quality: bool) -> Dict[str, Any]:
     """
     STREAM      RESOLUTION     FORMAT                                FPS
     Infrared    1280x720       UYVY, BGRA8, RGBA8, BGR8, RGB8        @ 30/15/5 Hz
@@ -242,6 +249,4 @@ def get_camera_params(use_low_quality: bool):
         '.camera.color.image_raw.format': 'jpeg',
         '.camera.color.image_raw.jpeg_quality': 10,
     }
-
-    print(camera_params)
     return camera_params

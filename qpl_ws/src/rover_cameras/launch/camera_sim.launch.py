@@ -11,20 +11,23 @@ Python, so it cannot share a container), which costs a local copy per frame.
   ros2 launch rover_cameras camera_sim.launch.py use_low_quality:=true
 """
 import os
+import sys
+from typing import Any, Dict, List
 
 from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription
+from launch import Action, LaunchContext, LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-from rover_cameras.launch_utils import stream_encoder_process
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # launch_utils.py sits beside this file
+from launch_utils import stream_encoder_process  # noqa: E402
 
 CALIBRATION_FOLDER = os.path.join(get_package_share_directory('rover_cameras'), 'calibration')
 
 # Resolutions mirror what the real drivers are configured for, so the generated
 # load matches the cameras being stood in for.
-CAMERAS = {
+CAMERAS: Dict[str, Dict[str, Any]] = {
     'front': {
         'camera_name': 'depth_camera_front',
         'frame_id': 'camera_link_front',
@@ -42,7 +45,7 @@ CAMERAS = {
 }
 
 
-def generate_launch_description():
+def generate_launch_description() -> LaunchDescription:
     return LaunchDescription([
         DeclareLaunchArgument('camera', default_value='both',
                               description='front, rear or both'),
@@ -62,7 +65,7 @@ def generate_launch_description():
     ])
 
 
-def build_cameras(context):
+def build_cameras(context: LaunchContext) -> List[Action]:
     which = LaunchConfiguration('camera').perform(context).lower()
     low = LaunchConfiguration('use_low_quality').perform(context).lower() == 'true'
     pattern = LaunchConfiguration('pattern').perform(context)
@@ -72,7 +75,7 @@ def build_cameras(context):
     enable_compressed = LaunchConfiguration('enable_compressed').perform(context).lower() == 'true'
 
     selected = ['front', 'rear'] if which == 'both' else [which]
-    actions = []
+    actions: List[Action] = []
 
     for key in selected:
         if key not in CAMERAS:

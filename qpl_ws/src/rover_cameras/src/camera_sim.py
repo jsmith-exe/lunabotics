@@ -14,6 +14,7 @@ import array
 import os
 import threading
 import time
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -21,6 +22,7 @@ import rclpy
 import yaml
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from builtin_interfaces.msg import Time
 from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 
 # Noise is taken as random crops from one pre-generated pool rather than freshly
@@ -30,7 +32,7 @@ NOISE_POOL_MARGIN = 64
 
 
 class CameraSim(Node):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__('camera_sim')
 
         self.camera_name = self.declare_parameter('camera_name', 'depth_camera_front').value
@@ -103,13 +105,13 @@ class CameraSim(Node):
         # (measured 19-24 fps), so it runs on a worker and drops frames under load:
         # better to under-sample /compressed and report it than to skew every rate.
         self._enc_lock = threading.Lock()
-        self._enc_pending = None
+        self._enc_pending: Optional[Tuple[np.ndarray, Time]] = None
         self._enc_wake = threading.Condition(self._enc_lock)
         self._enc_running = True
         self._n_comp = 0
         self._comp_bytes = 0
         self._comp_dropped = 0
-        self._enc_thread = None
+        self._enc_thread: Optional[threading.Thread] = None
         if self.pub_compressed is not None:
             self._enc_thread = threading.Thread(target=self._encode_worker, daemon=True)
             self._enc_thread.start()
@@ -122,13 +124,13 @@ class CameraSim(Node):
 
         self.create_timer(1.0 / self.fps, self._tick)
         self.get_logger().info(
-            f'camera_sim: {self.camera_name} {self.width}x{self.height}@{self.fps:g} '
-            f'pattern={self.pattern} noise_fraction={self.noise_fraction:g} '
-            f'compressed={"on" if self.publish_compressed else "off"}')
+            f'Publishing synthetic camera frames on {base}: {self.width}x{self.height} at '
+            f'{self.fps:g} fps, pattern {self.pattern} (noise fraction {self.noise_fraction:g}), '
+            f'JPEG /compressed {"on" if self.publish_compressed else "off"}')
 
     # --- sources -----------------------------------------------------------
 
-    def _build_sources(self):
+    def _build_sources(self) -> None:
         rng = np.random.default_rng()
         h, w = self.height, self.width
 
@@ -137,7 +139,7 @@ class CameraSim(Node):
             self.pattern = 'noise'
         self.noise_fraction = float(np.clip(self.noise_fraction, 0.0, 1.0))
 
-        self.noise_pool = None
+        self.noise_pool: Optional[np.ndarray] = None
         if self.noise_fraction > 0.001:
             self.noise_pool = rng.integers(
                 0, 256, (h + NOISE_POOL_MARGIN, w + NOISE_POOL_MARGIN, 3), dtype=np.uint8)
@@ -145,7 +147,7 @@ class CameraSim(Node):
         # pattern picks the base content; noise_fraction overlays noise on top of it.
         # At full noise the base is never sampled, so skip building it.
         if self.noise_fraction >= 0.999:
-            self.base = None
+            self.base: Optional[np.ndarray] = None
             return
 
         base_pattern = self.pattern
@@ -176,13 +178,13 @@ class CameraSim(Node):
             gray = np.clip(gray, 0, 255).astype(np.uint8)
             self.base = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-    def _noise_crop(self):
+    def _noise_crop(self) -> np.ndarray:
         i = self.frame_no
         y = (i * 13) % NOISE_POOL_MARGIN
         x = (i * 29) % NOISE_POOL_MARGIN
         return self.noise_pool[y:y + self.height, x:x + self.width]
 
-    def _base_crop(self):
+    def _base_crop(self) -> np.ndarray:
         now = time.monotonic()
         if self.scene_cut_period > 0.0 and (now - self._last_cut) >= self.scene_cut_period:
             self._pan = np.array([np.random.uniform(0, self.pan_margin),
@@ -198,7 +200,7 @@ class CameraSim(Node):
         x, y = int(self._pan[0]), int(self._pan[1])
         return self.base[y:y + self.height, x:x + self.width]
 
-    def _make_frame(self):
+    def _make_frame(self) -> np.ndarray:
         if self.noise_fraction >= 0.999 or self.base is None:
             frame = self._noise_crop()
         elif self.noise_fraction <= 0.001:
@@ -213,7 +215,7 @@ class CameraSim(Node):
             self._burn_id(frame, self.frame_no)
         return frame
 
-    def _burn_id(self, frame, fid):
+    def _burn_id(self, frame: np.ndarray, fid: int) -> None:
         bs = self.burn_block_size
         # Two sync blocks then 16 bits LSB-first, so a receiver can locate the
         # field before decoding it.
@@ -226,7 +228,7 @@ class CameraSim(Node):
 
     # --- publishing --------------------------------------------------------
 
-    def _tick(self):
+    def _tick(self) -> None:
         t0 = time.monotonic()
         frame = self._make_frame()
         gen_ms = (time.monotonic() - t0) * 1000.0
@@ -260,7 +262,7 @@ class CameraSim(Node):
         self.frame_no += 1
         self._stats(len(msg.data), gen_ms)
 
-    def _encode_worker(self):
+    def _encode_worker(self) -> None:
         while self._enc_running:
             with self._enc_wake:
                 while self._enc_pending is None and self._enc_running:
@@ -268,7 +270,7 @@ class CameraSim(Node):
                 if not self._enc_running:
                     return
                 frame, stamp = self._enc_pending
-                self._enc_pending = None
+                self._enc_pending: Optional[Tuple[np.ndarray, Time]] = None
 
             ok, buf = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality])
             if not ok:
@@ -283,7 +285,7 @@ class CameraSim(Node):
                 self._n_comp += 1
                 self._comp_bytes += buf.size
 
-    def stop(self):
+    def stop(self) -> None:
         with self._enc_wake:
             self._enc_running = False
             self._enc_wake.notify_all()
@@ -292,7 +294,7 @@ class CameraSim(Node):
 
     # --- telemetry ---------------------------------------------------------
 
-    def _stats_reset(self, now):
+    def _stats_reset(self, now: float) -> None:
         self._t_stats = now
         self._n_stats = 0
         self._raw_bytes = 0
@@ -302,7 +304,7 @@ class CameraSim(Node):
             self._comp_bytes = 0
             self._comp_dropped = 0
 
-    def _stats(self, raw_bytes, gen_ms):
+    def _stats(self, raw_bytes: int, gen_ms: float) -> None:
         self._n_stats += 1
         self._raw_bytes += raw_bytes
         self._gen_ms += gen_ms
@@ -313,12 +315,13 @@ class CameraSim(Node):
             return
 
         achieved = self._n_stats / dt
-        line = (f'{achieved:5.1f}/{self.fps:g} fps  gen {self._gen_ms / self._n_stats:4.1f} ms  '
-                f'raw {self._raw_bytes / dt / 1e6:6.1f} MB/s')
+        line = (f'Synthetic {self.camera_name}: published {achieved:.1f} of {self.fps:g} fps '
+                f'({self._gen_ms / self._n_stats:.1f} ms to generate a frame), raw '
+                f'{self._raw_bytes / dt / 1e6:.1f} MB/s')
         if self.pub_compressed is not None:
             with self._enc_lock:
                 n_comp, comp_bytes, dropped = self._n_comp, self._comp_bytes, self._comp_dropped
-            line += f'  compressed {n_comp / dt:4.1f} fps {comp_bytes / dt / 1e6:5.2f} MB/s'
+            line += f', JPEG {n_comp / dt:.1f} fps at {comp_bytes / dt / 1e6:.2f} MB/s'
             if dropped:
                 # Expected on worst-case noise; the raw rate above is still honest.
                 line += f' ({dropped} dropped, encoder CPU-bound)'
@@ -326,14 +329,16 @@ class CameraSim(Node):
         # The guard that matters: if the node cannot hold the requested rate, the
         # bandwidth figures below it are wrong for reasons unrelated to the network.
         if achieved < self.fps * 0.9:
-            self.get_logger().warn(f'{line}  <- NOT KEEPING UP, bandwidth figures unreliable')
+            self.get_logger().warn(
+                f'{line}. Not keeping up with the requested rate (this node is CPU-bound), so '
+                'rates downstream understate what the real camera would produce')
         else:
             self.get_logger().info(line)
         self._stats_reset(now)
 
     # --- calibration -------------------------------------------------------
 
-    def _load_camera_info(self, url):
+    def _load_camera_info(self, url: str) -> CameraInfo:
         info = CameraInfo()
         info.width = self.width
         info.height = self.height
@@ -377,7 +382,7 @@ class CameraSim(Node):
         return info
 
 
-def main(args=None):
+def main(args: Optional[List[str]] = None) -> None:
     rclpy.init(args=args)
     node = CameraSim()
     try:

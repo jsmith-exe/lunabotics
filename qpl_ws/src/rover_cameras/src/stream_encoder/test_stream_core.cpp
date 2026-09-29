@@ -6,8 +6,8 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "rover_cameras/convert.hpp"
-#include "rover_cameras/h264_encoder.hpp"
+#include "convert.hpp"
+#include "h264_encoder.hpp"
 
 using rover_cameras::EncoderConfig;
 using rover_cameras::H264Encoder;
