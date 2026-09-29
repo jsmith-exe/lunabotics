@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Re-publishes the RealSense IMU in ROS axes (x forward, y left, z up) for the EKFs."""
+"""
+IMPORTANT! REBUILD IF MODIFIED! Python nodes in the src folder are not installed with symlinks.
+
+Re-publishes the RealSense IMU in ROS axes (x forward, y left, z up) for the EKFs.
+"""
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu

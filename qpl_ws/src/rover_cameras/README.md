@@ -21,89 +21,13 @@ ros2 launch rover_cameras camera_realsense.launch.py   # or: qpl_realsense_run
 ros2 launch rover_cameras camera_orbbec.launch.py      # or: qpl_orbbecsdk_run
 ```
 
-`rover.launch.py` in `qpl_rover` includes both launch files; it starts the Orbbec 20 s
-after the RealSense.
-
-Both take `use_low_quality:=true`, which shrinks the driver's colour and depth profiles
-(front 424x240 @ 15, rear 640x480) and drops the stream to 400 kbit/s at 15 fps.
-
 Each launch file starts one component container, `/<namespace>/camera_container`, which
 holds the camera driver and its `stream_encoder`. The RealSense launch also starts the IMU
 nodes (`imu_optical_to_standard`, `imu_filter`) and a static transform.
 
-If the container crashes it restarts, and both components are loaded again about 12 s
+If the container crashes, it restarts, and both components are loaded again about 12 s
 later. That delay is how long the dead container's DDS entry takes to expire. Until then,
 a load request would go to the dead process.
-
-## Gazebo sim
-
-`qpl_rover`'s `sim.launch.py` also runs a stream encoder per camera, as a separate process
-beside Gazebo. The encoders read Gazebo's `/depth_camera_{front,rear}/image_raw` and
-publish the same `.../color/teleop_stream/ffmpeg` topics as the rover, so the basestation
-views the sim and the rover identically. They use sim time and the same YAML settings (see
-`gazebo_stream_encoders()` in `launch/launch_utils.py`).
-
-Gazebo renders the cameras at 1280x720 @ 10 Hz, so the stream runs at 10 fps at most. The
-machine running the sim needs this package built, which needs `libavcodec-dev`.
-
-## Viewing on the basestation
-
-Show `/depth_camera_front/color/teleop_stream/ffmpeg` and
-`/depth_camera_rear/color/teleop_stream/ffmpeg` in an rviz Image display.
-`basestation/rviz/default.rviz` (what `basestation`'s `rviz.launch.py` opens) is already set
-up this way, for both the rover and the sim.
-
-- Set **Reliability** to **Reliable**. The stream is published Reliable (with a queue of
-  1), so DDS resends fragments lost over Wi-Fi. A Best Effort display still connects, but
-  gets Best Effort delivery: one lost fragment drops the whole frame, and the picture
-  smears and garbles until the next keyframe, especially during motion.
-- The viewer needs the `ffmpeg_image_transport` plugin (`ros-humble-ffmpeg-image-transport`).
-  It decodes the stream, including with the NVIDIA `h264_cuvid` decoder.
-- A new viewer gets a picture straight away: the encoder sends a keyframe whenever someone
-  subscribes.
-- The encoder only runs while someone is watching, so an unviewed stream costs nothing.
-
-The drivers also publish `.../color/image_raw`, raw, for AprilTag detection and visual
-odometry on the rover. Because the drivers share a process with the encoder
-(intra-process comms), they publish it through a plain ROS publisher, not image_transport.
-So:
-
-- There is no `.../color/image_raw/compressed` (or `/ffmpeg`) from the drivers any more.
-  Use the teleop stream.
-- The raw image uses the default QoS (reliable, depth 10). `color_qos` in the launch files
-  is ignored. Don't subscribe to raw from off the rover: a slow remote reader can hold up
-  the driver.
-
-## How it works
-
-- **`StreamEncoder`** (`src/stream_encoder/stream_encoder_node.cpp`), the ROS node:
-  - **Only runs when watched.** It subscribes to the camera only while its output has a
-    viewer, and forces a keyframe whenever a viewer joins.
-  - **Never holds up the camera.** The subscription callback just stores the newest frame.
-    A worker thread takes it, resizes it, converts it and encodes it. Frames that arrive
-    while it's busy are replaced, not queued, and counted in the stats.
-  - **Output** is `ffmpeg_image_transport_msgs/FFMPEGPacket` (encoding
-    `h264;yuv420p;bgr8;<rgb8|bgr8|mono8>`) on `<camera>/color/teleop_stream/ffmpeg`, plus
-    `camera_info` rescaled to the output size.
-  - It also handles live parameter changes, the stats log and `/diagnostics`.
-- **`H264Encoder`** (`src/stream_encoder/h264_encoder.cpp`): a thin libavcodec wrapper
-  around libx264, with no ROS dependency.
-  - **Low latency:** `zerolatency` tune, slice threads and no B-frames, so each packet
-    comes out in the same call as its frame.
-  - **Keyframes:** the node forces one every `keyframe_interval`.
-  - **Rate control:** a VBV buffer caps how far any single frame can overshoot. The real
-    frame rate is measured from the timestamps and the rate given to x264 is rescaled to
-    match, so `bit_rate` holds at any frame rate.
-- **`toI420`** (`src/stream_encoder/convert.cpp`): the OpenCV resize and RGB/BGR → I420
-  conversion that x264 needs. It uses `INTER_AREA` for whole-number downscales and
-  `INTER_LINEAR` otherwise.
-- **Launch helpers** (`launch/launch_utils.py`):
-  - load the encoder beside a driver (`stream_encoder`), or as its own process for
-    camera_sim and Gazebo (`stream_encoder_process`, `gazebo_stream_encoders`)
-  - `respawning_container`, which reloads both components after a crash
-- **Python nodes** (`src/`):
-  - `camera_sim.py`: synthetic cameras for testing without hardware.
-  - `imu_optical_to_standard.py`: re-publishes the RealSense IMU in ROS axes for the EKFs.
 
 ## Tuning the stream
 
@@ -170,7 +94,38 @@ Teleop stream /depth_camera_front/color/teleop_stream/ffmpeg: camera 27.2 fps ->
 
 The same numbers are published on `/diagnostics`.
 
-## Testing without cameras
+## How it works
+
+- **`StreamEncoder`** (`src/stream_encoder/stream_encoder_node.cpp`), the ROS node:
+  - **Only runs when watched.** It subscribes to the camera only while its output has a
+    viewer, and forces a keyframe whenever a viewer joins.
+  - **Never holds up the camera.** The subscription callback just stores the newest frame.
+    A worker thread takes it, resizes it, converts it and encodes it. Frames that arrive
+    while it's busy are replaced, not queued, and counted in the stats.
+  - **Output** is `ffmpeg_image_transport_msgs/FFMPEGPacket` (encoding
+    `h264;yuv420p;bgr8;<rgb8|bgr8|mono8>`) on `<camera>/color/teleop_stream/ffmpeg`, plus
+    `camera_info` rescaled to the output size.
+  - It also handles live parameter changes, the stats log and `/diagnostics`.
+- **`H264Encoder`** (`src/stream_encoder/h264_encoder.cpp`): a thin libavcodec wrapper
+  around libx264, with no ROS dependency.
+  - **Low latency:** `zerolatency` tune, slice threads and no B-frames, so each packet
+    comes out in the same call as its frame.
+  - **Keyframes:** the node forces one every `keyframe_interval`.
+  - **Rate control:** a VBV buffer caps how far any single frame can overshoot. The real
+    frame rate is measured from the timestamps and the rate given to x264 is rescaled to
+    match, so `bit_rate` holds at any frame rate.
+- **`toI420`** (`src/stream_encoder/convert.cpp`): the OpenCV resize and RGB/BGR → I420
+  conversion that x264 needs. It uses `INTER_AREA` for whole-number downscales and
+  `INTER_LINEAR` otherwise.
+- **Launch helpers** (`launch/launch_utils.py`):
+  - load the encoder beside a driver (`stream_encoder`), or as its own process for
+    camera_sim and Gazebo (`stream_encoder_process`, `gazebo_stream_encoders`)
+  - `respawning_container`, which reloads both components after a crash
+- **Python nodes** (`src/`):
+  - `camera_sim.py`: synthetic cameras for testing without hardware.
+  - `imu_optical_to_standard.py`: re-publishes the RealSense IMU in ROS axes for the EKFs.
+
+## Testing without cameras via camera_sim
 
 ```bash
 ros2 launch rover_cameras camera_sim.launch.py                       # both cameras
@@ -191,11 +146,7 @@ settings, as a separate process.
 
 ## Building and unit tests
 
-```bash
-cd qpl_ws
-colcon build --packages-select rover_cameras --symlink-install
-./build/rover_cameras/test_stream_core
-```
+After building, run tests via `./build/rover_cameras/test_stream_core`.
 
 The tests cover colour conversion, resizing, input validation and option parsing. They also
 cover the encoder's bit rate at different frame rates, forced keyframes, live bit-rate
@@ -207,29 +158,6 @@ workspace, so source it before launching.
 
 The Python nodes in `src/` are installed as copies, renamed without `.py`, so after editing
 them rebuild the package, even with `--symlink-install`.
-
-## Package layout
-
-```
-src/
-  stream_encoder/
-    stream_encoder_node.cpp      THE COMPRESSION NODE: StreamEncoder (component + executable)
-    h264_encoder.hpp/.cpp        its libavcodec/libx264 wrapper (no ROS dependency)
-    convert.hpp/.cpp             its OpenCV resize + I420 conversion (no ROS dependency)
-    test_stream_core.cpp         unit tests for the two helpers
-  camera_sim.py                  synthetic camera node           (runs as `camera_sim`)
-  imu_optical_to_standard.py     RealSense IMU axes for the EKFs (runs as `imu_optical_to_standard`)
-launch/
-  camera_realsense.launch.py     front driver + encoder in one container; IMU nodes
-  camera_orbbec.launch.py        rear driver + encoder in one container
-  camera_sim.launch.py           synthetic cameras + encoders, no hardware
-  launch_utils.py                shared helpers (not a launch file); also used by qpl_rover's
-                                 sim.launch.py
-config/
-  front_stream.yaml              encoder settings per camera
-  rear_stream.yaml
-calibration/                     rear colour calibration (1280 and 1920 wide)
-```
 
 ## Notes for maintainers
 
@@ -252,11 +180,3 @@ calibration/                     rear colour calibration (1280 and 1920 wide)
 - **Low-quality mode on the Orbbec** points `color_info_url` at
   `rear_calib_640_cam_info.yaml`, which doesn't exist yet.
 - **Targets when retuning,** viewing on the laptop:
-
-  | Criterion | Target |
-  |---|---|
-  | Raw colour topics while viewing | Stay at the camera rate |
-  | Bit rate | Within ±15% of `bit_rate` |
-  | Largest frame | ≤ 3× the average frame |
-  | Glass-to-glass latency (median) | < 250 ms |
-  | CPU | ≤ 1.5 cores per encoder |

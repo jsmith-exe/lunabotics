@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Synthetic colour camera source, for network testing without the cameras attached.
+"""
+IMPORTANT! REBUILD IF MODIFIED! Python nodes in the src folder are not installed with symlinks.
+
+Synthetic colour camera source, for network testing without the cameras attached.
 
 Stands in place of realsense2_camera_node / the Orbbec node: publishes
 <camera_name>/color/image_raw + camera_info on the same topic names, so the
