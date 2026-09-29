@@ -46,7 +46,8 @@ overrides them from `LOW_QUALITY_ENCODER` in `launch/launch_utils.py`.
 | `threads` | `4` | Encoder slice threads. These add no latency. | reopens encoder |
 | `codec` | `libx264` | Any libavcodec H.264/H.265 encoder. The Orin Nano has no hardware encoder. Unknown names are rejected. | reopens encoder |
 | `av_options` | `""` | Extra encoder options as `key=value,key=value`, e.g. `profile=main,x264-params=aq-mode=2`. | reopens encoder |
-| `output_reliability` | `reliable` | `reliable` or `best_effort`. Keep `reliable`: see [Viewing on the basestation](#viewing-on-the-basestation). | no (set at startup) |
+| `output_reliability` | `reliable` | `reliable` or `best_effort`. Keep `reliable` (and set the rviz display to Reliable): with best effort, one lost Wi-Fi fragment drops a whole frame and the picture smears until the next keyframe. | no (set at startup) |
+| `input_reliability` | `best_effort` | Camera subscription. `best_effort` suits a driver in the same process; standalone encoders (camera_sim, Gazebo) use `reliable`, so DDS resends a lost fragment rather than dropping a whole frame. | no (set at startup) |
 | `input_topic`, `camera_info_topic`, `output_topic` | see YAML | Wiring. | no (set at startup) |
 
 Change a setting on a running camera:
@@ -71,6 +72,11 @@ Rough guidance:
 - **Soft or blocky picture during motion (but not garbled):** try `preset: faster`. At
   640x480 @ 15 it measured noticeably better than `superfast` in motion, for ~9 ms per
   frame instead of ~4.
+- **Lag, or a green picture, in rviz:** rviz should decode in software. `basestation`'s
+  `rviz.launch.py` sets `<topic>.ffmpeg.decoders.h264: h264` for both teleop streams;
+  otherwise the ffmpeg plugin picks NVIDIA's `h264_cuvid`, which holds several frames
+  before showing one (a lot of lag at low frame rates, e.g. a slow Gazebo) and has thrown
+  CUDA errors that turn the picture green. Another viewer needs the same parameter.
 - **Don't enable x264 intra-refresh.** The laptop's `h264_cuvid` decoder can't start from
   an intra-refresh stream, and the feed never appears.
 
@@ -149,8 +155,8 @@ settings, as a separate process.
 After building, run tests via `./build/rover_cameras/test_stream_core`.
 
 The tests cover colour conversion, resizing, input validation and option parsing. They also
-cover the encoder's bit rate at different frame rates, forced keyframes, live bit-rate
-changes and packet timestamps.
+cover the encoder's bit rate at different frame rates (including a slow, jittery ~2 fps
+source), forced keyframes, live bit-rate changes and packet timestamps.
 
 Build requirements: libavcodec/libavutil (`libavcodec-dev`), OpenCV and
 `ffmpeg_image_transport_msgs`. The Orbbec driver comes from the separate `OrbbecSDK_ROS2`

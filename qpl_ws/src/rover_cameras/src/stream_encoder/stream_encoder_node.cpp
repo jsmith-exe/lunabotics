@@ -72,6 +72,10 @@ public:
       read_only("Output base topic: publishes <base>/ffmpeg and <base>/camera_info"));
     const auto reliability = declare_parameter(
       "output_reliability", "best_effort", read_only("best_effort or reliable"));
+    input_reliable_ = declare_parameter(
+      "input_reliability", "best_effort",
+      read_only("Camera subscription: best_effort (driver in the same process) or reliable "
+      "(frames over DDS from another process, e.g. Gazebo)")) == "reliable";
 
     declare_parameter("width", 0, desc("Output width; 0 keeps input (or aspect, with height)"));
     declare_parameter("height", 0, desc("Output height; 0 keeps input (or aspect, with width)"));
@@ -233,7 +237,7 @@ private:
     if (viewers > 0 && !image_sub_) {
       // Keep-last 1: a frame we could not get to is replaced, never queued.
       image_sub_ = create_subscription<Image>(
-        input_topic_, rclcpp::SensorDataQoS().keep_last(1),
+        input_topic_, inputQos(),
         [this](Image::ConstSharedPtr msg) {onImage(std::move(msg));});
       if (!info_topic_.empty()) {
         info_sub_ = create_subscription<CameraInfo>(
@@ -546,6 +550,19 @@ private:
   // Configuration
   std::string input_topic_, info_topic_, output_topic_;
   std::string input_name_, output_name_;  // fully resolved, for logs
+  bool input_reliable_ = false;
+
+  // Keep-last 1 either way: a frame we could not get to is replaced, never queued. Across
+  // processes a best-effort reader loses a whole multi-MB frame when one fragment is lost,
+  // so reliable lets DDS resend the fragment instead (the publisher must be reliable too).
+  rclcpp::QoS inputQos() const
+  {
+    auto qos = rclcpp::SensorDataQoS().keep_last(1);
+    if (input_reliable_) {
+      qos.reliable();
+    }
+    return qos;
+  }
   double stats_period_ = 5.0;
 
   // ROS interfaces

@@ -62,7 +62,9 @@ def stream_encoder_process(
     """Stream encoder for <camera> as its own process.
 
     For image sources that can't share a container: camera_sim (Python) and Gazebo. Frames
-    arrive over local DDS instead of intra-process, which costs a copy per frame.
+    arrive over local DDS instead of intra-process, which costs a copy per frame, so the
+    camera subscription is reliable: best effort would drop a whole multi-MB frame whenever
+    one of its fragments is lost (both sources publish reliable).
     `overrides` replace YAML values, e.g. input topics or use_sim_time.
     """
     return Node(
@@ -71,7 +73,8 @@ def stream_encoder_process(
         name='stream_encoder',
         namespace=camera,
         output='screen',
-        parameters=stream_encoder_parameters(camera, use_low_quality) + [overrides or {}],
+        parameters=stream_encoder_parameters(camera, use_low_quality) + [
+            {'input_reliability': 'reliable', **(overrides or {})}],
     )
 
 

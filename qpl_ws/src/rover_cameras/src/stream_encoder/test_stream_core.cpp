@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstdarg>
+#include <cstring>
 #include <vector>
 
 #include <opencv2/core.hpp>
@@ -8,6 +10,10 @@
 
 #include "convert.hpp"
 #include "h264_encoder.hpp"
+
+extern "C" {
+#include <libavutil/log.h>
+}
 
 using rover_cameras::EncoderConfig;
 using rover_cameras::H264Encoder;
@@ -185,4 +191,46 @@ TEST(Encoder, PacketPtsMatchInput)
     }
     EXPECT_EQ(in, out) << "start " << start;
   }
+}
+
+namespace
+{
+int g_vbv_warnings = 0;
+void countVbvWarnings(void *, int, const char * fmt, va_list)
+{
+  if (fmt && std::strstr(fmt, "VBV buffer size cannot be smaller than one frame")) {
+    ++g_vbv_warnings;
+  }
+}
+}  // namespace
+
+// A slow, jittery source (e.g. Gazebo at ~2 fps): the bit rate must still hold, and the VBV
+// buffer must never be smaller than one frame (libx264 warns and overrides it if so).
+TEST(Encoder, SlowJitteryFrameRate)
+{
+  av_log_set_callback(countVbvWarnings);
+  g_vbv_warnings = 0;
+  H264Encoder enc;
+  enc.open(testConfig());
+  const int w = 320, h = 240;
+  cv::Mat base(h * 2, w * 2, CV_8UC3), frame, noise(h, w, CV_8UC3), scratch, i420;
+  cv::randu(base, 0, 255);
+  cv::GaussianBlur(base, base, cv::Size(5, 5), 0);
+  size_t bytes = 0;
+  int64_t pts = 0, measured_ms = 0;
+  for (int i = 0; i < 90; ++i) {
+    pts += (i % 2) ? 350 : 550;  // ~2.2 fps with jitter
+    frame = base(cv::Rect(i % w, (i * 3) % h, w, h)).clone();
+    cv::randu(noise, 0, 12);
+    frame += noise;
+    rover_cameras::toI420(frame.data, w, h, frame.step, "bgr8", w, h, scratch, i420);
+    enc.encode(i420.data, pts, false, [&](const uint8_t *, size_t size, int64_t, bool) {
+        if (i >= 30) {bytes += size;}
+      });
+    if (i == 29) {measured_ms = pts;}
+  }
+  av_log_set_callback(av_log_default_callback);
+  const double kbps = bytes * 8.0 / ((pts - measured_ms) / 1000.0) / 1000.0;
+  EXPECT_NEAR(kbps, 400.0, 400.0 * 0.3);
+  EXPECT_EQ(g_vbv_warnings, 0);
 }

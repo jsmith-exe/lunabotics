@@ -1,5 +1,6 @@
 #include "h264_encoder.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
@@ -148,12 +149,15 @@ void H264Encoder::setBitRate(int64_t bit_rate, int vbv_buffer_ms)
 void H264Encoder::applyRate()
 {
   // x264 budgets bit_rate / fps_hint per frame, so scale by fps_hint / real fps to hold the
-  // real bit rate. The VBV size is already in bits, so it needs no scaling.
+  // real bit rate. The VBV size is already in bits, so it needs no scaling - but it must hold
+  // at least one frame's budget (bit_rate * frame interval), which at low frame rates (e.g. a
+  // slow Gazebo) is more than vbv_buffer_ms; x264 would otherwise override it with a warning.
   const auto rate = static_cast<int64_t>(config_.bit_rate * rate_scale_);
   ctx_->bit_rate = rate;
   if (config_.vbv_buffer_ms > 0) {
+    const double buffer_ms = std::max(static_cast<double>(config_.vbv_buffer_ms), 1.5 * interval_ms_);
     ctx_->rc_max_rate = rate;
-    ctx_->rc_buffer_size = static_cast<int>(config_.bit_rate * config_.vbv_buffer_ms / 1000);
+    ctx_->rc_buffer_size = static_cast<int>(config_.bit_rate * buffer_ms / 1000.0);
   } else {
     ctx_->rc_max_rate = 0;
     ctx_->rc_buffer_size = 0;
@@ -195,7 +199,7 @@ void H264Encoder::trackFrameRate(int64_t pts_ms)
   const int64_t dt = last_pts_ < 0 ? 0 : pts_ms - last_pts_;
   const bool first_interval = last_pts_ >= 0 && !measured_;
   last_pts_ = pts_ms;
-  if (dt <= 0 || dt > 1000) {
+  if (dt <= 0 || dt > 3000) {
     return;  // first frame, or a pause (e.g. nobody watching): not a frame interval
   }
   // Seed from the first real interval rather than converging from fps_hint.
@@ -203,7 +207,9 @@ void H264Encoder::trackFrameRate(int64_t pts_ms)
     interval_ms_ + 0.1 * (static_cast<double>(dt) - interval_ms_);
   measured_ = true;
   const double scale = config_.fps_hint * interval_ms_ / 1000.0;
-  if (std::abs(scale / rate_scale_ - 1.0) > 0.1) {
+  // Only reconfigure x264 on a real change of frame rate, not on jitter (a jittery source,
+  // like Gazebo, would otherwise reconfigure it every few frames).
+  if (std::abs(scale / rate_scale_ - 1.0) > 0.25) {
     rate_scale_ = scale;
     applyRate();
   }
