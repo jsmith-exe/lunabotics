@@ -160,7 +160,10 @@ def get_camera_params(use_low_quality: bool) -> Dict[str, str]:
 
         'color_info_url': f'file://{calibration_folder}/rear_calib_{color_width}_cam_info.yaml',
 
-        'color_qos': 'SENSOR_DATA',
+        # Ignored: with intra-process comms the driver always publishes images reliable, depth
+        # 10 (ob_camera_node.cpp replaces the image QoS with rmw_qos_profile_default).
+        # 'color_qos': 'SENSOR_DATA',
+
         # 'depth_registration': 'true',
         # 'enable_colored_point_cloud': 'true',
     }

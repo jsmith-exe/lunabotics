@@ -20,10 +20,8 @@ from launch_ros.descriptions import ComposableNode
 ParameterEntry = Union[str, Dict[str, Any]]
 
 # With intra-process comms, both drivers (realsense2_camera, orbbec_camera) publish images
-# through a plain rclcpp publisher instead of image_transport, with the default QoS
-# (reliable, depth 10). So their colour image is raw only - no /compressed - and their
-# image QoS settings (color_qos) and transport-plugin parameters are ignored. The
-# basestation views <camera>/color/teleop_stream/ffmpeg from the stream encoder instead.
+# through a plain rclcpp publisher instead of image_transport, so their colour image is raw
+# only - no /compressed - and transport-plugin parameters are ignored.
 INTRA_PROCESS: List[Dict[str, bool]] = [{'use_intra_process_comms': True}]
 
 # Low quality mode already shrinks the colour stream at the driver (424x240x15 front,
