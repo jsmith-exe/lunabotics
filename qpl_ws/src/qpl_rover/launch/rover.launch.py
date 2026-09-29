@@ -56,9 +56,14 @@ def generate_launch_description():
         }.items()
     )
 
+    use_low_quality_parameter = DeclareLaunchArgument(
+        'use_low_quality',
+        default_value='false',
+        description='Run the cameras at low resolution (front 424x240x15, rear 640x480) if the Jetson can\'t keep up.'
+    )
+
     # Cameras
-    # Full resolution. Flip to "true" for 424x240x15 if the Jetson can't keep up.
-    use_low_quality = "false"
+    use_low_quality = LaunchConfiguration('use_low_quality')
     realsense_launch_source = PythonLaunchDescriptionSource(path.join(cameras_pkg, "launch", "camera_realsense.launch.py"))
     orbbec_launch_path_source = PythonLaunchDescriptionSource(path.join(cameras_pkg, "launch", "camera_orbbec.launch.py"))
     realsense_launch = IncludeLaunchDescription(realsense_launch_source, launch_arguments={"use_low_quality": use_low_quality}.items())
@@ -84,6 +89,7 @@ def generate_launch_description():
     return LaunchDescription([
         run_components_parameter,
         use_vslam_parameter,
+        use_low_quality_parameter,
         rsp,
         OpaqueFunction(function=setup_components),
         realsense_launch,
