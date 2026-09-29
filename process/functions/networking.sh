@@ -134,6 +134,23 @@ qpl_net_limit_clear_client() {
 # -------------------- DDS and other config --------------------
 export ROS_DOMAIN_ID=42
 
+# Lets Cyclone use the 10 MB socket receive buffers the dds/*.xml configs ask for. The Linux
+# default (~208 KB) overflows on large images, e.g. a 1080p frame is ~6 MB, so other processes
+# get only a few frames per second. Persists across reboots; run once per machine.
+# WSL: Set systemd=true under [boot] in /etc/wsl.conf
+qpl_net_socket_buffers() {
+  local MAX_BYTES=${1:-16777216}
+  echo "net.core.rmem_max=$MAX_BYTES" | sudo tee /etc/sysctl.d/60-qpl-dds.conf >/dev/null
+  sudo sysctl -p /etc/sysctl.d/60-qpl-dds.conf
+  echo "Restart ROS nodes to pick this up."
+  echo "Note: on WSL, set systemd=true under [boot] in /etc/wsl.conf"
+}
+
+# Runs on every shell start: a cheap check (no sudo) that reminds machines that haven't been set up
+if (( $(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo 0) < 16777216 )); then
+  echo "Socket receive buffers are small, so large ROS images will drop frames: run qpl_net_socket_buffers" >&2
+fi
+
 _get_highest_eth_interface() {
   # Function for WSL; this returns the highest eth interface, which is typically the one connected to
   # the network (e.g. eth0 is often a virtual interface for WSL itself).

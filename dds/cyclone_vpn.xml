@@ -7,6 +7,9 @@
       </Interfaces>
       <AllowMulticast>false</AllowMulticast>
     </General>
+    <Internal>
+      <SocketReceiveBufferSize max="10MB"/>
+    </Internal>
     <Discovery>
       <Peers>
         <Peer Address="100.89.72.39"/>
