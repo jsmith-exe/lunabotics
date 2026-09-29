@@ -183,6 +183,5 @@ them rebuild the package, even with `--symlink-install`.
   arguments and defaults, so the driver gets exactly the parameters it did before.
   `enable_decimation_filter` and `decimation_filter_scale` have never been declared there,
   so they don't reach the driver; the launch logs them as ignored.
-- **Low-quality mode on the Orbbec** points `color_info_url` at
-  `rear_calib_640_cam_info.yaml`, which doesn't exist yet.
+- **The Orbbec is calibrated by default in 640x480 resolution**, so no need for `rear_calib_640_cam_info.yaml`
 - **Targets when retuning,** viewing on the laptop:
