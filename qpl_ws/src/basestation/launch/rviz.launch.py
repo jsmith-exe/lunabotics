@@ -7,7 +7,6 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
 
-config_name = "default" # default or rover
 
 
 def generate_launch_description():
@@ -21,18 +20,22 @@ def generate_launch_description():
         description="Use simulation time if true."
     )
 
-    rviz_config = os.path.join(
-        basestation_pkg_path,
-        "rviz",
-        f"{config_name}.rviz"
-    )
+    rviz_config = os.path.join(basestation_pkg_path, "rviz", "default.rviz")
 
     rviz = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         arguments=["-d", rviz_config],
-        parameters=[{"use_sim_time": use_sim_time}],
+        parameters=[{
+            "use_sim_time": use_sim_time,
+            # Decode the teleop streams in software. The ffmpeg plugin otherwise picks the
+            # NVIDIA h264_cuvid decoder, which buffers several frames before showing any (a lot
+            # of lag at low frame rates, e.g. a slow Gazebo) and has shown CUDA errors that
+            # turn the picture green. The software decoder outputs each frame immediately.
+            "depth_camera_front.color.teleop_stream.ffmpeg.decoders.h264": "h264",
+            "depth_camera_rear.color.teleop_stream.ffmpeg.decoders.h264": "h264",
+        }],
         output="screen",
     )
 

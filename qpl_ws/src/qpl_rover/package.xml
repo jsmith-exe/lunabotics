@@ -26,8 +26,15 @@
 
   <!-- Localisation + IMU chain -->
   <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>imu_filter_madgwick</exec_depend>
-  <exec_depend>realsense2_camera</exec_depend>
+
+  <!-- Camera drivers, launch files and the stream encoder -->
+  <exec_depend>rover_cameras</exec_depend>
+
+  <!-- apriltag_observer, cloud_restamper -->
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -24,7 +24,7 @@ SIM_TOPICS = {
 }
 
 ROVER_TOPICS = {
-    # Requires align_depth.enable in camera_realsense.launch.py.
+    # Requires align_depth.enable in rover_cameras/launch/camera_realsense.launch.py.
     "rgb": "/depth_camera_front/color/image_raw",
     "info": "/depth_camera_front/color/camera_info",
     "depth": "/depth_camera_front/aligned_depth_to_color/image_raw",

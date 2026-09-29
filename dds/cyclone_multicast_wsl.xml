@@ -6,6 +6,9 @@
         <NetworkInterface name="${QPL_WSL_INTERFACE}" priority="default"/>
       </Interfaces>
     </General>
+    <Internal>
+      <SocketReceiveBufferSize max="10MB"/>
+    </Internal>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>
       <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
