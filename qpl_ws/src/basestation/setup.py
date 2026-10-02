@@ -30,6 +30,7 @@ setup(
             'drum_lift_converter = basestation.nodes.drum_lift_converter:main',
             'log_recorder = basestation.nodes.log_recorder:main',
             'zone_overlay = basestation.nodes.zone_overlay_node:main',
+            'heading_marker = basestation.nodes.heading_marker_node:main',
         ],
     },
 )

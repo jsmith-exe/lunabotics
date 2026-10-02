@@ -88,6 +88,15 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{"use_sim_time": use_sim_time}],
             output="screen",
         ),
+        # Arrow and FRONT label over the rover, so its heading is readable in
+        # both windows.
+        Node(
+            package="basestation",
+            executable="heading_marker",
+            name="heading_marker",
+            parameters=[{"use_sim_time": use_sim_time}],
+            output="screen",
+        ),
     ]
 
 
