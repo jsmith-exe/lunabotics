@@ -20,8 +20,8 @@ def generate_launch_description():
 
     use_vslam_parameter = DeclareLaunchArgument(
         'use_vslam',
-        default_value='false',
-        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1.'
+        default_value='true',
+        description='Run RGB-D visual odometry and fuse it into the local EKF as odom1. Set false to disable.'
     )
 
     return LaunchDescription([

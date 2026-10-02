@@ -33,7 +33,7 @@ common:
   odom0_relative: false
 
   # RGB-D visual odometry (vslam_launch.py): body-frame velocities only.
-  # Opt in with use_vslam:=true.
+  # On by default; disable with use_vslam:=false.
   odom1: /vo/odom
   odom1_config: [false, false, false,
                  false, false, false,
