@@ -22,9 +22,9 @@ setup(
     (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/model.sdf')),
     (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/model.config')),
     (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/*.png')),
-    (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
-    (os.path.join('share', package_name, 'config', 'arena'), glob('config/arena/*.yaml')),
-    (os.path.join('share', package_name, 'config', 'localisation'), glob('config/localisation/*.yaml')),
+    (os.path.join('share', package_name, 'config'), glob('config/*.*')),
+    (os.path.join('share', package_name, 'config', 'arena'), glob('config/arena/*.*')),
+    (os.path.join('share', package_name, 'config', 'localisation'), glob('config/localisation/*.*')),
     (os.path.join("share", package_name, "rviz"), glob("rviz/*")), 
     ],
     install_requires=['setuptools'],
@@ -41,6 +41,7 @@ setup(
     entry_points={
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
+            'cloud_restamper = qpl_rover.cloud_restamper:main',
             'drum_command_interface = qpl_rover.drum_command_interface:main',
             'imu_optical_to_standard = qpl_rover.imu_optical_to_standard:main',
         ],

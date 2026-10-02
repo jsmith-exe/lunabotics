@@ -42,9 +42,9 @@ source "$QPL_PROJECT"/process/startup.sh
 ### Verify setup
 If you've built before:
 ```bash
-ros2 run basestation nav_pub
+ros2 run basestation nav_sub
 ```
-- This should run a simple publisher; you should see some logs indicating that it's publishing messages. 
+- This should run a simple subscriber; you should see a log line indicating that it started.
 Ctrl+C to stop it. This means 1) ROS is sourced and 2) the workspace is sourced.
 
 If you haven't built before, run ```qpl_build```.

@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 from ..constants import ControllerInputs, CmdMeta, GUIInputs
-from .base_station_state import BaseStationState
+from ..base_station_state import BaseStationState
 from ..control_maps import Command
 
 MINIMUM_ANALOGUE_CHANGE = 0.05 # Changes in analogue values must be at least this much to be sent
@@ -26,7 +26,6 @@ class BaseController:
         a release command will be sent.
         :param button: the button pressed, some key in the control map.
         :param pressed: if the button was pressed (true) or released (false).
-        :param control_map: the control map to use.
         """
         if not self.state.teleop_enabled: return
         command: Command = self.state.control_map.get(button)
@@ -44,7 +43,6 @@ class BaseController:
         Sends the command associated with the control map with the value of the analogue input (e.g., mouse or joystick).
         :param input_: the triggered input.
         :param value: a value from the analogue input.
-        :param control_map: the control map to use.
         """
         if not self.state.teleop_enabled: return
         command: Command = self.state.control_map.get(input_)

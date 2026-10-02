@@ -7,7 +7,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
 
-config_name = "default"
+config_name = "default" # default or rover
 
 
 def generate_launch_description():

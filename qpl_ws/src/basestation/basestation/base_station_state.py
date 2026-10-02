@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from ..control_maps import default_control_map
-from ..constants import NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
+from .control_maps import default_control_map
+from .constants import NAV_TOPIC, DRUM_LIFT_TOPIC, DRUM_ROTATION_TOPIC, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
     DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_DRUM_BUTTON_FACTOR
 
 
@@ -43,3 +43,6 @@ class BaseStationState:
         self.motor_steer_button_factor = value
     def set_motor_drum_button_factor(self, value: float):
         self.motor_drum_button_factor = value
+
+    def reset_topic_states(self):
+        self.topic_target_states = generate_topic_state()

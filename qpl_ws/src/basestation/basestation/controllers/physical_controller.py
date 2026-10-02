@@ -10,7 +10,7 @@ from pydualsense import pydualsense
 
 from ..control_maps import Con
 from .base_controller import BaseController
-from .base_station_state import BaseStationState
+from ..base_station_state import BaseStationState
 
 JOYSTICK_DEAD_ZONE = 0.1
 
@@ -22,7 +22,6 @@ class PhysicalController(BaseController):
     """ Translates controller inputs to commands. """
     def __init__(self, publish_function, state: BaseStationState):
         super().__init__(publish_function, state)
-        self.publish_function = publish_function
         self.stopped = True
         self.controller = None
 
