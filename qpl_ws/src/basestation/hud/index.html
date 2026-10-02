@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QPL Rover HUD</title>
+<link rel="stylesheet" href="hud.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 29 9.5v13L16 30 3 22.5v-13z' fill='%23000' stroke='%23ff8a1e' stroke-width='2.5'/%3E%3C/svg%3E">
+</head>
+<body>
+<div id="hud">
+
+  <!-- ============================== HEADER ============================== -->
+  <header id="top">
+    <div class="brand">
+      <svg class="emblem" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 3 57 17.5v29L32 61 7 46.5v-29z" class="em-hex"/>
+        <path d="M32 13 48 22v20L32 51 16 42V22z" class="em-inner"/>
+        <path d="M24 26h16M24 32h16M24 38h10" class="em-lines"/>
+      </svg>
+      <div class="brand-text">
+        <div class="brand-title">QPL ROVER</div>
+        <div class="brand-sub">TELEOPERATION COMMAND <span class="jp">遠隔操縦</span></div>
+      </div>
+    </div>
+
+    <div id="source" class="source idle" title="Which input the drive mux is following">
+      <div class="source-k">CONTROL</div>
+      <div class="source-v">IDLE</div>
+    </div>
+
+    <button id="magi" class="magi" title="System health. Click (or L) for data links and logs.">
+      <div class="magi-node" id="magi-link"><span class="mn-name">CASPER·3</span><span class="mn-role">LINK</span><span class="mn-verdict">—</span></div>
+      <div class="magi-node" id="magi-drive"><span class="mn-name">BALTHASAR·2</span><span class="mn-role">DRIVE</span><span class="mn-verdict">—</span></div>
+      <div class="magi-node" id="magi-loc"><span class="mn-name">MELCHIOR·1</span><span class="mn-role">LOCALISE</span><span class="mn-verdict">—</span></div>
+    </button>
+
+    <div class="zone-box" title="Arena zone the rover centre is in">
+      <div class="k">ZONE</div>
+      <div class="v" id="zone">—</div>
+    </div>
+
+    <button id="timer" class="timer" title="Run timer: T start/stop, Shift+T reset">
+      <div class="k">RUN TIME <span id="timer-state">STANDBY</span></div>
+      <div class="v" id="timer-v">00:00.0</div>
+    </button>
+
+    <div class="clock">
+      <div class="k">LOCAL</div>
+      <div class="v" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- ============================ MAIN CAMERA ============================ -->
+  <section id="main-view" class="panel cam-panel">
+    <div class="tag tl"><span id="main-label">CAM-01 FRONT</span></div>
+    <div class="cam-stage" id="main-stage">
+      <img id="main-img" alt="">
+      <canvas id="main-overlay"></canvas>
+      <div class="nosignal" id="main-nosig">
+        <div class="ns-box">
+          <div class="ns-jp">信号途絶</div>
+          <div class="ns-en">NO SIGNAL</div>
+          <div class="ns-detail" id="main-nosig-detail"></div>
+        </div>
+      </div>
+    </div>
+    <div class="cam-meta" id="main-meta">— FPS · — KB/S</div>
+    <div class="cam-modes">
+      <span id="mode-guides" class="chip on" title="G: drive guides">GUIDES</span>
+      <span id="mode-auto" class="chip" title="V: show the rear camera while reversing">AUTO-REV</span>
+    </div>
+    <div id="warnings"></div>
+    <div id="ticker" class="ticker"></div>
+
+    <!-- System drawer: data links + logs -->
+    <aside id="drawer" class="drawer">
+      <div class="drawer-head">
+        <span class="tag-inline">SYSTEM // DATA LINKS</span>
+        <button class="x" id="drawer-close" title="Close (L)">✕</button>
+      </div>
+      <table class="links"><thead><tr><th></th><th>TOPIC</th><th>HZ</th><th>AGE</th><th>KB/S</th></tr></thead><tbody id="links"></tbody></table>
+      <div class="drawer-head">
+        <span class="tag-inline">EVENT LOG</span>
+        <span class="filters" id="log-filters">
+          <button data-l="20" class="on">INFO+</button><button data-l="30">WARN+</button><button data-l="40">ERROR</button>
+        </span>
+      </div>
+      <div class="log" id="log"></div>
+    </aside>
+  </section>
+
+  <!-- ============================ RIGHT COLUMN =========================== -->
+  <section id="pip-view" class="panel cam-panel pip" title="Click or Space to swap cameras">
+    <div class="tag tl"><span id="pip-label">CAM-02 REAR</span></div>
+    <div class="cam-stage" id="pip-stage">
+      <img id="pip-img" alt="">
+      <canvas id="pip-overlay"></canvas>
+      <div class="nosignal small" id="pip-nosig">
+        <div class="ns-box"><div class="ns-jp">信号途絶</div><div class="ns-en">NO SIGNAL</div><div class="ns-detail" id="pip-nosig-detail"></div></div>
+      </div>
+    </div>
+    <div class="cam-meta" id="pip-meta">— FPS</div>
+    <div class="swap-hint">⇄ SWAP</div>
+  </section>
+
+  <section id="map-view" class="panel">
+    <div class="tag tl">TACTICAL MAP <span class="jp">戦術</span></div>
+    <div class="map-tools">
+      <button id="map-follow" class="chip" title="F: follow rover">FOLLOW</button>
+      <button id="map-rotate" class="chip" title="R: rotate map 90°">ROT 0°</button>
+      <button id="map-reset" class="chip" title="0 or double-click: fit arena">FIT</button>
+    </div>
+    <canvas id="map"></canvas>
+    <div class="map-foot">
+      <div><span class="k">X</span><span id="m-x">—</span></div>
+      <div><span class="k">Y</span><span id="m-y">—</span></div>
+      <div><span class="k">HDG</span><span id="m-h">—</span></div>
+      <div class="berm"><span class="k">BERM</span><span id="m-berm">—</span></div>
+      <div class="frame-tag" id="m-frame">—</div>
+    </div>
+  </section>
+
+  <!-- ============================ BOTTOM STRIP =========================== -->
+  <section id="strip">
+    <div class="panel mod" id="mod-drive">
+      <div class="tag tl">DRIVE</div>
+      <canvas id="c-drive"></canvas>
+      <div class="readouts">
+        <div class="ro"><span class="k">V</span><span class="v" id="r-v">—</span><span class="u">m/s</span></div>
+        <div class="ro"><span class="k">ω</span><span class="v" id="r-w">—</span><span class="u">rad/s</span></div>
+        <div class="ro sub"><span class="k">CMD</span><span class="v" id="r-cmd">—</span></div>
+      </div>
+    </div>
+    <div class="panel mod" id="mod-wheels">
+      <div class="tag tl">WHEELS</div>
+      <canvas id="c-wheels"></canvas>
+    </div>
+    <div class="panel mod" id="mod-att">
+      <div class="tag tl">ATTITUDE</div>
+      <canvas id="c-att"></canvas>
+    </div>
+    <div class="panel mod" id="mod-impl">
+      <div class="tag tl">DRUM / LIFT</div>
+      <canvas id="c-impl"></canvas>
+    </div>
+    <div class="panel mod" id="mod-trace">
+      <div class="tag tl">VELOCITY TRACE <span class="dim">30 S</span></div>
+      <div class="tag tr legend" title="Orange: measured speed · green: commanded speed · cyan: measured turn rate"><i class="lg-o"></i>V <i class="lg-g"></i>CMD <i class="lg-c"></i>ω</div>
+      <canvas id="c-trace"></canvas>
+    </div>
+  </section>
+</div>
+
+<!-- ============================== OVERLAYS =============================== -->
+<div id="lost" class="lost">
+  <div class="lost-hexes" aria-hidden="true"></div>
+  <div class="lost-box">
+    <div class="lost-jp">通信途絶</div>
+    <div class="lost-en">HUD SERVER UNREACHABLE</div>
+    <div class="lost-sub">Is <b>teleop_hud</b> running? Reconnecting…</div>
+  </div>
+</div>
+
+<div id="help" class="help">
+  <div class="help-box panel">
+    <div class="tag tl">OPERATOR KEYS</div>
+    <p class="help-note">Monitoring only: this screen sends nothing to the rover. Drive with the controller as usual.
+      HUD keys deliberately avoid W/A/S/D and the arrow keys, which the desktop controller reads globally.</p>
+    <dl>
+      <dt>SPACE / C</dt><dd>Swap main and corner camera (or click the corner camera)</dd>
+      <dt>V</dt><dd>Auto-reverse view: show the rear camera while reversing</dd>
+      <dt>G</dt><dd>Drive guides on the camera</dd>
+      <dt>F</dt><dd>Map follows the rover</dd>
+      <dt>R</dt><dd>Rotate the map 90°</dd>
+      <dt>0</dt><dd>Fit the arena (also double-click the map; scroll to zoom, drag to pan)</dd>
+      <dt>L</dt><dd>Data links and event log</dd>
+      <dt>T / SHIFT+T</dt><dd>Start/stop the run timer / reset it</dd>
+      <dt>M</dt><dd>Mute warning tones</dd>
+      <dt>H / ?</dt><dd>This help</dd>
+      <dt>F11</dt><dd>Full screen</dd>
+    </dl>
+  </div>
+</div>
+
+<div id="boot" class="boot">
+  <div class="boot-inner">
+    <div class="boot-title">QPL ROVER</div>
+    <div class="boot-sub">TELEOPERATION COMMAND SYSTEM</div>
+    <div class="boot-lines" id="boot-lines"></div>
+  </div>
+</div>
+
+<div class="scanlines" aria-hidden="true"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
