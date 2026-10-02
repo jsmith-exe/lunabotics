@@ -14,6 +14,8 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join("share", package_name, "launch"), glob("launch/*")),
         (os.path.join("share", package_name, "rviz"), glob("rviz/*")),
+        (os.path.join("share", package_name, "hud"), glob("hud/*.*")),
+        (os.path.join("share", package_name, "hud", "js"), glob("hud/js/*.js")),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -31,6 +33,8 @@ setup(
             'log_recorder = basestation.nodes.log_recorder:main',
             'zone_overlay = basestation.nodes.zone_overlay_node:main',
             'heading_marker = basestation.nodes.heading_marker_node:main',
+            'teleop_hud = basestation.hud.hud_node:main',
+            'hud_demo = basestation.testing.hud_demo:main',
         ],
     },
 )
