@@ -5,7 +5,7 @@ from os import environ
 from ttkbootstrap import Style, LabeledScale
 
 from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
-    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs, ICON_PATH, NAV_TOPIC, MessageOptions
+    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs, ICON_PATH, NAV_TOPIC, MessageOptions, DRUM_ROTATION_TOPIC
 from ..base_station_state import BaseStationState
 from ..controllers.base_controller import BaseController
 from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
@@ -93,6 +93,8 @@ class TeleopWindow:
         # Publishing is ignored once teleop is disabled, so this must happen first.
         self.base_station_state.reset_topic_states()
         self.publish_function(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, 0)
+        self.publish_function(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, 0)
+        self.publish_function(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, 0)
 
         self.base_station_state.teleop_enabled = False
         self.root.attributes("-topmost", False)
