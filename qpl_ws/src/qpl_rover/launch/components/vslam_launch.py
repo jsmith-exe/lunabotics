@@ -2,8 +2,10 @@
 RGB-D visual odometry. Runs rtabmap_odom/rgbd_odometry against the front depth
 camera and publishes /vo/odom for the local EKF to fuse as odom1. No TF, no map.
 
+Started automatically by qpl_rover and qpl_sim via components.launch.py.
+Pass use_vslam:=false to either to disable it. Standalone:
+
     ros2 launch qpl_rover vslam_launch.py use_sim_time:=true
-    qpl_sim use_vslam:=true
 """
 
 import os
