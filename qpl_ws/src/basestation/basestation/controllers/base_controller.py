@@ -46,15 +46,18 @@ class BaseController:
         """
         if not self.state.teleop_enabled: return
         command: Command = self.state.control_map.get(input_)
-        prev_value = self.previous_analogue_values.get(input_)
-        if (command is None or
-            # Ignore insignificant inputs if there was a previous value and there is a non-zero value from the input.
-            (prev_value is not None and abs(value - prev_value) < self.minimum_analogue_change)):
+        if command is None:
             return
 
-        normalised_value = self._post_process_value(value, command)
-        self.previous_analogue_values[input_] = normalised_value
-        self.publish_function(command.topic_name, command.message_option, normalised_value)
+        # Raw input is compared with the previous raw input; post-processed values are scaled, so comparing them
+        # with raw input would drop real changes. A return to zero is always sent so a stop can't be filtered out.
+        prev_value = self.previous_analogue_values.get(input_)
+        is_new_zero = value == 0 and prev_value != 0
+        if prev_value is not None and not is_new_zero and abs(value - prev_value) < self.minimum_analogue_change:
+            return
+
+        self.previous_analogue_values[input_] = value
+        self.publish_function(command.topic_name, command.message_option, self._post_process_value(value, command))
 
     def _post_process_value(self, value: float, command: Command):
         # Apply motor factors depending on command metadata

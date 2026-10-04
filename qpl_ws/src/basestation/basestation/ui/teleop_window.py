@@ -5,7 +5,7 @@ from os import environ
 from ttkbootstrap import Style, LabeledScale
 
 from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
-    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs, ICON_PATH
+    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs, ICON_PATH, NAV_TOPIC, MessageOptions, DRUM_ROTATION_TOPIC
 from ..base_station_state import BaseStationState
 from ..controllers.base_controller import BaseController
 from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
@@ -16,6 +16,7 @@ UI_SCALE = float(environ.get('QPL_TELEOP_WINDOW_SCALE', 1.0))
 class TeleopWindow:
     def __init__(self, base_station_state: BaseStationState, publish_function: Callable, canbus_config: dict):
         self.base_station_state = base_station_state
+        self.publish_function = publish_function
 
         self.style = Style(themename='cyborg')
         self.root = self.style.master
@@ -88,13 +89,19 @@ class TeleopWindow:
         self._schedule_flash()
 
     def disable(self):
+        # Send an explicit wheel stop before going quiet, rather than relying on the rover's command timeout.
+        # Publishing is ignored once teleop is disabled, so this must happen first.
+        self.base_station_state.reset_topic_states()
+        self.publish_function(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, 0)
+        self.publish_function(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, 0)
+        self.publish_function(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, 0)
+
         self.base_station_state.teleop_enabled = False
         self.root.attributes("-topmost", False)
         self.message_label.config(text="✓ Teleoperation disabled")
         self.toggle_button.config(text="Enable")
         self.message_label.configure(foreground="")
         self._cancel_flash()
-        self.base_station_state.reset_topic_states()
 
     def toggle(self):
         if self.base_station_state.teleop_enabled:
