@@ -44,3 +44,39 @@ Launch with `qpl_rviz`. We have two separate configurations, default and rover,
 which can be configured in [the launch file](./launch/rviz.launch.py).
 
 The [zone overlay node](./basestation/nodes/zone_overlay_node.py) publishes an overlay to be displayed on RViz.
+
+## Teleop HUD (browser display)
+A browser-based teleop display, an alternative to RViz for driving: one window with both cameras, the
+arena map and the rover telemetry. **It only monitors** and never publishes a command, so you keep
+driving with the controller exactly as before.
+
+```bash
+qpl_hud_rover   # against the rover: decodes the h264 (ffmpeg) camera feeds locally
+qpl_hud         # against the sim: Gazebo already publishes JPEG
+```
+Both open http://localhost:8765. Press `H` on the page for the key list. The HUD keys avoid W/A/S/D
+and the arrow keys so they never look like drive keys.
+
+What's on screen:
+- **Main camera** with drive guides: the predicted footprint sweep from the current command, projected
+  through the real `camera_info` and TF, with 0.5/1/1.5/2 m rungs. Also a heading tape, ground speed,
+  and a PIVOT cue when turning on the spot. Click the corner camera or press Space to swap; `V`
+  switches to the rear camera automatically while reversing.
+- **Tactical map**: arena zones from `qpl_rover/config/arena`, the global costmap, the Nav2 plan, the
+  rover footprint and trail, AprilTag fixes, and the distance and bearing to the berm. Scroll to zoom,
+  drag to pan, `F` to follow, `R` to rotate.
+- **Header**: who has control (TELEOP / AUTONOMY / IDLE, from the drive mux inputs), three health
+  verdicts (LINK, DRIVE, LOCALISE), the current zone, and a run timer (`T`).
+- **Bottom strip**: commanded vs measured motion, wheel surface speeds with stall detection, pitch/roll,
+  drum and lift, and a 30 s velocity trace.
+- **Warnings**: telemetry loss, tilt, wall proximity / out of bounds, wheel stall, and a silent mux
+  output. `L` opens per-topic rates and the `/rosout` log.
+
+How it is built: `basestation/hud/hud_node.py` (node `teleop_hud`) subscribes to the topics and serves
+the page in `hud/` with the Python standard library. Telemetry goes over Server-Sent Events and the
+cameras over MJPEG, so it needs no rosbridge or extra pip packages. Thresholds (tilt, stall, staleness)
+are at the top of `hud/js/util.js` and `hud/js/main.js`.
+
+No rover? `qpl_hud_demo` publishes a fake rover (including camera frames) for trying the HUD out. Run it
+on a private `ROS_DOMAIN_ID`; it refuses to start if anything else is on the command topics.
+

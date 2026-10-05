@@ -74,6 +74,15 @@ qpl_rviz_rover() {
 }
 
 
+# -------------------- Browser teleop HUD --------------------
+# One browser window for driving: cameras with drive guides, arena map,
+# drive/wheel/attitude/drum telemetry and health, at http://localhost:8765.
+# Monitoring only; it never publishes commands. Keys: press H on the page.
+alias qpl_hud='ros2 launch basestation hud.launch.py use_sim_time:=true transport:=compressed'  # against the sim
+alias qpl_hud_rover='ros2 launch basestation hud.launch.py'  # against the rover (h264 cameras)
+alias qpl_hud_demo='ros2 run basestation hud_demo'  # fake rover data; use a private ROS_DOMAIN_ID
+
+
 # -------------------- Render mode helpers --------------------
 qpl_use_software_render() {
   export LIBGL_ALWAYS_SOFTWARE=1
