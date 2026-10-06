@@ -117,8 +117,9 @@ qpl_list_processes() {
   local n_colors=${#colors[@]}
   local i=0
 
-  # Gets the processes containing 'ros' to PID and rest of line as args, prints them as different colours
-  pgrep -af ros | while read -r pid args; do
+  # Gets the processes that look like ROS (ros2 CLI, /opt/ros binaries, or nodes with --ros-args)
+  # to PID and rest of line as args, prints them as different colours
+  pgrep -af 'ros2|/opt/ros/|--ros-args' | while read -r pid args; do
       local node_name
       node_name=$(echo "$args" | grep -oP '(?<=__node:=)\S+')
       color=${colors[$((i % n_colors))]}
