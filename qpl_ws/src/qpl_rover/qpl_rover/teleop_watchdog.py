@@ -17,8 +17,7 @@ class TeleopWatchdog(Node):
     def __init__(self):
         super().__init__('teleop_watchdog')
 
-        self._timeout = Duration(
-            seconds=self.declare_parameter('timeout', 0.2).value)
+        self._timeout = Duration(seconds=self.declare_parameter('timeout', 0.25).value)
         self._last_msg_time = None
         self._stale = False
 
