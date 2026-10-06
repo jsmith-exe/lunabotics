@@ -4,7 +4,7 @@
 // All data arrives on one Server-Sent Events stream from teleop_hud (/events);
 // camera frames come as MJPEG from /cam/<name>.mjpg.
 
-import { Surface, prefs, isNum, deg, fmtSigned, STALE_S, DEAD_S, TILT_CAUTION, TILT_CRIT } from "./util.js";
+import { Surface, prefs, isNum, deg, fmtSigned, ga, applyIrish, STALE_S, DEAD_S, TILT_CAUTION, TILT_CRIT } from "./util.js";
 import { CameraDeck } from "./cameras.js";
 import { TacticalMap } from "./map.js";
 import { drawDrive, drawWheels, drawAttitude, drawImplement, drawTrace, TraceHistory } from "./gauges.js";
@@ -234,7 +234,7 @@ function renderLinks() {
 function verdict(el, state) {
   el.className = "magi-node " + state;
   el.querySelector(".mn-verdict").textContent =
-    { ok: "承認", warn: "審議", fail: "否定", off: "—" }[state];
+    { ok: "APPROVED", warn: "REVIEW", fail: "DENIED", off: "—" }[state];
 }
 
 function renderHeader() {
@@ -276,39 +276,39 @@ function computeWarnings() {
   const d = S.derived;
   const w = [];
   if (!t) {
-    if (S.connected) w.push({ lvl: "info", jp: "待機", txt: "AWAITING TELEMETRY", sub: "HUD up; nothing from teleop_hud yet" });
+    if (S.connected) w.push({ lvl: "info", ga: "Ag Fanacht", txt: "AWAITING TELEMETRY", sub: "HUD up; nothing from teleop_hud yet" });
     return w;
   }
   const odomAge = t.odom?.age ?? null;
   const jsAge = topicAge("/joint_states");
   if (odomAge === null && jsAge === null) {
-    w.push({ lvl: "info", jp: "待機", txt: "NO ROVER DATA YET", sub: "no /odometry/filtered or /joint_states" });
+    w.push({ lvl: "info", ga: "Ag Fanacht", txt: "NO ROVER DATA YET", sub: "no /odometry/filtered or /joint_states" });
   } else if (Math.min(odomAge ?? 99, jsAge ?? 99) > DEAD_S) {
     const a = Math.min(odomAge ?? 99, jsAge ?? 99);
-    w.push({ lvl: "crit", jp: "通信途絶", txt: "ROVER TELEMETRY LOST", sub: `last data ${a < 99 ? a.toFixed(1) + " s" : "—"} ago` });
+    w.push({ lvl: "crit", ga: "Gan Teagmháil", txt: "ROVER TELEMETRY LOST", sub: `last data ${a < 99 ? a.toFixed(1) + " s" : "—"} ago` });
   }
 
   const att = d.att;
   if (att && isNum(att.roll) && isNum(att.pitch)) {
     const tilt = Math.max(Math.abs(deg(att.roll)), Math.abs(deg(att.pitch)));
-    if (tilt >= TILT_CRIT) w.push({ lvl: "crit", jp: "傾斜", txt: "TILT CRITICAL", sub: `roll ${fmtSigned(deg(att.roll), 0)}°  pitch ${fmtSigned(deg(att.pitch), 0)}°` });
-    else if (tilt >= TILT_CAUTION) w.push({ lvl: "caution", jp: "傾斜", txt: "TILT", sub: `roll ${fmtSigned(deg(att.roll), 0)}°  pitch ${fmtSigned(deg(att.pitch), 0)}°` });
+    if (tilt >= TILT_CRIT) w.push({ lvl: "crit", ga: "Claonadh Contúirteach", txt: "TILT CRITICAL", sub: `roll ${fmtSigned(deg(att.roll), 0)}°  pitch ${fmtSigned(deg(att.pitch), 0)}°` });
+    else if (tilt >= TILT_CAUTION) w.push({ lvl: "caution", ga: "Claonadh", txt: "TILT", sub: `roll ${fmtSigned(deg(att.roll), 0)}°  pitch ${fmtSigned(deg(att.pitch), 0)}°` });
   }
 
   const wall = map.wallClearance();
   if (wall !== null) {
-    if (wall < 0) w.push({ lvl: "crit", jp: "境界", txt: "OUTSIDE ARENA", sub: `${(-wall).toFixed(2)} m past the wall` });
-    else if (wall < WALL_CAUTION_M) w.push({ lvl: "caution", jp: "境界", txt: "WALL PROXIMITY", sub: `${wall.toFixed(2)} m clearance` });
+    if (wall < 0) w.push({ lvl: "crit", ga: "Thar Teorainn", txt: "OUTSIDE ARENA", sub: `${(-wall).toFixed(2)} m past the wall` });
+    else if (wall < WALL_CAUTION_M) w.push({ lvl: "caution", ga: "Gar don Bhalla", txt: "WALL PROXIMITY", sub: `${wall.toFixed(2)} m clearance` });
   }
 
-  if (d.stalled?.length) w.push({ lvl: "caution", jp: "停止", txt: "WHEEL STALL", sub: d.stalled.map((k) => k.toUpperCase()).join(" ") + " not turning" });
+  if (d.stalled?.length) w.push({ lvl: "caution", ga: "Roth Sáinnithe", txt: "WHEEL STALL", sub: d.stalled.map((k) => k.toUpperCase()).join(" ") + " not turning" });
 
   const c = t.cmd || {};
   if (d.cmd && Math.abs(d.cmdVx) + Math.abs(d.cmdWz) > 0.01 && (!c.out || c.out.age > 0.5)) {
-    w.push({ lvl: "caution", jp: "遮断", txt: "MUX OUTPUT SILENT", sub: "commands sent, nothing on /diff_cont/cmd_vel_unstamped" });
+    w.push({ lvl: "caution", ga: "Ciúnas", txt: "MUX OUTPUT SILENT", sub: "commands sent, nothing on /diff_cont/cmd_vel_unstamped" });
   }
 
-  if (d.live && d.frame === "odom") w.push({ lvl: "info", jp: "測位", txt: "NO MAP FIX", sub: "map → base TF missing; map shows odom" });
+  if (d.live && d.frame === "odom") w.push({ lvl: "info", ga: "Gan Suíomh", txt: "NO MAP FIX", sub: "map → base TF missing; map shows odom" });
   return w;
 }
 
@@ -354,8 +354,8 @@ function renderWarnings() {
       ...w.map((x) => {
         const el = document.createElement("div");
         el.className = "warn " + x.lvl;
-        el.innerHTML = `<span class="w-jp"></span><span class="w-txt"><span class="w-main"></span><span class="w-sub"></span></span>`;
-        el.querySelector(".w-jp").textContent = x.jp;
+        el.innerHTML = `<span class="w-ga"></span><span class="w-txt"><span class="w-main"></span><span class="w-sub"></span></span>`;
+        el.querySelector(".w-ga").textContent = ga(x.ga);
         el.querySelector(".w-main").textContent = x.txt;
         el.querySelector(".w-sub").textContent = x.sub;
         return el;
@@ -484,10 +484,10 @@ setInterval(() => {
 // ------------------------------------------------------------------- boot
 function boot() {
   const lines = [
-    "MAGI-01 CASPER ........ LINK MONITOR",
-    "MAGI-02 BALTHASAR ..... DRIVE MONITOR",
-    "MAGI-03 MELCHIOR ...... LOCALISATION",
-    "MONITOR MODE · NO COMMAND OUTPUT",
+    `MAGI-01 CASPER ........ LINK MONITOR    · ${ga("Faireachán Naisc")}`,
+    `MAGI-02 BALTHASAR ..... DRIVE MONITOR   · ${ga("Faireachán Tiomána")}`,
+    `MAGI-03 MELCHIOR ...... LOCALISATION    · ${ga("Aimsiú Suímh")}`,
+    `MONITOR MODE · NO COMMAND OUTPUT        · ${ga("Mód Faireacháin")}`,
   ];
   const el = $("boot-lines");
   lines.forEach((l, i) =>
@@ -500,6 +500,7 @@ function boot() {
   $("boot").addEventListener("click", () => $("boot").classList.add("done"));
 }
 
+applyIrish();
 boot();
 connect();
 requestAnimationFrame(frame);

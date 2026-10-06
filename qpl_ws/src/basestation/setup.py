@@ -15,6 +15,7 @@ setup(
         (os.path.join("share", package_name, "rviz"), glob("rviz/*")),
         (os.path.join("share", package_name, "hud"), glob("hud/*.*")),
         (os.path.join("share", package_name, "hud", "js"), glob("hud/js/*.js")),
+        (os.path.join("share", package_name, "hud", "fonts"), glob("hud/fonts/*")),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

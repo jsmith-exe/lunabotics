@@ -20,7 +20,7 @@
       </svg>
       <div class="brand-text">
         <div class="brand-title">QPL ROVER</div>
-        <div class="brand-sub">TELEOPERATION COMMAND <span class="jp">遠隔操縦</span></div>
+        <div class="brand-sub">TELEOPERATION COMMAND</div>
       </div>
     </div>
 
@@ -53,21 +53,22 @@
 
   <!-- ============================ MAIN CAMERA ============================ -->
   <section id="main-view" class="panel cam-panel">
-    <div class="tag tl"><span id="main-label">CAM-01 FRONT</span></div>
+    <div class="tag tl"><span id="main-label">CAM-01 FRONT</span><span class="ga" id="main-label-ga"></span></div>
     <div class="cam-stage" id="main-stage">
       <img id="main-img" alt="">
       <canvas id="main-overlay"></canvas>
       <div class="nosignal" id="main-nosig">
         <div class="ns-box">
-          <div class="ns-jp">信号途絶</div>
+          <div class="ns-ga ga" data-ga="Gan Chomhartha"></div>
           <div class="ns-en">NO SIGNAL</div>
+          <div class="ns-ogham ogham" data-ogham="gan chomhartha"></div>
           <div class="ns-detail" id="main-nosig-detail"></div>
         </div>
       </div>
     </div>
     <div class="cam-meta" id="main-meta">— FPS · — KB/S</div>
     <div class="cam-modes">
-      <span id="mode-guides" class="chip on" title="G: drive guides">GUIDES</span>
+      <span id="mode-guides" class="chip on" title="G: drive guides (Treoirlínte)">GUIDES</span>
       <span id="mode-auto" class="chip" title="V: show the rear camera while reversing">AUTO-REV</span>
     </div>
     <div id="warnings"></div>
@@ -76,12 +77,12 @@
     <!-- System drawer: data links + logs -->
     <aside id="drawer" class="drawer">
       <div class="drawer-head">
-        <span class="tag-inline">SYSTEM // DATA LINKS</span>
+        <span class="tag-inline">SYSTEM // DATA LINKS <span class="ga" data-ga="Naisc Sonraí"></span></span>
         <button class="x" id="drawer-close" title="Close (L)">✕</button>
       </div>
       <table class="links"><thead><tr><th></th><th>TOPIC</th><th>HZ</th><th>AGE</th><th>KB/S</th></tr></thead><tbody id="links"></tbody></table>
       <div class="drawer-head">
-        <span class="tag-inline">EVENT LOG</span>
+        <span class="tag-inline">EVENT LOG <span class="ga" data-ga="Loga Imeachtaí"></span></span>
         <span class="filters" id="log-filters">
           <button data-l="20" class="on">INFO+</button><button data-l="30">WARN+</button><button data-l="40">ERROR</button>
         </span>
@@ -92,20 +93,20 @@
 
   <!-- ============================ RIGHT COLUMN =========================== -->
   <section id="corner-view" class="panel cam-panel corner" title="Click or Space to swap cameras">
-    <div class="tag tl"><span id="corner-label">CAM-02 REAR</span></div>
+    <div class="tag tl"><span id="corner-label">CAM-02 REAR</span><span class="ga" id="corner-label-ga"></span></div>
     <div class="cam-stage" id="corner-stage">
       <img id="corner-img" alt="">
       <canvas id="corner-overlay"></canvas>
       <div class="nosignal small" id="corner-nosig">
-        <div class="ns-box"><div class="ns-jp">信号途絶</div><div class="ns-en">NO SIGNAL</div><div class="ns-detail" id="corner-nosig-detail"></div></div>
+        <div class="ns-box"><div class="ns-ga ga" data-ga="Gan Chomhartha"></div><div class="ns-en">NO SIGNAL</div><div class="ns-detail" id="corner-nosig-detail"></div></div>
       </div>
     </div>
     <div class="cam-meta" id="corner-meta">— FPS</div>
-    <div class="swap-hint">⇄ SWAP</div>
+    <div class="swap-hint">⇄ SWAP <span class="ga" data-ga="Malartaigh"></span></div>
   </section>
 
   <section id="map-view" class="panel">
-    <div class="tag tl">TACTICAL MAP <span class="jp">戦術</span></div>
+    <div class="tag tl">TACTICAL MAP <span class="ga" data-ga="Léarscáil Oirbheartach"></span></div>
     <div class="map-tools">
       <button id="map-follow" class="chip" title="F: follow rover">FOLLOW</button>
       <button id="map-rotate" class="chip" title="R: rotate map 90°">ROT 0°</button>
@@ -125,6 +126,7 @@
   <section id="strip">
     <div class="panel mod" id="mod-drive">
       <div class="tag tl">DRIVE</div>
+      <div class="mod-ga ga" data-ga="Tiomáint"></div>
       <canvas id="c-drive"></canvas>
       <div class="readouts">
         <div class="ro"><span class="k">V</span><span class="v" id="r-v">—</span><span class="u">m/s</span></div>
@@ -134,18 +136,22 @@
     </div>
     <div class="panel mod" id="mod-wheels">
       <div class="tag tl">WHEELS</div>
+      <div class="mod-ga ga" data-ga="Rothaí"></div>
       <canvas id="c-wheels"></canvas>
     </div>
     <div class="panel mod" id="mod-att">
       <div class="tag tl">ATTITUDE</div>
+      <div class="mod-ga ga" data-ga="Claonadh"></div>
       <canvas id="c-att"></canvas>
     </div>
     <div class="panel mod" id="mod-impl">
       <div class="tag tl">DRUM / LIFT</div>
+      <div class="mod-ga ga" data-ga="Druma ⁊ Ardú"></div>
       <canvas id="c-impl"></canvas>
     </div>
     <div class="panel mod" id="mod-trace">
       <div class="tag tl">VELOCITY TRACE <span class="dim">30 S</span></div>
+      <div class="mod-ga ga" data-ga="Rian Treoluais"></div>
       <div class="tag tr legend" title="Orange: measured speed · green: commanded speed · cyan: measured turn rate"><i class="lg-o"></i>V <i class="lg-g"></i>CMD <i class="lg-c"></i>ω</div>
       <canvas id="c-trace"></canvas>
     </div>
@@ -156,15 +162,16 @@
 <div id="lost" class="lost">
   <div class="lost-hexes" aria-hidden="true"></div>
   <div class="lost-box">
-    <div class="lost-jp">通信途絶</div>
+    <div class="lost-ga ga" data-ga="Ceangal Briste"></div>
     <div class="lost-en">HUD SERVER UNREACHABLE</div>
-    <div class="lost-sub">Is <b>teleop_hud</b> running? Reconnecting…</div>
+    <div class="lost-ogham ogham" data-ogham="ceangal briste"></div>
+    <div class="lost-sub">Is <b>teleop_hud</b> running? Reconnecting… <span class="ga" data-ga="Ag athcheangal"></span></div>
   </div>
 </div>
 
 <div id="help" class="help">
   <div class="help-box panel">
-    <div class="tag tl">OPERATOR KEYS</div>
+    <div class="tag tl">OPERATOR KEYS <span class="ga" data-ga="Eochracha an Oibreora"></span></div>
     <p class="help-note">Monitoring only: this screen sends nothing to the rover. Drive with the controller as usual.
       HUD keys avoid W/A/S/D and the arrow keys so they never look like drive keys.</p>
     <dl>
@@ -185,13 +192,14 @@
 
 <div id="boot" class="boot">
   <div class="boot-inner">
+    <div class="boot-ogham ogham" data-ogham="cianrialu"></div>
     <div class="boot-title">QPL ROVER</div>
     <div class="boot-sub">TELEOPERATION COMMAND SYSTEM</div>
+    <div class="boot-ga ga" data-ga="Córas Cianrialaithe"></div>
     <div class="boot-lines" id="boot-lines"></div>
   </div>
 </div>
 
-<div class="scanlines" aria-hidden="true"></div>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>
