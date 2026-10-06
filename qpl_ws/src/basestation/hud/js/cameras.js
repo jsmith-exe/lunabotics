@@ -2,10 +2,12 @@
 // elements, NO SIGNAL handling and the main-pane overlay (reticle, heading
 // tape, speed, drive guides projected through the real camera model).
 
-import { C, FONT_LABEL, FONT_MONO, Surface, clamp, deg, isNum, fmtSigned, glow, noGlow, label, prefs } from "./util.js";
+import { C, FONT_LABEL, FONT_MONO, FONT_GA, Surface, clamp, deg, isNum, fmtSigned, glow, noGlow, label, prefs, ga } from "./util.js";
 
 const KEYS = ["front", "rear"];
 const NUM = { front: "01", rear: "02" };
+// Irish pane captions: front camera / rear camera.
+const CAM_GA = { front: "Ceamara Tosaigh", rear: "Ceamara Cúil" };
 // Guide colours by distance from the bumper, like a reversing camera.
 const GUIDE_TICKS = [
   [0.5, C.red],
@@ -98,6 +100,8 @@ export class CameraDeck {
     this.stage.corner.prepend(this.imgs[this.corner]);
     document.getElementById("main-label").textContent = `CAM-${NUM[this.main]} ${this.main.toUpperCase()}${this.auto && this.main !== this.manualMain ? " · AUTO" : ""}`;
     document.getElementById("corner-label").textContent = `CAM-${NUM[this.corner]} ${this.corner.toUpperCase()}`;
+    document.getElementById("main-label-ga").textContent = ga(CAM_GA[this.main]);
+    document.getElementById("corner-label-ga").textContent = ga(CAM_GA[this.corner]);
     document.getElementById("mode-guides").classList.toggle("on", this.guides);
     document.getElementById("mode-auto").classList.toggle("on", this.auto);
   }
@@ -232,6 +236,7 @@ export class CameraDeck {
     this.drawSpeed(ctx, r, k);
     if (k === "rear") {
       label(ctx, "◀ REAR VIEW · IMAGE LEFT = ROVER RIGHT ▶", r.x + r.w / 2, r.y + r.h - 16, { size: 12, color: C.amber, align: "center" });
+      label(ctx, ga("Radharc Cúil"), r.x + r.w / 2, r.y + r.h - 32, { size: 12, color: C.amber, align: "center", font: FONT_GA, weight: 700 });
     }
   }
 
@@ -303,6 +308,7 @@ export class CameraDeck {
     ctx.fillStyle = C.orange;
     ctx.fill();
     label(ctx, "HDG", cx - span / 2 - 6, y + 6, { size: 10, color: C.textDim, align: "right" });
+    label(ctx, ga("Treo"), cx + span / 2 + 6, y + 6, { size: 11, color: C.textDim, font: FONT_GA, weight: 700 });
   }
 
   drawSpeed(ctx, r, k) {
@@ -311,6 +317,7 @@ export class CameraDeck {
     const y = r.y + r.h - 96;
     if (r.w < 500) return;
     label(ctx, "GROUND SPEED", x, y - 30, { size: 10, color: C.textDim });
+  label(ctx, ga("Luas Talún"), x + 84, y - 30, { size: 11, color: C.orange, font: FONT_GA, weight: 700 });
     glow(ctx, C.orange, 8);
     label(ctx, isNum(d.vx) ? fmtSigned(d.vx, 2) : "—", x, y, { size: 30, color: "#fff3e0", font: FONT_MONO });
     noGlow(ctx);
@@ -450,6 +457,7 @@ export class CameraDeck {
       ctx.fill();
       noGlow(ctx);
       label(ctx, `PIVOT ${left ? "LEFT" : "RIGHT"}`, cx, cy + 4, { size: 15, color: C.amber, align: "center" });
+      label(ctx, ga(left ? "Casadh ar Chlé" : "Casadh ar Dheis"), cx, cy + 22, { size: 13, color: C.amber, align: "center", font: FONT_GA, weight: 700 });
     }
     if (m.est) label(ctx, "GUIDES ESTIMATED · NO CAMERA_INFO/TF", r.x + r.w - 16, r.y + r.h - 36, { size: 10, color: C.textDim, align: "right" });
   }

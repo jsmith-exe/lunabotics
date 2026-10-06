@@ -25,7 +25,9 @@
   --f-title: "DejaVu Serif Condensed", "Liberation Serif", "Times New Roman", serif;
   --f-label: "Nimbus Sans Narrow", "Liberation Sans Narrow", "Ubuntu Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
   --f-mono: "DejaVu Sans Mono", "Ubuntu Mono", "Liberation Mono", monospace;
-  --f-jp: "Noto Serif CJK JP", "Noto Sans CJK JP", serif;
+  /* Irish captions: condensed serif, lenition dots added by ga() in util.js. */
+  --f-ga: "DejaVu Serif Condensed", "DejaVu Serif", "FreeSerif", serif;
+  --f-ogham: "Noto Sans Ogham", "QPL Ogham", serif;
 
   --gap: 6px;
   --header-h: clamp(52px, 6.2vh, 68px);
@@ -39,17 +41,18 @@
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
 body { font-family: var(--f-label); font-weight: 700; letter-spacing: 0.04em; -webkit-font-smoothing: antialiased; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-.jp { font-family: var(--f-jp); letter-spacing: 0; font-weight: 700; }
+@font-face { font-family: "QPL Ogham"; src: url("fonts/NotoSansOgham-Regular.ttf") format("truetype"); }
+.ga { font-family: var(--f-ga); font-weight: 700; letter-spacing: 0.02em; text-transform: none; }
+.ogham { font-family: "QPL Ogham", var(--f-ogham); font-weight: 400; letter-spacing: 0; white-space: nowrap; }
 .dim { color: var(--text-dim); }
 
-/* Faint CRT scanlines + vignette over everything. Pointer-transparent. */
-.scanlines {
-  position: fixed; inset: 0; pointer-events: none; z-index: 50;
-  background:
-    repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.16) 2px 3px),
-    radial-gradient(ellipse at center, rgba(0,0,0,0) 62%, rgba(0,0,0,0.5) 100%);
-  mix-blend-mode: multiply;
+/* Faint CRT scanlines on the instrument panels only. Camera panes are left
+   out on purpose: the video is shown exactly as the camera sends it. */
+.panel:not(.cam-panel)::after, #top::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 9;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.16) 2px 3px);
 }
+#top { position: relative; }
 
 /* ================================ GRID ================================== */
 #hud {
@@ -98,7 +101,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 .tag.tl { top: 8px; left: 10px; }
 .tag.tr { top: 8px; right: 10px; }
-.tag .jp, .tag .dim { margin-left: 6px; }
+.tag .ga, .tag .dim, .tag-inline .ga { margin-left: 6px; }
+.tag .ga, .tag-inline .ga { color: var(--amber); font-size: 1.05em; text-shadow: 0 0 5px rgba(255,194,58,0.45); }
 .tag-inline { color: var(--orange); font-size: 13px; padding: 3px 8px; border: 1.5px solid var(--orange); border-radius: 4px; text-shadow: var(--glow); }
 
 .chip {
@@ -129,7 +133,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   text-shadow: 0 0 10px rgba(255,138,30,0.5);
 }
 .brand-sub { font-size: clamp(9px, 0.7vw, 12px); color: var(--orange); letter-spacing: 0.22em; margin-top: 5px; }
-.brand-sub .jp { margin-left: 6px; color: var(--red); }
 
 .source {
   min-width: clamp(110px, 9vw, 170px); padding: 0 14px; align-items: center;
@@ -154,7 +157,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .magi-node:nth-child(2) { clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 8px 100%); }
 .mn-name { grid-column: 1 / 3; font-size: clamp(10px, 0.72vw, 13px); letter-spacing: 0.12em; }
 .mn-role { font-size: 10px; letter-spacing: 0.18em; opacity: 0.75; align-self: end; }
-.mn-verdict { font-family: var(--f-jp); font-size: clamp(13px, 1vw, 18px); justify-self: end; line-height: 1.1; }
+.mn-verdict { font-size: clamp(12px, 0.9vw, 16px); letter-spacing: 0.1em; justify-self: end; line-height: 1.1; }
 .magi-node.ok   { background: var(--cyan); color: #00241f; }
 .magi-node.warn { background: var(--amber); color: #2a1a00; }
 .magi-node.fail { background: var(--red); color: #fff; animation: blink-bg 0.9s steps(2) infinite; }
@@ -181,6 +184,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 .cam-modes { position: absolute; left: 10px; bottom: 8px; z-index: 6; display: flex; gap: 5px; }
 .corner { cursor: pointer; }
+.corner .swap-hint .ga { margin-left: 4px; }
 .corner .swap-hint {
   position: absolute; right: 10px; top: 10px; z-index: 6; font-size: 11px; color: var(--orange);
   border: 1px solid var(--line-dim); padding: 2px 6px; background: rgba(0,0,0,0.7); opacity: 0.7;
@@ -200,11 +204,13 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   background: rgba(0,0,0,0.85); box-shadow: var(--glow-red), inset 0 0 12px rgba(255,45,31,0.4);
   animation: ns-pulse 1.4s ease-in-out infinite;
 }
-.ns-jp { font-family: var(--f-jp); color: var(--red); font-size: clamp(28px, 3vw, 54px); line-height: 1; text-shadow: var(--glow-red); }
+.ns-ga { color: var(--red); font-size: clamp(26px, 2.8vw, 50px); line-height: 1.05; text-shadow: var(--glow-red); }
+.ns-ogham { color: var(--red); opacity: 0.7; font-size: clamp(14px, 1.2vw, 22px); margin-top: 6px; }
+.nosignal.small .ns-ogham { display: none; }
 .ns-en { color: var(--red); font-size: clamp(14px, 1.2vw, 22px); letter-spacing: 0.4em; margin-top: 6px; }
 .ns-detail { color: var(--text-dim); font-family: var(--f-mono); font-size: 11px; font-weight: 400; margin-top: 8px; }
 .nosignal.small .ns-box { padding: 8px 16px; border-width: 2px; }
-.nosignal.small .ns-jp { font-size: clamp(18px, 1.6vw, 28px); }
+.nosignal.small .ns-ga { font-size: clamp(18px, 1.6vw, 28px); }
 .nosignal.small .ns-en { font-size: 11px; }
 @keyframes ns-pulse { 50% { box-shadow: 0 0 2px rgba(255,45,31,0.3), inset 0 0 4px rgba(255,45,31,0.2); } }
 
@@ -215,7 +221,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
   font-size: clamp(12px, 0.9vw, 16px); letter-spacing: 0.12em;
 }
-.warn .w-jp { font-family: var(--f-jp); font-size: 1.3em; }
+.warn .w-ga { font-family: var(--f-ga); font-size: 1.2em; letter-spacing: 0.02em; white-space: nowrap; }
 .warn .w-txt { display: flex; flex-direction: column; line-height: 1.15; }
 .warn .w-sub { font-size: 0.72em; letter-spacing: 0.06em; font-weight: 400; opacity: 0.9; font-family: var(--f-mono); }
 .warn.crit { background: var(--red); color: #fff; animation: warn-flash 0.8s steps(2) infinite; }
@@ -286,10 +292,16 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   display: grid; gap: var(--gap); min-height: 0;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.95fr) minmax(0, 1.75fr);
 }
-.mod canvas { position: absolute; left: 0; right: 0; top: 30px; bottom: 0; width: 100%; height: calc(100% - 30px); }
+.mod canvas { position: absolute; left: 0; right: 0; top: 30px; bottom: 0; width: calc(100% - 18px); height: calc(100% - 30px); }
+/* Irish caption running down the right edge of each strip module. */
+.mod-ga {
+  position: absolute; right: 2px; top: 36px; bottom: 12px; z-index: 6; pointer-events: none;
+  writing-mode: vertical-rl; white-space: nowrap; overflow: hidden;
+  font-size: clamp(11px, 0.75vw, 14px); color: var(--amber); opacity: 0.8; text-shadow: 0 0 5px rgba(255,194,58,0.4);
+}
 #mod-drive canvas { right: auto; width: 50%; }
 #mod-drive .readouts {
-  position: absolute; right: 12px; top: 36px; bottom: 10px; width: calc(50% - 16px);
+  position: absolute; right: 24px; top: 36px; bottom: 10px; width: calc(50% - 28px);
   display: flex; flex-direction: column; justify-content: center; gap: 4px;
 }
 .ro { display: flex; align-items: baseline; gap: 6px; border-bottom: 1px solid var(--line-faint); }
@@ -316,7 +328,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 @keyframes hexdrift { to { background-position: 120px 104px; } }
 .lost-box { position: relative; text-align: center; padding: 26px 60px; background: #000; border: 4px solid var(--red); box-shadow: 0 0 30px var(--red); }
-.lost-jp { font-family: var(--f-jp); font-size: clamp(40px, 5vw, 90px); color: var(--red); text-shadow: var(--glow-red); line-height: 1; }
+.lost-ga { font-size: clamp(40px, 5vw, 90px); color: var(--red); text-shadow: var(--glow-red); line-height: 1.05; }
+.lost-ogham { font-size: clamp(18px, 1.8vw, 32px); color: var(--red); opacity: 0.75; margin-top: 10px; }
+.lost-sub .ga { margin-left: 6px; color: var(--amber); }
 .lost-en { font-size: clamp(16px, 1.6vw, 28px); letter-spacing: 0.35em; color: var(--red); margin-top: 10px; }
 .lost-sub { color: var(--text-dim); font-weight: 400; font-family: var(--f-mono); font-size: 13px; margin-top: 12px; }
 .lost-sub b { color: var(--text); }
@@ -337,6 +351,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .boot-inner { text-align: center; }
 .boot-title { font-family: var(--f-title); font-size: clamp(48px, 7vw, 120px); color: #fff3e0; transform: scaleY(1.25); letter-spacing: 0.02em; text-shadow: 0 0 22px rgba(255,138,30,0.6); }
 .boot-sub { color: var(--orange); letter-spacing: 0.5em; font-size: clamp(12px, 1.2vw, 20px); margin-top: 16px; }
+.boot-ga { color: var(--red); font-size: clamp(16px, 1.6vw, 28px); margin-top: 10px; text-shadow: var(--glow-red); }
+.boot-ogham { color: var(--orange); font-size: clamp(22px, 2.4vw, 40px); margin-bottom: 18px; text-shadow: var(--glow); opacity: 0.85; }
 .boot-lines { margin-top: 26px; font-family: var(--f-mono); font-weight: 400; font-size: 13px; color: var(--green); min-height: 6em; text-align: left; display: inline-block; }
 
 /* ============================== SMALL SCREENS ============================ */
@@ -349,6 +365,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   .map-foot { gap: 9px; }
   .map-foot .k { margin-right: 3px; }
   .mn-role { display: none; }
+  /* No room for the vertical Irish captions; give the gauges their width back. */
+  .mod-ga { display: none; }
+  .mod canvas { width: 100%; }
+  #mod-drive .readouts { right: 12px; width: calc(50% - 16px); }
   .clock { display: none; }
   .mod canvas { top: 26px; height: calc(100% - 26px); }
   .tag { padding: 3px 6px 2px; }

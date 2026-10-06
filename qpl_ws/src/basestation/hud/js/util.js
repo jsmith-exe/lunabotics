@@ -18,7 +18,34 @@ export const C = {
 
 export const FONT_LABEL = '"Nimbus Sans Narrow","Liberation Sans Narrow","Ubuntu Condensed","Arial Narrow",sans-serif';
 export const FONT_MONO = '"DejaVu Sans Mono","Ubuntu Mono",monospace';
-export const FONT_JP = '"Noto Serif CJK JP","Noto Sans CJK JP",serif';
+export const FONT_GA = '"DejaVu Serif Condensed","DejaVu Serif","FreeSerif",serif';
+
+/**
+ * Irish in the old Gaelic-type spelling: lenition written as a dot over the
+ * consonant (ponc séimhithe) instead of a following h, so "Gan Chomhartha"
+ * shows as "Gan Ċoṁarṫa". Source strings stay in modern spelling so they
+ * read normally in the code.
+ */
+export function ga(text) {
+  return text.replace(/([bcdfgmpst])h/gi, (_, c) => (c + "\u0307").normalize("NFC"));
+}
+
+// Latin letter -> Ogham (Noto Sans Ogham is bundled in hud/fonts).
+const OGHAM = {
+  b: "ᚁ", l: "ᚂ", f: "ᚃ", v: "ᚃ", s: "ᚄ", n: "ᚅ", h: "ᚆ", d: "ᚇ", t: "ᚈ", c: "ᚉ", k: "ᚉ", q: "ᚊ",
+  m: "ᚋ", g: "ᚌ", z: "ᚎ", r: "ᚏ", a: "ᚐ", o: "ᚑ", u: "ᚒ", e: "ᚓ", i: "ᚔ", p: "ᚚ", x: "ᚕ",
+};
+/** Transliterate to Ogham between feather marks; spaces become the stem-line space. */
+export function ogham(text) {
+  const plain = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return "᚛" + [...plain].map((ch) => (ch === " " ? "\u1680" : OGHAM[ch] ?? "")).join("") + "᚜";
+}
+
+/** Fill every [data-ga] element with its Irish text and [data-ogham] with Ogham. */
+export function applyIrish(root = document) {
+  for (const el of root.querySelectorAll("[data-ga]")) el.textContent = ga(el.dataset.ga);
+  for (const el of root.querySelectorAll("[data-ogham]")) el.textContent = ogham(el.dataset.ogham);
+}
 
 // Ages (s) at which a stream counts as late / gone.
 export const STALE_S = 0.6;
