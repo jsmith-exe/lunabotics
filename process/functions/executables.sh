@@ -31,47 +31,37 @@ alias qpl_stop='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{da
 #alias qpl_blind_construct='ros2 launch qpl_autonomy blind_construction.launch.py'
 
 # -------------------- Simulation + RViz --------------------
-# Add 'export LIBGL_ALWAYS_SOFTWARE=true' to bashrc if problems with rendering
-qpl_sim() {
-  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
-    qpl_use_gpu_render
-  fi
-  qpl_print_renderer
+# Add 'export LIBGL_ALWAYS_SOFTWARE=true' to bashrc if problems with rendering.
+# Launchers run in a subshell ( ) so the render env vars they set don't leak into the terminal.
+qpl_sim() (
+  _qpl_pick_render
 
   ros2 launch qpl_rover sim.launch.py "$@"
-}
+)
 
-qpl_headless() { # Sim with no GUI
-  qpl_use_software_render
-  qpl_print_renderer
+qpl_headless() ( # Sim with no GUI
+  _qpl_pick_render
 
   ros2 launch qpl_rover sim.launch.py "$@" headless:=true
-}
+)
 
-qpl_sim_minimal() {
-  qpl_use_software_render
-  qpl_print_renderer
+qpl_sim_minimal() (
+  _qpl_pick_render
 
   ros2 launch qpl_rover sim.launch.py "$@" headless:=true run_components:=false
-}
+)
 
-qpl_rviz() {
-  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
-    qpl_use_gpu_render
-  fi
-  qpl_print_renderer
+qpl_rviz() (
+  _qpl_pick_render
 
-  ros2 launch basestation rviz.launch.py use_sim_time:=true"$@"
-}
+  ros2 launch basestation rviz.launch.py use_sim_time:=true "$@"
+)
 
-qpl_rviz_rover() {
-  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
-    qpl_use_gpu_render
-  fi
-  qpl_print_renderer
+qpl_rviz_rover() (
+  _qpl_pick_render
 
   ros2 launch basestation rviz.launch.py "$@"
-}
+)
 
 
 # -------------------- Browser teleop HUD --------------------
@@ -85,6 +75,8 @@ alias qpl_hud_demo='ros2 run basestation hud_demo'  # fake rover data; use a pri
 
 # -------------------- Render mode helpers --------------------
 qpl_use_software_render() {
+  unset __NV_PRIME_RENDER_OFFLOAD
+  unset __GLX_VENDOR_LIBRARY_NAME
   export LIBGL_ALWAYS_SOFTWARE=1
   export GALLIUM_DRIVER=llvmpipe
 }
@@ -93,6 +85,21 @@ qpl_use_gpu_render() {
   # Unset software-render overrides so GL can use your GPU stack again
   unset LIBGL_ALWAYS_SOFTWARE
   unset GALLIUM_DRIVER
+
+  # On hybrid laptops the default GL device is the iGPU, which may be slow or broken, so offload
+  # to the NVIDIA GPU when its native Linux driver is loaded (not on WSL, which uses Mesa's d3d12)
+  if [ -e /proc/driver/nvidia/version ]; then
+    export __NV_PRIME_RENDER_OFFLOAD=1
+    export __GLX_VENDOR_LIBRARY_NAME=nvidia
+  fi
+}
+
+# GPU unless software rendering was requested (e.g. LIBGL_ALWAYS_SOFTWARE in bashrc)
+_qpl_pick_render() {
+  if [ -z "${LIBGL_ALWAYS_SOFTWARE:-}" ]; then
+    qpl_use_gpu_render
+  fi
+  qpl_print_renderer
 }
 
 if [ -n "${LIBGL_ALWAYS_SOFTWARE:-}" ]; then
@@ -108,6 +115,7 @@ qpl_print_renderer() {
   fi
   echo "LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE:-<unset>}"
   echo "GALLIUM_DRIVER=${GALLIUM_DRIVER:-<unset>}"
+  echo "__NV_PRIME_RENDER_OFFLOAD=${__NV_PRIME_RENDER_OFFLOAD:-<unset>}"
 }
 
 
