@@ -6,11 +6,15 @@
         <NetworkInterface autodetermine="true" priority="default" multicast="false"/>
       </Interfaces>
     </General>
+    <Internal>
+      <SocketReceiveBufferSize max="10MB"/>
+    </Internal>
     <Discovery>
       <Peers>
         <Peer address="192.168.1.81"/>
         <Peer address="192.168.1.167"/>
         <Peer address="192.168.1.94"/>
+        <Peer address="192.168.1.29"/>
         <Peer address="127.0.0.1"/>
       </Peers>
       <ParticipantIndex>auto</ParticipantIndex>

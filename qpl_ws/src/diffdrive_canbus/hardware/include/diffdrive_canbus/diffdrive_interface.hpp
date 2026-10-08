@@ -24,7 +24,7 @@ constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 
 constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
 constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 20;
-constexpr int FEEDBACK_EMPTY_READ_RETRIES = 8;
+constexpr int FEEDBACK_EMPTY_READ_RETRIES = 2;
 constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 constexpr int INITIAL_FEEDBACK_FRAMES = 50;
 

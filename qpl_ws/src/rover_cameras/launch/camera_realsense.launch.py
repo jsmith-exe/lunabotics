@@ -1,18 +1,22 @@
-from launch import LaunchDescription
-from launch_ros.actions import Node
-
-from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, OpaqueFunction, DeclareLaunchArgument
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.actions import SetParameter
-from launch.substitutions import LaunchConfiguration
-from ament_index_python.packages import get_package_share_directory
+"""Front camera (Intel RealSense): driver + teleop stream encoder in one container, IMU nodes."""
 import os
+import sys
+from typing import Any, Dict, List, Tuple
+
+from launch import Action, LaunchContext, LaunchDescription
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+from launch_ros.descriptions import ComposableNode
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # launch_utils.py sits beside this file
+from launch_utils import INTRA_PROCESS, respawning_container, stream_encoder  # noqa: E402
+
+direction = 'front'  # front or rear
+camera_name = f'depth_camera_{direction}'
 
 
-direction = 'front' # front or rear
-
-def generate_launch_description():
+def generate_launch_description() -> LaunchDescription:
     use_low_quality_parameter = DeclareLaunchArgument(
         'use_low_quality',
         default_value='false',
@@ -51,7 +55,7 @@ def generate_launch_description():
     )
 
     imu_optical_to_ros = Node(
-        package='qpl_rover',
+        package='rover_cameras',
         executable='imu_optical_to_standard',
         output='screen',
         respawn=True,
@@ -72,24 +76,32 @@ def generate_launch_description():
     ])
 
 
-def get_camera_launch(context):
+def get_camera_launch(context: LaunchContext) -> List[Action]:
     """ Returns camera configuration depending on launch parameter """
     use_low_quality = LaunchConfiguration('use_low_quality').perform(context).lower() == 'true'
-    print(f'use_low_quality: {use_low_quality}')
+    params = get_camera_params(use_low_quality)
 
-    camera_launch = Node(
-            package='realsense2_camera',
-            executable='realsense2_camera_node',
-            parameters=[get_camera_params(use_low_quality)],
-            output='screen',
-            remappings=get_remappings(),
-            respawn=True,
-        )
+    # The driver and its stream encoder share one process, so colour frames reach the
+    # encoder intra-process without being copied or serialised.
+    camera = ComposableNode(
+        package='realsense2_camera',
+        plugin='realsense2_camera::RealSenseNodeFactory',
+        name='camera',
+        namespace='camera',
+        parameters=[params],
+        remappings=get_remappings(),
+        extra_arguments=INTRA_PROCESS,
+    )
+    encoder = stream_encoder(camera_name, use_low_quality)
 
-    return [camera_launch]
+    summary = LogInfo(msg=(
+        f'Front RealSense ({"low" if use_low_quality else "high"} quality): colour '
+        f'{params["rgb_camera.color_profile"]}, depth {params["depth_module.depth_profile"]}, '
+        f'topics under /{camera_name}; teleop stream on /{camera_name}/color/teleop_stream/ffmpeg'))
+    return [summary, *respawning_container('camera_container', camera_name, [camera, encoder])]
 
 
-def get_remappings():
+def get_remappings() -> List[Tuple[str, str]]:
     # Use ros2 topic list to get topics and paste them here, do not include points (/camera/camera/depth/color/points)
     # DO NOT add /camera/camera/imu here: both EKFs fuse it as imu0 by that name.
     topics_to_remap = """
@@ -143,13 +155,10 @@ def get_remappings():
     remappings += [
         (f'/camera/camera/depth/color/points', f'{topic_name_base}/depth/points'),
     ]
-
-    print('Remappings:')
-    [print(remapping) for remapping in remappings]
     return remappings
 
 
-def get_camera_params(use_low_quality: bool):
+def get_camera_params(use_low_quality: bool) -> Dict[str, Any]:
     """
     STREAM      RESOLUTION     FORMAT                                FPS
     Infrared    1280x720       UYVY, BGRA8, RGBA8, BGR8, RGB8        @ 30/15/5 Hz
@@ -187,25 +196,12 @@ def get_camera_params(use_low_quality: bool):
     color_fmt = 'BGR8'
     depth_fmt = 'Z16'
     infra_fmt = 'BGR8'
-    ffmpeg_cfg = {
-        'camera.color.image_raw.ffmpeg.encoder': 'libx264',
-        'camera.color.image_raw.ffmpeg.bit_rate': 1000000,
-        'camera.color.image_raw.ffmpeg.qmax': 40,
-        'camera.color.image_raw.ffmpeg.gop_size': 10,
-    }
 
     if use_low_quality:
         color_profile = '424x240x15'
         depth_profile = '424x240x15'
         color_fmt = 'BGR8'
         infra_fmt = 'UYVY'
-        ffmpeg_cfg = {
-            'camera.color.image_raw.ffmpeg.encoder': 'libx264rgb',
-            'camera.color.image_raw.ffmpeg.bit_rate': 1000000,
-            'camera.color.image_raw.ffmpeg.qmax': 40,
-            'camera.color.image_raw.ffmpeg.gop_size': 1,
-            'camera.color.image_raw.ffmpeg.encoder_av_options': 'tune:zerolatency,preset:ultrafast',
-        }
 
     camera_params = {
         'rgb_camera.color_profile': color_profile,
@@ -215,7 +211,10 @@ def get_camera_params(use_low_quality: bool):
         'depth_module.depth_format': depth_fmt,
         'depth_module.infra_format': infra_fmt,
 
-        **ffmpeg_cfg,
+        # Reliable, to match the Orbbec (which forces it under intra-process) and the image
+        # subscribers such as apriltag_observer. A reliable subscriber can't connect to a
+        # best-effort publisher.
+        'color_qos': 'DEFAULT',
 
         'decimation_filter.enable': True,
         'decimation_filter.filter_magnitude': 4,
@@ -233,7 +232,7 @@ def get_camera_params(use_low_quality: bool):
         # ASIC regardless, so streaming it only costs bus bandwidth and CPU.
         'enable_infra2': False,
 
-        # Limit topics
+        # Limit topics. The basestation views the stream encoder's output, not the driver's.
         'camera.infra1.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.infra2.image_rect_raw.enable_pub_plugins': ['image_transport/raw'],
         'camera.aligned_depth_to_color.image_raw.enable_pub_plugins': ['image_transport/raw'],
@@ -253,6 +252,4 @@ def get_camera_params(use_low_quality: bool):
         '.camera.color.image_raw.format': 'jpeg',
         '.camera.color.image_raw.jpeg_quality': 10,
     }
-
-    print(camera_params)
     return camera_params
