@@ -49,7 +49,8 @@ qpl_packages() {
     ros-humble-ffmpeg-image-transport-msgs \
     ros-humble-diagnostic-msgs \
     python3-numpy \
-    python3-opencv
+    python3-opencv \
+    nload
     # Don't add ros-humble-realsense2-camera, it should be built from source.
   python3 -m pip install --user \
     pupil-apriltags \
