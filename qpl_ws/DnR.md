@@ -146,6 +146,14 @@ nmcli connection modify "SSID_NAME" ipv4.method manual
 nmcli connection up "SSID_NAME" # Apply
 ```
 
+Alternative method (tested - below is an example, with the SSID generalized, probably want to set IP to *.29):
+```bash
+nmcli con show # Find current connection name (if needed)
+sudo nmcli con mod "SSID_NAME" ipv4.method manual \
+  ipv4.addresses 192.168.1.29/24 ipv4.gateway 192.168.1.255 ipv4.dns 192.168.1.1
+sudo nmcli con up "SSID_NAME"
+```
+
 Other helpful commands:
 ```bash
 nmcli device status # List all devices and their state
