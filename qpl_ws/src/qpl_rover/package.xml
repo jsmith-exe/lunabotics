@@ -30,7 +30,7 @@
   <!-- Camera drivers, launch files and the stream encoder -->
   <exec_depend>rover_cameras</exec_depend>
 
-  <!-- apriltag_observer, cloud_restamper -->
+  <!-- apriltag_observer -->
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
