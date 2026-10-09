@@ -111,13 +111,26 @@ ros2 run demo_nodes_cpp listener
 ## General networking issues
 Not fully tested.
 
-If the Jetson cannot see the network:
+General information:
+
+|                                 | IP           | Mask                | Gateway       |
+|---------------------------------|--------------|---------------------|---------------|
+| QPL Jetson Wireless (typically) | 192.168.1.29 | 255.255.255.0 (/24) | 192.168.1.255 |
+| QPL direct ethernet             | 192.168.1.50 | 255.255.255.0 (/24) | 192.168.1.254 |
+
+- If the Jetson is not connected to the Internet, you can push branches like so:
+```bash
+git remote add qpljet qpl@192.168.1.29:~/lunabotics/.git
+git push qpljet BRANCHNAME # May need to not have checked out the branch on the Jetson, if it already exists.
+```
+
+- If the Jetson cannot see the network:
 ```bash
 nmcli device status                  # Is the WiFi/eth device detected?
 nmcli radio wifi on                  # Make sure WiFi radio is enabled
 nmcli device wifi list               # Can it see any networks?
 ip link show                         # Is the interface up?
-sudo ip link set wlan0 up            # Bring it up if down
+sudo ip link set wlP1p1s0 up            # Bring it up if down
 dmesg | grep -i wlan                 # Check for driver/firmware errors
 ```
 
