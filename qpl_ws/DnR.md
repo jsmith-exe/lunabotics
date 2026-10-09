@@ -146,6 +146,17 @@ nmcli connection modify "SSID_NAME" ipv4.method manual
 nmcli connection up "SSID_NAME" # Apply
 ```
 
+Alternative method:
+```bash
+nmcli con show # Find current connection name (if needed)
+SSID_NAME="SSID_NAME"
+sudo nmcli con mod "$SSID_NAME" ipv4.method manual \
+  ipv4.addresses 192.168.1.29/24 ipv4.gateway 192.168.1.1 ipv4.dns "192.168.1.1 1.1.1.1 8.8.8.8"
+sudo nmcli con up "$SSID_NAME"
+```
+This is tested - the above is an example, with only the SSID generalized. In practice, you may want to change the gateway.
+192.168.1.1 for home networks likely - 192.168.1.255 for QPL router. Hopefully change after competition.
+
 Other helpful commands:
 ```bash
 nmcli device status # List all devices and their state
