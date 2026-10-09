@@ -11,6 +11,7 @@
     </Internal>
     <Discovery>
       <Peers>
+        <!-- IMPORTANT! Avoid adding excess IP address here. Can lead to connection drops on the QPL router. -->
         <Peer address="192.168.1.167"/> <!-- Basestation -->
         <Peer address="192.168.1.29"/> <!-- Jetson -->
         <Peer address="127.0.0.1"/> <!-- Localhost -->
