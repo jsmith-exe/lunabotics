@@ -7,15 +7,15 @@
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
 
-constexpr double RAW_MIN = 46.0;
-constexpr double RAW_MAX = 318.0;
-constexpr double DISTANCE_MIN_MM = 22.6;
-constexpr double DISTANCE_MAX_MM = 228.0;
-constexpr double ACTUATOR_POSITION_CONSTANT = 14.0f; // Commands to the actuators must be offset
+constexpr double RAW_MIN = 7.0;
+constexpr double RAW_MAX = 694.0;
+constexpr double DISTANCE_MIN_MM = 30.0;
+constexpr double DISTANCE_MAX_MM = 220.0;
+constexpr double ACTUATOR_POSITION_CONSTANT = -27.9; // Commands to the actuators must be offset
 
-// The feedback is off by about 12-13mm (possibly the ACTUATOR_POSITION_CONSTANT above).
+// The feedback is off by a certain amount (possibly the ACTUATOR_POSITION_CONSTANT above).
 // Actuator should be stopped at STOP_POSITION +/- STOP_TOLERANCE.
-constexpr double ACTUATOR_STOP_POSITION_MM = 13.0;
+constexpr double ACTUATOR_STOP_POSITION_MM = -40.0; //-27 to -40
 constexpr double ACTUATOR_STOP_TOLERANCE_MM = 3.0;
 
 // Protects against spikes.
@@ -58,6 +58,7 @@ namespace diffdrive_canbus {
 
     bool reached_position = error_mm > ACTUATOR_STOP_POSITION_MM - ACTUATOR_STOP_TOLERANCE_MM
       && error_mm < ACTUATOR_STOP_POSITION_MM + ACTUATOR_STOP_TOLERANCE_MM;
+    std::cout << name_ << " has error " << error_mm << ", reached: " << reached_position << std::endl;
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (prev_setpoint_mm_ != setpoint_mm) {
@@ -65,10 +66,10 @@ namespace diffdrive_canbus {
       stop_sent_ = false;
     }
     // If the actuator has reached the commanded position, send a stop command to hold it in place.
-    else if (reached_position && !stop_sent_) {
-      set_duty_cycle(0.0f);
-      stop_sent_ = true;
-    }
+    // else if (reached_position && !stop_sent_) {
+    //   set_duty_cycle(0.0f);
+    //   stop_sent_ = true;
+    // }
 
     prev_setpoint_mm_ = setpoint_mm;
   }
@@ -107,6 +108,8 @@ namespace diffdrive_canbus {
     position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
     filtered_position_mm_ = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
   }
+
+
 
 
 

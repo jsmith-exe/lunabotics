@@ -218,7 +218,7 @@ private:
     int frames_read = 0;
     int empty_reads = 0;
 
-    while (frames_read < max_frames && empty_reads < FEEDBACK_EMPTY_READ_RETRIES)
+    while (frames_read < max_frames && empty_reads < FEEDBACK_EMPTY_READ_ATTEMPTS)
     {
       can_frame frame{};
 
