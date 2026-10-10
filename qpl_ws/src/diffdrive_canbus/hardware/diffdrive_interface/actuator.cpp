@@ -13,9 +13,9 @@ constexpr double DISTANCE_MIN_MM = 30.0;
 constexpr double DISTANCE_MAX_MM = 220.0;
 constexpr double ACTUATOR_POSITION_CONSTANT = -27.9; // Commands to the actuators must be offset
 
-// The feedback is off by a certain amount (possibly the ACTUATOR_POSITION_CONSTANT above).
-// Actuator should be stopped at STOP_POSITION +/- STOP_TOLERANCE.
-constexpr double ACTUATOR_STOP_POSITION_MM = -40.0; //-27 to -40
+// The feedback is off by a certain amount (probably the ACTUATOR_POSITION_CONSTANT above).
+// Actuator will be stopped at STOP_POSITION +/- STOP_TOLERANCE.
+constexpr double ACTUATOR_STOP_POSITION_MM = -28.0;
 constexpr double ACTUATOR_STOP_TOLERANCE_MM = 3.0;
 
 // Protects against spikes.
@@ -66,10 +66,10 @@ namespace diffdrive_canbus {
       stop_sent_ = false;
     }
     // If the actuator has reached the commanded position, send a stop command to hold it in place.
-    // else if (reached_position && !stop_sent_) {
-    //   set_duty_cycle(0.0f);
-    //   stop_sent_ = true;
-    // }
+    else if (reached_position && !stop_sent_) {
+      set_duty_cycle(0.0f);
+      stop_sent_ = true;
+    }
 
     prev_setpoint_mm_ = setpoint_mm;
   }
