@@ -2,4 +2,5 @@ drum:
   default_lift_mm: 150
   min_lift_mm: 25
   max_lift_mm: 225
+  synchronise_actuators: true
   max_distance_between_points_metres: 0.04

@@ -45,12 +45,19 @@ public:
       front_right_motor_ = std::make_unique<DiffdriveMotor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
       rear_left_motor_ = std::make_unique<DiffdriveMotor>("rear_left_wheel_joint", 3, *can_, 100.0, logger_);
       rear_right_motor_ = std::make_unique<DiffdriveMotor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
-      left_actuator_ = std::make_unique<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_, true);
-      right_actuator_ = std::make_unique<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_, false);
       drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, *can_, 125.0, logger_);
 
-      left_actuator_->set_other_actuator(right_actuator_);
-      right_actuator_->set_other_actuator(left_actuator_);
+      if (synchronise_actuators_) {
+        auto left_actuator = std::make_shared<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_, true);
+        auto right_actuator = std::make_shared<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_, false);
+        left_actuator->set_other_actuator(right_actuator);
+        right_actuator->set_other_actuator(left_actuator);
+        left_actuator_ = left_actuator;
+        right_actuator_ = right_actuator;
+      } else {
+        left_actuator_ = std::make_shared<Actuator>("left_linear_actuator_joint", 5, *can_, logger_);
+        right_actuator_ = std::make_shared<Actuator>("right_linear_actuator_joint", 6, *can_, logger_);
+      }
 
       can_system_->add_device(front_left_motor_);
       can_system_->add_device(front_right_motor_);
@@ -175,6 +182,7 @@ private:
     Actuator::min_lift_mm = config["drum"]["min_lift_mm"].as<double>();
     Actuator::max_lift_mm = config["drum"]["max_lift_mm"].as<double>();
     SynchronisedActuator::max_distance_between_points_metres = config["drum"]["max_distance_between_points_metres"].as<double>();
+    synchronise_actuators_ = config["drum"]["synchronise_actuators"].as<bool>(true);
   }
 
   void send_heartbeat_if_due()
@@ -287,9 +295,10 @@ private:
   std::shared_ptr<CANDevice> front_right_motor_;
   std::shared_ptr<CANDevice> rear_left_motor_;
   std::shared_ptr<CANDevice> rear_right_motor_;
-  std::shared_ptr<SynchronisedActuator> left_actuator_;
-  std::shared_ptr<SynchronisedActuator> right_actuator_;
+  std::shared_ptr<Actuator> left_actuator_;
+  std::shared_ptr<Actuator> right_actuator_;
   std::shared_ptr<CANDevice> drum_motor_;
+  bool synchronise_actuators_{true};
 
   std::chrono::steady_clock::time_point next_heartbeat_time_{std::chrono::steady_clock::now()};
   std::chrono::steady_clock::time_point next_feedback_read_time_{std::chrono::steady_clock::now()};
