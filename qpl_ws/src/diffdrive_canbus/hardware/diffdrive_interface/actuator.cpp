@@ -58,7 +58,6 @@ namespace diffdrive_canbus {
 
     bool reached_position = error_mm > ACTUATOR_STOP_POSITION_MM - ACTUATOR_STOP_TOLERANCE_MM
       && error_mm < ACTUATOR_STOP_POSITION_MM + ACTUATOR_STOP_TOLERANCE_MM;
-    std::cout << name_ << " has error " << error_mm << ", reached: " << reached_position << std::endl;
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (prev_setpoint_mm_ != setpoint_mm) {
