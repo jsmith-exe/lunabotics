@@ -25,6 +25,7 @@ double low_pass_filter(double prev_val, double new_val, double alpha) {
 }
 
 namespace diffdrive_canbus {
+  double Actuator::default_lift_mm = 0.0;
   double Actuator::min_lift_mm = 0.0;
   double Actuator::max_lift_mm = 0.0;
 
@@ -45,6 +46,7 @@ namespace diffdrive_canbus {
   void Actuator::configure() {
     CANDevice::configure();
     set_status_period(2, STATUS3_PERIOD_MS);
+    commanded_pos_ = Actuator::max_lift_mm;
   }
 
   void Actuator::write() {

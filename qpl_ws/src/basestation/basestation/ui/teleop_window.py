@@ -72,7 +72,7 @@ class TeleopWindow:
         drum_config = canbus_config['drum']
         make_labeled_slider("Drum Lift", self.root, 0,
                             lambda value: self.slider_controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
-                            {"from_": drum_config['min_lift_mm'], "to": drum_config['max_lift_mm'], "value": drum_config['max_lift_mm']},
+                            {"from_": drum_config['min_lift_mm'], "to": drum_config['max_lift_mm'], "value": drum_config['default_lift_mm']},
                             {}, 2)
 
         self._flash_after_id = None

@@ -1,4 +1,5 @@
 drum:
+  default_lift_mm: 225
   min_lift_mm: 25
   max_lift_mm: 225
   synchronise_actuators: true
