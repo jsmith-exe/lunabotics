@@ -124,7 +124,6 @@ namespace diffdrive_canbus {
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
 
-    static double default_lift_mm;
     static double min_lift_mm;
     static double max_lift_mm;
 
