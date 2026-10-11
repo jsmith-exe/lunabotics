@@ -178,7 +178,6 @@ public:
 private:
   void load_config() {
     YAML::Node config = YAML::LoadFile(CONFIG_FILE_PATH);
-    Actuator::default_lift_mm = config["drum"]["default_lift_mm"].as<double>();
     Actuator::min_lift_mm = config["drum"]["min_lift_mm"].as<double>();
     Actuator::max_lift_mm = config["drum"]["max_lift_mm"].as<double>();
     SynchronisedActuator::max_distance_between_points_metres = config["drum"]["max_distance_between_points_metres"].as<double>();

@@ -3,6 +3,7 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logging.hpp>
+#include <limits>
 
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
@@ -24,7 +25,6 @@ double low_pass_filter(double prev_val, double new_val, double alpha) {
 }
 
 namespace diffdrive_canbus {
-  double Actuator::default_lift_mm = 0.0;
   double Actuator::min_lift_mm = 0.0;
   double Actuator::max_lift_mm = 0.0;
 
@@ -48,12 +48,26 @@ namespace diffdrive_canbus {
   }
 
   void Actuator::write() {
-    const double setpoint_mm = preprocess_pos(commanded_pos_);
-    go_to_position(setpoint_mm);
+    go_to_position(commanded_pos_);
   }
 
-  void Actuator::go_to_position(double setpoint_mm)
+  void Actuator::go_to_position(double setpoint_m)
   {
+    // Stop moving if 0 sent
+    if (setpoint_m == 0.0) {
+      if (!stop_sent_) {
+        set_duty_cycle(0.0);
+        stop_sent_ = true;
+      }
+      // Force resend on the next real setpoint by setting prev setpoint to NaN
+      prev_setpoint_mm_ = std::numeric_limits<double>::quiet_NaN();
+      return;
+    }
+
+    // Clamp and convert to mm
+    setpoint_m = std::clamp(setpoint_m, min_lift_mm / 1000, max_lift_mm / 1000);
+    double setpoint_mm = setpoint_m * 1000.0 + ACTUATOR_POSITION_CONSTANT;
+
     const double error_mm = setpoint_mm - filtered_position_mm_; // Positive if setpoint is greater than current position (i.e., need to go up)
 
     bool reached_position = error_mm > ACTUATOR_STOP_POSITION_MM - ACTUATOR_STOP_TOLERANCE_MM
@@ -61,26 +75,17 @@ namespace diffdrive_canbus {
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (prev_setpoint_mm_ != setpoint_mm) {
+      std::cout << name_ << " going to " << setpoint_mm << std::endl;
       set_position(static_cast<float>(setpoint_mm));
       stop_sent_ = false;
     }
     // If the actuator has reached the commanded position, send a stop command to hold it in place.
     else if (reached_position && !stop_sent_) {
-      set_duty_cycle(0.0f);
+      set_duty_cycle(0.0);
       stop_sent_ = true;
     }
 
     prev_setpoint_mm_ = setpoint_mm;
-  }
-
-  // Returns the commanded position in mm, clamped, and offset by the actuator position constant
-  double Actuator::preprocess_pos(double position_m) {
-    if (position_m == 0.0) {
-      position_m = default_lift_mm / 1000.0; // convert to meters
-    }
-    position_m = std::clamp(position_m, min_lift_mm / 1000, max_lift_mm / 1000);
-
-    return position_m * 1000.0 + ACTUATOR_POSITION_CONSTANT;
   }
 
   double Actuator::feedback_to_distance(uint16_t raw_voltage_feedback)
@@ -136,17 +141,21 @@ namespace diffdrive_canbus {
         ++iterator_;
       }
     }
+
     else if (!other_actuator_->iterator_initialised_) {
       return;
     }
 
     const SynchronisedActuator* leader = is_dominant_actuator ? this : other_actuator_.get();
     if (leader->iterator_initialised_) {
-      go_to_position(preprocess_pos(*leader->iterator_));
+      go_to_position(*leader->iterator_);
     }
   }
 
   std::vector<double> SynchronisedActuator::generate_resync_points(const double from, const double to, double max_distance_between_points) {
+    if (to == 0.0) {
+      return {0.0};
+    }
     if (max_distance_between_points <= 0.0 || from == to) {
       return {from, to};
     }

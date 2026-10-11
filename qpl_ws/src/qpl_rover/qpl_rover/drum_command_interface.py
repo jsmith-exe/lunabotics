@@ -39,8 +39,8 @@ class DrumInterface(Node):
         )
 
         # Automatically zero commands if nothing received.
-        self.zero_timer_check_rate = 0.1 # seconds
-        self.zero_timer_threshold_seconds = 0.25 # How long there must be no commands before zeroing
+        self.zero_timer_check_rate = 5 # Hz
+        self.zero_timer_threshold_seconds = 0.3 # How long there must be no commands before zeroing
         self.zero_timer = self.create_timer(1/self.zero_timer_check_rate, self.send_zero_if_no_recent_messages)
         self.last_message_received_time = 0
 
@@ -54,7 +54,7 @@ class DrumInterface(Node):
 
     def lift_autonomy_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.AUTONOMY): return
-        self.set_drum_lift_rate(msg.data)
+        self.set_drum_lift_pos_m(msg.data)
 
     def spin_autonomy_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.AUTONOMY): return
@@ -62,15 +62,15 @@ class DrumInterface(Node):
 
     def lift_teleop_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.TELEOP): return
-        self.set_drum_lift_rate(msg.data)
+        self.set_drum_lift_pos_m(msg.data)
 
     def spin_teleop_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.TELEOP): return
         self.set_drum_spin_rate(msg.data)
 
-    def set_drum_lift_rate(self, lift: float):
-        """ Sets the drum lift rate.
-        :param lift: The desired lift rate, between 0 and 1 inclusive.
+    def set_drum_lift_pos_m(self, lift: float):
+        """ Sets the drum lift position in metres.
+        :param lift: The desired height, in metres - limits specified in can_config.yaml.
         """
         float_array = Float64MultiArray()
         float_array.data = [lift, lift]
@@ -100,6 +100,7 @@ class DrumInterface(Node):
     def send_zero_if_no_recent_messages(self):
         if time.time() - self.last_message_received_time >= self.zero_timer_threshold_seconds:
             self.set_drum_spin_rate(0.0)
+            self.set_drum_lift_pos_m(0.0)
 
 # Unused, as clamped at control level
 def clamp(value, min_value, max_value):

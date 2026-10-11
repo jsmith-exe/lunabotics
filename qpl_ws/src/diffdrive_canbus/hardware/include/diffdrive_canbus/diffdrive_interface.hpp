@@ -120,12 +120,10 @@ namespace diffdrive_canbus {
     void configure() override;
 
     void write() override;
-    void go_to_position(double setpoint_mm);
-    double preprocess_pos(double position_m);
+    void go_to_position(double setpoint_m);
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
 
-    static double default_lift_mm;
     static double min_lift_mm;
     static double max_lift_mm;
 
