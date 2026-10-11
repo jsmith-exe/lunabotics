@@ -53,6 +53,9 @@ namespace diffdrive_canbus {
 
   void Actuator::go_to_position(double setpoint_m)
   {
+    // Wait for feedback first. This is to prevent restarted motor controllers from retracting actuators
+    if (!received_position_) return;
+
     // Stop moving if 0 sent
     if (setpoint_m == 0.0) {
       if (!stop_sent_) {
@@ -75,7 +78,6 @@ namespace diffdrive_canbus {
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (prev_setpoint_mm_ != setpoint_mm) {
-      std::cout << name_ << " going to " << setpoint_mm << std::endl;
       set_position(static_cast<float>(setpoint_mm));
       stop_sent_ = false;
     }
@@ -111,6 +113,15 @@ namespace diffdrive_canbus {
     previous_position_ = position_;
     position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
     filtered_position_mm_ = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
+
+    // If this is the first position received, set the commanded position to be current position.
+    // This minimises the actuators retracting after power cycle (due to setpoint being 0)
+    if (!received_position_) {
+      // For some reason, the filtered position needs processed, works best with this
+      prev_setpoint_mm_ = filtered_position_mm_ - ACTUATOR_POSITION_CONSTANT/2;
+      commanded_pos_ = prev_setpoint_mm_ / 1000;
+      received_position_ = true;
+    }
   }
 
 

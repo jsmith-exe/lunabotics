@@ -135,6 +135,7 @@ namespace diffdrive_canbus {
     double filtered_position_mm_{0.0};
     bool reached_position_{false};
     bool stop_sent_{false};
+    bool received_position_{false};
   };
 
   class SynchronisedActuator : public Actuator {
