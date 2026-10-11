@@ -5,7 +5,7 @@ from os import environ
 from ttkbootstrap import Style, LabeledScale
 
 from ..constants import DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR, DEFAULT_MOTOR_STEER_BUTTON_FACTOR, \
-    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs, ICON_PATH, NAV_TOPIC, MessageOptions, DRUM_ROTATION_TOPIC
+    DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, GUIInputs, ICON_PATH, NAV_TOPIC, MessageOptions, DRUM_ROTATION_TOPIC, DRUM_LIFT_TOPIC
 from ..base_station_state import BaseStationState
 from ..controllers.base_controller import BaseController
 from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
@@ -37,7 +37,7 @@ class TeleopWindow:
                 self.root.__class__.report_callback_exception(self.root, exc, val, tb)
         self.root.report_callback_exception = report_callback_exception
 
-        self.slider_controller = BaseController(publish_function, base_station_state, 0.002)
+        self.slider_controller = BaseController(publish_function, base_station_state, 0.001)
         self.keyboard_controller = TkinterKeyboardController(publish_function, base_station_state, self.root)
 
         x, y = 0, 0
@@ -70,7 +70,7 @@ class TeleopWindow:
                             {"side": "left", "padx": 5 * UI_SCALE})
 
         drum_config = canbus_config['drum']
-        make_labeled_slider("Drum Lift", self.root, 0,
+        self.drum_lift_slider = make_labeled_slider("Drum Lift", self.root, 0,
                             lambda value: self.slider_controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
                             {"from_": drum_config['min_lift_mm'], "to": drum_config['max_lift_mm'], "value": drum_config['max_lift_mm']},
                             {}, 2)
@@ -88,6 +88,8 @@ class TeleopWindow:
         self.toggle_button.config(text="Disable")
         self._schedule_flash()
 
+        self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, self.drum_lift_slider.value / 1000)
+
     def disable(self):
         # Send an explicit wheel stop before going quiet, rather than relying on the rover's command timeout.
         # Publishing is ignored once teleop is disabled, so this must happen first.
@@ -95,6 +97,7 @@ class TeleopWindow:
         self.publish_function(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, 0)
         self.publish_function(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, 0)
         self.publish_function(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, 0)
+        self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, 0)
 
         self.base_station_state.teleop_enabled = False
         self.root.attributes("-topmost", False)
