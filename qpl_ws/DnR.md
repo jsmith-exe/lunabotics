@@ -179,6 +179,53 @@ sudo sudo ufw status # Check firewall
 ```
 
 ---
+## CAN (can0)
+The Jetson's native `can0` is brought up at boot by `on_jetson_boot/can_setup.sh`.
+Some commands require can-utils: ```sudo apt install can-utils```
+
+**Check state and errors**:
+```bash
+ip -details -statistics link show can0
+```
+Things to look at in the output:
+- `state`: should be `ERROR-ACTIVE`. `ERROR-WARNING` / `ERROR-PASSIVE` means errors are building up; `BUS-OFF` means the controller has stopped sending.
+- `berr-counter tx N rx N`: transmit/receive error counters; these should stay at or near 0.
+- `bitrate`: should be 1000000, matching every other device on the bus. The Spark Max controllers require this.
+- `re-started` / `bus-off`: counts of bus-off events and automatic restarts.
+- `TX: ... dropped` / `RX: ... errors`: increasing values point to wiring, termination or bitrate problems.
+
+**Is the interface up?**: If `can0` is `DOWN`, or `ip link show can0` says the device doesn't exist, re-run the setup script:
+```bash
+bash ~/lunabotics/on_jetson_boot/can_setup.sh
+```
+
+**Restart the interface** (e.g. stuck in `BUS-OFF`, or to change bitrate):
+```bash
+sudo ip link set can0 down
+sudo ip link set can0 up type can bitrate 1000000 restart-ms 1000
+```
+
+**Watch traffic**:
+```bash
+candump can0             # Print every frame on the bus
+candump -tA -e can0      # With timestamps and error frames decoded
+canbusload can0@1000000 -r -t -b   # Bus load percentage
+```
+
+**Send a test frame**:
+```bash
+cansend can0 123#DEADBEEF   # ID 0x123, 4 data bytes
+```
+If nothing else is on the bus to acknowledge it, the frame won't be acked; the TX error counter climbs and the state goes to `ERROR-PASSIVE`.
+
+**"No buffer space available" (ENOBUFS)**: The transmit queue is full, usually because frames aren't being acknowledged (nothing else on the bus, or a wiring problem). Check the state above first; the queue can also be lengthened:
+```bash
+sudo ip link set can0 txqueuelen 1000
+```
+
+**Common physical causes**: Missing 120 ohm termination at each end of the bus, CAN_H/CAN_L swapped, no common ground, or a device on a different bitrate. Error counters rising as soon as a device is connected usually means one of these.
+
+---
 ## Camera
 **Some commands require V4L2**: ```sudo apt install v4l-utils```
 
