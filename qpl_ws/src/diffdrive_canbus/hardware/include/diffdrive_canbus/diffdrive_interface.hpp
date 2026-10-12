@@ -23,8 +23,8 @@ constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(100);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
 
 constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
-constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 20;
-constexpr int FEEDBACK_EMPTY_READ_RETRIES = 2;
+constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 15;
+constexpr int FEEDBACK_EMPTY_READ_ATTEMPTS = 1;
 constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 constexpr int INITIAL_FEEDBACK_FRAMES = 50;
 
@@ -120,23 +120,22 @@ namespace diffdrive_canbus {
     void configure() override;
 
     void write() override;
-    void go_to_position(double setpoint_mm);
-    double preprocess_pos(double position_m);
+    void go_to_position(double setpoint_m);
+    void stop();
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
 
-    static double default_lift_mm;
     static double min_lift_mm;
     static double max_lift_mm;
 
   protected:
     double commanded_pos_{0.0};
-    double prev_setpoint_mm_{0.0};
+    double prev_target_mm_{0.0};
     double position_{0.0};
-    double previous_position_{0.0};
     double filtered_position_mm_{0.0};
-    bool reached_position_{false};
     bool stop_sent_{false};
+    bool resend_setpoint_{false};
+    bool received_position_{false};
   };
 
   class SynchronisedActuator : public Actuator {
@@ -158,10 +157,8 @@ namespace diffdrive_canbus {
   protected:
     bool is_dominant_actuator{false};
     std::shared_ptr<SynchronisedActuator> other_actuator_{nullptr};
-    std::vector<double> resync_checkpoints;
-    std::vector<double>::iterator iterator_{};
-    bool iterator_initialised_{false};
-    double current_checkpoint_{0.0};
+    std::vector<double> checkpoints_;
+    size_t checkpoint_index_{0};
     double prev_commanded_pos_{0.0};
   };
 }
