@@ -24,8 +24,9 @@ default_control_map = {
     Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
     Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
     Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
-    Con.RIGHT_JOYSTICK_X: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
-    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    # Tank drive via joysticks
+    Con.LEFT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TANK_LEFT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
 
     Con.CIRCLE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
     Con.SQUARE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
@@ -38,6 +39,12 @@ default_control_map = {
     'd': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
     'right': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
     'left': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -1, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
+    # Tank drive
+    'f': Command(NAV_TOPIC, MessageOptions.TANK_LEFT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'v': Command(NAV_TOPIC, MessageOptions.TANK_LEFT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'j': Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'n': Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+
 
     GUI.DRUM_HEIGHT_SLIDER: Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT)
 }

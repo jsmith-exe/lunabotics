@@ -22,7 +22,7 @@ def generate_base_float_state(topic):
 
 def generate_topic_state():
     return {
-        NAV_TOPIC: generate_base_twist_state(NAV_TOPIC),
+        NAV_TOPIC: generate_base_twist_state(NAV_TOPIC) | {'tank': {'left': 0.0, 'right': 0.0}},
         DRUM_LIFT_TOPIC: generate_base_float_state(DRUM_LIFT_TOPIC),
         DRUM_ROTATION_TOPIC: generate_base_float_state(DRUM_ROTATION_TOPIC),
     }
