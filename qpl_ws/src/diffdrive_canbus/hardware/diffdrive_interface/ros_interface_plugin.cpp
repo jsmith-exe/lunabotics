@@ -50,8 +50,7 @@ public:
       if (synchronise_actuators_) {
         auto left_actuator = std::make_shared<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_, true);
         auto right_actuator = std::make_shared<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_, false);
-        left_actuator->set_other_actuator(right_actuator);
-        right_actuator->set_other_actuator(left_actuator);
+        left_actuator->set_other_actuator(right_actuator); // Left is dominant, so commands both
         left_actuator_ = left_actuator;
         right_actuator_ = right_actuator;
       } else {

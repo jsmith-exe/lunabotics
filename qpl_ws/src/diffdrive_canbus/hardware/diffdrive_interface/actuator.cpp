@@ -3,7 +3,6 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logging.hpp>
-#include <limits>
 
 #include "diffdrive_canbus/can_device.hpp"
 #include "diffdrive_canbus/diffdrive_interface.hpp"
@@ -12,12 +11,8 @@ constexpr double RAW_MIN = 7.0;
 constexpr double RAW_MAX = 694.0;
 constexpr double DISTANCE_MIN_MM = 30.0;
 constexpr double DISTANCE_MAX_MM = 220.0;
-constexpr double ACTUATOR_POSITION_CONSTANT = -27.9; // Commands to the actuators must be offset
-
-// The feedback is off by a certain amount (probably the ACTUATOR_POSITION_CONSTANT above).
-// Actuator will be stopped at STOP_POSITION +/- STOP_TOLERANCE.
-constexpr double ACTUATOR_STOP_POSITION_MM = -28.0;
-constexpr double ACTUATOR_STOP_TOLERANCE_MM = 3.0;
+constexpr double ACTUATOR_SETPOINT_OFFSET_MM = -27.9; // Controller setpoints are offset from feedback
+constexpr double ACTUATOR_STOP_TOLERANCE_MM = 3.0; // Actuator is stopped when within this distance of its target
 
 // Protects against spikes.
 double low_pass_filter(double prev_val, double new_val, double alpha) {
@@ -58,36 +53,31 @@ namespace diffdrive_canbus {
 
     // Stop moving if 0 sent
     if (setpoint_m == 0.0) {
-      if (!stop_sent_) {
-        set_duty_cycle(0.0);
-        stop_sent_ = true;
-      }
-      // Force resend on the next real setpoint by setting prev setpoint to NaN
-      prev_setpoint_mm_ = std::numeric_limits<double>::quiet_NaN();
+      stop();
+      resend_setpoint_ = true;
       return;
     }
 
-    // Clamp and convert to mm
-    setpoint_m = std::clamp(setpoint_m, min_lift_mm / 1000, max_lift_mm / 1000);
-    double setpoint_mm = setpoint_m * 1000.0 + ACTUATOR_POSITION_CONSTANT;
-
-    const double error_mm = setpoint_mm - filtered_position_mm_; // Positive if setpoint is greater than current position (i.e., need to go up)
-
-    bool reached_position = error_mm > ACTUATOR_STOP_POSITION_MM - ACTUATOR_STOP_TOLERANCE_MM
-      && error_mm < ACTUATOR_STOP_POSITION_MM + ACTUATOR_STOP_TOLERANCE_MM;
+    const double target_mm = std::clamp(setpoint_m * 1000.0, min_lift_mm, max_lift_mm);
 
     // Only send position command if new position sent, to reduce bandwidth use.
-    if (prev_setpoint_mm_ != setpoint_mm) {
-      set_position(static_cast<float>(setpoint_mm));
+    if (resend_setpoint_ || target_mm != prev_target_mm_) {
+      set_position(static_cast<float>(target_mm + ACTUATOR_SETPOINT_OFFSET_MM));
       stop_sent_ = false;
+      resend_setpoint_ = false;
+      prev_target_mm_ = target_mm;
     }
     // If the actuator has reached the commanded position, send a stop command to hold it in place.
-    else if (reached_position && !stop_sent_) {
-      set_duty_cycle(0.0);
-      stop_sent_ = true;
+    else if (std::abs(target_mm - filtered_position_mm_) < ACTUATOR_STOP_TOLERANCE_MM) {
+      stop();
     }
+  }
 
-    prev_setpoint_mm_ = setpoint_mm;
+  void Actuator::stop()
+  {
+    if (stop_sent_) return;
+    set_duty_cycle(0.0);
+    stop_sent_ = true;
   }
 
   double Actuator::feedback_to_distance(uint16_t raw_voltage_feedback)
@@ -110,17 +100,20 @@ namespace diffdrive_canbus {
 
     const uint16_t packed = le_u16_from_frame_data(frame.data, 0);
     const uint16_t raw_feedback = packed & 0x03FF;
-    previous_position_ = position_;
     position_ = feedback_to_distance(raw_feedback) / 1000.0; // convert to meters
-    filtered_position_mm_ = low_pass_filter(previous_position_, position_, ACTUATOR_POSITION_LOW_PASS_ALPHA) * 1000.0;
 
-    // If this is the first position received, set the commanded position to be current position.
-    // This minimises the actuators retracting after power cycle (due to setpoint being 0)
+    const double position_mm = position_ * 1000.0;
+
+    // Seed the filter with the first reading, so it doesn't start from 0.
     if (!received_position_) {
-      // For some reason, the filtered position needs processed, works best with this
-      prev_setpoint_mm_ = filtered_position_mm_ - ACTUATOR_POSITION_CONSTANT/2;
-      commanded_pos_ = prev_setpoint_mm_ / 1000;
+      filtered_position_mm_ = position_mm;
+
+      // After a power cycle the controllers' setpoint is 0, so hold the current position to stop the actuators retracting.
+      commanded_pos_ = position_;
       received_position_ = true;
+    }
+    else {
+      filtered_position_mm_ = low_pass_filter(filtered_position_mm_, position_mm, ACTUATOR_POSITION_LOW_PASS_ALPHA);
     }
   }
 
@@ -132,34 +125,27 @@ namespace diffdrive_canbus {
 
   void SynchronisedActuator::write()
   {
+    // The dominant actuator commands both actuators.
+    if (!is_dominant_actuator) return;
+
     if (other_actuator_ == nullptr) {
-      RCLCPP_ERROR(logger_, "Other actuator not set for synchronised actuator %s", name_.c_str());
+      RCLCPP_ERROR(logger_, "Other actuator not set for dominant synchronised actuator %s", name_.c_str());
       return;
     }
 
-    if (is_dominant_actuator) {
-      bool position_met = stop_sent_ && other_actuator_->stop_sent_;
-
-      // Note that on startup, this condition isn't true until commands are sent. The default position therefore never kicks in.
-      if (prev_commanded_pos_ != commanded_pos_) {
-        resync_checkpoints = generate_resync_points(position_, commanded_pos_,
-          SynchronisedActuator::max_distance_between_points_metres);
-        iterator_ = resync_checkpoints.begin();
-        iterator_initialised_ = true;
-        prev_commanded_pos_ = commanded_pos_;
-      }
-      else if (position_met && std::next(iterator_) != resync_checkpoints.end()) {
-        ++iterator_;
-      }
+    if (prev_commanded_pos_ != commanded_pos_) {
+      checkpoints_ = generate_resync_points(position_, commanded_pos_, max_distance_between_points_metres);
+      checkpoint_index_ = 0;
+      prev_commanded_pos_ = commanded_pos_;
+    }
+    // Move on to the next checkpoint once both actuators have reached the current one.
+    else if (stop_sent_ && other_actuator_->stop_sent_ && checkpoint_index_ + 1 < checkpoints_.size()) {
+      ++checkpoint_index_;
     }
 
-    else if (!other_actuator_->iterator_initialised_) {
-      return;
-    }
-
-    const SynchronisedActuator* leader = is_dominant_actuator ? this : other_actuator_.get();
-    if (leader->iterator_initialised_) {
-      go_to_position(*leader->iterator_);
+    if (!checkpoints_.empty()) {
+      go_to_position(checkpoints_[checkpoint_index_]);
+      other_actuator_->go_to_position(checkpoints_[checkpoint_index_]);
     }
   }
 

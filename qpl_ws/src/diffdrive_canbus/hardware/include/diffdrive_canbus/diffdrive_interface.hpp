@@ -121,6 +121,7 @@ namespace diffdrive_canbus {
 
     void write() override;
     void go_to_position(double setpoint_m);
+    void stop();
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
 
@@ -129,12 +130,11 @@ namespace diffdrive_canbus {
 
   protected:
     double commanded_pos_{0.0};
-    double prev_setpoint_mm_{0.0};
+    double prev_target_mm_{0.0};
     double position_{0.0};
-    double previous_position_{0.0};
     double filtered_position_mm_{0.0};
-    bool reached_position_{false};
     bool stop_sent_{false};
+    bool resend_setpoint_{false};
     bool received_position_{false};
   };
 
@@ -157,10 +157,8 @@ namespace diffdrive_canbus {
   protected:
     bool is_dominant_actuator{false};
     std::shared_ptr<SynchronisedActuator> other_actuator_{nullptr};
-    std::vector<double> resync_checkpoints;
-    std::vector<double>::iterator iterator_{};
-    bool iterator_initialised_{false};
-    double current_checkpoint_{0.0};
+    std::vector<double> checkpoints_;
+    size_t checkpoint_index_{0};
     double prev_commanded_pos_{0.0};
   };
 }
