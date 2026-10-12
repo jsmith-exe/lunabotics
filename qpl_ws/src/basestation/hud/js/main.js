@@ -126,7 +126,7 @@ function derive(t) {
 
   // Stall: a wheel on a side being driven that is not turning.
   const r = S.config?.rover?.wheel_radius ?? 0.15;
-  const sep = S.config?.rover?.wheel_separation ?? 0.58;
+  const sep = S.config?.rover?.wheel_separation ?? 1.161;
   const wantL = d.cmdVx - (d.cmdWz * sep) / 2;
   const wantR = d.cmdVx + (d.cmdWz * sep) / 2;
   const now = performance.now() / 1000;

@@ -56,7 +56,7 @@ ROVER = {
     "width": 0.7436,    # base_short_len
     "wheel_radius": 0.15,
     "wheel_width": 0.15,
-    "wheel_separation": 0.5836,
+    "wheel_separation": 1.161,
     "max_linear": 1.0,
     "max_angular": 1.0,
 }
