@@ -236,8 +236,3 @@ def make_labeled_slider(label_text: str, parent, dp: int,
 def open_teleop_window(*args):
     window = TeleopWindow(*args)
     window.run()
-
-
-if __name__ == "__main__":
-    state = BaseStationState()
-    open_teleop_window(state)
