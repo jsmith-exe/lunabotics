@@ -12,11 +12,15 @@ from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
 
 DANGER_COLOR = "#ff1e39"
 UI_SCALE = float(environ.get('QPL_TELEOP_WINDOW_SCALE', 1.0))
+WINDOW_WIDTH = 300  # Minimum width; the window widens if expanded sections need more room.
 
 class TeleopWindow:
-    def __init__(self, base_station_state: BaseStationState, publish_function: Callable, canbus_config: dict):
+    def __init__(self, base_station_state: BaseStationState, publish_function: Callable, canbus_config: dict,
+                 autonomy_command_function: Callable[[str], None]):
         self.base_station_state = base_station_state
         self.publish_function = publish_function
+        self.canbus_config = canbus_config
+        self.autonomy_command_function = autonomy_command_function
 
         self.style = Style(themename='cyborg')
         self.root = self.style.master
@@ -40,19 +44,31 @@ class TeleopWindow:
         self.slider_controller = BaseController(publish_function, base_station_state, 0.001)
         self.keyboard_controller = TkinterKeyboardController(publish_function, base_station_state, self.root)
 
-        x, y = 0, 0
-        self.root.geometry(f"{int(400 * UI_SCALE)}x{int(280 * UI_SCALE)}+{x}+{y}")
+        self._flash_after_id = None
+        self.showing_danger = False
 
-        bold_font = font.Font(family="Helvetica", size=22, weight="bold")
+        self.add_teleop_toggle()
+        self.add_drum_lift_slider()
+        self.add_throttle_section()
+        self.add_autonomy_section()
 
+        self.enable()
+
+        # Make sure the initial size fits everything, including the status message set by enable().
+        self.root.update_idletasks()
+        height = max(int(260 * UI_SCALE), self.root.winfo_reqheight())
+        self.root.geometry(f"{fit_window_width(self.root)}x{height}+0+0")
+
+    def add_teleop_toggle(self):
+        bold_font = font.Font(family="Helvetica", size=18, weight="bold")
         self.message_label = ttk.Label(self.root, text="", font=bold_font)
         self.message_label.pack(pady=(20 * UI_SCALE, 15 * UI_SCALE))
-
         self.toggle_button = ttk.Button(self.root, text="Disable", command=self.toggle, width=12)
         self.toggle_button.pack(pady=(0, 20 * UI_SCALE))
 
-        sliders_frame = ttk.Frame(self.root)
-        sliders_frame.pack(pady=(0, 10 * UI_SCALE))
+    def add_throttle_section(self):
+        self.throttle_section = CollapsibleSection(self.root, "Throttle")
+        sliders_frame = self.throttle_section.content
 
         make_labeled_slider("Drive Throttle", sliders_frame, 2,
                             lambda value: self.base_station_state.set_motor_drive_button_factor(float(value)),
@@ -69,16 +85,24 @@ class TeleopWindow:
                             {"value": DEFAULT_MOTOR_DRUM_BUTTON_FACTOR, "from_": 0, "to": 1},
                             {"side": "left", "padx": 5 * UI_SCALE})
 
-        drum_config = canbus_config['drum']
+    def add_drum_lift_slider(self):
+        drum_config = self.canbus_config['drum']
         self.drum_lift_slider = make_labeled_slider("Drum Lift", self.root, 0,
                             lambda value: self.slider_controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
                             {"from_": drum_config['min_lift_mm'], "to": drum_config['max_lift_mm'], "value": drum_config['max_lift_mm']},
                             {}, 2)
 
-        self._flash_after_id = None
-        self.showing_danger = False
+    def add_autonomy_section(self):
+        self.autonomy_section = CollapsibleSection(self.root, "Autonomy")
 
-        self.enable()
+        buttons = {}
+        for text, command in (("Excavate", "EXCAVATE"), ("Deposit", "DEPOSIT"), ("Stop", "STOP")):
+            buttons[command] = ttk.Button(self.autonomy_section.content, text=text, width=10,
+                                          command=lambda command=command: self.autonomy_command_function(command))
+            buttons[command].pack(side="left", padx=5 * UI_SCALE)
+
+        # Autonomy can only be started while teleop is disabled; Stop is always available.
+        self.autonomy_start_buttons = [buttons["EXCAVATE"], buttons["DEPOSIT"]]
 
     def enable(self):
         self.base_station_state.teleop_enabled = True
@@ -87,6 +111,8 @@ class TeleopWindow:
         self.message_label.config(text="⚠ Teleoperation active")
         self.toggle_button.config(text="Disable")
         self._schedule_flash()
+        for button in self.autonomy_start_buttons:
+            button.state(["disabled"])
 
         self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, self.drum_lift_slider.value / 1000)
 
@@ -105,12 +131,18 @@ class TeleopWindow:
         self.toggle_button.config(text="Enable")
         self.message_label.configure(foreground="")
         self._cancel_flash()
+        for button in self.autonomy_start_buttons:
+            button.state(["!disabled"])
 
     def toggle(self):
         if self.base_station_state.teleop_enabled:
             self.disable()
         else:
             self.enable()
+
+        # The enabled/disabled messages differ in width, so refit the window to the new message.
+        self.root.update_idletasks()
+        self.root.geometry(f"{fit_window_width(self.root)}x{self.root.winfo_height()}")
 
     def flash_message(self):
         self.showing_danger = not self.showing_danger
@@ -130,6 +162,46 @@ class TeleopWindow:
 
     def run(self):
         self.root.mainloop()
+
+
+class CollapsibleSection:
+    """ A header button that shows/hides a content frame. Add widgets to `content`. """
+    def __init__(self, parent, title: str):
+        self.title = title
+        self.expanded = False
+
+        # Header and content share a container, so the content opens directly below its own header.
+        self.container = ttk.Frame(parent)
+        self.container.pack(pady=(10 * UI_SCALE, 0))
+        self.toggle_button = ttk.Button(self.container, text=f"▶ {title}", command=self.toggle, width=12)
+        self.toggle_button.pack()
+
+        # Only packed while the section is expanded.
+        self.content = ttk.Frame(self.container)
+
+    def toggle(self):
+        # The window has a fixed size, so grow/shrink its height by however much the required height changes,
+        # and fit its width to the content.
+        window = self.container.winfo_toplevel()
+        window.update_idletasks()
+        height_before = window.winfo_reqheight()
+
+        if self.expanded:
+            self.content.pack_forget()
+            self.toggle_button.config(text=f"▶ {self.title}")
+        else:
+            self.content.pack(pady=(10 * UI_SCALE, 0))
+            self.toggle_button.config(text=f"▼ {self.title}")
+        self.expanded = not self.expanded
+
+        window.update_idletasks()
+        height_change = window.winfo_reqheight() - height_before
+        window.geometry(f"{fit_window_width(window)}x{window.winfo_height() + height_change}")
+
+
+def fit_window_width(window) -> int:
+    """ The default window width, or wider if the currently visible content needs it. """
+    return max(int(WINDOW_WIDTH * UI_SCALE), window.winfo_reqwidth())
 
 
 def make_labeled_slider(label_text: str, parent, dp: int,
@@ -164,8 +236,3 @@ def make_labeled_slider(label_text: str, parent, dp: int,
 def open_teleop_window(*args):
     window = TeleopWindow(*args)
     window.run()
-
-
-if __name__ == "__main__":
-    state = BaseStationState()
-    open_teleop_window(state)
