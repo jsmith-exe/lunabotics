@@ -95,10 +95,14 @@ class TeleopWindow:
     def add_autonomy_section(self):
         self.autonomy_section = CollapsibleSection(self.root, "Autonomy")
 
+        buttons = {}
         for text, command in (("Excavate", "EXCAVATE"), ("Deposit", "DEPOSIT"), ("Stop", "STOP")):
-            button = ttk.Button(self.autonomy_section.content, text=text, width=10,
-                                command=lambda command=command: self.autonomy_command_function(command))
-            button.pack(side="left", padx=5 * UI_SCALE)
+            buttons[command] = ttk.Button(self.autonomy_section.content, text=text, width=10,
+                                          command=lambda command=command: self.autonomy_command_function(command))
+            buttons[command].pack(side="left", padx=5 * UI_SCALE)
+
+        # Autonomy can only be started while teleop is disabled; Stop is always available.
+        self.autonomy_start_buttons = [buttons["EXCAVATE"], buttons["DEPOSIT"]]
 
     def enable(self):
         self.base_station_state.teleop_enabled = True
@@ -107,6 +111,8 @@ class TeleopWindow:
         self.message_label.config(text="⚠ Teleoperation active")
         self.toggle_button.config(text="Disable")
         self._schedule_flash()
+        for button in self.autonomy_start_buttons:
+            button.state(["disabled"])
 
         self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, self.drum_lift_slider.value / 1000)
 
@@ -125,6 +131,8 @@ class TeleopWindow:
         self.toggle_button.config(text="Enable")
         self.message_label.configure(foreground="")
         self._cancel_flash()
+        for button in self.autonomy_start_buttons:
+            button.state(["!disabled"])
 
     def toggle(self):
         if self.base_station_state.teleop_enabled:
