@@ -1,11 +1,11 @@
 from rclpy.node import Node
 
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, String
 from geometry_msgs.msg import Twist, Vector3
 
 from ..base_station_state import BaseStationState
 from ..constants import MessageOptions, NAV_TOPIC, DRUM_ROTATION_TOPIC, DRUM_LIFT_TOPIC, \
-    PUBLISHER_UPDATE_RATE, INVERT_BACKWARDS_STEERING
+    AUTONOMY_COMMAND_TOPIC, PUBLISHER_UPDATE_RATE, INVERT_BACKWARDS_STEERING
 
 
 class TeleopPublisher(Node):
@@ -19,7 +19,8 @@ class TeleopPublisher(Node):
             DRUM_ROTATION_TOPIC: self.create_publisher(Float64, DRUM_ROTATION_TOPIC, 10),
             DRUM_LIFT_TOPIC: self.create_publisher(Float64, DRUM_LIFT_TOPIC, 10),
         }
-        self.get_logger().info(f'Publishing to {list(self.publishers_.keys())}')
+        self.autonomy_command_publisher = self.create_publisher(String, AUTONOMY_COMMAND_TOPIC, 10)
+        self.get_logger().info(f'Publishing to {list(self.publishers_.keys()) + [AUTONOMY_COMMAND_TOPIC]}')
 
         # Rover mux are set to stop if they don't receive messages for a while, so the most
         # recent state for each topic is republished on a timer regardless of new input.
@@ -43,6 +44,14 @@ class TeleopPublisher(Node):
             raise ValueError(f"Unsupported message type: {topic_state['type']}")
 
         self.publishers_[topic_name].publish(self._to_message(topic_state))
+
+    def publish_autonomy_command(self, command: str) -> None:
+        """
+        Sends a command (e.g. EXCAVATE, DEPOSIT, STOP) to the autonomy node.
+        Not gated on teleop being enabled, as autonomy is expected to run while teleop is disabled.
+        """
+        self.autonomy_command_publisher.publish(String(data=command))
+        self.get_logger().info(f'Sent autonomy command: {command}')
 
     def _update_twist_state(self, topic_name: str, topic_state: dict, message_option: MessageOptions, throttle: float) -> None:
         # Gets the type (linear or angular) and dimension (x, y, or z) to update from the twist option
