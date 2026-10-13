@@ -53,6 +53,7 @@ class TeleopWindow:
         self.add_autonomy_section()
 
         self.enable()
+        self._sync_drum_lift_slider() # After enable(), which sets the lift target from the slider
 
         # Make sure the initial size fits everything, including the status message set by enable().
         self.root.update_idletasks()
@@ -91,6 +92,17 @@ class TeleopWindow:
                             lambda value: self.slider_controller.handle_analogue_input(GUIInputs.DRUM_HEIGHT_SLIDER, float(value) / 1000),
                             {"from_": drum_config['min_lift_mm'], "to": drum_config['max_lift_mm'], "value": drum_config['max_lift_mm']},
                             {}, 2)
+
+    def _sync_drum_lift_slider(self):
+        """ Buttons can also move the drum lift, so keep the slider showing the current lift target. """
+        # Skipped while disabled, where the target is reset to 0; enable() republishes the slider value.
+        if self.base_station_state.teleop_enabled:
+            lift_mm = round(self.base_station_state.topic_target_states[DRUM_LIFT_TOPIC]['value'] * 1000, 2)
+            if lift_mm != self.drum_lift_slider.value:
+                self.drum_lift_slider.value = lift_mm
+                # The slider's last sent value is now stale; forget it so the next drag isn't filtered out.
+                self.slider_controller.previous_analogue_values.pop(GUIInputs.DRUM_HEIGHT_SLIDER, None)
+        self.root.after(100, self._sync_drum_lift_slider)
 
     def add_autonomy_section(self):
         self.autonomy_section = CollapsibleSection(self.root, "Autonomy")
