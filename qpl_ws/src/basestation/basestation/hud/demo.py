@@ -40,7 +40,7 @@ WAYPOINTS = [(3.4, 1.2), (1.6, 2.3), (5.6, 2.2), (7.0, 4.4), (8.1, 5.6), (6.4, 3
 ROCKS = [(2.6, 4.6, 0.18), (5.0, 5.4, 0.22), (6.2, 1.4, 0.15), (4.3, 3.6, 0.2)]
 MAP_T_ODOM = (0.25, 0.15, 0.06)  # x, y, yaw: a little drift between map and odom
 WHEEL_R = 0.15
-SEP = 0.5836
+SEP = 1.161
 IMG_W, IMG_H = 960, 600
 CYCLE = 90.0  # s: teleop for most of it, then a stretch of "autonomy"
 

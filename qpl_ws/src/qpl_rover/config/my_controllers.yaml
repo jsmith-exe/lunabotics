@@ -24,11 +24,10 @@ diff_cont:
     left_wheel_names:  ["front_left_wheel_joint", "rear_left_wheel_joint"]
     right_wheel_names: ["front_right_wheel_joint", "rear_right_wheel_joint"]
 
-    # TODO(calibration): wrong - 0.5836 is the chassis width, not the effective
-    # skid-steer track. Measure as (v_right - v_left) / yaw_rate while spinning
+    # TODO(calibration): Measure as (v_right - v_left) / yaw_rate while spinning
     # in place, on the competition surface. Expect >= 0.895.
-    wheel_separation: 0.5836
-    wheel_radius: 0.15   # TODO(calibration): verify against loaded wheels on the real rover
+    wheel_separation: 1.161
+    wheel_radius: 0.15   # TODO(calibration): verify
 
     use_stamped_vel: false
 

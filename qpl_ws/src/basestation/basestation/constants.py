@@ -10,6 +10,8 @@ INVERT_BACKWARDS_STEERING = True
 DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR = 0.3
 DEFAULT_MOTOR_STEER_BUTTON_FACTOR = 0.25
 DEFAULT_MOTOR_DRUM_BUTTON_FACTOR = 0.4
+# Must match diff_cont's wheel_separation (qpl_rover/config/my_controllers.yaml)
+TANK_WHEEL_SEPARATION = 1.161
 CANBUS_CONFIG_PATH = Path(__file__).resolve().parents[2] / 'diffdrive_canbus' / 'hardware' / 'can_config.yaml'
 ICON_PATH = Path(__file__).resolve().parents[0] / 'ui' / 'icon.png'
 
@@ -22,6 +24,8 @@ class MessageOptions(Enum):
     TWIST_ANGULAR_X = 'twist_angular_x'
     TWIST_ANGULAR_Y = 'twist_angular_y'
     TWIST_ANGULAR_Z = 'twist_angular_z'
+    TANK_LEFT = 'tank_left'
+    TANK_RIGHT = 'tank_right'
 
 class CmdMeta(Enum):
     """

@@ -5,7 +5,17 @@ from geometry_msgs.msg import Twist, Vector3
 
 from ..base_station_state import BaseStationState
 from ..constants import MessageOptions, NAV_TOPIC, DRUM_ROTATION_TOPIC, DRUM_LIFT_TOPIC, \
-    AUTONOMY_COMMAND_TOPIC, PUBLISHER_UPDATE_RATE, INVERT_BACKWARDS_STEERING
+    AUTONOMY_COMMAND_TOPIC, PUBLISHER_UPDATE_RATE, INVERT_BACKWARDS_STEERING, TANK_WHEEL_SEPARATION
+
+TANK_SIDES = {MessageOptions.TANK_LEFT: 'left', MessageOptions.TANK_RIGHT: 'right'}
+
+
+def tank_to_twist(left: float, right: float, wheel_separation: float = TANK_WHEEL_SEPARATION) -> tuple[float, float]:
+    """
+    Converts left and right side speeds to (linear x, angular z). This is the inverse of diff_cont's own conversion,
+    so the rover's sides receive exactly these speeds, as long as wheel_separation matches diff_cont's.
+    """
+    return (right + left) / 2, (right - left) / wheel_separation
 
 
 class TeleopPublisher(Node):
@@ -54,6 +64,14 @@ class TeleopPublisher(Node):
         self.get_logger().info(f'Sent autonomy command: {command}')
 
     def _update_twist_state(self, topic_name: str, topic_state: dict, message_option: MessageOptions, throttle: float) -> None:
+        # Tank inputs set one side, then the whole drive twist is recomputed from both. No backwards steering
+        # inversion, since each side is commanded directly.
+        if message_option in TANK_SIDES:
+            tank = topic_state['tank']
+            tank[TANK_SIDES[message_option]] = throttle
+            topic_state['linear']['x'], topic_state['angular']['z'] = tank_to_twist(tank['left'], tank['right'])
+            return
+
         # Gets the type (linear or angular) and dimension (x, y, or z) to update from the twist option
         _, twist_type, twist_dimension = message_option.value.split('_')
 
