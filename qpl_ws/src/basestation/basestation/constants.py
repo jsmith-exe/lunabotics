@@ -34,6 +34,12 @@ class CmdMeta(Enum):
     IS_DRIVE_MOTOR_COMMAND = 'is_drive_motor_command'
     IS_STEER_MOTOR_COMMAND = 'is_steer_motor_command'
     IS_DRUM_MOTOR_COMMAND = 'is_drum_motor_command'
+    # While the button is held, the topic's current value moves by `scale` per second; releasing leaves it in place.
+    # Float topics only.
+    IS_INCREMENT_COMMAND = 'is_increment_command'
+    # Bounds that increment commands are clamped to.
+    MIN_VALUE = 'min_value'
+    MAX_VALUE = 'max_value'
 
 class ControllerInputs:
     """ Controller inputs for defining control maps. This is intentionally not an enum to make accessing values easier. """

@@ -1,10 +1,13 @@
 from collections.abc import Callable
+from math import inf
+from threading import Event, Thread
 
 from ..constants import ControllerInputs, CmdMeta, GUIInputs
 from ..base_station_state import BaseStationState
 from ..control_maps import Command
 
 MINIMUM_ANALOGUE_CHANGE = 0.05 # Changes in analogue values must be at least this much to be sent
+INCREMENT_UPDATE_RATE = 20 # Hz; how often a held increment command steps its value
 
 class BaseController:
     """
@@ -19,6 +22,8 @@ class BaseController:
         self.state = state
         self.previous_analogue_values = dict()
         self.minimum_analogue_change = minimum_analogue_change
+        # Held increment buttons, mapped to the event that stops their stepping thread.
+        self._held_increments: dict[str, Event] = {}
 
     def handle_button(self, button: str | ControllerInputs | GUIInputs, pressed: bool) -> None:
         """
@@ -32,11 +37,40 @@ class BaseController:
         if command is None:
             return
 
-        if pressed:
+        if command.metadata.get(CmdMeta.IS_INCREMENT_COMMAND):
+            self._handle_increment_button(button, command, pressed)
+        elif pressed:
             self.publish_function(command.topic_name, command.message_option, self._post_process_value(1, command))
         else:
             # On release, send a STOP signal for that command.
             self.publish_function(command.topic_name, command.message_option, 0)
+
+    def _handle_increment_button(self, button: str, command: Command, pressed: bool) -> None:
+        """ Steps the value in a background thread while held; releasing stops stepping, without sending a stop. """
+        # Also stops a thread left over from a release that was ignored while teleop was disabled.
+        held = self._held_increments.pop(button, None)
+        if held is not None:
+            held.set()
+        if not pressed:
+            return
+
+        stop = Event()
+        self._held_increments[button] = stop
+        Thread(target=self._run_increment, args=(command, stop), daemon=True).start()
+
+    def _run_increment(self, command: Command, stop: Event) -> None:
+        step = command.scale / INCREMENT_UPDATE_RATE
+        lower = command.metadata.get(CmdMeta.MIN_VALUE, -inf)
+        upper = command.metadata.get(CmdMeta.MAX_VALUE, inf)
+
+        # Step before the first wait, so a quick tap still moves the value.
+        while self.state.teleop_enabled:
+            current = self.state.topic_target_states[command.topic_name]['value']
+            new_value = min(max(current + step, lower), upper)
+            if new_value != current:
+                self.publish_function(command.topic_name, command.message_option, new_value)
+            if stop.wait(1 / INCREMENT_UPDATE_RATE):
+                return
 
     def handle_analogue_input(self, input_: str | ControllerInputs | GUIInputs, value: float) -> None:
         """
