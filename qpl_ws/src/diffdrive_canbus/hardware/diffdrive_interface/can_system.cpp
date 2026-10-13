@@ -48,7 +48,7 @@ namespace diffdrive_canbus {
 
   bool CANSystem::are_all_motors_stopped() {
     for (auto & [can_id, device] : devices_) {
-      if (device->encoder_velocity_rpm() > 0.01) {
+      if (std::abs(device->encoder_velocity_rpm()) > 0.01) {
         return false;
       }
     }
