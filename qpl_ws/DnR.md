@@ -194,6 +194,11 @@ Things to look at in the output:
 - `re-started` / `bus-off`: counts of bus-off events and automatic restarts.
 - `TX: ... dropped` / `RX: ... errors`: increasing values point to wiring, termination or bitrate problems.
 
+**Alternatively:** for viewing the type of error live, you can use dmesg:
+```bash
+sudo dmesg -Tw | grep -iE 'mttcan|can0'
+```
+
 **Is the interface up?**: If `can0` is `DOWN`, or `ip link show can0` says the device doesn't exist, re-run the setup script:
 ```bash
 bash ~/lunabotics/on_jetson_boot/can_setup.sh
