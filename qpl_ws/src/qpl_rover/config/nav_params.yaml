@@ -134,6 +134,9 @@ controller_server:
 #
 # FOOTPRINT NOTE: wheel outer edges are x +-0.58, y +-0.525 (rover_core.xacro), cameras at
 # x +-0.61. A 0.70 m circle was narrower than the rover's diagonal and far wider than its sides.
+# The footprint is a 0.62 x 0.53 half-size rectangle with 0.05 m rounded corners, so it sweeps
+# 0.795 m when turning in place instead of 0.816 m. 0.05 m is the most rounding that still
+# covers the wheels' outer corners; any more and the costmap would let the wheels hit walls.
 
 local_costmap:
   local_costmap:
@@ -147,7 +150,7 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      footprint: "[[0.62, 0.53], [0.62, -0.53], [-0.62, -0.53], [-0.62, 0.53]]"
+      footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
@@ -236,7 +239,7 @@ global_costmap:
       width: 10
       height: 9
       resolution: 0.05
-      footprint: "[[0.62, 0.53], [0.62, -0.53], [-0.62, -0.53], [-0.62, 0.53]]"
+      footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true

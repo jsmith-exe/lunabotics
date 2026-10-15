@@ -1,5 +1,5 @@
 """
-Depth camera -> Nav2 obstacle clouds.
+Depth image -> Nav2 obstacle clouds.
 
 Nav2's own height filter measures z in the costmap's global frame, which assumes
 the floor is at z = 0 everywhere. Nothing measures the rover's z, so on the
@@ -30,6 +30,11 @@ Both outputs are in `level_frame` with z set to the sensor's z, so Nav2's 3D
 range checks act as 2D ones and its height band (set wide) never rejects them.
 Nav2 must be given `sensor_frame` for these sources, since the cloud's own frame
 (odom) is not where the rays start.
+
+Input is the depth image, not the driver's point cloud: the sim clouds are
+10-13 MB a frame and were dropped in transport for seconds at a time (Nav2 then
+reuses the last cloud, from wherever the rover was). The image is ~8x smaller and
+is deprojected here at the decimated resolution only.
 """
 import math
 
@@ -39,7 +44,7 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
-from sensor_msgs.msg import PointCloud2, PointField
+from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
 import tf2_ros
 
 
@@ -58,22 +63,28 @@ def transform_parts(tf):
     return quaternion_matrix(tf.transform.rotation), np.array([t.x, t.y, t.z])
 
 
-def read_xyz(msg, stride):
-    """(N, 3) float array of the cloud's x/y/z, every `stride`th row and column."""
-    offsets = {f.name: f.offset for f in msg.fields}
-    dtype = np.dtype({
-        'names': ['x', 'y', 'z'],
-        'formats': [np.float32] * 3,
-        'offsets': [offsets['x'], offsets['y'], offsets['z']],
-        'itemsize': msg.point_step,
-    })
-    points = np.frombuffer(msg.data, dtype=dtype, count=msg.width * msg.height)
-    if msg.height > 1:  # organized: decimate in both image axes
-        points = points.reshape(msg.height, msg.width)[::stride, ::stride].ravel()
+def deproject(image, info, stride):
+    """(N, 3) float array of optical-frame points from every `stride`th depth pixel."""
+    if image.encoding == '16UC1':
+        depth = np.frombuffer(image.data, dtype=np.uint16).reshape(image.height, -1)[:, :image.width]
+        scale = 0.001  # mm
+    elif image.encoding == '32FC1':
+        depth = np.frombuffer(image.data, dtype=np.float32).reshape(image.height, -1)[:, :image.width]
+        scale = 1.0
     else:
-        points = points[::stride * stride]
-    xyz = np.stack([points['x'], points['y'], points['z']], axis=1).astype(np.float64)
-    return xyz[np.isfinite(xyz).all(axis=1)]
+        raise ValueError(f'unsupported depth encoding {image.encoding}')
+
+    # camera_info can be for a different resolution than the image (RealSense decimation).
+    sx = image.width / info.width
+    sy = image.height / info.height
+    fx, fy = info.k[0] * sx, info.k[4] * sy
+    cx, cy = info.k[2] * sx, info.k[5] * sy
+
+    v, u = np.mgrid[0:image.height:stride, 0:image.width:stride]
+    z = depth[::stride, ::stride].astype(np.float64) * scale
+    valid = np.isfinite(z) & (z > 0)
+    z, u, v = z[valid], u[valid], v[valid]
+    return np.stack([(u - cx) * z / fx, (v - cy) * z / fy, z], axis=1)
 
 
 XYZ_FIELDS = [
@@ -101,13 +112,15 @@ class DepthObstacleFilter(Node):
     def __init__(self):
         super().__init__('depth_obstacle_filter')
 
-        self.input_topic = self.declare_parameter('input_topic', '/depth_camera_front/depth/points').value
+        self.depth_topic = self.declare_parameter('depth_topic', '/depth_camera_front/depth/image_raw').value
+        self.info_topic = self.declare_parameter('info_topic', '/depth_camera_front/depth/camera_info').value
         self.output_namespace = self.declare_parameter('output_namespace', '/depth_camera_front').value
         self.level_frame = self.declare_parameter('level_frame', 'odom').value
         self.base_frame = self.declare_parameter('base_frame', 'base_footprint').value
 
-        # Decimation and rate: the Orbbec runs 640x480 at 30 Hz.
-        self.stride = int(self.declare_parameter('stride', 4).value)
+        # Decimation and rate: the Orbbec runs 640x480 at 30 Hz, and the RealSense is already
+        # decimated 4x on the rover but not in the sim, so decimate to a width, not by a factor.
+        self.target_width = int(self.declare_parameter('target_width', 160).value)
         self.max_rate = float(self.declare_parameter('max_rate', 10.0).value)
 
         # Ranges are horizontal distance from the sensor.
@@ -131,13 +144,32 @@ class DepthObstacleFilter(Node):
             PointCloud2, f'{self.output_namespace}/obstacles', qos_profile_sensor_data)
         self.clearing_pub = self.create_publisher(
             PointCloud2, f'{self.output_namespace}/clearing', qos_profile_sensor_data)
-        self.create_subscription(PointCloud2, self.input_topic, self.on_cloud, qos_profile_sensor_data)
+        self.create_subscription(CameraInfo, self.info_topic, self.on_info, qos_profile_sensor_data)
+        self.create_subscription(Image, self.depth_topic, self.on_depth, qos_profile_sensor_data)
 
+        self.info = None
         self.last_stamp = None
         self.get_logger().info(
-            f'{self.input_topic} -> {self.output_namespace}/{{obstacles,clearing}} in {self.level_frame}')
+            f'{self.depth_topic} -> {self.output_namespace}/{{obstacles,clearing}} in {self.level_frame}')
 
-    def on_cloud(self, msg):
+    def on_info(self, msg):
+        self.info = msg
+
+    def lookup(self, target, source, stamp):
+        """Transform at `stamp`; if TF hasn't caught up yet, the latest one if it's within 0.1 s."""
+        try:
+            return self.tf_buffer.lookup_transform(target, source, stamp, Duration(seconds=0.1))
+        except tf2_ros.ExtrapolationException:
+            tf = self.tf_buffer.lookup_transform(target, source, Time())
+            if abs((Time.from_msg(tf.header.stamp) - stamp).nanoseconds) > 1e8:
+                raise
+            return tf
+
+    def on_depth(self, msg):
+        if self.info is None:
+            self.get_logger().warn(f'No camera_info on {self.info_topic} yet', throttle_duration_sec=5.0)
+            return
+
         stamp = Time.from_msg(msg.header.stamp)
         # A stamp going backwards (sim reset) resets the throttle.
         if self.last_stamp is not None and 0 <= (stamp - self.last_stamp).nanoseconds < 1e9 / self.max_rate:
@@ -145,10 +177,8 @@ class DepthObstacleFilter(Node):
         self.last_stamp = stamp
 
         try:
-            sensor_tf = self.tf_buffer.lookup_transform(
-                self.level_frame, msg.header.frame_id, stamp, Duration(seconds=0.1))
-            base_tf = self.tf_buffer.lookup_transform(
-                self.level_frame, self.base_frame, stamp, Duration(seconds=0.1))
+            sensor_tf = self.lookup(self.level_frame, msg.header.frame_id, stamp)
+            base_tf = self.lookup(self.level_frame, self.base_frame, stamp)
         except tf2_ros.TransformException as e:
             self.get_logger().warn(f'TF lookup failed: {e}', throttle_duration_sec=5.0)
             return
@@ -156,7 +186,8 @@ class DepthObstacleFilter(Node):
         sensor_rot, sensor_pos = transform_parts(sensor_tf)
         base_rot, base_pos = transform_parts(base_tf)
 
-        points = read_xyz(msg, self.stride) @ sensor_rot.T + sensor_pos
+        stride = max(1, msg.width // self.target_width)
+        points = deproject(msg, self.info, stride) @ sensor_rot.T + sensor_pos
 
         # Drop the rover itself (box in base_frame).
         in_base = (points - base_pos) @ base_rot

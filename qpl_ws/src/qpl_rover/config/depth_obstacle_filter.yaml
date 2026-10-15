@@ -9,11 +9,12 @@
 
 /depth_obstacle_filter_front:
   ros__parameters:
-    input_topic: /depth_camera_front/depth/points
+    depth_topic: /depth_camera_front/depth/image_raw        # Orbbec; sim relays to the same name
+    info_topic: /depth_camera_front/depth/camera_info
     output_namespace: /depth_camera_front
     level_frame: odom
     base_frame: base_footprint
-    stride: 4
+    target_width: 160   # pixels across after decimation
     max_rate: 10.0
     min_range: 0.30
     obstacle_max_range: 4.0
@@ -26,11 +27,12 @@
 
 /depth_obstacle_filter_rear:
   ros__parameters:
-    input_topic: /depth_camera_rear/depth/points
+    depth_topic: /depth_camera_rear/depth/image_rect_raw    # RealSense; sim relays to the same name
+    info_topic: /depth_camera_rear/depth/camera_info
     output_namespace: /depth_camera_rear
     level_frame: odom
     base_frame: base_footprint
-    stride: 4
+    target_width: 160   # pixels across after decimation
     max_rate: 10.0
     min_range: 0.30
     obstacle_max_range: 4.0
