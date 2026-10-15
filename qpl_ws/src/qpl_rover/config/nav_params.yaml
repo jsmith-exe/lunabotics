@@ -126,6 +126,15 @@ controller_server:
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
 
+# OBSTACLE NOTE (both costmaps):
+# The depth clouds go through depth_obstacle_filter first (config/depth_obstacle_filter.yaml),
+# which measures height above the floor in the IMU-levelled odom frame and publishes
+# flattened obstacle/clearing clouds. All height decisions live there, so the height band
+# below is wide on purpose, and sensor_frame is required because the clouds are in odom.
+#
+# FOOTPRINT NOTE: wheel outer edges are x +-0.58, y +-0.525 (rover_core.xacro), cameras at
+# x +-0.61. A 0.70 m circle was narrower than the rover's diagonal and far wider than its sides.
+
 local_costmap:
   local_costmap:
     ros__parameters:
@@ -138,44 +147,57 @@ local_costmap:
       width: 6
       height: 6
       resolution: 0.05
-      robot_radius: 0.70
+      footprint: "[[0.62, 0.53], [0.62, -0.53], [-0.62, -0.53], [-0.62, 0.53]]"
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
-        plugin: "nav2_costmap_2d::VoxelLayer"
+        plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        publish_voxel_grid: false
-        origin_z: -0.15
-        z_resolution: 0.05
-        z_voxels: 16
-        unknown_threshold: 15
-        mark_threshold: 2
+        footprint_clearing_enabled: true
         combination_method: 1
-        observation_sources: front_camera_raw rear_camera_raw
+        observation_sources: front_marking front_clearing rear_marking rear_clearing
 
-        front_camera_raw:
-          topic: /depth_camera_front/depth/points
+        front_marking:
+          topic: /depth_camera_front/obstacles
+          sensor_frame: camera_link_front
           data_type: "PointCloud2"
-          clearing: true
           marking: true
-          obstacle_max_range: 1.5   # Only remember obstacles up to 1.5m
-          raytrace_max_range: 2.0   # Clear out memory up to 2.0m away
-          min_obstacle_height: 0.1
-          max_obstacle_height: 1.2
-          vertical_fov_angle: 2.0
+          clearing: false
+          obstacle_max_range: 4.5   # the filter already stops at 4.0
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
 
-        rear_camera_raw:
-          topic: /depth_camera_rear/depth/points
+        front_clearing:
+          topic: /depth_camera_front/clearing
+          sensor_frame: camera_link_front
           data_type: "PointCloud2"
+          marking: false
           clearing: true
+          raytrace_max_range: 5.5   # the filter already stops at 5.0
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
+
+        rear_marking:
+          topic: /depth_camera_rear/obstacles
+          sensor_frame: camera_link_rear
+          data_type: "PointCloud2"
           marking: true
-          obstacle_max_range: 1.5
-          raytrace_max_range: 2.0
-          min_obstacle_height: 0.1
-          max_obstacle_height: 1.2
-          vertical_fov_angle: 1.0
+          clearing: false
+          obstacle_max_range: 4.5
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
+
+        rear_clearing:
+          topic: /depth_camera_rear/clearing
+          sensor_frame: camera_link_rear
+          data_type: "PointCloud2"
+          marking: false
+          clearing: true
+          raytrace_max_range: 5.5
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -185,8 +207,9 @@ local_costmap:
         cost_scaling_factor: 3.0
 
         # INFLATION RADIUS NOTE:
-        # Must be > robot_radius. Anything inside this radius + robot_radius will receive a high-cost penalization.
-        inflation_radius: 0.90
+        # Must be > the footprint's inscribed radius (0.53). The planner treats the rover
+        # as a point, so this is what keeps its paths off the walls.
+        inflation_radius: 0.75
 
   local_costmap_client:
     ros__parameters:
@@ -204,54 +227,72 @@ global_costmap:
       publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_footprint
-      rolling_window: true
-      width: 16
-      height: 16
+      # Fixed map of the whole arena so walls persist once seen. map is the arena frame
+      # (origin at the corner, from the AprilTag); this covers US (9.14 x 8.10) and UK
+      # (4.4 x 7.9) with at least 0.36 m of margin. width/height must be whole metres.
+      rolling_window: false
+      origin_x: -0.5
+      origin_y: -0.5
+      width: 10
+      height: 9
       resolution: 0.05
-      robot_radius: 0.70
+      footprint: "[[0.62, 0.53], [0.62, -0.53], [-0.62, -0.53], [-0.62, 0.53]]"
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
       plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
-        plugin: "nav2_costmap_2d::VoxelLayer"
+        plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        publish_voxel_grid: false
-        origin_z: -0.15
-        z_resolution: 0.05
-        z_voxels: 16
-        unknown_threshold: 15
-        mark_threshold: 2
+        footprint_clearing_enabled: true
         combination_method: 1
-        observation_sources: front_camera_raw rear_camera_raw
+        observation_sources: front_marking front_clearing rear_marking rear_clearing
 
-        front_camera_raw:
-          topic: /depth_camera_front/depth/points
+        front_marking:
+          topic: /depth_camera_front/obstacles
+          sensor_frame: camera_link_front
           data_type: "PointCloud2"
-          clearing: true
           marking: true
-          obstacle_max_range: 1.5
-          raytrace_max_range: 2.0
-          min_obstacle_height: 0.1
-          max_obstacle_height: 1.2
-          vertical_fov_angle: 2.0
+          clearing: false
+          obstacle_max_range: 4.5
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
 
-        rear_camera_raw:
-          topic: /depth_camera_rear/depth/points
+        front_clearing:
+          topic: /depth_camera_front/clearing
+          sensor_frame: camera_link_front
           data_type: "PointCloud2"
+          marking: false
           clearing: true
+          raytrace_max_range: 5.5
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
+
+        rear_marking:
+          topic: /depth_camera_rear/obstacles
+          sensor_frame: camera_link_rear
+          data_type: "PointCloud2"
           marking: true
-          obstacle_max_range: 1.5
-          raytrace_max_range: 2.0
-          min_obstacle_height: 0.1
-          max_obstacle_height: 1.2
-          vertical_fov_angle: 1.0
+          clearing: false
+          obstacle_max_range: 4.5
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
+
+        rear_clearing:
+          topic: /depth_camera_rear/clearing
+          sensor_frame: camera_link_rear
+          data_type: "PointCloud2"
+          marking: false
+          clearing: true
+          raytrace_max_range: 5.5
+          min_obstacle_height: -1.0
+          max_obstacle_height: 2.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.90
+        inflation_radius: 0.75
 
   global_costmap_client:
     ros__parameters:

@@ -42,6 +42,7 @@ setup(
     entry_points={
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
+            'depth_obstacle_filter = qpl_rover.depth_obstacle_filter:main',
             'drum_command_interface = qpl_rover.drum_command_interface:main',
             'teleop_watchdog = qpl_rover.teleop_watchdog:main',
         ],
