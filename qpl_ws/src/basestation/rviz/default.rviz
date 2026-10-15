@@ -347,6 +347,13 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /zone_overlay
       Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 1
+      Name: Axes
+      Radius: 0.10000000149011612
+      Reference Frame: base_link
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -411,7 +418,6 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 819
   Hide Left Dock: false
   Hide Right Dock: false
   Image:
@@ -425,4 +431,3 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1428
