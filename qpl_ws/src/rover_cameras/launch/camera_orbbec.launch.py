@@ -1,4 +1,4 @@
-"""Rear camera (Orbbec Astra Pro Plus): driver + teleop stream encoder in one container."""
+"""Front camera (Orbbec Astra Pro Plus): driver + teleop stream encoder in one container."""
 import importlib.util
 import os
 import sys
@@ -14,7 +14,7 @@ from launch_ros.descriptions import ComposableNode
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # launch_utils.py sits beside this file
 from launch_utils import INTRA_PROCESS, respawning_container, stream_encoder  # noqa: E402
 
-direction = 'rear'  # front or rear
+direction = 'front'  # front or rear
 camera_name = f'depth_camera_{direction}'
 
 
@@ -25,16 +25,16 @@ def generate_launch_description() -> LaunchDescription:
         description='Whether to run camera with low quality.'
     )
 
-    rear_camera_tf_transform = Node(
+    front_camera_tf_transform = Node(
         package='tf2_ros', executable='static_transform_publisher',
         arguments=['0','0','0','0','0','0',
-                   'camera_link_rear', 'depth_camera_rear_link'],
+                   'camera_link_front', 'depth_camera_front_link'],
     )
 
     return LaunchDescription([
         use_low_quality_parameter,
         OpaqueFunction(function=get_camera_launch),
-        rear_camera_tf_transform,
+        front_camera_tf_transform,
     ])
 
 
@@ -57,7 +57,7 @@ def get_camera_launch(context: LaunchContext) -> List[Action]:
     encoder = stream_encoder(camera_name, use_low_quality)
 
     logs.insert(0, LogInfo(msg=(
-        f'Rear Orbbec ({"low" if use_low_quality else "high"} quality): colour '
+        f'Front Orbbec ({"low" if use_low_quality else "high"} quality): colour '
         f'{params["color_width"]}x{params["color_height"]} {params["color_format"]}, depth '
         f'{params["depth_width"]}x{params["depth_height"]}@{params["depth_fps"]}, topics under '
         f'/{camera_name}; teleop stream on /{camera_name}/color/teleop_stream/ffmpeg')))
@@ -93,7 +93,7 @@ def orbbec_parameters(
     ignored = sorted(set(overrides) - set(params))
     if ignored:
         logs.append(LogInfo(msg=(
-            f'Rear Orbbec: ignoring {", ".join(ignored)} - astra_pro_plus.launch.py does not '
+            f'Front Orbbec: ignoring {", ".join(ignored)} - astra_pro_plus.launch.py does not '
             'declare them, so they never reached the driver')))
     return params
 
@@ -158,7 +158,7 @@ def get_camera_params(use_low_quality: bool) -> Dict[str, str]:
         'enable_decimation_filter': 'true',
         'decimation_filter_scale': '50',
 
-        'color_info_url': f'file://{calibration_folder}/rear_calib_{color_width}_cam_info.yaml',
+        'color_info_url': f'file://{calibration_folder}/front_calib_{color_width}_cam_info.yaml',
 
         # Ignored: with intra-process comms the driver always publishes images reliable, depth
         # 10 (ob_camera_node.cpp replaces the image QoS with rmw_qos_profile_default).

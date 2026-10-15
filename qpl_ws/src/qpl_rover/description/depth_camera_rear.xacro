@@ -49,8 +49,8 @@
   <gazebo reference="camera_link_rear">
     <material>Gazebo/Red</material>
 
-    <!-- Color (visual) camera: full 1080p resolution for AprilTag detection (mirrors
-         the rear Orbbec at 1920x1080). This is the most expensive Gazebo render; if the
+    <!-- Color (visual) camera: full resolution for AprilTag detection (mirrors the
+         rear RealSense max of 1280x800). This is an expensive Gazebo render; if the
          sim can't keep up on a given machine, lowering this resolution (or the
          update_rate) is the first knob to turn. -->
     <sensor name="camera_rear_color" type="camera">
@@ -59,8 +59,7 @@
       <update_rate>10</update_rate>
 
       <camera>
-        <horizontal_fov>1.019272</horizontal_fov>
-        <vertical_fov>2</vertical_fov>
+        <horizontal_fov>1.51844</horizontal_fov>
         <image>
           <format>B8G8R8</format>
           <width>1280</width>
@@ -79,18 +78,17 @@
     </sensor>
 
     <!-- Depth camera: 480p point cloud for the Nav2 voxel layer (mirrors the rear
-         Orbbec depth at 640x480). -->
+         RealSense depth at 848x480). -->
     <sensor name="depth_camera_rear" type="depth">
       <always_on>true</always_on>
       <visualize>true</visualize>
       <update_rate>10</update_rate>
 
       <camera>
-        <horizontal_fov>1.019272</horizontal_fov>
-        <vertical_fov>2</vertical_fov>
+        <horizontal_fov>1.51844</horizontal_fov>
         <image>
           <format>B8G8R8</format>
-          <width>640</width>
+          <width>848</width>
           <height>480</height>
         </image>
         <clip>

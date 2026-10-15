@@ -11,8 +11,8 @@ It's built as a component (`rover_cameras::StreamEncoder`) and as a standalone e
 
 | Camera | Driver | Namespace | Colour |
 |---|---|---|---|
-| Front | Intel RealSense (`realsense2_camera`) | `/depth_camera_front` | 1280x800 @ 30 |
-| Rear | Orbbec Astra Pro Plus (`orbbec_camera`) | `/depth_camera_rear` | 1920x1080 @ 30 |
+| Front | Orbbec Astra Pro Plus (`orbbec_camera`) | `/depth_camera_front` | 1920x1080 @ 30 |
+| Rear | Intel RealSense (`realsense2_camera`) | `/depth_camera_rear` | 1280x800 @ 30 |
 
 ## Running the cameras
 
@@ -38,7 +38,7 @@ overrides them from `LOW_QUALITY_ENCODER` in `launch/launch_utils.py`.
 |---|---|---|---|
 | `bit_rate` | `1300000` | Target bits/s. Two cameras at 1.3 Mbit/s leaves room for telemetry in the 3.6 Mbit/s uplink. | yes |
 | `max_fps` | `15.0` | Frame-rate cap (frames are thinned evenly). `0` = camera rate. | yes |
-| `width`, `height` | `640`/`0` | Output size. `0` keeps the input size, or keeps the aspect ratio if the other is set, so the front is 640x400 and the rear 640x360. Rounded down to even. | reopens encoder |
+| `width`, `height` | `640`/`0` | Output size. `0` keeps the input size, or keeps the aspect ratio if the other is set, so the front is 640x360 and the rear 640x400. Rounded down to even. | reopens encoder |
 | `keyframe_interval` | `0.5` | Seconds between keyframes: the longest a stream takes to recover from a lost frame. | yes |
 | `vbv_buffer_ms` | `200` | Caps how far one frame (mostly keyframes) can overshoot the bit rate, which bounds latency spikes. `0` = off. | yes |
 | `preset` | `superfast` | x264 speed/quality trade-off. Slower presets compress better and cost more CPU. | reopens encoder |
@@ -183,5 +183,5 @@ them rebuild the package, even with `--symlink-install`.
   arguments and defaults, so the driver gets exactly the parameters it did before.
   `enable_decimation_filter` and `decimation_filter_scale` have never been declared there,
   so they don't reach the driver; the launch logs them as ignored.
-- **The Orbbec is calibrated by default in 640x480 resolution**, so no need for `rear_calib_640_cam_info.yaml`
+- **The Orbbec is calibrated by default in 640x480 resolution**, so no need for `front_calib_640_cam_info.yaml`
 - **Targets when retuning,** viewing on the laptop:

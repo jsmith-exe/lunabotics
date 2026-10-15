@@ -24,8 +24,8 @@ ParameterEntry = Union[str, Dict[str, Any]]
 # only - no /compressed - and transport-plugin parameters are ignored.
 INTRA_PROCESS: List[Dict[str, bool]] = [{'use_intra_process_comms': True}]
 
-# Low quality mode already shrinks the colour stream at the driver (424x240x15 front,
-# 640x480 rear), so the encoder keeps that size and spends fewer bits.
+# Low quality mode already shrinks the colour stream at the driver,
+# so the encoder keeps that size and spends fewer bits.
 LOW_QUALITY_ENCODER: Dict[str, Any] = {
     'width': 0, 'height': 0, 'bit_rate': 400000, 'max_fps': 15.0}
 

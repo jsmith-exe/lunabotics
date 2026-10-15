@@ -1,6 +1,7 @@
 """
-RGB-D visual odometry. Runs rtabmap_odom/rgbd_odometry against the front depth
-camera and publishes /vo/odom for the local EKF to fuse as odom1. No TF, no map.
+RGB-D visual odometry. Runs rtabmap_odom/rgbd_odometry against the rear depth
+camera (the RealSense; the Orbbec has no aligned depth) and publishes /vo/odom
+for the local EKF to fuse as odom1. No TF, no map.
 
 Started automatically by qpl_rover and qpl_sim via components.launch.py.
 Pass use_vslam:=false to either to disable it. Standalone:
@@ -20,16 +21,16 @@ from launch_ros.actions import Node
 # Colour and depth must be mutually registered: same resolution, intrinsics and
 # optical frame. Mixing two sensors will sync but produce garbage odometry.
 SIM_TOPICS = {
-    "rgb": "/depth_camera_front_depth/image_raw",
-    "info": "/depth_camera_front_depth/camera_info",
-    "depth": "/depth_camera_front_depth/depth/image_raw",
+    "rgb": "/depth_camera_rear_depth/image_raw",
+    "info": "/depth_camera_rear_depth/camera_info",
+    "depth": "/depth_camera_rear_depth/depth/image_raw",
 }
 
 ROVER_TOPICS = {
     # Requires align_depth.enable in rover_cameras/launch/camera_realsense.launch.py.
-    "rgb": "/depth_camera_front/color/image_raw",
-    "info": "/depth_camera_front/color/camera_info",
-    "depth": "/depth_camera_front/aligned_depth_to_color/image_raw",
+    "rgb": "/depth_camera_rear/color/image_raw",
+    "info": "/depth_camera_rear/color/camera_info",
+    "depth": "/depth_camera_rear/aligned_depth_to_color/image_raw",
 }
 
 
