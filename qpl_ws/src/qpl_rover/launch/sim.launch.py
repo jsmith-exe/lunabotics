@@ -125,9 +125,12 @@ def generate_launch_description():
 
     # tell gazebo where to find the apriltag model so the texture loads on any machine
     models_path = path.join(rover_pkg, "worlds")
+    # and where to find the URDF's package://qpl_rover/... meshes, which Gazebo looks up as
+    # model://qpl_rover/... (the wheel mesh)
+    packages_path = path.dirname(rover_pkg)
     gazebo_model_path = SetEnvironmentVariable(
         'GAZEBO_MODEL_PATH',
-        models_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
+        models_path + ':' + packages_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
     )
 
     rsp = IncludeLaunchDescription(

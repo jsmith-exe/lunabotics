@@ -11,7 +11,8 @@ setup(
     data_files=[
     ("share/ament_index/resource_index/packages", ["resource/qpl_rover"]),
     ("share/qpl_rover", ["package.xml"]),
-    (os.path.join("share",  package_name, "description"), glob("description/*")),
+    (os.path.join("share",  package_name, "description"), [f for f in glob("description/*") if os.path.isfile(f)]),
+    (os.path.join("share",  package_name, "description", "meshes"), glob("description/meshes/*")),
     (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
     (os.path.join("share", package_name, "launch"), glob("launch/components/*.py")),
     (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
