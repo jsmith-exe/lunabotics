@@ -46,8 +46,9 @@ common:
   odom1_queue_size: 10
   odom1_twist_rejection_threshold: 3.0
 
-  # INPUT 3: the "truth" from AprilTags.
-  pose0: /apriltag/pose
+  # INPUT 3: the "truth" from AprilTags, via apriltag_gate (one fix per 5 s
+  # while a Nav2 goal is active, every fix otherwise).
+  pose0: /apriltag/pose_gated
   pose0_config: [true,  true,  false,  # x, y
                  false, false, true,   # yaw
                  false, false, false,
@@ -134,7 +135,7 @@ sim:
   # Yaw rate off; imu0 owns it.
   odom0_config: [false, false, false,
                  false, false, false,
-                 true,  true,  false,
+                 true,  true,  true,   # vx, vy, vz (vz = 0, see my_controllers.yaml)
                  false, false, false,
                  false, false, false]
 
@@ -163,6 +164,6 @@ rover:
   # Yaw rate stays true as a loose fallback behind imu0.
   odom0_config: [false, false, false,
                  false, false, false,
-                 true,  true,  false,
+                 true,  true,  true,   # vx, vy, vz (vz = 0, see my_controllers.yaml)
                  false, false, true,
                  false, false, false]

@@ -208,6 +208,24 @@ Known limits: obstacles lower than the threshold (about 0.16 m close, 0.30 m at 
 
 ---
 
+## Autonomous Navigation
+
+Nav2 runs separately from the rover/sim launch: start it with `qpl_nav`, then send goals from RViz (`2D Goal Pose`) or the `navigate_to_pose` action.
+
+Velocity commands go through the smoother before the drive mux:
+
+```text
+controller_server / behavior_server -> /cmd_vel_nav_raw -> velocity_smoother -> /cmd_vel_nav -> drive_mux -> diff_cont
+```
+
+**Teleop must be disabled in the basestation for Nav2 to drive.** The basestation keeps republishing its last teleop command, zeros included, and teleop has priority over Nav2 in the drive mux.
+
+While a goal is active, `apriltag_gate` passes at most one AprilTag fix every 5 s to the global EKF (`/apriltag/pose` -> `/apriltag/pose_gated`), so the map frame doesn't keep shifting under Nav2. With no goal active every fix passes. Change the period with the gate's `min_period_active` parameter.
+
+Recoveries are set in `behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml`. It is Humble's default tree, except that it never clears the global costmap, so walls already seen are kept.
+
+---
+
 ## Development Notes
 
 When adding functionality to `qpl_rover`:

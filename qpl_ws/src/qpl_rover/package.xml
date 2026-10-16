@@ -23,6 +23,8 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <!-- apriltag_gate reads the navigate_to_pose action status -->
+  <exec_depend>action_msgs</exec_depend>
 
   <!-- Localisation + IMU chain -->
   <exec_depend>tf2_ros</exec_depend>
