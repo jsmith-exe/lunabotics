@@ -1,8 +1,10 @@
+from math import hypot
+
 import rclpy
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
@@ -65,6 +67,15 @@ class AutonomyNode(Node):
         self.declare_parameter("navigation.max_retries", 2)
         self.declare_parameter("navigation.travel_lift_position_m", 0.20)
         self.travel_lift_position_m = self.get_parameter("navigation.travel_lift_position_m").value
+        # Waypoints are approximate: within this distance the sequence starts, whatever the
+        # heading. Nav2 alone kept shuffling on the spot trying to line up exactly.
+        self.declare_parameter("navigation.arrival_radius_m", 0.4)
+        self.arrival_radius_m = self.get_parameter("navigation.arrival_radius_m").value
+
+        # Start AUTO by itself once Nav2 is up and the rover has seen the AprilTag (qpl_auto_sim)
+        self.declare_parameter("autonomy.auto_start", False)
+        self.auto_start_pending = self.get_parameter("autonomy.auto_start").value
+        self.tag_fix_received = False
         self.waypoints = {
             "EXCAVATION": self.get_parameter("navigation.excavation_waypoint").value,
             "DEPOSITION": self.get_parameter("navigation.deposition_waypoint").value,
@@ -92,6 +103,12 @@ class AutonomyNode(Node):
         self.odom_y = None
         self.joint_state_subscription = self.create_subscription(JointState, "/joint_states", self.joint_state_callback, 10)
         self.odom_subscription = self.create_subscription(Odometry, "/diff_cont/odom", self.odom_callback, 10)
+        # Map-frame pose from the global EKF, for the arrival radius
+        self.map_x = None
+        self.map_y = None
+        self.global_pose_subscription = self.create_subscription(Odometry, "/odometry/global", self.global_pose_callback, 10)
+        self.tag_subscription = self.create_subscription(
+            PoseWithCovarianceStamped, "/apriltag/pose_gated", self.tag_callback, 10)
 
         # Sequences
         self.excavation = ExcavationSequence(
@@ -133,6 +150,13 @@ class AutonomyNode(Node):
                 self.left_actuator_position = position
             elif name == "right_linear_actuator_joint":
                 self.right_actuator_position = position
+
+    def global_pose_callback(self, msg):
+        self.map_x = msg.pose.pose.position.x
+        self.map_y = msg.pose.pose.position.y
+
+    def tag_callback(self, msg):
+        self.tag_fix_received = True
 
     def odom_callback(self, msg):
         #Store the latest drivetrain odometry position
@@ -219,6 +243,7 @@ class AutonomyNode(Node):
 
     def handle_stop(self):
         # Stop the active autonomy sequence in its current position
+        self.auto_start_pending = False
         if self.state == "IDLE":
             self.get_logger().info("Autonomy already idle.")
             return
@@ -243,6 +268,9 @@ class AutonomyNode(Node):
         # Update whichever autonomy sequence is currently active
         actuator_positions = (self.left_actuator_position, self.right_actuator_position)
         odom_position = (self.odom_x, self.odom_y)
+
+        if self.auto_start_pending and self.state == "IDLE":
+            self.try_auto_start()
 
         if self.state.startswith("NAVIGATING_TO_"):
             self.update_navigation(self.state.removeprefix("NAVIGATING_TO_"), odom_position)
@@ -272,20 +300,23 @@ class AutonomyNode(Node):
         # Hold the bucket raised so it doesn't plough the regolith on the way.
         self.drum_lift_pub.publish(Float64(data=self.travel_lift_position_m))
         self.navigation.update()
+
+        # Close enough counts, even if Nav2 is still lining up or has given up on the spot
+        distance = self.distance_to_waypoint(target)
+        if distance is not None and distance <= self.arrival_radius_m and (
+                not self.navigation.done or not self.navigation.succeeded):
+            self.navigation.cancel()
+            self.get_logger().info(
+                f"Within {distance:.2f} m of {target.lower()} waypoint. Starting here.")
+            self.start_sequence(target, odom_position)
+            return
+
         if not self.navigation.done:
             return
 
         if self.navigation.succeeded:
             self.get_logger().info(f"Reached {target.lower()} waypoint.")
-            if target == "EXCAVATION":
-                self.state = "EXCAVATING"
-                self.excavation.start()
-                self.get_logger().info("Starting excavation sequence.")
-            else:
-                self.state = "DEPOSITING"
-                # Navigation has already put the rover at the berm
-                self.deposition.start(odom_position=odom_position, drive_to_zone=False)
-                self.get_logger().info("Starting deposition sequence.")
+            self.start_sequence(target, odom_position)
             return
 
         self.nav_retries += 1
@@ -297,6 +328,32 @@ class AutonomyNode(Node):
             self.cmd_vel_pub.publish(Twist())
             self.auto_mode = False
             self.state = "IDLE"
+
+    def distance_to_waypoint(self, target):
+        if self.map_x is None or self.map_y is None:
+            return None
+        x, y, _ = self.waypoints[target]
+        return hypot(self.map_x - x, self.map_y - y)
+
+    def start_sequence(self, target, odom_position):
+        if target == "EXCAVATION":
+            self.state = "EXCAVATING"
+            self.excavation.start()
+            self.get_logger().info("Starting excavation sequence.")
+        else:
+            self.state = "DEPOSITING"
+            # Navigation has already put the rover at the berm
+            self.deposition.start(odom_position=odom_position, drive_to_zone=False)
+            self.get_logger().info("Starting deposition sequence.")
+
+    def try_auto_start(self):
+        # autonomy.auto_start: begin AUTO once, as soon as Nav2 is up and the rover is localised
+        if not self.navigation.is_available() or not self.tag_fix_received:
+            self.get_logger().info(
+                "Auto start: waiting for Nav2 and an AprilTag fix.", throttle_duration_sec=10.0)
+            return
+        self.auto_start_pending = False
+        self.handle_auto()
 
     def shutdown(self):
         # Without this Nav2 keeps driving the last goal after the node dies

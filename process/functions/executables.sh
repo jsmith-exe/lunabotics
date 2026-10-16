@@ -53,6 +53,15 @@ qpl_headless() { # Sim with no GUI
   ros2 launch qpl_rover sim.launch.py "$@" headless:=true
 }
 
+qpl_auto_sim() { # Sim + Nav2 + autonomy; AUTO starts by itself once localised. Stop with qpl_stop
+  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
+    qpl_use_gpu_render
+  fi
+  qpl_print_renderer
+
+  ros2 launch qpl_autonomy auto_sim.launch.py "$@"
+}
+
 qpl_sim_minimal() {
   qpl_use_software_render
   qpl_print_renderer
