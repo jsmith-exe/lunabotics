@@ -17,7 +17,8 @@ class AutonomyNode(Node):
 
     EXCAVATE / DEPOSIT run the blind sequences from where the rover is.
     NAV_EXCAVATE / NAV_DEPOSIT first drive to a map-frame waypoint with Nav2, then run
-    the same sequence. Nav2 is only needed for the NAV_ commands.
+    the same sequence. AUTO repeats NAV_EXCAVATE then NAV_DEPOSIT until STOP.
+    Nav2 is only needed for the NAV_ commands and AUTO.
     """
 
     def __init__(self):
@@ -27,50 +28,39 @@ class AutonomyNode(Node):
         self.declare_parameter("autonomy.update_rate_hz", 5.0)
         update_rate_hz = self.get_parameter("autonomy.update_rate_hz").value
 
-        self.declare_parameter("excavation.drive_speed", 0.2)
-        self.declare_parameter("excavation.drive_distance_m", 1.0)
         self.declare_parameter("excavation.drum_spin_speed", 0.8)
         self.declare_parameter("excavation.drum_spin_direction", 1.0)
-        self.declare_parameter("excavation.contact_position_m", 0.01)
-        self.declare_parameter("excavation.max_excavation_position_m", 0.20)
-        self.declare_parameter("excavation.raised_position_m", 0.00)
+        self.declare_parameter("excavation.lowered_position_m", 0.03)
+        self.declare_parameter("excavation.raised_position_m", 0.20)
         self.declare_parameter("excavation.position_tolerance_m", 0.005)
         excavation_config = {
-            "drive_speed": self.get_parameter("excavation.drive_speed").value,
-            "drive_distance_m": self.get_parameter("excavation.drive_distance_m").value,
             "drum_spin_speed": self.get_parameter("excavation.drum_spin_speed").value,
             "drum_spin_direction": self.get_parameter("excavation.drum_spin_direction").value,
-            "contact_position_m": self.get_parameter("excavation.contact_position_m").value,
-            "max_excavation_position_m": self.get_parameter("excavation.max_excavation_position_m").value,
+            "lowered_position_m": self.get_parameter("excavation.lowered_position_m").value,
             "raised_position_m": self.get_parameter("excavation.raised_position_m").value,
             "position_tolerance_m": self.get_parameter("excavation.position_tolerance_m").value,
         }
 
         self.declare_parameter("deposition.drive_to_zone_speed", 0.2)
         self.declare_parameter("deposition.drive_to_zone_distance_m", 1.5)
-        self.declare_parameter("deposition.deposit_drive_speed", 0.1)
-        self.declare_parameter("deposition.deposit_drive_distance_m", 2.0)
-        self.declare_parameter("deposition.max_height_position_m", 0.20)
-        self.declare_parameter("deposition.normal_height_position_m", 0.00,)
+        self.declare_parameter("deposition.raised_position_m", 0.20)
+        self.declare_parameter("deposition.dump_duration_s", 10.0)
         self.declare_parameter("deposition.drum_spin_speed", 0.4)
-        self.declare_parameter("deposition.drum_spin_direction", 1.0)
+        self.declare_parameter("deposition.drum_spin_direction", -1.0)
         self.declare_parameter("deposition.position_tolerance_m", 0.005)
         deposition_config = {
             "drive_to_zone_speed": self.get_parameter("deposition.drive_to_zone_speed").value,
             "drive_to_zone_distance_m": self.get_parameter("deposition.drive_to_zone_distance_m").value,
-            "deposit_drive_speed": self.get_parameter("deposition.deposit_drive_speed").value,
-            "deposit_drive_distance_m": self.get_parameter("deposition.deposit_drive_distance_m").value,
-            "max_height_position_m": self.get_parameter("deposition.max_height_position_m").value,
-            "normal_height_position_m": self.get_parameter("deposition.normal_height_position_m").value,
+            "raised_position_m": self.get_parameter("deposition.raised_position_m").value,
+            "dump_duration_s": self.get_parameter("deposition.dump_duration_s").value,
             "drum_spin_speed": self.get_parameter("deposition.drum_spin_speed").value,
             "drum_spin_direction": self.get_parameter("deposition.drum_spin_direction").value,
             "position_tolerance_m": self.get_parameter("deposition.position_tolerance_m").value,
         }
 
-        # Waypoints, map frame: [x, y, yaw]. Each is where its sequence starts, facing the
-        # direction it drives in.
+        # Waypoints, map frame: [x, y, yaw]. The rover stands still at each one to dig or dump.
         self.declare_parameter("navigation.excavation_waypoint", [6.0, 1.5, 0.0])
-        self.declare_parameter("navigation.deposition_waypoint", [8.14, 4.9, 1.5708])
+        self.declare_parameter("navigation.deposition_waypoint", [8.14, 6.40, 1.5708])
         self.declare_parameter("navigation.goal_timeout_s", 180.0)
         self.declare_parameter("navigation.max_retries", 2)
         self.waypoints = {
@@ -83,6 +73,10 @@ class AutonomyNode(Node):
 
         # Top-level autonomy state
         self.state = "IDLE"
+
+        # AUTO: after each sequence completes, navigate to the other zone instead of idling
+        self.auto_mode = False
+        self.auto_cycle = 0
 
         # Command publishers
         self.cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel_nav", 10)
@@ -127,7 +121,7 @@ class AutonomyNode(Node):
 
         self.get_logger().info("Autonomy started.")
         self.get_logger().info("State: IDLE")
-        self.get_logger().info("Waiting for EXCAVATE, DEPOSIT, NAV_EXCAVATE, NAV_DEPOSIT, or STOP command.")
+        self.get_logger().info("Waiting for EXCAVATE, DEPOSIT, NAV_EXCAVATE, NAV_DEPOSIT, AUTO, or STOP command.")
 
     """Feedback callbacks"""
     def joint_state_callback(self, msg):
@@ -157,6 +151,8 @@ class AutonomyNode(Node):
             self.handle_navigate("EXCAVATION")
         elif command == "NAV_DEPOSIT":
             self.handle_navigate("DEPOSITION")
+        elif command == "AUTO":
+            self.handle_auto()
         elif command == "STOP":
             self.handle_stop()
         else:
@@ -169,7 +165,7 @@ class AutonomyNode(Node):
             return
 
         self.state = "EXCAVATING"
-        self.excavation.start(odom_position=(self.odom_x, self.odom_y))
+        self.excavation.start()
 
         self.get_logger().info("Starting excavation sequence.")
 
@@ -193,6 +189,23 @@ class AutonomyNode(Node):
             self.get_logger().error("Nav2 is not running (start it with qpl_nav). Not starting.")
             return
 
+        self.start_navigation(target)
+
+    def handle_auto(self):
+        # Loop excavation and deposition at their waypoints until STOP
+        if self.state != "IDLE":
+            self.get_logger().warning(f"Cannot start AUTO while in state: {self.state}")
+            return
+        if not self.navigation.is_available():
+            self.get_logger().error("Nav2 is not running (start it with qpl_nav). Not starting.")
+            return
+
+        self.auto_mode = True
+        self.auto_cycle = 1
+        self.get_logger().info("AUTO started. Cycle 1.")
+        self.start_navigation("EXCAVATION")
+
+    def start_navigation(self, target):
         self.state = f"NAVIGATING_TO_{target}"
         self.nav_retries = 0
         self.send_navigation_goal(target)
@@ -209,6 +222,7 @@ class AutonomyNode(Node):
             return
 
         self.get_logger().info(f"Stopping autonomy from state: {self.state}")
+        self.auto_mode = False
         actuator_positions=(self.left_actuator_position, self.right_actuator_position)
 
         if self.state == "EXCAVATING":
@@ -231,15 +245,25 @@ class AutonomyNode(Node):
         if self.state.startswith("NAVIGATING_TO_"):
             self.update_navigation(self.state.removeprefix("NAVIGATING_TO_"), odom_position)
         elif self.state == "EXCAVATING":
-            self.excavation.update(actuator_positions=actuator_positions, odom_position=odom_position)
+            self.excavation.update(actuator_positions=actuator_positions)
             if self.excavation.is_complete():
-                self.state = "IDLE"
-                self.get_logger().info("Excavation complete. State: IDLE")
+                if self.auto_mode:
+                    self.get_logger().info("Excavation complete.")
+                    self.start_navigation("DEPOSITION")
+                else:
+                    self.state = "IDLE"
+                    self.get_logger().info("Excavation complete. State: IDLE")
         elif self.state == "DEPOSITING":
-            self.deposition.update(actuator_positions=actuator_positions, odom_position=odom_position)
+            now_s = self.get_clock().now().nanoseconds / 1e9
+            self.deposition.update(actuator_positions=actuator_positions, odom_position=odom_position, now_s=now_s)
             if self.deposition.is_complete():
-                self.state = "IDLE"
-                self.get_logger().info("Deposition complete. State: IDLE")
+                if self.auto_mode:
+                    self.auto_cycle += 1
+                    self.get_logger().info(f"Deposition complete. AUTO cycle {self.auto_cycle}.")
+                    self.start_navigation("EXCAVATION")
+                else:
+                    self.state = "IDLE"
+                    self.get_logger().info("Deposition complete. State: IDLE")
 
     def update_navigation(self, target, odom_position):
         # Wait for Nav2 to reach the waypoint, retrying a failed goal before giving up
@@ -251,11 +275,11 @@ class AutonomyNode(Node):
             self.get_logger().info(f"Reached {target.lower()} waypoint.")
             if target == "EXCAVATION":
                 self.state = "EXCAVATING"
-                self.excavation.start(odom_position=odom_position)
+                self.excavation.start()
                 self.get_logger().info("Starting excavation sequence.")
             else:
                 self.state = "DEPOSITING"
-                # Navigation has already put the rover at the deposit start
+                # Navigation has already put the rover at the berm
                 self.deposition.start(odom_position=odom_position, drive_to_zone=False)
                 self.get_logger().info("Starting deposition sequence.")
             return
@@ -267,6 +291,7 @@ class AutonomyNode(Node):
         else:
             self.get_logger().error("Navigation failed after retries. State: IDLE")
             self.cmd_vel_pub.publish(Twist())
+            self.auto_mode = False
             self.state = "IDLE"
 
     def shutdown(self):
