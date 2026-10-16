@@ -108,13 +108,17 @@ class TeleopWindow:
         self.autonomy_section = CollapsibleSection(self.root, "Autonomy")
 
         buttons = {}
-        for text, command in (("Excavate", "EXCAVATE"), ("Deposit", "DEPOSIT"), ("Stop", "STOP")):
-            buttons[command] = ttk.Button(self.autonomy_section.content, text=text, width=10,
+        # Nav versions drive to the zone's waypoint with Nav2 first; Auto loops both until Stop
+        for text, command in (("Excavate", "EXCAVATE"), ("Deposit", "DEPOSIT"),
+                              ("Nav Excavate", "NAV_EXCAVATE"), ("Nav Deposit", "NAV_DEPOSIT"), ("Auto", "AUTO"),
+                              ("Stop", "STOP")):
+            buttons[command] = ttk.Button(self.autonomy_section.content, text=text, width=12,
                                           command=lambda command=command: self.autonomy_command_function(command))
             buttons[command].pack(side="left", padx=5 * UI_SCALE)
 
         # Autonomy can only be started while teleop is disabled; Stop is always available.
-        self.autonomy_start_buttons = [buttons["EXCAVATE"], buttons["DEPOSIT"]]
+        self.autonomy_start_buttons = [buttons["EXCAVATE"], buttons["DEPOSIT"],
+                                       buttons["NAV_EXCAVATE"], buttons["NAV_DEPOSIT"], buttons["AUTO"]]
 
     def enable(self):
         self.base_station_state.teleop_enabled = True

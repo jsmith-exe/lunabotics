@@ -39,10 +39,11 @@ def generate_launch_description():
         'velocity_smoother',
     ]
 
+    # Controller and recoveries -> /cmd_vel_nav_raw -> velocity_smoother -> /cmd_vel_nav -> drive mux
     common_remappings = [
         ('/tf', 'tf'),
         ('/tf_static', 'tf_static'),
-        ('/cmd_vel', '/cmd_vel_nav'),
+        ('/cmd_vel', '/cmd_vel_nav_raw'),
     ]
 
     return LaunchDescription([
@@ -69,9 +70,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'default_bt_xml_filename',
             default_value=os.path.join(
-                get_package_share_directory('nav2_bt_navigator'),
+                bringup_dir,
                 'behavior_trees',
-                'navigate_w_replanning_and_recovery.xml'
+                'navigate_to_pose_w_replanning_and_recovery.xml'
             ),
             description='Full path to the behavior tree xml file to use'
         ),
@@ -120,7 +121,8 @@ def generate_launch_description():
             parameters=[
                 params_file,
                 {'use_sim_time': use_sim_time},
-                {'default_bt_xml_filename': default_bt_xml_filename},
+                # Humble's name for it; default_bt_xml_filename was Foxy's and is ignored.
+                {'default_nav_to_pose_bt_xml': default_bt_xml_filename},
             ],
             remappings=common_remappings,
         ),
@@ -149,8 +151,8 @@ def generate_launch_description():
             remappings=[
                 ('/tf', 'tf'),
                 ('/tf_static', 'tf_static'),
-                ('cmd_vel', 'cmd_vel_nav'),
-                ('cmd_vel_smoothed', 'cmd_vel'),
+                ('cmd_vel', 'cmd_vel_nav_raw'),
+                ('cmd_vel_smoothed', 'cmd_vel_nav'),
             ],
         ),
 

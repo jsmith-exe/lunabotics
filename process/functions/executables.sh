@@ -21,6 +21,12 @@ alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py' # alias for bli
 alias qpl_excavate='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'EXCAVATE'\"'\"'}"'
 alias qpl_deposit='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'DEPOSIT'\"'\"'}"'
 alias qpl_stop='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
+# Drive to the zone's waypoint with Nav2 first (needs qpl_nav running), then excavate/deposit
+alias qpl_nav_excavate='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_EXCAVATE'\"'\"'}"'
+alias qpl_nav_deposit='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_DEPOSIT'\"'\"'}"'
+# Full autonomy: loops nav to excavation zone, dig, nav to berm, dump, until qpl_stop
+alias qpl_auto='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
+alias qpl_auto_sim='ros2 launch qpl_autonomy autonomy.launch.py use_sim_time:=true auto_start:=true' # sim: start autonomy and begin AUTO once qpl_nav is up and the tag is seen
 
 # Legacy - to be removed
 #alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'

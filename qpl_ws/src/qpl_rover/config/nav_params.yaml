@@ -55,14 +55,19 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.15
-      movement_time_allowance: 8.0
+      # Turning in place counts as no progress, and the skid-steer only turns at about
+      # 0.8x the commanded rate, so a 180 deg turn at max_vel_theta takes ~10 s.
+      # 8.0 aborted turns partway through.
+      movement_time_allowance: 30.0
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       stateful: true
       # TOLERANCE NOTE: If robot oscillates at the goal, increase these slightly.
       xy_goal_tolerance: 0.20 # Tighten slightly if precision is needed, match with DWB
-      yaw_goal_tolerance: 0.20
+      # 0.20 -> 0.5 (~30 deg): the skid-steer can't make small precise turns, so it kept
+      # shuffling on the goal trying to line up.
+      yaw_goal_tolerance: 0.5
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
@@ -70,7 +75,10 @@ controller_server:
 
       ### VELOCITY LIMITS (Slowing it down) ##
       max_vel_x: 0.20       # Cut down from 0.4. Max forward speed is now 20 cm/s
-      min_vel_x: 0.0        # Allowed to stop if needed
+      # Reverse at half forward speed. With 0.0 DWB never considered reversing, so a
+      # dead end could only be escaped by the BackUp recovery. The rear camera feeds
+      # the costmap, so it can see what's behind.
+      min_vel_x: -0.10
 
       max_vel_y: 0.0        # Keep at 0.0 since rover is non-holonomic (differential)
       min_vel_y: 0.0
@@ -91,10 +99,12 @@ controller_server:
       decel_lim_theta: -0.8 # Down from -1.5
 
       # Trajectory Sampling - Reduce if CPU utilization spikes:
-      vx_samples: 10
+      vx_samples: 12 # 10 -> 12 to keep resolution over the wider [-0.10, 0.20] range
       vy_samples: 1 # Keep at 1 for differential drive (no strafing)
       vtheta_samples: 12
-      sim_time: 1.5 # How many seconds into the future the planner simulates
+      # How many seconds into the future the planner simulates. 1.5 s is only 0.3 m at
+      # 0.2 m/s, too short to find a way around an obstacle, so DWB dithered in place.
+      sim_time: 3.0
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.5
@@ -106,17 +116,28 @@ controller_server:
       # CRITIC TUNING NOTES:
       # High PathAlign/PathDist = strictly stays on global path.
       # High GoalAlign/GoalDist = rushes toward the goal shortcutting the path.
-      # High BaseObstacle = prioritizes safety around obstacles.
+      # High ObstacleFootprint = keeps further from obstacles (collisions are rejected regardless).
+      #
+      # ObstacleFootprint, not BaseObstacle: BaseObstacle only scores the cell under the
+      # rover's centre, so with the rectangular footprint DWB would drive a corner into a
+      # wall while the centre was still in free space.
       critics:
         - RotateToGoal
         - Oscillation
-        - BaseObstacle
+        - ObstacleFootprint
         - GoalAlign
         - PathAlign
         - PathDist
         - GoalDist
-      BaseObstacle.scale: 25.0
-      PathAlign.scale: 5.0
+      # 0.05, not 25: any trajectory with part of the footprint within the 0.53 m inscribed
+      # band of a wall scores 253 * scale. At 25 that outweighed every other critic, so the
+      # rover wouldn't bring any edge within ~0.6 m of a wall and stalled short of goals near
+      # them. Contact is still blocked: a footprint touching a lethal cell is rejected
+      # outright whatever the scale. Nav2's default for this critic is 0.02.
+      ObstacleFootprint.scale: 0.05
+      # 5.0 -> 2.0: when localisation error puts the path over an obstacle, a strong
+      # PathAlign fights ObstacleFootprint and the rover dithers instead of going round.
+      PathAlign.scale: 2.0
       PathAlign.forward_point_distance: 0.10
       GoalAlign.scale: 5.0
       GoalAlign.forward_point_distance: 0.10
@@ -125,6 +146,12 @@ controller_server:
       RotateToGoal.scale: 20.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
+
+      # Reverse makes forward/back dithering possible. The time reset matters most: a
+      # boxed-in rover can't travel the reset distance, so it would stay latched.
+      Oscillation.oscillation_reset_dist: 0.05
+      Oscillation.oscillation_reset_angle: 0.2
+      Oscillation.oscillation_reset_time: 3.0
 
 # OBSTACLE NOTE (both costmaps):
 # The depth clouds go through depth_obstacle_filter first (config/depth_obstacle_filter.yaml),
@@ -207,12 +234,16 @@ local_costmap:
         # COST SCALING NOTE:
         # Lower = smoother/wider turns around corners.
         # Higher = tight, aggressive turns (closer to walls).
-        cost_scaling_factor: 3.0
+        # 3.0 -> 8.0: cost now falls off quickly past the rover's half-width, so paths can
+        # run close to walls. 3.0 kept the rover too far off them to reach the excavation
+        # zone along the south wall. Contact is still prevented by the footprint check.
+        cost_scaling_factor: 8.0
 
         # INFLATION RADIUS NOTE:
         # Must be > the footprint's inscribed radius (0.53). The planner treats the rover
         # as a point, so this is what keeps its paths off the walls.
-        inflation_radius: 0.75
+        # 0.75 -> 0.60: about 7 cm of soft margin beyond the rover's sides.
+        inflation_radius: 0.60
 
   local_costmap_client:
     ros__parameters:
@@ -294,8 +325,8 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.75
+        cost_scaling_factor: 8.0 # keep in step with local_costmap
+        inflation_radius: 0.60
 
   global_costmap_client:
     ros__parameters:
@@ -328,20 +359,23 @@ behavior_server:
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
     behavior_plugins: ["spin", "backup", "wait"]
+    # Spin/BackUp distances, speeds and timeouts are set by the behavior tree
+    # (behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml), not here.
     spin:
       plugin: "nav2_behaviors/Spin"
-      spin_dist: 3.14 # Distance to spin in radians (180 degrees to fully clear/sweep camera views)
-      time_allowance: 10.0 # Max time allowed to complete execution before timing out
-      max_rotational_vel: 0.4 # Target angular speed
     backup:
       plugin: "nav2_behaviors/BackUp"
-      backup_dist: 0.30 # Distance to reverse in meters
-      time_allowance: 4.0
-      speed: 0.10 # Target linear speed (m/s) for backing up
     wait:
       plugin: "nav2_behaviors/Wait"
-      time_allowance: 0.5 # Minimal wait; just a brief pause to let the controllers reset
-    global_frame: map
+    # Spin's speed limits are read at this level on Humble; under spin: they were
+    # ignored and recovery spins ran at the 1.0 rad/s default. Matches DWB.
+    max_rotational_vel: 0.4
+    min_rotational_vel: 0.2
+    rotational_acc_lim: 0.8
+    # Must be odom: Spin/BackUp collision-check against the local costmap, which is in
+    # odom. With map they failed with "off grid" as soon as map -> odom had any
+    # correction in it, i.e. exactly when the rover needed a recovery.
+    global_frame: odom
     robot_base_frame: base_footprint
     transform_tolerance: 0.5
 
@@ -368,7 +402,9 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
     # SMOOTHER NOTE: Limits must be >= DWB Local Planner limits to prevent choking commands
     max_velocity: [0.8, 0.0, 0.8]
-    min_velocity: [0.0, 0.0, -0.8]
+    # Wired in series by navigation_launch.py: /cmd_vel_nav_raw in, /cmd_vel_nav out.
+    # x must allow DWB's reverse (min_vel_x).
+    min_velocity: [-0.10, 0.0, -0.8]
     max_accel: [1.0, 0.0, 2.0]
     max_decel: [-1.0, 0.0, -2.0]
     odom_topic: /odometry/filtered
