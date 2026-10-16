@@ -37,3 +37,4 @@ autonomy:
     navigation.deposition_waypoint: [8.14, 6.40, 1.5708] # berm centre (x 7.69-8.59, y 5.30-7.50), drum over the berm, facing along it
     navigation.goal_timeout_s: 180.0
     navigation.max_retries: 2 # Failed goals re-sent before giving up
+    navigation.travel_lift_position_m: 0.20 # Bucket held here while navigating, so it doesn't plough the regolith

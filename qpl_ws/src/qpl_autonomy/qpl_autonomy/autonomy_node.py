@@ -63,6 +63,8 @@ class AutonomyNode(Node):
         self.declare_parameter("navigation.deposition_waypoint", [8.14, 6.40, 1.5708])
         self.declare_parameter("navigation.goal_timeout_s", 180.0)
         self.declare_parameter("navigation.max_retries", 2)
+        self.declare_parameter("navigation.travel_lift_position_m", 0.20)
+        self.travel_lift_position_m = self.get_parameter("navigation.travel_lift_position_m").value
         self.waypoints = {
             "EXCAVATION": self.get_parameter("navigation.excavation_waypoint").value,
             "DEPOSITION": self.get_parameter("navigation.deposition_waypoint").value,
@@ -266,7 +268,9 @@ class AutonomyNode(Node):
                     self.get_logger().info("Deposition complete. State: IDLE")
 
     def update_navigation(self, target, odom_position):
-        # Wait for Nav2 to reach the waypoint, retrying a failed goal before giving up
+        # Wait for Nav2 to reach the waypoint, retrying a failed goal before giving up.
+        # Hold the bucket raised so it doesn't plough the regolith on the way.
+        self.drum_lift_pub.publish(Float64(data=self.travel_lift_position_m))
         self.navigation.update()
         if not self.navigation.done:
             return
