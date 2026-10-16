@@ -46,10 +46,14 @@ class DepositionSequence:
         self.start_y = None
 
     """Sequence lifecycle"""
-    def start(self, odom_position):
-        # Start a new deposition sequence
+    def start(self, odom_position, drive_to_zone=True):
+        # Start a new deposition sequence. drive_to_zone=False skips the blind drive in,
+        # for when navigation has already put the rover at the deposit start.
         self.complete = False
-        self.state = DepositionState.DRIVE_TO_CONSTRUCTION_ZONE
+        self.state = (
+            DepositionState.DRIVE_TO_CONSTRUCTION_ZONE if drive_to_zone
+            else DepositionState.LIFT_BUCKET
+        )
         self.start_x = None
         self.start_y = None
         if odom_position[0] is not None and odom_position[1] is not None:

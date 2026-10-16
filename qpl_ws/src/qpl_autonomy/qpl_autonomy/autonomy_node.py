@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.signals import SignalHandlerOptions
 
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -8,10 +9,16 @@ from std_msgs.msg import Float64, String
 
 from qpl_autonomy.excavation import ExcavationSequence
 from qpl_autonomy.deposition import DepositionSequence
+from qpl_autonomy.navigation import Navigation
 
 
 class AutonomyNode(Node):
-    """Main controller for blind autonomy for US competition."""
+    """Main controller for autonomy for US competition.
+
+    EXCAVATE / DEPOSIT run the blind sequences from where the rover is.
+    NAV_EXCAVATE / NAV_DEPOSIT first drive to a map-frame waypoint with Nav2, then run
+    the same sequence. Nav2 is only needed for the NAV_ commands.
+    """
 
     def __init__(self):
         super().__init__("autonomy")
@@ -60,6 +67,20 @@ class AutonomyNode(Node):
             "position_tolerance_m": self.get_parameter("deposition.position_tolerance_m").value,
         }
 
+        # Waypoints, map frame: [x, y, yaw]. Each is where its sequence starts, facing the
+        # direction it drives in.
+        self.declare_parameter("navigation.excavation_waypoint", [6.0, 1.5, 0.0])
+        self.declare_parameter("navigation.deposition_waypoint", [8.14, 4.9, 1.5708])
+        self.declare_parameter("navigation.goal_timeout_s", 180.0)
+        self.declare_parameter("navigation.max_retries", 2)
+        self.waypoints = {
+            "EXCAVATION": self.get_parameter("navigation.excavation_waypoint").value,
+            "DEPOSITION": self.get_parameter("navigation.deposition_waypoint").value,
+        }
+        self.max_nav_retries = self.get_parameter("navigation.max_retries").value
+        self.nav_retries = 0
+        self.navigation = Navigation(self, self.get_parameter("navigation.goal_timeout_s").value)
+
         # Top-level autonomy state
         self.state = "IDLE"
 
@@ -106,7 +127,7 @@ class AutonomyNode(Node):
 
         self.get_logger().info("Autonomy started.")
         self.get_logger().info("State: IDLE")
-        self.get_logger().info("Waiting for EXCAVATE, DEPOSIT, or STOP command.")
+        self.get_logger().info("Waiting for EXCAVATE, DEPOSIT, NAV_EXCAVATE, NAV_DEPOSIT, or STOP command.")
 
     """Feedback callbacks"""
     def joint_state_callback(self, msg):
@@ -132,6 +153,10 @@ class AutonomyNode(Node):
             self.handle_excavate()
         elif command == "DEPOSIT":
             self.handle_deposit()
+        elif command == "NAV_EXCAVATE":
+            self.handle_navigate("EXCAVATION")
+        elif command == "NAV_DEPOSIT":
+            self.handle_navigate("DEPOSITION")
         elif command == "STOP":
             self.handle_stop()
         else:
@@ -159,6 +184,24 @@ class AutonomyNode(Node):
 
         self.get_logger().info("Starting deposition sequence.")
 
+    def handle_navigate(self, target):
+        # Drive to the target's waypoint with Nav2, then start its sequence
+        if self.state != "IDLE":
+            self.get_logger().warning(f"Cannot start navigation while in state: {self.state}")
+            return
+        if not self.navigation.is_available():
+            self.get_logger().error("Nav2 is not running (start it with qpl_nav). Not starting.")
+            return
+
+        self.state = f"NAVIGATING_TO_{target}"
+        self.nav_retries = 0
+        self.send_navigation_goal(target)
+
+    def send_navigation_goal(self, target):
+        x, y, yaw = self.waypoints[target]
+        self.get_logger().info(f"Navigating to {target.lower()} waypoint ({x:.2f}, {y:.2f}, yaw {yaw:.2f}).")
+        self.navigation.navigate_to(x, y, yaw)
+
     def handle_stop(self):
         # Stop the active autonomy sequence in its current position
         if self.state == "IDLE":
@@ -172,6 +215,9 @@ class AutonomyNode(Node):
             self.excavation.stop(actuator_positions)
         elif self.state == "DEPOSITING":
             self.deposition.stop(actuator_positions)
+        elif self.state.startswith("NAVIGATING_TO_"):
+            # Nav2 keeps driving its goal unless it's cancelled
+            self.navigation.cancel()
 
         self.state = "IDLE"
         self.get_logger().info("Autonomy stopped. State: IDLE")
@@ -182,7 +228,9 @@ class AutonomyNode(Node):
         actuator_positions = (self.left_actuator_position, self.right_actuator_position)
         odom_position = (self.odom_x, self.odom_y)
 
-        if self.state == "EXCAVATING":
+        if self.state.startswith("NAVIGATING_TO_"):
+            self.update_navigation(self.state.removeprefix("NAVIGATING_TO_"), odom_position)
+        elif self.state == "EXCAVATING":
             self.excavation.update(actuator_positions=actuator_positions, odom_position=odom_position)
             if self.excavation.is_complete():
                 self.state = "IDLE"
@@ -193,9 +241,44 @@ class AutonomyNode(Node):
                 self.state = "IDLE"
                 self.get_logger().info("Deposition complete. State: IDLE")
 
+    def update_navigation(self, target, odom_position):
+        # Wait for Nav2 to reach the waypoint, retrying a failed goal before giving up
+        self.navigation.update()
+        if not self.navigation.done:
+            return
+
+        if self.navigation.succeeded:
+            self.get_logger().info(f"Reached {target.lower()} waypoint.")
+            if target == "EXCAVATION":
+                self.state = "EXCAVATING"
+                self.excavation.start(odom_position=odom_position)
+                self.get_logger().info("Starting excavation sequence.")
+            else:
+                self.state = "DEPOSITING"
+                # Navigation has already put the rover at the deposit start
+                self.deposition.start(odom_position=odom_position, drive_to_zone=False)
+                self.get_logger().info("Starting deposition sequence.")
+            return
+
+        self.nav_retries += 1
+        if self.nav_retries <= self.max_nav_retries:
+            self.get_logger().warning(f"Navigation failed. Retry {self.nav_retries}/{self.max_nav_retries}.")
+            self.send_navigation_goal(target)
+        else:
+            self.get_logger().error("Navigation failed after retries. State: IDLE")
+            self.cmd_vel_pub.publish(Twist())
+            self.state = "IDLE"
+
+    def shutdown(self):
+        # Without this Nav2 keeps driving the last goal after the node dies
+        if self.state.startswith("NAVIGATING_TO_"):
+            self.get_logger().info("Shutting down. Cancelling navigation goal.")
+            self.navigation.cancel()
+
 
 def main(args=None):
-    rclpy.init(args=args)
+    # Python's own Ctrl-C handling, so the context is still up to send the Nav2 cancel
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
 
     node = AutonomyNode()
 
@@ -206,8 +289,11 @@ def main(args=None):
         pass
 
     finally:
+        node.shutdown()
+        # Flush the cancel request before the node goes away
+        rclpy.spin_once(node, timeout_sec=0.5)
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

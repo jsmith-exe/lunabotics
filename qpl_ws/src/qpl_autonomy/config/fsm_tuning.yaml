@@ -32,3 +32,12 @@ autonomy:
     # drum bucket
     deposition.drum_spin_speed: 0.4
     deposition.drum_spin_direction: 1.0
+
+    # NAVIGATION (NAV_EXCAVATE / NAV_DEPOSIT only)
+    # Map frame [x, y, yaw], US arena: origin at the arena's SW interior corner, the
+    # AprilTag wall is y = 0. Each waypoint is where its sequence starts, facing the way
+    # it then drives, so leave room ahead for drive_distance_m / deposit_drive_distance_m.
+    navigation.excavation_waypoint: [6.0, 1.5, 0.0] # excavation zone (y 0-3), clear of the start zone, digs towards +x
+    navigation.deposition_waypoint: [8.14, 4.9, 1.5708] # just south of the berm (x 7.69-8.59, y 5.30-7.50), deposits towards +y. Further north and the 2 m deposit drive reaches the north wall (y 8.10)
+    navigation.goal_timeout_s: 180.0
+    navigation.max_retries: 2 # Failed goals re-sent before giving up
