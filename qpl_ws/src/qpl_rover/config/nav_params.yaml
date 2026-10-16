@@ -114,7 +114,7 @@ controller_server:
       # CRITIC TUNING NOTES:
       # High PathAlign/PathDist = strictly stays on global path.
       # High GoalAlign/GoalDist = rushes toward the goal shortcutting the path.
-      # High ObstacleFootprint = prioritizes safety around obstacles.
+      # High ObstacleFootprint = keeps further from obstacles (collisions are rejected regardless).
       #
       # ObstacleFootprint, not BaseObstacle: BaseObstacle only scores the cell under the
       # rover's centre, so with the rectangular footprint DWB would drive a corner into a
@@ -127,7 +127,12 @@ controller_server:
         - PathAlign
         - PathDist
         - GoalDist
-      ObstacleFootprint.scale: 25.0
+      # 0.05, not 25: any trajectory with part of the footprint within the 0.53 m inscribed
+      # band of a wall scores 253 * scale. At 25 that outweighed every other critic, so the
+      # rover wouldn't bring any edge within ~0.6 m of a wall and stalled short of goals near
+      # them. Contact is still blocked: a footprint touching a lethal cell is rejected
+      # outright whatever the scale. Nav2's default for this critic is 0.02.
+      ObstacleFootprint.scale: 0.05
       # 5.0 -> 2.0: when localisation error puts the path over an obstacle, a strong
       # PathAlign fights ObstacleFootprint and the rover dithers instead of going round.
       PathAlign.scale: 2.0
@@ -227,12 +232,16 @@ local_costmap:
         # COST SCALING NOTE:
         # Lower = smoother/wider turns around corners.
         # Higher = tight, aggressive turns (closer to walls).
-        cost_scaling_factor: 3.0
+        # 3.0 -> 8.0: cost now falls off quickly past the rover's half-width, so paths can
+        # run close to walls. 3.0 kept the rover too far off them to reach the excavation
+        # zone along the south wall. Contact is still prevented by the footprint check.
+        cost_scaling_factor: 8.0
 
         # INFLATION RADIUS NOTE:
         # Must be > the footprint's inscribed radius (0.53). The planner treats the rover
         # as a point, so this is what keeps its paths off the walls.
-        inflation_radius: 0.75
+        # 0.75 -> 0.60: about 7 cm of soft margin beyond the rover's sides.
+        inflation_radius: 0.60
 
   local_costmap_client:
     ros__parameters:
@@ -314,8 +323,8 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.75
+        cost_scaling_factor: 8.0 # keep in step with local_costmap
+        inflation_radius: 0.60
 
   global_costmap_client:
     ros__parameters:
