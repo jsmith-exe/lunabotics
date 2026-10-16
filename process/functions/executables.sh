@@ -26,6 +26,7 @@ alias qpl_nav_excavate='ros2 topic pub --once /autonomy/command std_msgs/msg/Str
 alias qpl_nav_deposit='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_DEPOSIT'\"'\"'}"'
 # Full autonomy: loops nav to excavation zone, dig, nav to berm, dump, until qpl_stop
 alias qpl_auto='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
+alias qpl_auto_sim='ros2 launch qpl_autonomy autonomy.launch.py use_sim_time:=true auto_start:=true' # sim: start autonomy and begin AUTO once qpl_nav is up and the tag is seen
 
 # Legacy - to be removed
 #alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'
@@ -51,15 +52,6 @@ qpl_headless() { # Sim with no GUI
   qpl_print_renderer
 
   ros2 launch qpl_rover sim.launch.py "$@" headless:=true
-}
-
-qpl_auto_sim() { # Sim + Nav2 + autonomy; AUTO starts by itself once localised. Stop with qpl_stop
-  if [ -z "${LIBGL_ALWAYS_SOFTWARE}" ]; then
-    qpl_use_gpu_render
-  fi
-  qpl_print_renderer
-
-  ros2 launch qpl_autonomy auto_sim.launch.py "$@"
 }
 
 qpl_sim_minimal() {

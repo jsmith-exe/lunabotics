@@ -123,13 +123,6 @@ def generate_launch_description():
         description='Run RGB-D visual odometry and fuse it into the local EKF as odom1. Set false to disable.'
     )
 
-    # Spawn pose in the arena (map) frame
-    spawn_parameters = [
-        DeclareLaunchArgument('spawn_x', default_value='3.45'),
-        DeclareLaunchArgument('spawn_y', default_value='1.13'),
-        DeclareLaunchArgument('spawn_yaw', default_value='0.0', description='radians'),
-    ]
-
     # tell gazebo where to find the apriltag model so the texture loads on any machine
     models_path = path.join(rover_pkg, "worlds")
     # and where to find the URDF's package://qpl_rover/... meshes, which Gazebo looks up as
@@ -157,9 +150,8 @@ def generate_launch_description():
                 arguments=[
                     "-topic", "robot_description",
                     "-entity", "rover",
-                    "-x", LaunchConfiguration("spawn_x"),
-                    "-y", LaunchConfiguration("spawn_y"),
-                    "-Y", LaunchConfiguration("spawn_yaw"),
+                    "-x", "3.45", # set to 0 (default) if not using april_arena.world
+                    "-y", "1.13", # set to 0 (default) if not using april_arena.world
                     "-z", "0.35"], # drop in from above so it never spawns inside the terrain
                 output="screen",
             )
@@ -171,7 +163,6 @@ def generate_launch_description():
         run_components_parameter,
         use_vslam_parameter,
         world_parameter,
-        *spawn_parameters,
         gazebo_model_path,
         rsp,
         OpaqueFunction(function=setup_gazebo),
