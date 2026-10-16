@@ -6,9 +6,10 @@ autonomy:
     # diffdrive_canbus/hardware/can_config.yaml (25-225 mm), or they can never reach the
     # target and the sequence waits forever.
 
-    # EXCAVATION TUNING (rover stands still: spin, lower, raise, stop spinning)
+    # EXCAVATION TUNING (rover stands still: spin, lower, hold for dig_duration_s, raise, stop spinning)
     # actuators
     excavation.lowered_position_m: 0.03 # Bucket down in the regolith
+    excavation.dig_duration_s: 30.0 # How long to hold the bucket down spinning; nothing reports when it's full
     excavation.raised_position_m: 0.20 # Bucket position after excavation
     excavation.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
@@ -28,7 +29,7 @@ autonomy:
     # drum bucket
     deposition.drum_spin_speed: 0.4
     deposition.drum_spin_direction: -1.0 # opposite to excavation, to dump
-    deposition.dump_duration_s: 10.0 # How long to spin backwards; nothing reports when the drum is empty
+    deposition.dump_duration_s: 30.0 # How long to spin backwards; nothing reports when the drum is empty
 
     # NAVIGATION (NAV_EXCAVATE / NAV_DEPOSIT / AUTO only)
     # Map frame [x, y, yaw], US arena: origin at the arena's SW interior corner, the

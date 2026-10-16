@@ -158,6 +158,8 @@ START_SPIN        (drum forward)
     ↓
 LOWER_BUCKET      (spinning)
     ↓
+DIG               (bucket held down, spinning, dig_duration_s)
+    ↓
 RAISE_BUCKET      (spinning)
     ↓
 STOP_BUCKET
@@ -165,7 +167,7 @@ STOP_BUCKET
 COMPLETE
 ```
 
-The rover stands still throughout. The drum starts before the bucket reaches the regolith and keeps spinning until the bucket is back up.
+The rover stands still throughout. The drum starts before the bucket reaches the regolith and keeps spinning until the bucket is back up. Nothing reports when the bucket is full, so the dig is held for `dig_duration_s` (30 s).
 
 Actuator transitions are based on feedback from:
 
@@ -192,7 +194,7 @@ STOP_WHEELS
     ↓
 RAISE_BUCKET
     ↓
-DUMP_REGOLITH     (drum backwards, dump_duration_s)
+DUMP_REGOLITH     (drum backwards, dump_duration_s, 30 s)
     ↓
 STOP_BUCKET
     ↓
@@ -211,7 +213,7 @@ Actuator position transitions are based on feedback from:
 
 ## Feedback and Commanding
 
-The autonomy node uses feedback from the rover rather than fixed timing for mechanical sequence progression, except the deposition dump, which is timed.
+The autonomy node uses feedback from the rover rather than fixed timing for mechanical sequence progression, except the dig and the dump, which are timed.
 
 ### Actuator Feedback
 
@@ -336,7 +338,7 @@ The repository also provides shell aliases for these commands where configured.
 When modifying `qpl_autonomy`:
 
 * Keep excavation and deposition as independent sequences.
-* Use feedback rather than fixed sleeps or timing delays for FSM transitions where feedback exists (the dump has none).
+* Use feedback rather than fixed sleeps or timing delays for FSM transitions where feedback exists (the dig and dump have none).
 * Keep physical tuning values in `config/fsm_tuning.yaml`.
 * Continue publishing active motion commands at the configured update rate.
 * Use drivetrain odometry only for relative movement within a sequence.

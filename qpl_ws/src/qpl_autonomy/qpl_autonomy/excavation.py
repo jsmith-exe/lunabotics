@@ -8,6 +8,7 @@ class ExcavationState(Enum):
     STOP_WHEELS = auto()
     START_SPIN = auto()
     LOWER_BUCKET = auto()
+    DIG = auto()
     RAISE_BUCKET = auto()
     STOP_BUCKET = auto()
     COMPLETE = auto()
@@ -16,8 +17,8 @@ class ExcavationState(Enum):
 class ExcavationSequence:
     """Feedback-based FSM for the excavation sequence.
 
-    Stands still: spins the drum forward, lowers the bucket into the regolith, raises it
-    again, then stops the drum.
+    Stands still: spins the drum forward, lowers the bucket into the regolith, holds it there
+    for dig_duration_s, raises it again, then stops the drum.
     """
 
     def __init__(
@@ -34,11 +35,13 @@ class ExcavationSequence:
         self.drum_spin_speed = config["drum_spin_speed"]
         self.drum_spin_direction = config["drum_spin_direction"]
         self.lowered_position_m = config["lowered_position_m"]
+        self.dig_duration_s = config["dig_duration_s"]
         self.raised_position_m = config["raised_position_m"]
         self.position_tolerance_m = config["position_tolerance_m"]
 
         self.state = ExcavationState.COMPLETE
         self.complete = False
+        self.dig_start_s = None
 
     """Sequence lifecycle"""
 
@@ -46,8 +49,9 @@ class ExcavationSequence:
         # Start a new excavation sequence
         self.complete = False
         self.state = ExcavationState.STOP_WHEELS
+        self.dig_start_s = None
 
-    def update(self, actuator_positions):
+    def update(self, actuator_positions, now_s):
         # Run one non-blocking update of the FSM
         if self.complete:
             return
@@ -69,9 +73,19 @@ class ExcavationSequence:
             self.spin_bucket()
             self.command_lift(self.lowered_position_m)
             if self.actuators_at_position(actuator_positions, self.lowered_position_m):
+                self.dig_start_s = now_s
+                self.state = ExcavationState.DIG
+
+        # 4. Hold the bucket down and keep spinning. Nothing reports when the bucket is full,
+        # so this step is timed.
+        elif self.state == ExcavationState.DIG:
+            self.stop_wheels()
+            self.spin_bucket()
+            self.command_lift(self.lowered_position_m)
+            if now_s - self.dig_start_s >= self.dig_duration_s:
                 self.state = ExcavationState.RAISE_BUCKET
 
-        # 4. Raise bucket while still spinning, so it keeps what it collected
+        # 5. Raise bucket while still spinning, so it keeps what it collected
         elif self.state == ExcavationState.RAISE_BUCKET:
             self.stop_wheels()
             self.spin_bucket()
@@ -79,7 +93,7 @@ class ExcavationSequence:
             if self.actuators_at_position(actuator_positions, self.raised_position_m):
                 self.state = ExcavationState.STOP_BUCKET
 
-        # 5. Stop drum
+        # 6. Stop drum
         elif self.state == ExcavationState.STOP_BUCKET:
             self.stop_wheels()
             self.stop_bucket()

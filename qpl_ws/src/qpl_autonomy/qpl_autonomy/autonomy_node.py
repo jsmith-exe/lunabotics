@@ -33,12 +33,14 @@ class AutonomyNode(Node):
         self.declare_parameter("excavation.drum_spin_speed", 0.8)
         self.declare_parameter("excavation.drum_spin_direction", 1.0)
         self.declare_parameter("excavation.lowered_position_m", 0.03)
+        self.declare_parameter("excavation.dig_duration_s", 30.0)
         self.declare_parameter("excavation.raised_position_m", 0.20)
         self.declare_parameter("excavation.position_tolerance_m", 0.005)
         excavation_config = {
             "drum_spin_speed": self.get_parameter("excavation.drum_spin_speed").value,
             "drum_spin_direction": self.get_parameter("excavation.drum_spin_direction").value,
             "lowered_position_m": self.get_parameter("excavation.lowered_position_m").value,
+            "dig_duration_s": self.get_parameter("excavation.dig_duration_s").value,
             "raised_position_m": self.get_parameter("excavation.raised_position_m").value,
             "position_tolerance_m": self.get_parameter("excavation.position_tolerance_m").value,
         }
@@ -46,7 +48,7 @@ class AutonomyNode(Node):
         self.declare_parameter("deposition.drive_to_zone_speed", 0.2)
         self.declare_parameter("deposition.drive_to_zone_distance_m", 1.5)
         self.declare_parameter("deposition.raised_position_m", 0.20)
-        self.declare_parameter("deposition.dump_duration_s", 10.0)
+        self.declare_parameter("deposition.dump_duration_s", 30.0)
         self.declare_parameter("deposition.drum_spin_speed", 0.4)
         self.declare_parameter("deposition.drum_spin_direction", -1.0)
         self.declare_parameter("deposition.position_tolerance_m", 0.005)
@@ -275,7 +277,8 @@ class AutonomyNode(Node):
         if self.state.startswith("NAVIGATING_TO_"):
             self.update_navigation(self.state.removeprefix("NAVIGATING_TO_"), odom_position)
         elif self.state == "EXCAVATING":
-            self.excavation.update(actuator_positions=actuator_positions)
+            now_s = self.get_clock().now().nanoseconds / 1e9
+            self.excavation.update(actuator_positions=actuator_positions, now_s=now_s)
             if self.excavation.is_complete():
                 if self.auto_mode:
                     self.get_logger().info("Excavation complete.")
