@@ -12,7 +12,6 @@ from launch.substitutions import LaunchConfiguration
 sys.path.append(path.join(get_package_share_directory("rover_cameras"), "launch"))
 from launch_utils import gazebo_stream_encoders  # noqa: E402
 
-selected_world = "us_arena.world"
 rover_pkg: str = get_package_share_directory("qpl_rover")
 gazebo_directory: str = get_package_share_directory("gazebo_ros")
 
@@ -20,7 +19,7 @@ def setup_gazebo(context):
     """ Separate function to evaluate headless option. """
     headless = LaunchConfiguration('headless').perform(context)
     mode = "gzserver" if headless == "true" else "gazebo"
-    world_path = path.join(rover_pkg, "worlds", selected_world)
+    world_path = path.join(rover_pkg, "worlds", LaunchConfiguration('world').perform(context))
     gazebo_params_file = path.join(rover_pkg, "config", "gazebo_params.yaml")
 
     gazebo = IncludeLaunchDescription(
@@ -96,6 +95,12 @@ def generate_launch_description():
         description='Whether to run the simulation with components.'
     )
 
+    world_parameter = DeclareLaunchArgument(
+        'world',
+        default_value='us_arena_terrain.world',
+        description='World file in qpl_rover/worlds. us_arena.world is the old flat floor.'
+    )
+
     use_vslam_parameter = DeclareLaunchArgument(
         'use_vslam',
         default_value='true',
@@ -128,7 +133,7 @@ def generate_launch_description():
                     "-entity", "rover",
                     "-x", "3.45", # set to 0 (default) if not using april_arena.world
                     "-y", "1.13", # set to 0 (default) if not using april_arena.world
-                    "-z", "0.2"], # set to 0 (default) if not using april_arena.world
+                    "-z", "0.35"], # drop in from above so it never spawns inside the terrain
                 output="screen",
             )
         ],
@@ -138,6 +143,7 @@ def generate_launch_description():
         headless_parameter,
         run_components_parameter,
         use_vslam_parameter,
+        world_parameter,
         gazebo_model_path,
         rsp,
         OpaqueFunction(function=setup_gazebo),

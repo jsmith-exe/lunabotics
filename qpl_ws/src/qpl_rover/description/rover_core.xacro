@@ -444,32 +444,91 @@
   <xacro:wheel_link name="rear_left_wheel"/>
   <xacro:wheel_link name="rear_right_wheel"/>
 
-  <joint name="front_left_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="front_left_wheel"/>
-    <origin xyz="${top_long_len / 2 + bar_t / 2} ${wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-  </joint>
+  <!-- Wheel joints. On the real rover (and with sim_mode false) each wheel is
+       attached straight to base_link. In simulation it hangs from a short
+       vertical spring ("sand joint") instead: the rover has no suspension,
+       but its wheels sink into sand, which keeps all four loaded on uneven
+       ground. With rigid wheels on rigid ground Gazebo rocks the chassis onto
+       two diagonal wheels and skid-steer turning roughly halves. Joint names
+       seen by ros2_control are unchanged. -->
 
-  <joint name="front_right_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="front_right_wheel"/>
-    <origin xyz="${top_long_len / 2 + bar_t / 2} ${-wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-  </joint>
+  <!-- Sand compliance, sim only. Spring is preloaded (sand_ref) so the rover
+       rests at its normal ride height with ~1.5 cm of give either way. -->
+  <xacro:property name="sand_k" value="4000.0"/>          <!-- N/m per wheel -->
+  <xacro:property name="sand_damping" value="250.0"/>     <!-- N.s/m, ~critical -->
+  <xacro:property name="sand_travel" value="0.03"/>       <!-- m, hard stop either way -->
+  <!-- weight carried by each spring: the 25.3 kg rover minus its four 0.5 kg
+       wheels (the sprung links below add 4 kg on top, sim only) -->
+  <xacro:property name="wheel_load" value="${(25.3 - 4 * 0.5) * 9.81 / 4}"/>  <!-- N -->
+  <xacro:property name="sand_ref" value="${-wheel_load / sand_k}"/>
 
-  <joint name="rear_left_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="rear_left_wheel"/>
-    <origin xyz="${-top_long_len / 2 - bar_t / 2} ${wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-  </joint>
+  <xacro:macro name="wheel_mount" params="name xyz">
+    <xacro:if value="$(arg sim_mode)">
+      <!-- 1 kg, not a token mass: ODE's iterative solver can't hold a
+           25 kg chassis on a near-massless link and the joints blow
+           through their stops. Adds 4 kg to the sim rover. -->
+      <link name="${name}_sand_link">
+        <inertial>
+          <mass value="1.0"/>
+          <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.005" iyz="0" izz="0.005"/>
+        </inertial>
+      </link>
 
-  <joint name="rear_right_wheel_joint" type="continuous">
-    <parent link="base_link"/>
-    <child link="rear_right_wheel"/>
-    <origin xyz="${-top_long_len / 2 - bar_t / 2} ${-wheel_support_len / 2} ${-lower_support_len - bar_t}" rpy="0 0 0"/>
-    <axis xyz="0 1 0"/>
-  </joint>
+      <joint name="${name}_sand_joint" type="prismatic">
+        <parent link="base_link"/>
+        <child link="${name}_sand_link"/>
+        <origin xyz="${xyz}" rpy="0 0 0"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="${-sand_travel}" upper="${sand_travel}" effort="10000" velocity="10"/>
+        <dynamics damping="${sand_damping}"/>
+      </joint>
+
+      <!-- implicit: the stiff spring/damper on a light link is unstable
+           with ODE's default explicit integration and the sim blows up -->
+      <gazebo reference="${name}_sand_joint">
+        <springStiffness>${sand_k}</springStiffness>
+        <springReference>${sand_ref}</springReference>
+        <implicitSpringDamper>true</implicitSpringDamper>
+      </gazebo>
+
+      <joint name="${name}_joint" type="continuous">
+        <parent link="${name}_sand_link"/>
+        <child link="${name}"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+      </joint>
+    </xacro:if>
+
+    <xacro:unless value="$(arg sim_mode)">
+      <joint name="${name}_joint" type="continuous">
+        <parent link="base_link"/>
+        <child link="${name}"/>
+        <origin xyz="${xyz}" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+      </joint>
+    </xacro:unless>
+  </xacro:macro>
+
+  <xacro:wheel_mount name="front_left_wheel"
+      xyz="${top_long_len / 2 + bar_t / 2} ${wheel_support_len / 2} ${-lower_support_len - bar_t}"/>
+  <xacro:wheel_mount name="front_right_wheel"
+      xyz="${top_long_len / 2 + bar_t / 2} ${-wheel_support_len / 2} ${-lower_support_len - bar_t}"/>
+  <xacro:wheel_mount name="rear_left_wheel"
+      xyz="${-top_long_len / 2 - bar_t / 2} ${wheel_support_len / 2} ${-lower_support_len - bar_t}"/>
+  <xacro:wheel_mount name="rear_right_wheel"
+      xyz="${-top_long_len / 2 - bar_t / 2} ${-wheel_support_len / 2} ${-lower_support_len - bar_t}"/>
+
+  <!-- The sand joints aren't ros2_control joints, so publish their state for TF. -->
+  <xacro:if value="$(arg sim_mode)">
+    <gazebo>
+      <plugin name="sand_joint_states" filename="libgazebo_ros_joint_state_publisher.so">
+        <update_rate>50</update_rate>
+        <joint_name>front_left_wheel_sand_joint</joint_name>
+        <joint_name>front_right_wheel_sand_joint</joint_name>
+        <joint_name>rear_left_wheel_sand_joint</joint_name>
+        <joint_name>rear_right_wheel_sand_joint</joint_name>
+      </plugin>
+    </gazebo>
+  </xacro:if>
 
 </robot>
