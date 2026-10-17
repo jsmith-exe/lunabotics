@@ -400,22 +400,80 @@
   <!-- Wheel macro                                               -->
   <!-- ========================================================= -->
 
+  <!-- Sim tyre profile: same overall size as the plain collision cylinder below.
+       tyre_fillet must match FILLET in description/generate_wheel_mesh.py (the visual). -->
+  <xacro:property name="tyre_r" value="${wheel_r * 0.98}"/>
+  <xacro:property name="tyre_half_w" value="${wheel_w * 0.95 / 2}"/>
+  <xacro:property name="tyre_fillet" value="0.04"/>
+  <xacro:property name="tyre_slice_w" value="${tyre_fillet / 5}"/>
+
+  <!-- One pair of edge slices, `index` 1..5 from the core outwards. Each slice takes the
+       arc's radius at its own mid-width. -->
+  <xacro:macro name="tyre_edge_slice" params="index">
+    <xacro:property name="d" value="${(index - 0.5) * tyre_slice_w}"/>
+    <xacro:property name="slice_r" value="${tyre_r - tyre_fillet + (tyre_fillet ** 2 - d ** 2) ** 0.5}"/>
+    <xacro:property name="slice_y" value="${tyre_half_w - tyre_fillet + d}"/>
+    <collision>
+      <origin xyz="0 ${slice_y} 0" rpy="${pi / 2} 0 0"/>
+      <geometry>
+        <cylinder radius="${slice_r}" length="${tyre_slice_w}"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 ${-slice_y} 0" rpy="${pi / 2} 0 0"/>
+      <geometry>
+        <cylinder radius="${slice_r}" length="${tyre_slice_w}"/>
+      </geometry>
+    </collision>
+  </xacro:macro>
+
   <xacro:macro name="wheel_link" params="name">
     <link name="${name}">
-      <visual>
-        <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
-        <geometry>
-          <cylinder radius="${wheel_r}" length="${wheel_w}"/>
-        </geometry>
-        <material name="red"/>
-      </visual>
+      <!-- Sim: tyre mesh with a rounded rim (description/generate_wheel_mesh.py), axis along y. -->
+      <xacro:if value="$(arg sim_mode)">
+        <visual>
+          <origin xyz="0 0 0" rpy="0 0 0"/>
+          <geometry>
+            <mesh filename="package://qpl_rover/description/meshes/wheel.stl"/>
+          </geometry>
+          <material name="red"/>
+        </visual>
+      </xacro:if>
+      <xacro:unless value="$(arg sim_mode)">
+        <visual>
+          <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
+          <geometry>
+            <cylinder radius="${wheel_r}" length="${wheel_w}"/>
+          </geometry>
+          <material name="red"/>
+        </visual>
+      </xacro:unless>
 
-      <collision>
-        <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
-        <geometry>
-          <cylinder radius="${wheel_r * 0.98}" length="${wheel_w * 0.95}"/>
-        </geometry>
-      </collision>
+      <!-- Sim: rounded tyre edges, so the rim doesn't dig into the terrain mesh when
+           skid-steering. ODE has no filleted shape and mesh-on-mesh contact is poor,
+           so the profile is a full-radius core plus five 8 mm cylinders per side
+           stepping down a tyre_fillet-radius arc. The real URDF keeps the plain cylinder. -->
+      <xacro:if value="$(arg sim_mode)">
+        <collision>
+          <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
+          <geometry>
+            <cylinder radius="${tyre_r}" length="${2 * (tyre_half_w - tyre_fillet)}"/>
+          </geometry>
+        </collision>
+        <xacro:tyre_edge_slice index="1"/>
+        <xacro:tyre_edge_slice index="2"/>
+        <xacro:tyre_edge_slice index="3"/>
+        <xacro:tyre_edge_slice index="4"/>
+        <xacro:tyre_edge_slice index="5"/>
+      </xacro:if>
+      <xacro:unless value="$(arg sim_mode)">
+        <collision>
+          <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
+          <geometry>
+            <cylinder radius="${wheel_r * 0.98}" length="${wheel_w * 0.95}"/>
+          </geometry>
+        </collision>
+      </xacro:unless>
 
       <xacro:inertial_cylinder mass="0.5" length="${wheel_w}" radius="${wheel_r}">
         <origin xyz="0 0 0" rpy="0 0 0"/>

@@ -154,6 +154,22 @@ def generate_launch_description():
             ],
         ),
 
+        # Depth cloud -> pre-classified obstacle/clearing clouds for the costmaps.
+        *[
+            Node(
+                package='qpl_rover',
+                executable='depth_obstacle_filter',
+                name=f'depth_obstacle_filter_{direction}',
+                output='screen',
+                parameters=[
+                    os.path.join(bringup_dir, 'config', 'depth_obstacle_filter.yaml'),
+                    {'use_sim_time': use_sim_time},
+                ],
+                remappings=common_remappings,
+            )
+            for direction in ('front', 'rear')
+        ],
+
         Node(
             package='nav2_lifecycle_manager',
             executable='lifecycle_manager',

@@ -180,6 +180,34 @@ The arena selected in `config/arena/selector.yaml` is used by the localisation s
 
 ---
 
+## Obstacle Detection
+
+Obstacles and walls come only from the two depth cameras. `launch/components/navigation_launch.py` starts one `depth_obstacle_filter` per camera alongside Nav2:
+
+```text
+/depth_camera_front/depth/image_raw + camera_info       (Orbbec)
+/depth_camera_rear/depth/image_rect_raw + camera_info   (RealSense)
+  -> depth_obstacle_filter_<front|rear>
+  -> /depth_camera_<front|rear>/obstacles   (Nav2 marking)
+     /depth_camera_<front|rear>/clearing    (Nav2 clearing, includes floor hits)
+```
+
+The filter reads depth images, not the drivers' point clouds: the sim clouds are 10-13 MB a frame and were being dropped in transport. In the sim, `sim.launch.py` relays the Gazebo depth topics to the real cameras' names. Run `qpl_net_socket_buffers` once per machine, or large images will still drop.
+
+The filter measures each point's height above the floor under the rover, in `odom`, whose roll/pitch come from the IMU. A point is an obstacle if:
+
+```text
+height >= min_obstacle_height + range * height_slope_per_m     (0.16 m + 0.035 m per m)
+```
+
+The range term absorbs IMU tilt error, so floor far away isn't marked; walls are well above it at every range. Tune it in `config/depth_obstacle_filter.yaml`.
+
+Both costmaps in `config/nav_params.yaml` use a 2D `ObstacleLayer` fed by those clouds, out to 4 m. The global costmap is a fixed map of the arena in `map`, so walls stay once seen.
+
+Known limits: obstacles lower than the threshold (about 0.16 m close, 0.30 m at 4 m) are not marked, and the real camera mounts are taken from the URDF as level.
+
+---
+
 ## Development Notes
 
 When adding functionality to `qpl_rover`:

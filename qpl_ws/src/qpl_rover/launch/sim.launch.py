@@ -50,15 +50,18 @@ def setup_components(context):
 
     return [components]
 
-def make_relay(name: str, source: str, destination: str):
+def make_relay(name: str, source: str, destination: str, lazy: bool = False):
     return Node(
         package="topic_tools",
         executable="relay",
         name=name,
-        arguments=[source, destination]
+        arguments=[source, destination],
+        parameters=[{"lazy": lazy}],
     )
 
-def make_camera_relays(camera_name):
+def make_camera_relays(camera_name, depth_image_name):
+    """depth_image_name matches the real camera's depth topic, so depth_obstacle_filter
+    reads the same names in sim and on the rover."""
     return [
         make_relay(
             f"relay_{camera_name}_color",
@@ -76,9 +79,22 @@ def make_camera_relays(camera_name):
             f"/{camera_name}/color/image_raw/compressed"
         ),
         make_relay(
-        f"relay_{camera_name}_depth_points",
-        f"/{camera_name}_depth/points",  # 480p depth sensor publishes under its own camera_name
-        f"/{camera_name}/depth/points"
+            f"relay_{camera_name}_depth_image",
+            f"/{camera_name}_depth/depth/image_raw",  # 480p depth sensor publishes under its own camera_name
+            f"/{camera_name}/depth/{depth_image_name}"
+        ),
+        make_relay(
+            f"relay_{camera_name}_depth_info",
+            f"/{camera_name}_depth/camera_info",  # same intrinsics as the depth image
+            f"/{camera_name}/depth/camera_info"
+        ),
+        # 10-13 MB a frame and nothing on the rover side needs it, so only relayed
+        # while something (e.g. RViz) subscribes.
+        make_relay(
+            f"relay_{camera_name}_depth_points",
+            f"/{camera_name}_depth/points",
+            f"/{camera_name}/depth/points",
+            lazy=True,
         ),
     ]
 
@@ -109,9 +125,12 @@ def generate_launch_description():
 
     # tell gazebo where to find the apriltag model so the texture loads on any machine
     models_path = path.join(rover_pkg, "worlds")
+    # and where to find the URDF's package://qpl_rover/... meshes, which Gazebo looks up as
+    # model://qpl_rover/... (the wheel mesh)
+    packages_path = path.dirname(rover_pkg)
     gazebo_model_path = SetEnvironmentVariable(
         'GAZEBO_MODEL_PATH',
-        models_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
+        models_path + ':' + packages_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
     )
 
     rsp = IncludeLaunchDescription(
@@ -149,7 +168,7 @@ def generate_launch_description():
         OpaqueFunction(function=setup_gazebo),
         spawn_entity,
         OpaqueFunction(function=setup_components),
-        *make_camera_relays("depth_camera_front"),
-        *make_camera_relays("depth_camera_rear"),
+        *make_camera_relays("depth_camera_front", "image_raw"),        # Orbbec
+        *make_camera_relays("depth_camera_rear", "image_rect_raw"),    # RealSense
         *gazebo_stream_encoders(),
     ])
