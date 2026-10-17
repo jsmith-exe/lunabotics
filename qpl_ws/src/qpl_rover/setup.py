@@ -21,6 +21,8 @@ setup(
     (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/model.sdf')),
     (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/model.config')),
     (os.path.join('share', package_name, 'worlds', 'terrain_heightmap'), glob('worlds/terrain_heightmap/*.png')),
+    (os.path.join('share', package_name, 'worlds', 'arena_terrain'), glob('worlds/arena_terrain/model.*')),
+    (os.path.join('share', package_name, 'worlds', 'arena_terrain', 'meshes'), glob('worlds/arena_terrain/meshes/*')),
     (os.path.join('share', package_name, 'config'), glob('config/*.*')),
     (os.path.join('share', package_name, 'config', 'arena'), glob('config/arena/*.*')),
     (os.path.join('share', package_name, 'config', 'localisation'), glob('config/localisation/*.*')),

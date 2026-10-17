@@ -1,0 +1,141 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <world name="lunabotics_us_arena_terrain">
+
+    <!-- PHYSICS -->
+    <physics type="ode">
+      <gravity>0 0 -9.81</gravity>
+    </physics>
+
+    <light type="directional" name="sun">
+      <pose>0 0 10 0 0 0</pose>
+      <!-- lower sun than us_arena.world so the undulations shade visibly -->
+      <direction>-0.6 0.3 -0.6</direction>
+    </light>
+
+    <!-- PHYSICAL ARENA -->
+    <!-- Terrain -->
+    <!-- Sand floor: one mesh (visual = collision) from generate_arena_terrain.py.
+         Flat (z = 0) along the walls, in the starting zone and in the
+         construction zone; gentle hills (max 6 deg) everywhere else.
+         The mesh is in arena coordinates, so it goes in at the origin. -->
+    <include>
+      <uri>model://arena_terrain</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- Walls -->
+    <model name="wall_south">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>4.57 -0.05 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_north">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>9.14 0.1 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>4.57 8.15 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_west">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>-0.05 4.05 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <model name="wall_east">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.1 8.10 0.5</size></box></geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+        <pose>9.19 4.05 0.25 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- Zone markers from us_arena.world are left out: the flat boxes would
+         cut through the hills and give the VO fake features. Zones are drawn
+         in RViz instead. -->
+
+    <!-- Fiducial Rail -->
+    <model name="fiducial_rail_marker">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.5 0.01 0.05</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 1 1 0.3</ambient>
+            <diffuse>0 1 1 0.3</diffuse>
+          </material>
+        </visual>
+        <pose>3.32 0.005 0.425 0 0 0</pose>
+      </link>
+    </model>
+
+    <!-- APRILTAG -->
+    <model name="apriltag_0">
+      <static>true</static>
+      <pose>3.32 0.02 0.4 0 0 1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.01 0.4 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.01 0.4 0.4</size></box></geometry>
+          <material>
+            <script>
+              <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
+              <uri>model://apriltag_model/materials/textures/</uri>
+              <name>AprilTag/tag0</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
