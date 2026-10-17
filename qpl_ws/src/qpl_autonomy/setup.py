@@ -26,6 +26,8 @@ setup(
     entry_points={
         'console_scripts': [
             'autonomy_node = qpl_autonomy.autonomy_node:main',
+            'localised_autonomy_node = qpl_autonomy.localised_autonomy_node:main',
+            'timed_autonomy_node = qpl_autonomy.timed_autonomy_node:main',
         ],
     },
 )
