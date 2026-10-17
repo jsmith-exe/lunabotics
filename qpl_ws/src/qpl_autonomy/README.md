@@ -293,6 +293,24 @@ and starts:
 autonomy_node
 ```
 
+### Variants
+
+Two alternative nodes run the same excavation and deposition sequences but measure the drive stages differently. The `mode` launch argument selects which node runs, and all of them read their tuning from `config/fsm_tuning.yaml`.
+
+| `mode`           | Node                      | Drive stages end when...                                                 |
+| ---------------- | ------------------------- | ------------------------------------------------------------------------ |
+| `odom` (default) | `autonomy_node`           | Drivetrain odometry (`/diff_cont/odom`) reaches the `*_distance_m` value |
+| `localised`      | `localised_autonomy_node` | The `map -> base_footprint` TF reaches the `*_distance_m` value          |
+| `timed`          | `timed_autonomy_node`     | The `*_duration_s` value has elapsed                                     |
+
+```bash
+ros2 launch qpl_autonomy autonomy.launch.py mode:=timed
+```
+
+`localised_autonomy_node` requires the localisation stack to be running. It refuses to start a sequence without a pose, and stops the active sequence if the pose is lost or older than `localisation.max_pose_age_s`.
+
+The variants subclass `AutonomyNode` and the sequence classes, so the original node and FSMs are unchanged.
+
 The node can also be tested by publishing commands directly to:
 
 ```text
