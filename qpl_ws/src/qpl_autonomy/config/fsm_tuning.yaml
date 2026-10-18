@@ -14,9 +14,9 @@ autonomy:
     excavation.drive_duration_s: 5.0 # timed_autonomy_node only, replaces drive_distance_m
 
     # actuators
-    excavation.contact_position_m: 0.01 # Actuator position where bucket reaches regolith
-    excavation.max_excavation_position_m: 0.20 # Maximum bucket lowering depth during excavation
-    excavation.raised_position_m: 0.00 # Bucket position after excavation
+    excavation.contact_position_m: 0.035 # Actuator position where bucket reaches regolith
+    excavation.max_excavation_position_m: 0.03 # Maximum bucket lowering depth during excavation
+    excavation.raised_position_m: 0.22 # Bucket position after excavation
     excavation.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
@@ -33,8 +33,8 @@ autonomy:
     deposition.deposit_drive_duration_s: 20.0 # timed_autonomy_node only, replaces deposit_drive_distance_m
 
     # actuators
-    deposition.max_height_position_m: 0.20 # Bucket height for depositing regolith
-    deposition.normal_height_position_m: 0.00 # Bucket height after deposition
+    deposition.max_height_position_m: 0.22 # Bucket height for depositing regolith
+    deposition.normal_height_position_m: 0.22 # Bucket height after deposition
     deposition.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket

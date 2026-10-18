@@ -9,8 +9,8 @@ class TimedExcavationSequence(ExcavationSequence):
     class records is the time the drive stage began.
     """
 
-    def __init__(self, cmd_vel_pub, drum_lift_pub, drum_spin_pub, config):
-        super().__init__(cmd_vel_pub, drum_lift_pub, drum_spin_pub, config)
+    def __init__(self, cmd_vel_pub, drum_lift_pub, drum_spin_pub, config, logger):
+        super().__init__(cmd_vel_pub, drum_lift_pub, drum_spin_pub, config, logger)
         self.drive_durations_s = {
             ExcavationState.DRIVE_FORWARD: config["drive_duration_s"],
         }
@@ -31,8 +31,8 @@ class TimedDepositionSequence(DepositionSequence):
     class records is the time each drive stage began.
     """
 
-    def __init__(self, cmd_vel_pub, drum_lift_pub, drum_spin_pub, config):
-        super().__init__(cmd_vel_pub, drum_lift_pub, drum_spin_pub, config)
+    def __init__(self, cmd_vel_pub, drum_lift_pub, drum_spin_pub, config, logger):
+        super().__init__(cmd_vel_pub, drum_lift_pub, drum_spin_pub, config, logger)
         self.drive_durations_s = {
             DepositionState.DRIVE_TO_CONSTRUCTION_ZONE: config["drive_to_zone_duration_s"],
             DepositionState.DEPOSIT_REGOLITH: config["deposit_drive_duration_s"],
