@@ -37,14 +37,20 @@ rclcpp_components_register_node(stream_encoder
   PLUGIN "rover_cameras::StreamEncoder"
   EXECUTABLE stream_encoder_node)
 
-install(TARGETS stream_encoder
+# Re-publishes the RealSense IMU in ROS axes: rover_cameras::ImuOpticalToStandard
+add_library(imu_relay SHARED src/imu_optical_to_standard.cpp)
+target_compile_features(imu_relay PUBLIC cxx_std_17)
+ament_target_dependencies(imu_relay rclcpp rclcpp_components sensor_msgs)
+rclcpp_components_register_node(imu_relay
+  PLUGIN "rover_cameras::ImuOpticalToStandard"
+  EXECUTABLE imu_optical_to_standard)
+
+install(TARGETS stream_encoder imu_relay
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
 # Python nodes, installed without the .py so `ros2 run rover_cameras camera_sim` works
 install(PROGRAMS src/camera_sim.py DESTINATION lib/${PROJECT_NAME} RENAME camera_sim)
-install(PROGRAMS src/imu_optical_to_standard.py
-  DESTINATION lib/${PROJECT_NAME} RENAME imu_optical_to_standard)
 # launch/ includes launch_utils.py, which the launch files import from beside themselves
 install(DIRECTORY launch config calibration
   DESTINATION share/${PROJECT_NAME})

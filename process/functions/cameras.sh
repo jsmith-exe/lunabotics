@@ -18,6 +18,8 @@ qpl_orbbecsdk_build() {
     ros-humble-diagnostic-updater ros-humble-diagnostic-msgs ros-humble-statistics-msgs \
     ros-humble-backward-ros libdw-dev \
     ros-humble-orbbec-camera ros-humble-orbbec-description
+  # For USE_NV_HW_DECODER: MJPG decode on the Jetson's NVJPG engine
+  sudo apt install libyuv-dev nvidia-l4t-jetson-multimedia-api
   
   # Registration script
   sudo cp /opt/ros/$ROS_DISTRO/share/orbbec_camera/udev/99-obsensor-libusb.rules /etc/udev/rules.d/
@@ -35,7 +37,19 @@ qpl_orbbecsdk_build() {
     echo "Failed to change directory to ${QPL_PROJECT}/OrbbecSDK_ROS2"
     return
   }
-  colcon build --event-handlers  console_direct+  --cmake-args  -DCMAKE_BUILD_TYPE=Release
+  # Local fixes to the upstream driver; skipped if already applied
+  local patch
+  for patch in "${QPL_PROJECT}"/process/patches/orbbec_*.patch; do
+    if git apply --reverse --check "$patch" 2>/dev/null; then
+      echo "Already applied: $(basename "$patch")"
+    else
+      git apply "$patch" || { echo "Failed to apply $(basename "$patch")"; cd "$prev_path" || true; return 1; }
+      echo "Applied: $(basename "$patch")"
+    fi
+  done
+
+  colcon build --event-handlers  console_direct+  --cmake-args  -DCMAKE_BUILD_TYPE=Release \
+    -DUSE_NV_HW_DECODER=ON
   cd "$prev_path" || true
   source "${QPL_PROJECT}/OrbbecSDK_ROS2/install/setup.bash"
 }

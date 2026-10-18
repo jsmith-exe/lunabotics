@@ -22,10 +22,10 @@ ros2 launch rover_cameras camera_orbbec.launch.py      # or: qpl_orbbecsdk_run
 ```
 
 Each launch file starts one component container, `/<namespace>/camera_container`, which
-holds the camera driver and its `stream_encoder`. The RealSense launch also starts the IMU
-nodes (`imu_optical_to_standard`, `imu_filter`) and a static transform.
+holds the camera driver and its `stream_encoder`. The RealSense container also holds
+`imu_optical_to_standard`; its launch also starts `imu_filter` and a static transform.
 
-If the container crashes, it restarts, and both components are loaded again about 12 s
+If the container crashes, it restarts, and its components are loaded again about 12 s
 later. That delay is how long the dead container's DDS entry takes to expire. Until then,
 a load request would go to the dead process.
 
@@ -126,10 +126,12 @@ The same numbers are published on `/diagnostics`.
 - **Launch helpers** (`launch/launch_utils.py`):
   - load the encoder beside a driver (`stream_encoder`), or as its own process for
     camera_sim and Gazebo (`stream_encoder_process`, `gazebo_stream_encoders`)
-  - `respawning_container`, which reloads both components after a crash
+  - `respawning_container`, which reloads a container's components after a crash
+- **IMU relay** (`src/imu_optical_to_standard.cpp`, component `rover_cameras::ImuOpticalToStandard`):
+  re-publishes the RealSense IMU in ROS axes for the EKFs, `/camera/camera/imu` ->
+  `/camera/camera/imu_standard`.
 - **Python nodes** (`src/`):
   - `camera_sim.py`: synthetic cameras for testing without hardware.
-  - `imu_optical_to_standard.py`: re-publishes the RealSense IMU in ROS axes for the EKFs.
 
 ## Testing without cameras via camera_sim
 

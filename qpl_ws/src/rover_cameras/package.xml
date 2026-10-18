@@ -10,7 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <build_depend>pkg-config</build_depend>
 
-  <!-- stream_encoder component -->
+  <!-- stream_encoder and imu_optical_to_standard components -->
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>sensor_msgs</depend>
@@ -30,7 +30,7 @@
   <!-- Viewers decode the stream with the ffmpeg_image_transport subscriber plugin -->
   <exec_depend>ffmpeg_image_transport</exec_depend>
 
-  <!-- camera_sim, imu_optical_to_standard -->
+  <!-- camera_sim -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-numpy</exec_depend>

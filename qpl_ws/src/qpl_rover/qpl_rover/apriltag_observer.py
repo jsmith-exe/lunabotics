@@ -87,19 +87,27 @@ class AprilTagObserver(Node):
 
         # Detection is throttled per camera; frames in between are dropped before
         # deserialising, which is most of what a skipped 1080p frame would cost.
-        self.detection_period = 1.0 / self.declare_parameter('detection_rate', 5.0).value
+        self.detection_period = 1.0 / self.declare_parameter('detection_rate', 2.0).value
         self.last_detection = {'front': 0.0, 'rear': 0.0}
 
-        # 2. CONFIGURE DETECTOR
+        # 2. CONFIGURE DETECTORS
         # nthreads=4 to prevent EKF "Failed to meet update rate" errors
-        self.detector = Detector(
-            families=self.tag_family,
-            nthreads=4,
-            quad_decimate=1.0,
-            quad_sigma=0.0,
-            refine_edges=1,
-            decode_sharpening=0.25
-        )
+        # One detector per camera, as quad_decimate is fixed per detector. Decimation only
+        # affects finding the tag outline; decoding and edge refinement stay full resolution.
+        # Both run at 1.0. The front is now 720p (est. ~90 ms per detection vs 58 ms for
+        # 1080p at 2.0; ~0.06 core more at 2 Hz) and finds outlines at full resolution.
+        # The rear (fx ~640) would drop from ~12 m to ~8-10 m range at 2.0.
+        self.detectors = {
+            cam_id: Detector(
+                families=self.tag_family,
+                nthreads=4,
+                quad_decimate=self.declare_parameter(f'{cam_id}_quad_decimate', default).value,
+                quad_sigma=0.0,
+                refine_edges=1,
+                decode_sharpening=0.25
+            )
+            for cam_id, default in (('front', 1.0), ('rear', 1.0))
+        }
 
         # TF listener for rover/camera/tag transforms
         self.tf_buffer = tf2_ros.Buffer()
@@ -175,10 +183,11 @@ class AprilTagObserver(Node):
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='mono8')
 
             # 2. Run Detection
-            results = self.detector.detect(cv_image,
-                                        estimate_tag_pose=True,
-                                        camera_params=self.cam_params[cam_id],
-                                        tag_size=self.tag_size)
+            results = self.detectors[cam_id].detect(
+                cv_image,
+                estimate_tag_pose=True,
+                camera_params=self.cam_params[cam_id],
+                tag_size=self.tag_size)
 
             self.process_results(results, msg, cam_id)
         except Exception as e:
