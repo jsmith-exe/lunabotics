@@ -29,13 +29,15 @@
     # is the prior.
     Odom/GuessMotion: "true"
 
-    # Features are extracted at half resolution (640x400). Profiled on the Jetson
-    # with the full stack running: 288 -> 72 ms per frame (3 -> 10 Hz), and more
-    # inliers when stationary (181 vs 115 of 300). At full resolution, every frame
-    # fell below Odom/KeyFrameThr, so the local map and bundle adjustment were
-    # updated every frame. If still too slow when driving, OdomF2M/BundleAdjustment: "0"
-    # measured 50 ms.
+    # Profiled on the Jetson with the full stack running, rover stationary, 45 s runs.
+    # Features are extracted at half resolution (640x400).
     Odom/ImageDecimation: "2"
+    # Local bundle adjustment off. With it on, VO ran away: inliers fell below
+    # Odom/VisKeyFrameThr (150), so every frame became a keyframe, the local map grew
+    # and each frame cost more (195 -> 563 ms within 45 s, 4 -> 1.5 Hz). Off, it held
+    # 54-61 ms (~11 Hz), ~179 inliers, no keyframes. Fallback if it drifts when driving:
+    # Odom/Strategy "1" + Vis/CorType "1" (frame-to-frame, optical flow) held ~53 ms.
+    OdomF2M/BundleAdjustment: "0"
     Vis/MaxFeatures: "300"
     Vis/MinInliers: "10"
     Vis/InlierDistance: "0.10"
