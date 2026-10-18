@@ -11,7 +11,7 @@ It's built as a component (`rover_cameras::StreamEncoder`) and as a standalone e
 
 | Camera | Driver | Namespace | Colour |
 |---|---|---|---|
-| Front | Orbbec Astra Pro Plus (`orbbec_camera`) | `/depth_camera_front` | 1920x1080 @ 30 |
+| Front | Orbbec Astra Pro Plus (`orbbec_camera`) | `/depth_camera_front` | 1280x720 @ 30 (MJPG) |
 | Rear | Intel RealSense (`realsense2_camera`) | `/depth_camera_rear` | 1280x800 @ 30 |
 
 ## Running the cameras

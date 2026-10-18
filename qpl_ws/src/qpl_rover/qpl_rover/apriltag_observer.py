@@ -86,7 +86,7 @@ class AprilTagObserver(Node):
         self.cam_params = {'front': None, 'rear': None}
 
         # Detection is throttled per camera; frames in between are dropped before
-        # deserialising, which is most of what a skipped 1080p frame would cost.
+        # deserialising, which is most of what a skipped colour frame would cost.
         self.detection_period = 1.0 / self.declare_parameter('detection_rate', 2.0).value
         self.last_detection = {'front': 0.0, 'rear': 0.0}
 
