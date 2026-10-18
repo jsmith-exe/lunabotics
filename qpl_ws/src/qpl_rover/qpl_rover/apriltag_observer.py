@@ -92,11 +92,6 @@ class AprilTagObserver(Node):
 
         # 2. CONFIGURE DETECTORS
         # nthreads=4 to prevent EKF "Failed to meet update rate" errors
-        # One detector per camera, as quad_decimate is fixed per detector. Decimation only
-        # affects finding the tag outline; decoding and edge refinement stay full resolution.
-        # Both run at 1.0. The front is now 720p (est. ~90 ms per detection vs 58 ms for
-        # 1080p at 2.0; ~0.06 core more at 2 Hz) and finds outlines at full resolution.
-        # The rear (fx ~640) would drop from ~12 m to ~8-10 m range at 2.0.
         self.detectors = {
             cam_id: Detector(
                 families=self.tag_family,
