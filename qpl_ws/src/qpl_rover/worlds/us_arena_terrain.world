@@ -18,7 +18,10 @@
     <!-- Sand floor: one mesh (visual = collision) from generate_arena_terrain.py.
          Flat (z = 0) along the walls, in the starting zone and in the
          construction zone; gentle hills (max 6 deg) everywhere else.
-         The mesh is in arena coordinates, so it goes in at the origin. -->
+         The mesh is in arena coordinates, so it goes in at the origin.
+         sim.launch.py normally swaps this include for a freshly generated
+         floor with random craters, plus random boulders (arena_obstacles.py);
+         launch with obstacles:=false to get this plain floor. -->
     <include>
       <uri>model://arena_terrain</uri>
       <pose>0 0 0 0 0 0</pose>
