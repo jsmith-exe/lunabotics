@@ -211,9 +211,8 @@ def get_camera_params(use_low_quality: bool) -> Dict[str, Any]:
         'depth_module.depth_format': depth_fmt,
         'depth_module.infra_format': infra_fmt,
 
-        # Reliable, to match the Orbbec (which forces it under intra-process) and the image
-        # subscribers such as apriltag_observer. A reliable subscriber can't connect to a
-        # best-effort publisher.
+        # Reliable, to match the Orbbec (which forces it under intra-process) and any reliable
+        # image subscribers. A reliable subscriber can't connect to a best-effort publisher.
         'color_qos': 'DEFAULT',
 
         'decimation_filter.enable': True,

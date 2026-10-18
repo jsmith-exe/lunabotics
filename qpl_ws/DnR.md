@@ -41,6 +41,29 @@ kill -9 PID
 Log entries can be excluded or highlighted based on rules.
 **Pausing will reduce network load; filtering will not.**
 
+**Jetson: Power mode (nvpmodel)**: The power mode caps the CPU, GPU and memory clocks.
+If every core is near 100% in `tegrastats`, check the mode first.
+Note 25W has a *lower* CPU cap than 15W; it trades CPU clock for GPU clock.
+
+| ID | Name       | CPU max  | GPU max  |
+|----|------------|----------|----------|
+| 0  | 15W        | 1498 MHz | 612 MHz  |
+| 1  | 25W        | 1344 MHz | 918 MHz  |
+| 2  | MAXN_SUPER | 1728 MHz | 1020 MHz |
+
+```bash
+nvpmodel -q              # Show the current mode
+sudo nvpmodel -m 2       # Switch to MAXN_SUPER (no reboot needed)
+sudo nvpmodel -m 1       # Back to 25W
+grep "POWER_MODEL ID" /etc/nvpmodel.conf   # List modes; full limits are in this file
+```
+The mode persists across reboots. MAXN_SUPER draws more power under CPU load
+(roughly +1.5-2 W with every core busy) and runs slightly hotter.
+To see the effect, watch `VDD_IN` (total module power) and the CPU frequencies:
+```bash
+tegrastats --interval 1000
+```
+
 ---
 ## Topics and nodes
 **Listing**: Run `ros2 node list` and `ros2 topic list` to check if nodes and topics are running.

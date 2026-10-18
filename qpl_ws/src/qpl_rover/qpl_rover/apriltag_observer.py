@@ -1,5 +1,8 @@
+import time
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from cv_bridge import CvBridge
@@ -82,6 +85,11 @@ class AprilTagObserver(Node):
         self.bridge = CvBridge()
         self.cam_params = {'front': None, 'rear': None}
 
+        # Detection is throttled per camera; frames in between are dropped before
+        # deserialising, which is most of what a skipped 1080p frame would cost.
+        self.detection_period = 1.0 / self.declare_parameter('detection_rate', 5.0).value
+        self.last_detection = {'front': 0.0, 'rear': 0.0}
+
         # 2. CONFIGURE DETECTOR
         # nthreads=4 to prevent EKF "Failed to meet update rate" errors
         self.detector = Detector(
@@ -101,17 +109,24 @@ class AprilTagObserver(Node):
         self.pose_pub = self.create_publisher(PoseWithCovarianceStamped, '/apriltag/pose', 10)
 
         # 5. CREATE SUBSCRIPTIONS LAST
+        # Best effort can subscribe to reliable publishers
+        image_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+
         # Front Camera
         self.create_subscription(CameraInfo, '/depth_camera_front/color/camera_info',
                                  lambda msg: self.info_cb(msg, 'front'), 10)
         self.create_subscription(Image, '/depth_camera_front/color/image_raw',
-                                 lambda msg: self.image_cb(msg, 'front'), 10)
+                                 lambda msg: self.image_cb(msg, 'front'), image_qos, raw=True)
 
         # Rear Camera
         self.create_subscription(CameraInfo, '/depth_camera_rear/color/camera_info',
                                  lambda msg: self.info_cb(msg, 'rear'), 10)
         self.create_subscription(Image, '/depth_camera_rear/color/image_raw',
-                                 lambda msg: self.image_cb(msg, 'rear'), 10)
+                                 lambda msg: self.image_cb(msg, 'rear'), image_qos, raw=True)
 
         self.get_logger().info("AprilTag Observer Initialized. Listening to Front & Rear.")
 
@@ -139,7 +154,7 @@ class AprilTagObserver(Node):
         ros_r = S @ raw_r @ S.T
         return ros_r, ros_t
 
-    def image_cb(self, msg, cam_id):
+    def image_cb(self, raw_msg, cam_id):
         # Diagnostic: Check if we are even getting frames
         #self.get_logger().info(f"IMAGE RECEIVED from {cam_id}", once=True)
 
@@ -147,7 +162,15 @@ class AprilTagObserver(Node):
             self.get_logger().warn(f"STUCK: Waiting for CameraInfo on {cam_id}...")
             return
 
+        # Wall-clock throttle; sim time can jump or stall
+        now = time.monotonic()
+        if now - self.last_detection[cam_id] < self.detection_period:
+            return
+        self.last_detection[cam_id] = now
+
         try:
+            msg = deserialize_message(raw_msg, Image)
+
             # 1. Convert to grayscale for detector
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='mono8')
 
