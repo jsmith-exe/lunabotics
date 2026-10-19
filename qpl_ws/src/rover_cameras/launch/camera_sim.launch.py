@@ -31,9 +31,9 @@ CAMERAS: Dict[str, Dict[str, Any]] = {
     'front': {
         'camera_name': 'depth_camera_front',
         'frame_id': 'camera_link_front',
-        'high': (1920, 1080, 30.0),
+        'high': (1280, 720, 30.0),
         'low': (640, 480, 30.0),
-        'camera_info_url': f'file://{CALIBRATION_FOLDER}/front_calib_1920_cam_info.yaml',
+        'camera_info_url': f'file://{CALIBRATION_FOLDER}/front_calib_1280_cam_info.yaml',
     },
     'rear': {
         'camera_name': 'depth_camera_rear',

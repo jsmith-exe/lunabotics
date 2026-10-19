@@ -114,12 +114,20 @@ def get_camera_params(use_low_quality: bool) -> Dict[str, str]:
      For MJPG, RGB888, BGRA
     """
 
-    # Color (visual) runs at full 1080p for AprilTag detection; depth runs at 480p@30
+    # Color (visual) runs at 720p for AprilTag detection; depth runs at 480p@30
     # (its point cloud only feeds the Nav2 voxel layer at <=1.5 m range). If the camera
     # refuses 640x480@30 in Y11, fall back to Y12.
-    color_width = '1920'
-    color_height = '1080'
-    color_format = 'RGB888'
+    # The colour sensor is USB 2.0, so 1080p@30 only exists as MJPG; RGB888 meant the driver
+    # decoded MJPG in software. Asking for MJPG lets a driver built with USE_NV_HW_DECODER
+    # (see qpl_orbbecsdk_build) decode on the Jetson's NVJPG engine; without it the driver
+    # falls back to the same software decode. Published images stay rgb8 either way.
+    # 720p, not 1080p: 2.25x fewer pixels to decode, publish and detect on. The 720p mode
+    # crops the sensor (fx 1006 vs 1307 at 1080p, ~65 vs ~73 deg wide), so a tag loses only
+    # ~23% of its pixels; at quad_decimate 1 that still reaches well past the arena.
+    # Intrinsics come from calibration/front_calib_<width>_cam_info.yaml.
+    color_width = '1280'
+    color_height = '720'
+    color_format = 'MJPG'
     depth_width = '640'
     depth_height = '480'
     depth_fps = '30'

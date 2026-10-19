@@ -51,10 +51,6 @@
   <gazebo reference="camera_link_front">
     <material>Gazebo/Red</material>
 
-    <!-- Color (visual) camera: full resolution for AprilTag detection (mirrors the
-         front Orbbec at 1920x1080). This is an expensive Gazebo render; if the
-         sim can't keep up on a given machine, lowering this resolution (or the
-         update_rate) is the first knob to turn. -->
     <sensor name="camera_front_color" type="camera">
       <always_on>true</always_on>
       <visualize>true</visualize>
@@ -65,8 +61,8 @@
         <vertical_fov>2</vertical_fov>
         <image>
           <format>B8G8R8</format>
-          <width>1920</width>
-          <height>1080</height>
+          <width>1280</width>
+          <height>720</height>
         </image>
         <clip>
           <near>0.05</near>
