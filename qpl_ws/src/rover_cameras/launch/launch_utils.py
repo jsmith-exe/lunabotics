@@ -127,8 +127,8 @@ def respawning_container(
         if starts[0] == 1:
             return [load]
         return [
-            LogInfo(msg=f'/{namespace}/{name} restarted after exiting; reloading the camera '
-                        f'driver and stream encoder in {reload_delay:g} s (waiting for the old '
+            LogInfo(msg=f'/{namespace}/{name} restarted after exiting; reloading its '
+                        f'components in {reload_delay:g} s (waiting for the old '
                         'process to drop off DDS)'),
             TimerAction(period=reload_delay, actions=[load]),
         ]

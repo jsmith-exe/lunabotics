@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from math import hypot
 
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float64
@@ -6,20 +7,17 @@ from std_msgs.msg import Float64
 
 class ExcavationState(Enum):
     STOP_WHEELS = auto()
-    START_SPIN = auto()
-    LOWER_BUCKET = auto()
-    DIG = auto()
-    RAISE_BUCKET = auto()
+    LOWER_TO_CONTACT = auto()
+    LOWER_TO_MAX = auto()
+    DRIVE_FORWARD = auto()
+    STOP_WHEELS_AFTER_DRIVE = auto()
+    LIFT_BUCKET = auto()
     STOP_BUCKET = auto()
     COMPLETE = auto()
 
 
 class ExcavationSequence:
-    """Feedback-based FSM for the excavation sequence.
-
-    Stands still: spins the drum forward, lowers the bucket into the regolith, holds it there
-    for dig_duration_s, raises it again, then stops the drum.
-    """
+    """Feedback-based FSM for the excavation sequence."""
 
     def __init__(
         self,
@@ -32,26 +30,34 @@ class ExcavationSequence:
         self.drum_lift_pub = drum_lift_pub
         self.drum_spin_pub = drum_spin_pub
 
+        self.drive_speed = config["drive_speed"]
+        self.drive_distance_m = config["drive_distance_m"]
         self.drum_spin_speed = config["drum_spin_speed"]
         self.drum_spin_direction = config["drum_spin_direction"]
-        self.lowered_position_m = config["lowered_position_m"]
-        self.dig_duration_s = config["dig_duration_s"]
+        self.contact_position_m = config["contact_position_m"]
+        self.max_excavation_position_m = config["max_excavation_position_m"]
         self.raised_position_m = config["raised_position_m"]
         self.position_tolerance_m = config["position_tolerance_m"]
 
         self.state = ExcavationState.COMPLETE
         self.complete = False
-        self.dig_start_s = None
+
+        self.start_x = None
+        self.start_y = None
 
     """Sequence lifecycle"""
 
-    def start(self):
+    def start(self, odom_position):
         # Start a new excavation sequence
         self.complete = False
         self.state = ExcavationState.STOP_WHEELS
-        self.dig_start_s = None
+        self.start_x = None
+        self.start_y = None
+        if odom_position[0] is not None and odom_position[1] is not None:
+            self.start_x = odom_position[0]
+            self.start_y = odom_position[1]
 
-    def update(self, actuator_positions, now_s):
+    def update(self, actuator_positions, odom_position):
         # Run one non-blocking update of the FSM
         if self.complete:
             return
@@ -59,41 +65,45 @@ class ExcavationSequence:
         # 1. Stop wheels
         if self.state == ExcavationState.STOP_WHEELS:
             self.stop_wheels()
-            self.state = ExcavationState.START_SPIN
+            self.state = ExcavationState.LOWER_TO_CONTACT
 
-        # 2. Start the drum before it touches the regolith
-        elif self.state == ExcavationState.START_SPIN:
-            self.stop_wheels()
+        # 2. Lower bucket to contact while spinning
+        elif self.state == ExcavationState.LOWER_TO_CONTACT:
             self.spin_bucket()
-            self.state = ExcavationState.LOWER_BUCKET
+            self.command_lift(self.contact_position_m)
+            if self.actuators_at_position(actuator_positions, self.contact_position_m):
+                self.state = ExcavationState.LOWER_TO_MAX
 
-        # 3. Lower bucket into the regolith while spinning
-        elif self.state == ExcavationState.LOWER_BUCKET:
-            self.stop_wheels()
+        # 3. Lower bucket to maximum excavation depth
+        elif self.state == ExcavationState.LOWER_TO_MAX:
             self.spin_bucket()
-            self.command_lift(self.lowered_position_m)
-            if self.actuators_at_position(actuator_positions, self.lowered_position_m):
-                self.dig_start_s = now_s
-                self.state = ExcavationState.DIG
+            self.command_lift(self.max_excavation_position_m)
+            if self.actuators_at_position(actuator_positions, self.max_excavation_position_m):
+                if odom_position[0] is not None and odom_position[1] is not None:
+                    self.start_x = odom_position[0]
+                    self.start_y = odom_position[1]
+                self.state = ExcavationState.DRIVE_FORWARD
 
-        # 4. Hold the bucket down and keep spinning. Nothing reports when the bucket is full,
-        # so this step is timed.
-        elif self.state == ExcavationState.DIG:
-            self.stop_wheels()
+        # 4. Drive forward while drum is spinning
+        elif self.state == ExcavationState.DRIVE_FORWARD:
             self.spin_bucket()
-            self.command_lift(self.lowered_position_m)
-            if now_s - self.dig_start_s >= self.dig_duration_s:
-                self.state = ExcavationState.RAISE_BUCKET
+            self.drive_forward()
+            if self.has_travelled_distance(odom_position, self.drive_distance_m):
+                self.state = ExcavationState.STOP_WHEELS_AFTER_DRIVE
 
-        # 5. Raise bucket while still spinning, so it keeps what it collected
-        elif self.state == ExcavationState.RAISE_BUCKET:
+        # 5. Stop wheels
+        elif self.state == ExcavationState.STOP_WHEELS_AFTER_DRIVE:
             self.stop_wheels()
+            self.state = ExcavationState.LIFT_BUCKET
+
+        # 6. Lift bucket while drum is spinning
+        elif self.state == ExcavationState.LIFT_BUCKET:
             self.spin_bucket()
             self.command_lift(self.raised_position_m)
             if self.actuators_at_position(actuator_positions, self.raised_position_m):
                 self.state = ExcavationState.STOP_BUCKET
 
-        # 6. Stop drum
+        # 7. Stop drum
         elif self.state == ExcavationState.STOP_BUCKET:
             self.stop_wheels()
             self.stop_bucket()
@@ -101,6 +111,12 @@ class ExcavationSequence:
             self.complete = True
 
     """Outputs"""
+    def drive_forward(self):
+        command = Twist()
+        command.linear.x = self.drive_speed
+        command.angular.z = 0.0
+        self.cmd_vel_pub.publish(command)
+
     def stop_wheels(self):
         command = Twist()
         command.linear.x = 0.0
@@ -138,6 +154,24 @@ class ExcavationSequence:
             left_error <= self.position_tolerance_m
             and right_error <= self.position_tolerance_m
         )
+
+    def has_travelled_distance(self, odom_position, target_distance):
+        x, y = odom_position
+
+        if (
+            x is None
+            or y is None
+            or self.start_x is None
+            or self.start_y is None
+        ):
+            return False
+
+        distance = hypot(
+            x - self.start_x,
+            y - self.start_y,
+        )
+
+        return distance >= target_distance
 
     """Stop / completion"""
     def stop(self, actuator_positions):

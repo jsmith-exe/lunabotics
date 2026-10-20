@@ -2,41 +2,41 @@ autonomy:
   ros__parameters:
     autonomy.update_rate_hz: 5.0 # Autonomy update / command publish rate
 
-    # Drum lift positions: bigger = higher. Keep within the actuators' range in
-    # diffdrive_canbus/hardware/can_config.yaml (25-225 mm), or they can never reach the
-    # target and the sequence waits forever.
+    # LOCALISATION (localised_autonomy_node only)
+    localisation.global_frame: map
+    localisation.base_frame: base_footprint
+    localisation.max_pose_age_s: 1.0 # Stop autonomy if the pose is older than this
 
-    # EXCAVATION TUNING (rover stands still: spin, lower, hold for dig_duration_s, raise, stop spinning)
+    # EXCAVATION TUNING
+    # wheels
+    excavation.drive_speed: 0.2
+    excavation.drive_distance_m: 1.0
+    excavation.drive_duration_s: 5.0 # timed_autonomy_node only, replaces drive_distance_m
+
     # actuators
-    excavation.lowered_position_m: 0.03 # Bucket down in the regolith
-    excavation.dig_duration_s: 30.0 # How long to hold the bucket down spinning; nothing reports when it's full
-    excavation.raised_position_m: 0.20 # Bucket position after excavation
+    excavation.contact_position_m: 0.01 # Actuator position where bucket reaches regolith
+    excavation.max_excavation_position_m: 0.20 # Maximum bucket lowering depth during excavation
+    excavation.raised_position_m: 0.00 # Bucket position after excavation
     excavation.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
     excavation.drum_spin_speed: 0.8
     excavation.drum_spin_direction: 1.0 # sign will determine what direction the drum spins
 
-    # DEPOSITION TUNING (rover stands still: bucket raised, spin backwards, stop spinning)
-    # wheels (blind DEPOSIT only; NAV_DEPOSIT and AUTO are driven to the berm by Nav2)
+    # DEPOSITION TUNING
+    # wheels
     deposition.drive_to_zone_speed: 0.2
     deposition.drive_to_zone_distance_m: 1.5
+    deposition.drive_to_zone_duration_s: 7.5 # timed_autonomy_node only, replaces drive_to_zone_distance_m
+    deposition.deposit_drive_speed: 0.1
+    deposition.deposit_drive_distance_m: 2.0
+    deposition.deposit_drive_duration_s: 20.0 # timed_autonomy_node only, replaces deposit_drive_distance_m
 
     # actuators
-    deposition.raised_position_m: 0.20 # Bucket height while dumping
+    deposition.max_height_position_m: 0.20 # Bucket height for depositing regolith
+    deposition.normal_height_position_m: 0.00 # Bucket height after deposition
     deposition.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
     deposition.drum_spin_speed: 0.4
-    deposition.drum_spin_direction: -1.0 # opposite to excavation, to dump
-    deposition.dump_duration_s: 30.0 # How long to spin backwards; nothing reports when the drum is empty
-
-    # NAVIGATION (NAV_EXCAVATE / NAV_DEPOSIT / AUTO only)
-    # Map frame [x, y, yaw], US arena: origin at the arena's SW interior corner, the
-    # AprilTag wall is y = 0. The rover stands still at each waypoint to dig or dump.
-    navigation.excavation_waypoint: [6.0, 1.5, 0.0] # excavation zone (y 0-3), clear of the start zone
-    navigation.deposition_waypoint: [8.14, 6.40, 1.5708] # berm centre (x 7.69-8.59, y 5.30-7.50), drum over the berm, facing along it
-    navigation.goal_timeout_s: 180.0
-    navigation.max_retries: 2 # Failed goals re-sent before giving up
-    navigation.travel_lift_position_m: 0.20 # Bucket held here while navigating, so it doesn't plough the regolith
-    navigation.arrival_radius_m: 0.4 # Within this of a waypoint the dig/dump starts, whatever the heading
+    deposition.drum_spin_direction: 1.0
