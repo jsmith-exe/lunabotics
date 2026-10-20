@@ -4,7 +4,7 @@
 // All data arrives on one Server-Sent Events stream from teleop_hud (/events);
 // camera frames come as MJPEG from /cam/<name>.mjpg.
 
-import { Surface, prefs, isNum, deg, fmtSigned, ga, applyIrish, STALE_S, DEAD_S, TILT_CAUTION, TILT_CRIT } from "./util.js";
+import { Surface, prefs, clamp, isNum, deg, fmtSigned, ga, applyIrish, STALE_S, DEAD_S, TILT_CAUTION, TILT_CRIT } from "./util.js";
 import { CameraDeck } from "./cameras.js";
 import { TacticalMap } from "./map.js";
 import { drawDrive, drawWheels, drawAttitude, drawImplement, drawTrace, TraceHistory } from "./gauges.js";
@@ -92,15 +92,13 @@ function onTele(t) {
 // ------------------------------------------------------- derived quantities
 const stallSince = { fl: null, fr: null, rl: null, rr: null };
 
-function topicAge(name) {
-  const tp = S.tele?.topics?.find((x) => x.name === name);
-  return tp && isNum(tp.age) ? tp.age : null;
-}
+// Sent whether or not telemetry (the per-topic list) is on.
+const jointsAge = () => (isNum(S.tele?.joints_age) ? S.tele.joints_age : null);
 
 function derive(t) {
   const d = S.derived;
   const fresh = (x) => x && isNum(x.age) && x.age < DEAD_S;
-  d.jointsFresh = (topicAge("/joint_states") ?? 99) < DEAD_S;
+  d.jointsFresh = (jointsAge() ?? 99) < DEAD_S;
   d.live = fresh(t.odom) || d.jointsFresh;
   // Prefer the map pose (aligned with the arena), then odom. If both have gone
   // stale keep the last one so the map can show where the rover was last seen.
@@ -130,7 +128,7 @@ function derive(t) {
   const wantL = d.cmdVx - (d.cmdWz * sep) / 2;
   const wantR = d.cmdVx + (d.cmdWz * sep) / 2;
   const now = performance.now() / 1000;
-  const jointsFresh = (topicAge("/joint_states") ?? 99) < STALE_S;  // stricter: stall needs live data
+  const jointsFresh = (jointsAge() ?? 99) < STALE_S;  // stricter: stall needs live data
   d.stalled = [];
   for (const k of ["fl", "fr", "rl", "rr"]) {
     const want = k.endsWith("l") ? wantL : wantR;
@@ -206,6 +204,10 @@ for (const b of $("log-filters").querySelectorAll("button")) {
 function renderLinks() {
   const t = S.tele;
   if (!t) return;
+  drawer.classList.toggle("no-telemetry", !telemetryOn());
+  $("telemetry").classList.toggle("on", telemetryOn());
+  $("telemetry").textContent = telemetryOn() ? "TELEMETRY ON" : "TELEMETRY OFF";
+  if (!t.topics) return;
   const rows = [...t.topics].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
   $("links").replaceChildren(
     ...rows.map((tp) => {
@@ -230,6 +232,57 @@ function renderLinks() {
   );
 }
 
+// Telemetry on/off lives in teleop_hud (it owns the /rosout subscription); the
+// page asks for a change and shows what the node reports back in tele.
+let telemetryWant = null; // requested, until tele confirms it
+function telemetryOn() {
+  const actual = S.tele?.telemetry ?? true;
+  if (telemetryWant === actual) telemetryWant = null;
+  return telemetryWant ?? actual;
+}
+async function toggleTelemetry() {
+  const want = !telemetryOn();
+  telemetryWant = want;
+  renderLinks();
+  try {
+    const r = await fetch(`/telemetry?on=${want ? 1 : 0}`, { method: "POST" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  } catch (e) {
+    telemetryWant = null;
+    showTicker({ lvl: 30, node: "hud", msg: `could not switch telemetry: ${e.message}` });
+  }
+}
+
+// Topic table / event log split, dragged by the bar between them.
+const linksWrap = $("links-wrap");
+const split = $("drawer-split");
+function setLinksHeight(px) {
+  if (px === null) linksWrap.style.height = "";
+  else linksWrap.style.height = `${Math.round(px)}px`;
+}
+setLinksHeight(prefs.get("linksH", null));
+split.addEventListener("pointerdown", (e) => {
+  const y0 = e.clientY;
+  const h0 = linksWrap.getBoundingClientRect().height;
+  e.preventDefault(); // no text selection while dragging
+  split.classList.add("drag");
+  const move = (ev) => setLinksHeight(clamp(h0 + ev.clientY - y0, 48, drawer.clientHeight));
+  const up = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+    split.classList.remove("drag");
+    prefs.set("linksH", linksWrap.getBoundingClientRect().height);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+});
+split.addEventListener("dblclick", () => {
+  setLinksHeight(null);
+  prefs.set("linksH", null);
+});
+
 // --------------------------------------------------------- header widgets
 function verdict(el, state) {
   el.className = "magi-node " + state;
@@ -248,7 +301,7 @@ function renderHeader() {
 
   // MAGI: LINK = data actually arriving from the rover.
   const odomAge = t?.odom?.age ?? null;
-  const jsAge = topicAge("/joint_states");
+  const jsAge = jointsAge();
   const freshest = Math.min(odomAge ?? 99, jsAge ?? 99);
   if (!S.connected) verdict($("magi-link"), "fail");
   else if (!t || freshest === 99) verdict($("magi-link"), "off");
@@ -280,7 +333,7 @@ function computeWarnings() {
     return w;
   }
   const odomAge = t.odom?.age ?? null;
-  const jsAge = topicAge("/joint_states");
+  const jsAge = jointsAge();
   if (odomAge === null && jsAge === null) {
     w.push({ lvl: "info", ga: "Ag Fanacht", txt: "NO ROVER DATA YET", sub: "no /odometry/filtered or /joint_states" });
   } else if (Math.min(odomAge ?? 99, jsAge ?? 99) > DEAD_S) {
@@ -419,6 +472,7 @@ function toggleDrawer(force) {
 }
 $("magi").addEventListener("click", () => toggleDrawer());
 $("drawer-close").addEventListener("click", () => toggleDrawer(false));
+$("telemetry").addEventListener("click", toggleTelemetry);
 const help = $("help");
 help.addEventListener("click", () => help.classList.remove("show"));
 

@@ -51,8 +51,8 @@ arena map and the rover telemetry. **It only monitors** and never publishes a co
 driving with the controller exactly as before.
 
 ```bash
-qpl_hud_rover   # against the rover: decodes the h264 (ffmpeg) camera feeds locally
-qpl_hud         # against the sim: Gazebo already publishes JPEG
+qpl_hud_rover   # against the rover
+qpl_hud         # against the sim (same, with use_sim_time)
 ```
 Both open http://localhost:8765. Press `H` on the page for the key list. The HUD keys avoid W/A/S/D
 and the arrow keys so they never look like drive keys.
@@ -70,7 +70,23 @@ What's on screen:
 - **Bottom strip**: commanded vs measured motion, wheel surface speeds with stall detection, pitch/roll,
   drum and lift, and a 30 s velocity trace.
 - **Warnings**: telemetry loss, tilt, wall proximity / out of bounds, wheel stall, and a silent mux
-  output. `L` opens per-topic rates and the `/rosout` log.
+  output.
+- **System drawer** (`L`, or click the health verdicts): per-topic rates and the `/rosout` log. Both
+  scroll; drag the bar between them to resize (double-click resets). **TELEMETRY ON/OFF** stops the
+  HUD subscribing to `/rosout`, so a chatty rover's logs stop using link bandwidth; it also stops the
+  per-topic list. Health verdicts and warnings keep working. Start with it off using
+  `telemetry:=false`.
+
+Cameras are the same h264 teleop streams RViz shows, `/depth_camera_{front,rear}/color/teleop_stream/ffmpeg`
+(see [rover_cameras](../rover_cameras/README.md)), on the rover and in sim. Two `image_transport`
+republishers (`hud_front_decoder`, `hud_rear_decoder`) decode them in software on the laptop to
+`/hud/{front,rear}_cam/compressed`, which the HUD serves as MJPEG. Like RViz, they set the h264 decoder to
+`h264`; NVIDIA's `h264_cuvid` lags and can turn the picture green. `transport:=compressed` skips the
+decoders and takes `<camera>/color/image_raw/compressed` instead (used by `hud_demo`).
+
+The drum lift bars span the actuator travel in
+[can_config.yaml](../diffdrive_canbus/hardware/can_config.yaml) (`min_lift_mm`..`max_lift_mm`) and read in mm.
+A lift command of 0 means "stop and hold", so the HUD shows it as `TGT HOLD`, not as a target.
 
 How it is built: `basestation/hud/hud_node.py` (node `teleop_hud`) subscribes to the topics and serves
 the page in `hud/` with the Python standard library. Telemetry goes over Server-Sent Events and the
@@ -78,5 +94,35 @@ cameras over MJPEG, so it needs no rosbridge or extra pip packages. Thresholds (
 are at the top of `hud/js/util.js` and `hud/js/main.js`.
 
 No rover? `qpl_hud_demo` publishes a fake rover (including camera frames) for trying the HUD out. Run it
-on a private `ROS_DOMAIN_ID`; it refuses to start if anything else is on the command topics.
+on a private `ROS_DOMAIN_ID` with `ros2 launch basestation hud.launch.py transport:=compressed`; it refuses
+to start if anything else is on the command topics. For the real h264 path without cameras, add
+`ros2 launch rover_cameras camera_sim.launch.py` and launch the HUD normally.
+
+#### Troubleshooting the HUD
+For general ROS, network, camera and CAN problems, see [DnR.md](../../DnR.md). Below are only the
+HUD-specific checks. Most HUD problems show up in the `qpl_hud*` terminal, so read that first.
+
+| Symptom | Check |
+|---|---|
+| **HUD SERVER UNREACHABLE** | `teleop_hud` has stopped. Look at its terminal. `Address already in use` means another HUD (or something else) is on port 8765: close it, or use `port:=8766`. |
+| **NO SIGNAL** on a camera | The overlay names the topic it is waiting on. Work back along the chain below. |
+| Picture lags, or turns green | The decoder is not software `h264`: `ros2 param get /hud_front_decoder in.ffmpeg.decoders.h264` should say `h264`. The `hud_*_decoder` startup lines say which decoder opened. For blocky or smeared video, see rover_cameras' README. |
+| Drive guides say **GUIDES ESTIMATED · NO CAMERA_INFO/TF** | The HUD has no `<camera>/color/camera_info`, or no TF from `base_footprint` to that camera's frame. It logs `... camera model resolved from <frame>` once it has both. |
+| **AWAITING TELEMETRY** / **NO ROVER DATA YET** | The page is fine, but nothing has arrived on `/odometry/filtered` or `/joint_states`. This is usually ROS discovery: see DnR.md's ROS networking section, and check `ROS_DOMAIN_ID` matches the rover. |
+| CONTROL stays **IDLE** while driving | Nothing on `/cmd_vel_teleop`. Is teleop enabled in the teleop window? |
+| **MUX OUTPUT SILENT** | Commands arrive but `/diff_cont/cmd_vel_unstamped` is quiet. Check twist_mux on the rover. |
+| **NO MAP FIX** / LOCALISE not approved | There is no live `map` → `base_footprint` TF, so the map falls back to odom. Localisation (AprilTag/EKF) isn't running, or hasn't seen a tag yet. |
+| Map has no arena or zones | Look in the log for `Could not load arena config` (`qpl_rover/config/arena/selector.yaml`). |
+| Lift bars use the wrong range | Look in the log for `Could not load lift limits`. The HUD reads `can_config.yaml` from the source tree, like `qpl_teleop`, so it needs a `--symlink-install` build. If the bars disagree with the real actuator, the feedback calibration is `RAW_MIN/MAX` and `DISTANCE_MIN/MAX_MM` in `diffdrive_canbus/hardware/diffdrive_interface/actuator.cpp`. |
+| Event log is empty | Telemetry is off (drawer button), or the INFO+/WARN+/ERROR filter hides the lines. The HUD's own log lines are never shown. |
+
+Camera chain, rover to page. The rover's stream encoder only encodes while something is watching, so
+`ros2 topic hz` on a stream starts it up too:
+```bash
+ros2 topic hz /depth_camera_front/color/teleop_stream/ffmpeg   # rover -> laptop. Nothing: rover_cameras side
+ros2 topic hz /hud/front_cam/compressed                        # laptop decoder. Nothing: see hud_front_decoder's output
+curl -so /dev/null -w '%{http_code}\n' localhost:8765/cam/front.jpg   # 200: HUD has a frame; 204: none yet
+```
+In the browser, `window.__hud` in the devtools console holds the HUD's live state, and
+`curl -N localhost:8765/events` shows the raw telemetry stream.
 

@@ -248,8 +248,17 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .drawer.open { transform: none; }
 .drawer-head { display: flex; justify-content: space-between; align-items: center; }
 .drawer .x { font-size: 16px; color: var(--orange); padding: 2px 8px; border: 1px solid var(--line-dim); }
+/* Topic table scrolls on its own; the split below it sets its height (main.js). */
+.links-wrap { flex: 0 0 auto; height: 45%; min-height: 48px; max-height: calc(100% - 120px); overflow-y: auto; }
+.links-wrap::-webkit-scrollbar { width: 8px; } .links-wrap::-webkit-scrollbar-thumb { background: var(--line-dim); }
+.split { flex: 0 0 auto; height: 8px; margin: -3px 0; cursor: row-resize; touch-action: none; position: relative; }
+.split::after { content: ""; position: absolute; left: 0; right: 0; top: 3px; height: 2px; background: linear-gradient(90deg, transparent, var(--line-dim) 35%, var(--line-dim) 65%, transparent); }
+.split:hover::after, .split.drag::after { background: var(--orange); box-shadow: var(--glow); }
+.telemetry-off { display: none; color: var(--grey); font-size: 11px; letter-spacing: 0.1em; padding: 10px 4px; }
+.drawer.no-telemetry .links { display: none; }
+.drawer.no-telemetry .telemetry-off { display: block; }
 .links { width: 100%; border-collapse: collapse; font-family: var(--f-mono); font-size: 11.5px; font-weight: 400; }
-.links th { text-align: left; color: var(--text-dim); font-family: var(--f-label); font-weight: 700; font-size: 10px; letter-spacing: 0.14em; border-bottom: 1px solid var(--line-dim); padding: 3px 4px; }
+.links th { text-align: left; color: var(--text-dim); font-family: var(--f-label); font-weight: 700; font-size: 10px; letter-spacing: 0.14em; border-bottom: 1px solid var(--line-dim); padding: 3px 4px; position: sticky; top: 0; background: rgb(4, 3, 2); }
 .links td { padding: 2px 4px; border-bottom: 1px solid rgba(255,138,30,0.07); color: var(--text); white-space: nowrap; }
 .links td:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
 .links .led { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--grey); }
@@ -260,7 +269,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .links tr.never td { color: var(--grey); }
 .filters button { font-size: 10px; padding: 2px 6px; border: 1px solid var(--line-dim); color: var(--text-dim); margin-left: 3px; }
 .filters button.on { background: var(--orange); color: #000; border-color: var(--orange); }
-.log { flex: 1; overflow-y: auto; font-family: var(--f-mono); font-size: 11.5px; font-weight: 400; line-height: 1.35; border: 1px solid var(--line-faint); padding: 4px 6px; }
+.log { flex: 1; min-height: 40px; overflow-y: auto; font-family: var(--f-mono); font-size: 11.5px; font-weight: 400; line-height: 1.35; border: 1px solid var(--line-faint); padding: 4px 6px; }
 .log .ln { white-space: pre-wrap; word-break: break-word; padding: 1px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
 .log .t { color: var(--grey); margin-right: 6px; }
 .log .n { color: var(--text-dim); margin-right: 6px; }

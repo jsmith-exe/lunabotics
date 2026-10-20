@@ -10,7 +10,11 @@ of JSON channels and serves them, with the camera feeds, to a local web page:
             wheel/drum/lift joints, control source, topic health
   costmap   global costmap as a PNG, at most once a second
   plan      latest Nav2 global plan
-  log       recent /rosout lines
+  log       recent /rosout lines (only while telemetry is on)
+
+Telemetry (the per-topic rates and the /rosout log, for the SYSTEM drawer) can be
+switched off from the page or with the `telemetry` parameter. Off, the /rosout
+subscription is dropped, so a chatty rover's logs stop crossing the link.
 
 Open http://localhost:8765 (see launch/hud.launch.py).
 """
@@ -38,6 +42,7 @@ from sensor_msgs.msg import JointState, CompressedImage, CameraInfo
 from std_msgs.msg import Float64, Float64MultiArray
 from rcl_interfaces.msg import Log
 
+from basestation.constants import CANBUS_CONFIG_PATH
 from basestation.hud.server import Hub, CameraFeed, HudServer
 
 
@@ -169,6 +174,9 @@ class HudNode(Node):
         rear_info = p("rear_camera_info", "/depth_camera_rear/color/camera_info").value
         web_root = p("web_root", "").value or os.path.join(
             get_package_share_directory("basestation"), "hud")
+        # Written from an HTTP thread; publish_slow() applies it on the executor.
+        self.telemetry = bool(p("telemetry", True).value)
+        self.rosout_sub = None
 
         self.hub = Hub()
         self.stats = {}
@@ -221,7 +229,8 @@ class HudNode(Node):
         self._sub(PoseWithCovarianceStamped, "/apriltag/pose", self.on_tag, 10, "loc")
         self._sub(OccupancyGrid, "/global_costmap/costmap", self.on_costmap, latched, "nav")
         self._sub(Path, "/plan", self.on_plan, 10, "nav")
-        self._sub(Log, "/rosout", self.on_log, QoSProfile(depth=200), "log")
+        self.stats["/rosout"] = TopicStats("/rosout", "log")
+        self._apply_telemetry()
 
         self.cameras = {
             "front": Camera("front", "FRONT", front_topic),
@@ -235,6 +244,7 @@ class HudNode(Node):
                 CameraInfo, info, lambda m, c=cam: self.on_info(c, m), fast)
 
         self.arena = self._load_arena()
+        self.lift_limits = self._load_lift_limits()
         self.config_dirty = True
 
         self.create_timer(1.0 / TELE_HZ, self.publish_tele)
@@ -243,6 +253,7 @@ class HudNode(Node):
 
         self.server = HudServer(self.host, self.port, web_root, self.hub,
                                 {k: c.feed for k, c in self.cameras.items()},
+                                {"telemetry": self.set_telemetry},
                                 self.get_logger())
         self.server.start()
         shown = "localhost" if self.host in ("0.0.0.0", "127.0.0.1") else self.host
@@ -256,7 +267,20 @@ class HudNode(Node):
             stats.tick(time.time())
             cb(msg)
 
-        self.create_subscription(mtype, topic, wrapped, qos)
+        return self.create_subscription(mtype, topic, wrapped, qos)
+
+    def set_telemetry(self, on):
+        self.telemetry = on
+
+    def _apply_telemetry(self):
+        """Hold the /rosout subscription only while telemetry is on."""
+        if self.telemetry and self.rosout_sub is None:
+            self.rosout_sub = self.create_subscription(Log, "/rosout", self.on_log, QoSProfile(depth=200))
+            self.get_logger().info("Telemetry on: subscribed to /rosout")
+        elif not self.telemetry and self.rosout_sub is not None:
+            self.destroy_subscription(self.rosout_sub)
+            self.rosout_sub = None
+            self.get_logger().info("Telemetry off: dropped /rosout; per-topic rates not sent")
 
     def _stamp(self, key, value):
         self.state[key] = (value, time.time())
@@ -279,6 +303,17 @@ class HudNode(Node):
             }
         except Exception as e:  # the HUD is still useful without the arena
             self.get_logger().warn(f"Could not load arena config: {e}")
+            return None
+
+    def _load_lift_limits(self):
+        """Drum lift actuator travel (m) from diffdrive_canbus' can_config.yaml,
+        the limits the hardware interface clamps lift setpoints to."""
+        try:
+            with open(CANBUS_CONFIG_PATH) as f:
+                drum = yaml.safe_load(f)["drum"]
+            return {"min": drum["min_lift_mm"] / 1000.0, "max": drum["max_lift_mm"] / 1000.0}
+        except Exception as e:  # the lift gauge falls back to its own defaults
+            self.get_logger().warn(f"Could not load lift limits from {CANBUS_CONFIG_PATH}: {e}")
             return None
 
     # -------------------------------------------------------------- callbacks
@@ -310,6 +345,7 @@ class HudNode(Node):
                                   "pts": [[num(x, 3), num(y, 3)] for x, y in pts]})
 
     def on_log(self, msg):
+        self.stats["/rosout"].tick(time.time())
         if msg.name == self.get_name():
             return
         self.log_id += 1
@@ -423,8 +459,7 @@ class HudNode(Node):
             x, y, yaw, t, frame = s["tag"]
             tag = {"x": num(x, 3), "y": num(y, 3), "yaw": num(yaw), "age": num(now - t, 1), "frame": frame}
 
-        topics = [st.summary(now) for st in self.stats.values()]
-        topics += [c.stats.summary(now) for c in self.cameras.values()]
+        joints_last = self.stats["/joint_states"].last
         cams = {}
         for k, c in self.cameras.items():
             summ = c.stats.summary(now)
@@ -454,25 +489,31 @@ class HudNode(Node):
             },
             "tag": tag,
             "cams": cams,
-            "topics": topics,
+            "joints_age": None if joints_last is None else num(now - joints_last, 2),
+            "telemetry": self.telemetry,
         }
+        if self.telemetry:
+            tele["topics"] = ([st.summary(now) for st in self.stats.values()]
+                              + [c.stats.summary(now) for c in self.cameras.values()])
         try:
             self.hub.publish("tele", tele)
         except ValueError as e:
             self.get_logger().warn(f"Dropped a telemetry frame: {e}", throttle_duration_sec=5.0)
 
     def publish_slow(self):
+        self._apply_telemetry()
         if self.config_dirty:
             self.config_dirty = False
             self.hub.publish("config", {
                 "arena": self.arena,
                 "rover": ROVER,
+                "lift": self.lift_limits,
                 "frames": {"map": self.map_frame, "odom": self.odom_frame, "base": self.base_frame},
                 "cams": {k: {"label": c.label, "topic": c.topic, "model": c.model}
                          for k, c in self.cameras.items()},
                 "source_hold": SOURCE_HOLD,
             })
-        if self.log_dirty:
+        if self.log_dirty and self.telemetry:
             self.log_dirty = False
             self.hub.publish("log", list(self.logs)[-LOG_SEND:])
         if self.costmap_dirty and time.monotonic() - self.costmap_sent >= 1.0:

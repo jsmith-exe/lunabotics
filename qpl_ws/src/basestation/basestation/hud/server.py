@@ -5,6 +5,9 @@ Serves three things, so the browser needs nothing but a URL:
   /events      a Server-Sent Events stream of JSON telemetry channels
   /cam/<name>  camera feeds as MJPEG (.mjpg) or the latest still (.jpg)
 
+and takes HUD settings as POST /<setting>?on=0|1 (only "telemetry" so far).
+Settings change what the HUD collects; nothing here ever reaches the rover.
+
 Kept to the standard library on purpose: the basestation laptop has no
 rosbridge, aiohttp or websockets installed, and SSE + MJPEG cover a read-only
 monitoring display without them. Everything here runs on HTTP server threads;
@@ -81,7 +84,7 @@ MAX_STREAM_FPS = 30.0
 SSE_KEEPALIVE_S = 1.0
 
 
-def make_handler(web_root, hub, cameras, log):
+def make_handler(web_root, hub, cameras, settings, log):
     web_root = os.path.abspath(web_root)
 
     class Handler(BaseHTTPRequestHandler):
@@ -102,6 +105,20 @@ def make_handler(web_root, hub, cameras, log):
                     self._static(path)
             except (BrokenPipeError, ConnectionResetError, TimeoutError):
                 pass  # browser went away; nothing to clean up
+
+        def do_POST(self):
+            # Drain any body so a kept-alive connection stays in step.
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            path, _, query = self.path.partition("?")
+            setter = settings.get(path.lstrip("/"))
+            value = dict(p.partition("=")[::2] for p in query.split("&")).get("on")
+            if setter is None or value not in ("0", "1"):
+                body = b"unknown setting"
+                self._send_headers(404, "text/plain", len(body))
+                self.wfile.write(body)
+                return
+            setter(value == "1")
+            self._send_headers(204, "text/plain", 0)
 
         def _send_headers(self, code, ctype, length=None, extra=None):
             self.send_response(code)
@@ -194,8 +211,9 @@ def make_handler(web_root, hub, cameras, log):
 
 
 class HudServer:
-    def __init__(self, host, port, web_root, hub, cameras, log):
-        handler = make_handler(web_root, hub, cameras, log)
+    def __init__(self, host, port, web_root, hub, cameras, settings, log):
+        """settings: name -> callable(bool), called on an HTTP server thread."""
+        handler = make_handler(web_root, hub, cameras, settings, log)
         self.httpd = ThreadingHTTPServer((host, port), handler)
         self.httpd.daemon_threads = True
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)

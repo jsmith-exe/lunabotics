@@ -121,8 +121,8 @@ class HudDemo(Node):
         self.wp = 1
         self.t0 = time.time()
         self.drum_phase = 0.0
-        self.lift = 0.8
-        self.lift_target = 0.8
+        self.lift = 0.2   # m, inside can_config.yaml's 25-225 mm travel
+        self.lift_target = 0.2
         self.reverse_until = 0.0
         self.next_reverse = self.t0 + 20.0
         self.costmap = self._make_costmap()
@@ -202,8 +202,8 @@ class HudDemo(Node):
         stall = 70 < el % 120 < 73  # front-left wheel jams for a few seconds
         in_dig = self.y < 3.0 and self.phase(now) == "TELEOP"
         drum_cmd = 0.6 if in_dig else 0.0
-        self.lift_target = 0.15 if in_dig else 0.85
-        self.lift += max(-0.01, min(0.01, self.lift_target - self.lift))
+        self.lift_target = 0.05 if in_dig else 0.2
+        self.lift += max(-0.002, min(0.002, self.lift_target - self.lift))
         drum_vel = drum_cmd * 6.0
         self.drum_phase += drum_vel * dt
         js = JointState()
@@ -211,7 +211,7 @@ class HudDemo(Node):
         js.name = ["front_left_wheel_joint", "front_right_wheel_joint", "rear_left_wheel_joint",
                    "rear_right_wheel_joint", "left_linear_actuator_joint", "right_linear_actuator_joint",
                    "drum_spin_joint"]
-        js.position = [0.0] * 4 + [self.lift, self.lift + 0.01, self.drum_phase]
+        js.position = [0.0] * 4 + [self.lift, self.lift + 0.003, self.drum_phase]
         js.velocity = [0.0 if stall else wl, wr, wl, wr, 0.0, 0.0, drum_vel]
         self.pubs["/joint_states"].publish(js)
         self.pubs["/drum_spin_control/teleop"].publish(Float64(data=drum_cmd))

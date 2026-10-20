@@ -78,9 +78,16 @@
     <aside id="drawer" class="drawer">
       <div class="drawer-head">
         <span class="tag-inline">SYSTEM // DATA LINKS <span class="ga" data-ga="Naisc Sonraí"></span></span>
-        <button class="x" id="drawer-close" title="Close (L)">✕</button>
+        <span>
+          <button id="telemetry" class="chip on" title="Per-topic rates and the /rosout log. Off drops the /rosout subscription, so rover logs stop using link bandwidth.">TELEMETRY ON</button>
+          <button class="x" id="drawer-close" title="Close (L)">✕</button>
+        </span>
       </div>
-      <table class="links"><thead><tr><th></th><th>TOPIC</th><th>HZ</th><th>AGE</th><th>KB/S</th></tr></thead><tbody id="links"></tbody></table>
+      <div class="links-wrap" id="links-wrap">
+        <table class="links"><thead><tr><th></th><th>TOPIC</th><th>HZ</th><th>AGE</th><th>KB/S</th></tr></thead><tbody id="links"></tbody></table>
+        <div class="telemetry-off" id="links-off">TELEMETRY OFF · per-topic rates and /rosout are not collected</div>
+      </div>
+      <div class="split" id="drawer-split" title="Drag to resize · double-click to reset"></div>
       <div class="drawer-head">
         <span class="tag-inline">EVENT LOG <span class="ga" data-ga="Loga Imeachtaí"></span></span>
         <span class="filters" id="log-filters">
