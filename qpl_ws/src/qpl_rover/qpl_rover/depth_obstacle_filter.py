@@ -71,6 +71,7 @@ import math
 import numpy as np
 import rclpy
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
@@ -382,7 +383,11 @@ class DepthObstacleFilter(Node):
         self.self_filter_y = self.declare_parameter('self_filter_y', 0.56).value
 
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=True)
+        # No spin_thread: it adds this same node to a second executor, which
+        # rclpy.spin() then takes it back from, leaving /tf to the thread that
+        # blocks in lookup(). main() spins multi-threaded instead; the listener's
+        # callbacks are in a reentrant group so they run while on_depth waits.
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.obstacle_pub = self.create_publisher(
             PointCloud2, f'{self.output_namespace}/obstacles', qos_profile_sensor_data)
@@ -454,11 +459,14 @@ class DepthObstacleFilter(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = DepthObstacleFilter()
+    executor = MultiThreadedExecutor()
     try:
-        rclpy.spin(node)
+        rclpy.spin(node, executor)
     except KeyboardInterrupt:
         pass
     finally:
+        # Stop the worker threads first or destroy_node() waits on them.
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
