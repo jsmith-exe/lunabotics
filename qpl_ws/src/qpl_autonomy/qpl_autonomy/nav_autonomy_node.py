@@ -1,4 +1,4 @@
-from math import hypot
+from math import atan2, hypot, pi
 
 import rclpy
 from rclpy.node import Node
@@ -66,10 +66,12 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.max_retries", 2)
         self.declare_parameter("navigation.travel_lift_position_m", 0.20)
         self.travel_lift_position_m = self.get_parameter("navigation.travel_lift_position_m").value
-        # Waypoints are approximate: within this distance the sequence starts, whatever the
-        # heading. Nav2 alone kept shuffling on the spot trying to line up exactly.
-        self.declare_parameter("navigation.arrival_radius_m", 0.4)
+        # Within this distance and heading of a waypoint the sequence starts, even if Nav2 is
+        # still lining up. A small buffer so it doesn't keep shuffling to correct itself.
+        self.declare_parameter("navigation.arrival_radius_m", 0.25)
         self.arrival_radius_m = self.get_parameter("navigation.arrival_radius_m").value
+        self.declare_parameter("navigation.arrival_yaw_tolerance_rad", 0.3)
+        self.arrival_yaw_tolerance_rad = self.get_parameter("navigation.arrival_yaw_tolerance_rad").value
 
         self.waypoints = {
             "EXCAVATION": self.get_parameter("navigation.excavation_waypoint").value,
@@ -98,6 +100,7 @@ class NavAutonomyNode(Node):
         # Map-frame pose from the global EKF, for the arrival radius
         self.map_x = None
         self.map_y = None
+        self.map_yaw = None
         self.global_pose_subscription = self.create_subscription(Odometry, "/odometry/global", self.global_pose_callback, 10)
 
         # Sequences
@@ -144,6 +147,8 @@ class NavAutonomyNode(Node):
     def global_pose_callback(self, msg):
         self.map_x = msg.pose.pose.position.x
         self.map_y = msg.pose.pose.position.y
+        q = msg.pose.pose.orientation
+        self.map_yaw = atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
 
     """Basestation commands"""
     def command_callback(self, msg):
@@ -250,13 +255,14 @@ class NavAutonomyNode(Node):
         self.drum_lift_pub.publish(Float64(data=self.travel_lift_position_m))
         self.navigation.update()
 
-        # Close enough counts, even if Nav2 is still lining up or has given up on the spot
-        distance = self.distance_to_waypoint(target)
-        if distance is not None and distance <= self.arrival_radius_m and (
+        # Close enough and facing the right way counts, even if Nav2 is still lining up or
+        # has given up on the spot
+        error = self.waypoint_error(target)
+        if error is not None and error[0] <= self.arrival_radius_m and error[1] <= self.arrival_yaw_tolerance_rad and (
                 not self.navigation.done or not self.navigation.succeeded):
             self.navigation.cancel()
             self.get_logger().info(
-                f"Within {distance:.2f} m of {target.lower()} waypoint. Starting here.")
+                f"Within {error[0]:.2f} m and {error[1]:.2f} rad of {target.lower()} waypoint. Starting here.")
             self.start_sequence(target)
             return
 
@@ -264,7 +270,11 @@ class NavAutonomyNode(Node):
             return
 
         if self.navigation.succeeded:
-            self.get_logger().info(f"Reached {target.lower()} waypoint.")
+            if error is not None:
+                self.get_logger().info(
+                    f"Reached {target.lower()} waypoint ({error[0]:.2f} m, {error[1]:.2f} rad off).")
+            else:
+                self.get_logger().info(f"Reached {target.lower()} waypoint.")
             self.start_sequence(target)
             return
 
@@ -278,11 +288,13 @@ class NavAutonomyNode(Node):
             self.auto_mode = False
             self.state = "IDLE"
 
-    def distance_to_waypoint(self, target):
-        if self.map_x is None or self.map_y is None:
+    def waypoint_error(self, target):
+        # (distance, absolute heading error) from the waypoint, or None without a map pose
+        if self.map_x is None or self.map_y is None or self.map_yaw is None:
             return None
-        x, y, _ = self.waypoints[target]
-        return hypot(self.map_x - x, self.map_y - y)
+        x, y, yaw = self.waypoints[target]
+        yaw_error = abs((self.map_yaw - yaw + pi) % (2.0 * pi) - pi)
+        return hypot(self.map_x - x, self.map_y - y), yaw_error
 
     def start_sequence(self, target):
         if target == "EXCAVATION":

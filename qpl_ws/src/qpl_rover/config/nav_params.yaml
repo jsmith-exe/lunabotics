@@ -65,9 +65,9 @@ controller_server:
       stateful: true
       # TOLERANCE NOTE: If robot oscillates at the goal, increase these slightly.
       xy_goal_tolerance: 0.20 # Tighten slightly if precision is needed, match with DWB
-      # 0.20 -> 0.5 (~30 deg): the skid-steer can't make small precise turns, so it kept
-      # shuffling on the goal trying to line up.
-      yaw_goal_tolerance: 0.5
+      # 0.20 (~11 deg) kept the skid-steer shuffling on the goal trying to line up; 0.3
+      # (~17 deg) leaves a small buffer. nav_autonomy's arrival_yaw_tolerance_rad matches it.
+      yaw_goal_tolerance: 0.3
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"

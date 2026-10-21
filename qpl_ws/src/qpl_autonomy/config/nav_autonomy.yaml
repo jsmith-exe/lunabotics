@@ -37,4 +37,8 @@ nav_autonomy:
     navigation.goal_timeout_s: 180.0
     navigation.max_retries: 2 # Failed goals re-sent before giving up
     navigation.travel_lift_position_m: 0.20 # Bucket held here while navigating, so it doesn't plough the regolith
-    navigation.arrival_radius_m: 0.4 # Within this of a waypoint the dig/dump starts, whatever the heading
+    # The dig/dump starts once within both of these of the waypoint. A small buffer so the
+    # rover doesn't keep shuffling to correct itself; keep the yaw in line with Nav2's
+    # yaw_goal_tolerance in qpl_rover/config/nav_params.yaml.
+    navigation.arrival_radius_m: 0.25
+    navigation.arrival_yaw_tolerance_rad: 0.3 # ~17 deg
