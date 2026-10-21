@@ -63,6 +63,8 @@ def opaque_generate_launch_description(context):
         executable="drum_command_interface",
         name="drum_command_interface",
         output="screen",
+        # Must match the autonomy node's clock, or its command timeout misfires in the sim
+        parameters=[{"use_sim_time": use_sim_time_bool}],
     )
 
     joint_broad_spawner = Node(

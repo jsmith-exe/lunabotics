@@ -96,7 +96,17 @@ def opaque_generate_launch_description(context):
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
-    # 3. Global EKF: Calculates map -> odom
+    # 3. Gate: limits AprilTag fixes to one per 5 s while a Nav2 goal is active,
+    # so map -> odom doesn't keep jumping under the planner. The EKF reads its output.
+    apriltag_gate = Node(
+        package=package_name,
+        executable="apriltag_gate",
+        name="apriltag_gate",
+        output="screen",
+        parameters=[{"use_sim_time": use_sim_time}],
+    )
+
+    # 4. Global EKF: Calculates map -> odom
     ekf_global_node = TimerAction(
         period=6.0,
         actions=[
@@ -116,5 +126,6 @@ def opaque_generate_launch_description(context):
     return [
         tag_to_map_static,
         apriltag_observer,
+        apriltag_gate,
         ekf_global_node,
     ]

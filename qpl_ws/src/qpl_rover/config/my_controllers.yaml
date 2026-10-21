@@ -36,9 +36,12 @@ diff_cont:
 
     # [vx, vy, vz, vroll, vpitch, vyaw]; unfused axes get 1e6. Must not be left
     # at the default zeros, which robot_localization reads as near-perfect.
-    # vy stays loose or it outvotes visual odometry's vy. vz is fused as a
-    # ground-contact constraint (body-frame vz ~ 0); at 1e6 it could not stop
-    # the EKFs' z variance diverging on sloped terrain.
+    # vy stays loose or it outvotes visual odometry's vy.
+    # vz is tight: the rover can't move along its own z axis (ground-contact
+    # constraint), and both EKFs fuse it so their vz state can't drift. Unmeasured
+    # (or at 1e6), the EKFs' z variance diverged on sloped terrain, and a big AprilTag
+    # correction left the global EKF with a vz that pushed map -> odom up ~5 cm/s,
+    # lifting every obstacle out of the global costmap's height band.
     # TODO(calibration): refine from real bag data on the competition surface.
     pose_covariance_diagonal:  [0.05, 0.05, 1.0e6, 1.0e6, 1.0e6, 0.1]
     twist_covariance_diagonal: [0.01, 0.05, 0.01, 1.0e6, 1.0e6, 0.05]

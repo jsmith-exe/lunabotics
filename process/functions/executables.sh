@@ -22,6 +22,14 @@ alias qpl_excavate='ros2 topic pub --once /autonomy/command std_msgs/msg/String 
 alias qpl_deposit='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'DEPOSIT'\"'\"'}"'
 alias qpl_stop='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
 
+# Nav2 autonomy aliases (the node starts with qpl_nav and waits; separate from the blind autonomy above).
+# Drive to the zone's waypoint with Nav2 first, then excavate/deposit standing still
+alias qpl_nav_excavate='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_EXCAVATE'\"'\"'}"'
+alias qpl_nav_deposit='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_DEPOSIT'\"'\"'}"'
+# Full autonomy (low risk): loops nav to excavation zone, dig, nav to berm, dump, until qpl_auto_stop
+alias qpl_auto='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
+alias qpl_auto_stop='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
+
 # Legacy - to be removed
 #alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'
 #alias qpl_excavate='ros2 launch qpl_autonomy excavation.launch.py'

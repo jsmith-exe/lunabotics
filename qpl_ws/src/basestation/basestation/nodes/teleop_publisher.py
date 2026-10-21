@@ -5,7 +5,7 @@ from geometry_msgs.msg import Twist, Vector3
 
 from ..base_station_state import BaseStationState
 from ..constants import MessageOptions, NAV_TOPIC, DRUM_ROTATION_TOPIC, DRUM_LIFT_TOPIC, \
-    AUTONOMY_COMMAND_TOPIC, PUBLISHER_UPDATE_RATE, INVERT_BACKWARDS_STEERING, TANK_WHEEL_SEPARATION
+    AUTONOMY_COMMAND_TOPIC, NAV_AUTONOMY_COMMAND_TOPIC, PUBLISHER_UPDATE_RATE, INVERT_BACKWARDS_STEERING, TANK_WHEEL_SEPARATION
 
 TANK_SIDES = {MessageOptions.TANK_LEFT: 'left', MessageOptions.TANK_RIGHT: 'right'}
 
@@ -30,7 +30,8 @@ class TeleopPublisher(Node):
             DRUM_LIFT_TOPIC: self.create_publisher(Float64, DRUM_LIFT_TOPIC, 10),
         }
         self.autonomy_command_publisher = self.create_publisher(String, AUTONOMY_COMMAND_TOPIC, 10)
-        self.get_logger().info(f'Publishing to {list(self.publishers_.keys()) + [AUTONOMY_COMMAND_TOPIC]}')
+        self.nav_autonomy_command_publisher = self.create_publisher(String, NAV_AUTONOMY_COMMAND_TOPIC, 10)
+        self.get_logger().info(f'Publishing to {list(self.publishers_.keys()) + [AUTONOMY_COMMAND_TOPIC, NAV_AUTONOMY_COMMAND_TOPIC]}')
 
         # Rover mux are set to stop if they don't receive messages for a while, so the most
         # recent state for each topic is republished on a timer regardless of new input.
@@ -62,6 +63,14 @@ class TeleopPublisher(Node):
         """
         self.autonomy_command_publisher.publish(String(data=command))
         self.get_logger().info(f'Sent autonomy command: {command}')
+
+    def publish_nav_autonomy_command(self, command: str) -> None:
+        """
+        Sends a command (NAV_EXCAVATE, NAV_DEPOSIT, AUTO, STOP) to the Nav2 autonomy node, which qpl_nav starts.
+        Not gated on teleop being enabled, for the same reason as publish_autonomy_command.
+        """
+        self.nav_autonomy_command_publisher.publish(String(data=command))
+        self.get_logger().info(f'Sent nav autonomy command: {command}')
 
     def _update_twist_state(self, topic_name: str, topic_state: dict, message_option: MessageOptions, throttle: float) -> None:
         # Tank inputs set one side, then the whole drive twist is recomputed from both. No backwards steering
