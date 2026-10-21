@@ -11,9 +11,9 @@ The package currently contains two independent finite state machines (FSMs):
 * Excavation
 * Deposition
 
-Each sequence is started through a command received from the Basestation. The sequences only run one after another under `AUTO`, which loops them with navigation in between.
+Each sequence is started independently through a command received from the Basestation. The sequences do not automatically transition into one another.
 
-The sequences themselves operate without localisation or navigation. They use actuator feedback and drivetrain odometry to determine when each step has completed. The optional `NAV_` commands use Nav2 to reach a waypoint first.
+The autonomy logic is designed to operate without requiring localisation or navigation. It uses actuator feedback and drivetrain odometry to determine when each step of a sequence has completed.
 
 The package is structured so that physical tuning values can be changed through configuration without modifying the FSM implementation where possible.
 
@@ -23,15 +23,20 @@ The package is structured so that physical tuning values can be changed through 
 qpl_autonomy/
 ├── config/
 │   ├── fsm_tuning.yaml
+│   ├── nav_autonomy.yaml
 │   └── legacy/
 ├── launch/
 │   ├── autonomy.launch.py
+│   ├── nav_autonomy.launch.py
 │   └── legacy/
 ├── qpl_autonomy/
 │   ├── __init__.py
 │   ├── autonomy_node.py
 │   ├── excavation.py
 │   ├── deposition.py
+│   ├── nav_autonomy_node.py
+│   ├── nav_excavation.py
+│   ├── nav_deposition.py
 │   ├── navigation.py
 │   └── legacy/
 └── ...
@@ -104,40 +109,17 @@ std_msgs/msg/String
 
 The currently supported commands are:
 
-| Command        | Function                                                                  |
-| -------------- | ------------------------------------------------------------------------- |
-| `EXCAVATE`     | Start the excavation sequence where the rover is                          |
-| `DEPOSIT`      | Start the deposition sequence where the rover is                          |
-| `NAV_EXCAVATE` | Drive to the excavation waypoint with Nav2, then start excavation         |
-| `NAV_DEPOSIT`  | Drive to the deposition waypoint with Nav2, then start deposition         |
-| `AUTO`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP`      |
-| `STOP`         | Stop the active sequence or navigation and return autonomy to `IDLE`      |
-
-Shell aliases: `qpl_excavate`, `qpl_deposit`, `qpl_nav_excavate`, `qpl_nav_deposit`, `qpl_auto`, `qpl_stop`. The basestation has a button for each.
+| Command    | Function                                               |
+| ---------- | ------------------------------------------------------ |
+| `EXCAVATE` | Start the excavation sequence                          |
+| `DEPOSIT`  | Start the deposition sequence                          |
+| `STOP`     | Stop the active sequence and return autonomy to `IDLE` |
 
 Only one sequence can be active at a time.
 
 When autonomy is idle, an `EXCAVATE` or `DEPOSIT` command starts the corresponding sequence. A sequence must complete before autonomy returns to `IDLE`.
 
 ##### `STOP` does not start another sequence or attempt to reposition the rover. It stops autonomous motion and leaves the rover in its current state.
-
-### Full autonomy (`AUTO` / `qpl_auto`)
-
-```text
-navigate to excavation waypoint -> excavate -> navigate to deposition waypoint -> deposit -> repeat
-```
-
-It loops until `STOP`. If navigation fails after its retries, `AUTO` ends and autonomy returns to `IDLE`.
-
-### Navigation commands
-
-`NAV_EXCAVATE`, `NAV_DEPOSIT` and `AUTO` need Nav2 running (`qpl_nav`) and the rover localised from the AprilTag. If Nav2 isn't running the command is refused; `EXCAVATE` and `DEPOSIT` never need it.
-
-The waypoints are map-frame `[x, y, yaw]` values in `config/fsm_tuning.yaml` (`navigation.*`). The rover stands still at each one to dig or dump. A failed goal is retried `navigation.max_retries` times, then autonomy returns to `IDLE`.
-
-`NAV_DEPOSIT` and `AUTO` skip the deposition sequence's blind `DRIVE_TO_CONSTRUCTION_ZONE` step, since Nav2 has already put the rover at the berm.
-
-`STOP` and Ctrl-C cancel an active Nav2 goal; otherwise Nav2 would keep driving it.
 
 ---
 
@@ -154,20 +136,24 @@ The sequence performs the following steps:
 ```text
 STOP_WHEELS
     ↓
-START_SPIN        (drum forward)
+LOWER_TO_CONTACT
     ↓
-LOWER_BUCKET      (spinning)
+LOWER_TO_MAX
     ↓
-DIG               (bucket held down, spinning, dig_duration_s)
+DRIVE_FORWARD
     ↓
-RAISE_BUCKET      (spinning)
+STOP_WHEELS_AFTER_DRIVE
+    ↓
+LIFT_BUCKET
     ↓
 STOP_BUCKET
     ↓
 COMPLETE
 ```
 
-The rover stands still throughout. The drum starts before the bucket reaches the regolith and keeps spinning until the bucket is back up. Nothing reports when the bucket is full, so the dig is held for `dig_duration_s` (30 s).
+The bucket drum is operated during the relevant excavation stages while the linear actuators are commanded to configured positions.
+
+The excavation drive distance is measured using drivetrain odometry rather than a timed delay.
 
 Actuator transitions are based on feedback from:
 
@@ -188,20 +174,24 @@ qpl_autonomy/deposition.py
 The sequence performs the following steps:
 
 ```text
-DRIVE_TO_CONSTRUCTION_ZONE   (blind DEPOSIT only)
+DRIVE_TO_CONSTRUCTION_ZONE
+    ↓
+LIFT_BUCKET
+    ↓
+DEPOSIT_REGOLITH
     ↓
 STOP_WHEELS
     ↓
-RAISE_BUCKET
-    ↓
-DUMP_REGOLITH     (drum backwards, dump_duration_s, 30 s)
-    ↓
 STOP_BUCKET
+    ↓
+RETURN_TO_NORMAL_HEIGHT
     ↓
 COMPLETE
 ```
 
-Blind `DEPOSIT` first drives `drive_to_zone_distance_m` forward, measured with drivetrain odometry. The rover then stands still with the bucket raised and spins the drum backwards. Nothing reports when the drum is empty, so the dump is the one timed step.
+The rover first drives the configured distance to the construction zone, then raises the bucket and operates the drum while slowly driving forward.
+
+The drive distances are measured using drivetrain odometry.
 
 Actuator position transitions are based on feedback from:
 
@@ -213,7 +203,7 @@ Actuator position transitions are based on feedback from:
 
 ## Feedback and Commanding
 
-The autonomy node uses feedback from the rover rather than fixed timing for mechanical sequence progression, except the dig and the dump, which are timed.
+The autonomy node uses feedback from the rover rather than fixed timing for mechanical sequence progression.
 
 ### Actuator Feedback
 
@@ -235,7 +225,7 @@ Drivetrain odometry is read from:
 /diff_cont/odom
 ```
 
-Blind `DEPOSIT` records the starting odometry position and calculates the distance travelled from the change in `x` and `y`.
+The FSM records the starting odometry position for each relevant drive stage and calculates the distance travelled from the change in `x` and `y`.
 
 This allows the sequences to measure relative movement without requiring global localisation.
 
@@ -309,6 +299,24 @@ and starts:
 autonomy_node
 ```
 
+### Variants
+
+Two alternative nodes run the same excavation and deposition sequences but measure the drive stages differently. The `mode` launch argument selects which node runs, and all of them read their tuning from `config/fsm_tuning.yaml`.
+
+| `mode`           | Node                      | Drive stages end when...                                                 |
+| ---------------- | ------------------------- | ------------------------------------------------------------------------ |
+| `odom` (default) | `autonomy_node`           | Drivetrain odometry (`/diff_cont/odom`) reaches the `*_distance_m` value |
+| `localised`      | `localised_autonomy_node` | The `map -> base_footprint` TF reaches the `*_distance_m` value          |
+| `timed`          | `timed_autonomy_node`     | The `*_duration_s` value has elapsed                                     |
+
+```bash
+ros2 launch qpl_autonomy autonomy.launch.py mode:=timed
+```
+
+`localised_autonomy_node` requires the localisation stack to be running. It refuses to start a sequence without a pose, and stops the active sequence if the pose is lost or older than `localisation.max_pose_age_s`.
+
+The variants subclass `AutonomyNode` and the sequence classes, so the original node and FSMs are unchanged.
+
 The node can also be tested by publishing commands directly to:
 
 ```text
@@ -333,18 +341,60 @@ The repository also provides shell aliases for these commands where configured.
 
 ---
 
+## Nav Autonomy
+
+`nav_autonomy_node` uses Nav2 to drive between the excavation zone and the berm. It is a separate node from the blind autonomy above. The blind node, its variants, their sequences and `fsm_tuning.yaml` are not used or changed by it, so blind autonomy remains as a backup.
+
+It is started by `qpl_nav` (`qpl_rover` `navigation_launch.py`, which includes `launch/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
+
+Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
+
+| Command        | Basestation button         | Alias              | Function                                                            |
+| -------------- | -------------------------- | ------------------ | ------------------------------------------------------------------- |
+| `NAV_EXCAVATE` | Nav Excavate               | `qpl_nav_excavate` | Drive to the excavation waypoint with Nav2, then excavate           |
+| `NAV_DEPOSIT`  | Nav Deposit                | `qpl_nav_deposit`  | Drive to the deposition waypoint with Nav2, then deposit            |
+| `AUTO`         | Full Autonomy (Low Risk)   | `qpl_auto`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP` |
+| `STOP`         | Stop                       | `qpl_auto_stop`    | Cancel the Nav2 goal or active sequence and return to `IDLE`        |
+
+The buttons are in the basestation's **Nav Autonomy** section. Like the blind autonomy buttons, they only work while teleop is disabled, because teleop has priority over Nav2 in the drive mux. Either Stop button in the basestation stops both autonomy nodes.
+
+### Full autonomy
+
+```text
+navigate to excavation waypoint -> excavate -> navigate to deposition waypoint -> deposit -> repeat
+```
+
+The rover stands still while digging and dumping, which is why it is labelled low risk:
+
+* **Excavation:** stop -> spin drum forward -> lower bucket -> hold it down for `dig_duration_s` -> raise bucket -> stop spinning.
+* **Deposition:** stop -> bucket raised -> spin drum backwards for `dump_duration_s` -> stop spinning.
+
+Nothing reports when the bucket is full or empty, so the dig and dump are timed (30 s each). The rest moves on actuator feedback.
+
+### Navigation
+
+* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, the command is refused.
+* Waypoints are map-frame `[x, y, yaw]` values in `config/nav_autonomy.yaml` (`navigation.*`). The dig or dump starts once the rover is within `arrival_radius_m` (0.25 m) and `arrival_yaw_tolerance_rad` (0.3 rad, ~17°) of the waypoint, or when Nav2 reports the goal reached. That small buffer stops it shuffling to correct itself.
+* While navigating, the bucket is held at `travel_lift_position_m` so it does not plough the regolith.
+* A failed goal is retried `max_retries` times. After that, autonomy (including `AUTO`) returns to `IDLE`.
+* `STOP` and Ctrl-C cancel the active Nav2 goal; otherwise Nav2 would keep driving it.
+
+All nav autonomy tuning is in `config/nav_autonomy.yaml`, under the node name `nav_autonomy`.
+
+---
+
 ## Development Notes
 
 When modifying `qpl_autonomy`:
 
 * Keep excavation and deposition as independent sequences.
-* Use feedback rather than fixed sleeps or timing delays for FSM transitions where feedback exists (the dig and dump have none).
+* Use feedback rather than fixed sleeps or timing delays for FSM transitions.
 * Keep physical tuning values in `config/fsm_tuning.yaml`.
 * Continue publishing active motion commands at the configured update rate.
 * Use drivetrain odometry only for relative movement within a sequence.
-* Do not add localisation or navigation dependencies to the mechanical FSMs. Navigation lives in `autonomy_node.py` and `navigation.py`, which run a sequence once a waypoint is reached.
+* Do not add localisation or navigation dependencies to the mechanical FSMs.
 * Keep hardware-specific control inside the existing rover control interfaces.
 * Treat `STOP` as a normal autonomy abort, separate from the rover's emergency-stop system.
-* Chain excavation and deposition only through `AUTO` in `autonomy_node.py`; keep the sequences themselves independent.
+* Avoid automatically chaining excavation and deposition sequences.
 
 The autonomy FSMs are intended to provide reusable mission-level mechanical behaviours. Higher-level navigation or mission logic can determine when and where a sequence should be executed without requiring the FSM itself to manage localisation or navigation.

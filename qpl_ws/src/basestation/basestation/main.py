@@ -25,7 +25,8 @@ def main(args=None):
     teleop_node_thread.start()
 
     try:
-        open_teleop_window(state, node.publish, canbus_config, node.publish_autonomy_command) # Should run in main thread
+        open_teleop_window(state, node.publish, canbus_config, node.publish_autonomy_command,
+                           node.publish_nav_autonomy_command) # Should run in main thread
     except KeyboardInterrupt:
         pass
 

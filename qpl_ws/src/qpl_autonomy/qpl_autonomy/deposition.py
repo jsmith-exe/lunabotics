@@ -7,18 +7,16 @@ from std_msgs.msg import Float64
 
 class DepositionState(Enum):
     DRIVE_TO_CONSTRUCTION_ZONE = auto()
+    LIFT_BUCKET = auto()
+    DEPOSIT_REGOLITH = auto()
     STOP_WHEELS = auto()
-    RAISE_BUCKET = auto()
-    DUMP_REGOLITH = auto()
     STOP_BUCKET = auto()
+    RETURN_TO_NORMAL_HEIGHT = auto()
     COMPLETE = auto()
 
 
 class DepositionSequence:
-    """Feedback-based FSM for the competition deposition sequence.
-
-    Stands still with the bucket raised and spins the drum backwards to dump.
-    """
+    """Feedback-based FSM for the competition deposition sequence."""
 
     def __init__(
         self,
@@ -33,8 +31,10 @@ class DepositionSequence:
 
         self.drive_to_zone_speed = config["drive_to_zone_speed"]
         self.drive_to_zone_distance_m = config["drive_to_zone_distance_m"]
-        self.raised_position_m = config["raised_position_m"]
-        self.dump_duration_s = config["dump_duration_s"]
+        self.deposit_drive_speed = config["deposit_drive_speed"]
+        self.deposit_drive_distance_m = config["deposit_drive_distance_m"]
+        self.max_height_position_m = config["max_height_position_m"]
+        self.normal_height_position_m = config["normal_height_position_m"]
         self.drum_spin_speed = config["drum_spin_speed"]
         self.drum_spin_direction = config["drum_spin_direction"]
         self.position_tolerance_m = config["position_tolerance_m"]
@@ -44,62 +44,68 @@ class DepositionSequence:
 
         self.start_x = None
         self.start_y = None
-        self.dump_start_s = None
 
     """Sequence lifecycle"""
-    def start(self, odom_position, drive_to_zone=True):
-        # Start a new deposition sequence. drive_to_zone=False skips the blind drive in,
-        # for when navigation has already put the rover at the berm.
+    def start(self, odom_position):
+        # Start a new deposition sequence
         self.complete = False
-        self.state = (
-            DepositionState.DRIVE_TO_CONSTRUCTION_ZONE if drive_to_zone
-            else DepositionState.STOP_WHEELS
-        )
+        self.state = DepositionState.DRIVE_TO_CONSTRUCTION_ZONE
         self.start_x = None
         self.start_y = None
-        self.dump_start_s = None
         if odom_position[0] is not None and odom_position[1] is not None:
             self.start_x = odom_position[0]
             self.start_y = odom_position[1]
 
-    def update(self, actuator_positions, odom_position, now_s):
+    def update(self, actuator_positions, odom_position):
         # Run one non-blocking update of the FSM
         if self.complete:
             return
 
-        # 1. Drive into construction zone (blind DEPOSIT only)
+        # 1. Drive into construction zone
         if self.state == DepositionState.DRIVE_TO_CONSTRUCTION_ZONE:
             self.drive_forward(self.drive_to_zone_speed)
             if self.has_travelled_distance(odom_position, self.drive_to_zone_distance_m):
+                self.stop_wheels()
+                self.start_x = None
+                self.start_y = None
+                self.state = DepositionState.LIFT_BUCKET
+
+        # 2. Lift bucket to maximum height
+        elif self.state == DepositionState.LIFT_BUCKET:
+            self.stop_wheels()
+            self.command_lift(self.max_height_position_m)
+            if self.actuators_at_position(actuator_positions, self.max_height_position_m):
+                if odom_position[0] is not None and odom_position[1] is not None:
+                    self.start_x = odom_position[0]
+                    self.start_y = odom_position[1]
+                self.state = DepositionState.DEPOSIT_REGOLITH
+
+        # 3. Spin drum and slowly drive forward
+        elif self.state == DepositionState.DEPOSIT_REGOLITH:
+            self.spin_bucket()
+            self.drive_forward(self.deposit_drive_speed)
+            if self.has_travelled_distance(odom_position, self.deposit_drive_distance_m):
                 self.state = DepositionState.STOP_WHEELS
 
-        # 2. Stop wheels
+        # 4. Stop wheels
         elif self.state == DepositionState.STOP_WHEELS:
             self.stop_wheels()
-            self.state = DepositionState.RAISE_BUCKET
-
-        # 3. Make sure the bucket is raised before dumping
-        elif self.state == DepositionState.RAISE_BUCKET:
-            self.stop_wheels()
-            self.command_lift(self.raised_position_m)
-            if self.actuators_at_position(actuator_positions, self.raised_position_m):
-                self.dump_start_s = now_s
-                self.state = DepositionState.DUMP_REGOLITH
-
-        # 4. Spin drum backwards to dump. Nothing reports when the drum is empty, so this
-        # one step is timed.
-        elif self.state == DepositionState.DUMP_REGOLITH:
-            self.stop_wheels()
-            self.spin_bucket()
-            if now_s - self.dump_start_s >= self.dump_duration_s:
-                self.state = DepositionState.STOP_BUCKET
+            self.state = DepositionState.STOP_BUCKET
 
         # 5. Stop drum
         elif self.state == DepositionState.STOP_BUCKET:
             self.stop_wheels()
             self.stop_bucket()
-            self.state = DepositionState.COMPLETE
-            self.complete = True
+            self.state = DepositionState.RETURN_TO_NORMAL_HEIGHT
+
+        # 6. Return bucket to normal height
+        elif self.state == DepositionState.RETURN_TO_NORMAL_HEIGHT:
+            self.stop_wheels()
+            self.stop_bucket()
+            self.command_lift(self.normal_height_position_m)
+            if self.actuators_at_position(actuator_positions, self.normal_height_position_m):
+                self.state = DepositionState.COMPLETE
+                self.complete = True
 
     """Outputs"""
     def drive_forward(self, speed):

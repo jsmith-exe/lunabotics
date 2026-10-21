@@ -16,11 +16,13 @@ WINDOW_WIDTH = 300  # Minimum width; the window widens if expanded sections need
 
 class TeleopWindow:
     def __init__(self, base_station_state: BaseStationState, publish_function: Callable, canbus_config: dict,
-                 autonomy_command_function: Callable[[str], None]):
+                 autonomy_command_function: Callable[[str], None],
+                 nav_autonomy_command_function: Callable[[str], None]):
         self.base_station_state = base_station_state
         self.publish_function = publish_function
         self.canbus_config = canbus_config
         self.autonomy_command_function = autonomy_command_function
+        self.nav_autonomy_command_function = nav_autonomy_command_function
 
         self.style = Style(themename='cyborg')
         self.root = self.style.master
@@ -51,6 +53,7 @@ class TeleopWindow:
         self.add_drum_lift_slider()
         self.add_throttle_section()
         self.add_autonomy_section()
+        self.add_nav_autonomy_section()
 
         self.enable()
         self._sync_drum_lift_slider() # After enable(), which sets the lift target from the slider
@@ -108,17 +111,34 @@ class TeleopWindow:
         self.autonomy_section = CollapsibleSection(self.root, "Autonomy")
 
         buttons = {}
-        # Nav versions drive to the zone's waypoint with Nav2 first; Auto loops both until Stop
-        for text, command in (("Excavate", "EXCAVATE"), ("Deposit", "DEPOSIT"),
-                              ("Nav Excavate", "NAV_EXCAVATE"), ("Nav Deposit", "NAV_DEPOSIT"), ("Auto", "AUTO"),
-                              ("Stop", "STOP")):
-            buttons[command] = ttk.Button(self.autonomy_section.content, text=text, width=12,
+        for text, command in (("Excavate", "EXCAVATE"), ("Deposit", "DEPOSIT")):
+            buttons[command] = ttk.Button(self.autonomy_section.content, text=text, width=10,
                                           command=lambda command=command: self.autonomy_command_function(command))
             buttons[command].pack(side="left", padx=5 * UI_SCALE)
+        ttk.Button(self.autonomy_section.content, text="Stop", width=10,
+                   command=self.stop_all_autonomy).pack(side="left", padx=5 * UI_SCALE)
 
         # Autonomy can only be started while teleop is disabled; Stop is always available.
-        self.autonomy_start_buttons = [buttons["EXCAVATE"], buttons["DEPOSIT"],
-                                       buttons["NAV_EXCAVATE"], buttons["NAV_DEPOSIT"], buttons["AUTO"]]
+        self.autonomy_start_buttons = [buttons["EXCAVATE"], buttons["DEPOSIT"]]
+
+    def add_nav_autonomy_section(self):
+        """ Nav2 autonomy, run by qpl_nav. Separate from the blind autonomy above, which is kept as a backup. """
+        self.nav_autonomy_section = CollapsibleSection(self.root, "Nav Autonomy")
+
+        # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop
+        for text, command in (("Nav Excavate", "NAV_EXCAVATE"), ("Nav Deposit", "NAV_DEPOSIT"),
+                              ("Full Autonomy (Low Risk)", "AUTO")):
+            button = ttk.Button(self.nav_autonomy_section.content, text=text,
+                                command=lambda command=command: self.nav_autonomy_command_function(command))
+            button.pack(side="left", padx=5 * UI_SCALE)
+            self.autonomy_start_buttons.append(button)
+        ttk.Button(self.nav_autonomy_section.content, text="Stop", width=10,
+                   command=self.stop_all_autonomy).pack(side="left", padx=5 * UI_SCALE)
+
+    def stop_all_autonomy(self):
+        # Either Stop button stops both autonomy nodes, so the operator can't press the wrong one
+        self.autonomy_command_function("STOP")
+        self.nav_autonomy_command_function("STOP")
 
     def enable(self):
         self.base_station_state.teleop_enabled = True

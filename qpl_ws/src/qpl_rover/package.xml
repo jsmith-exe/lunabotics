@@ -31,6 +31,7 @@
 
   <!-- Camera drivers, launch files and the stream encoder -->
   <exec_depend>rover_cameras</exec_depend>
+  <exec_depend>qpl_autonomy</exec_depend>
 
   <!-- apriltag_observer -->
   <exec_depend>sensor_msgs</exec_depend>
