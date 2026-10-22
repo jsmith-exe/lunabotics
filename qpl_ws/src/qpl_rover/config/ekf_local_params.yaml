@@ -91,7 +91,7 @@ sim:
   # Yaw rate off: imu0 owns it.
   odom0_config: [false, false, false,
                  false, false, false,
-                 true,  true,  true,    # vx, vy, vz (vz = 0: ground constraint)
+                 true,  true,  true,   # vx, vy, vz (vz = 0, see my_controllers.yaml)
                  false, false, false,
                  false, false, false]
 
@@ -129,6 +129,6 @@ rover:
   # vyaw stays enabled as a loose fallback behind the IMU.
   odom0_config: [false, false, false,
                  false, false, false,
-                 true,  true,  true,    # vx, vy, vz (vz = 0: ground constraint)
+                 true,  true,  true,   # vx, vy, vz (vz = 0, see my_controllers.yaml)
                  false, false, true,    # vyaw (loose fallback only)
                  false, false, false]

@@ -7,7 +7,6 @@ from rclpy.node import Node
 from std_msgs.msg import Float64, Float64MultiArray
 
 from enum import Enum, auto
-import time
 
 class ControlSource(Enum):
     NONE = auto()
@@ -39,8 +38,13 @@ class DrumInterface(Node):
         )
 
         # Automatically zero commands if nothing received.
+        # Timed on the node clock, not wall time: in the sim the autonomy node publishes on sim
+        # time, which runs slower than wall time, so a wall-clock timeout fired between its
+        # messages and kept zeroing the lift and spin.
         self.zero_timer_check_rate = 5 # Hz
-        self.zero_timer_threshold_seconds = 0.3 # How long there must be no commands before zeroing
+        # 0.5, not 0.3: teleop and autonomy both publish at 5 Hz, so 0.3 s was 1.5 periods and
+        # tripped on any jitter.
+        self.zero_timer_threshold_seconds = 0.5 # How long there must be no commands before zeroing
         self.zero_timer = self.create_timer(1/self.zero_timer_check_rate, self.send_zero_if_no_recent_messages)
         self.last_message_received_time = 0
 
@@ -49,8 +53,11 @@ class DrumInterface(Node):
         self.priority_timeout_seconds = 3 # How long to wait before accepting deprioritised messages
         self.get_logger().info("Drum command interface node initialised")
 
+    def now_s(self) -> float:
+        return self.get_clock().now().nanoseconds / 1e9
+
     def set_last_message_time(self):
-        self.last_message_received_time = time.time()
+        self.last_message_received_time = self.now_s()
 
     def lift_autonomy_cb(self, msg: Float64):
         if self.skip_if_deprioritised(ControlSource.AUTONOMY): return
@@ -86,7 +93,7 @@ class DrumInterface(Node):
 
     def skip_if_deprioritised(self, control_source: ControlSource) -> bool:
         self.set_last_message_time()
-        current_time = time.time()
+        current_time = self.now_s()
         # If this message source is prioritised, don't skip
         if control_source == self.prioritised_source:
             self.last_priority_message_time = current_time
@@ -98,7 +105,7 @@ class DrumInterface(Node):
         return prioritised_message_received_recently
 
     def send_zero_if_no_recent_messages(self):
-        if time.time() - self.last_message_received_time >= self.zero_timer_threshold_seconds:
+        if self.now_s() - self.last_message_received_time >= self.zero_timer_threshold_seconds:
             self.set_drum_spin_rate(0.0)
             self.set_drum_lift_pos_m(0.0)
 

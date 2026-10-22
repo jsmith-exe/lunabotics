@@ -1,4 +1,4 @@
-"""Rear camera (Intel RealSense): driver + teleop stream encoder in one container, IMU nodes."""
+"""Rear camera (Intel RealSense): driver, teleop stream encoder and IMU relay in one container."""
 import os
 import sys
 from typing import Any, Dict, List, Tuple
@@ -54,13 +54,6 @@ def generate_launch_description() -> LaunchDescription:
         ]
     )
 
-    imu_optical_to_ros = Node(
-        package='rover_cameras',
-        executable='imu_optical_to_standard',
-        output='screen',
-        respawn=True,
-    )
-
     rear_camera_tf_transform = Node(
         package='tf2_ros', executable='static_transform_publisher',
         arguments=['0','0','0','0','0','0',
@@ -71,7 +64,6 @@ def generate_launch_description() -> LaunchDescription:
         use_low_quality_parameter,
         OpaqueFunction(function=get_camera_launch),
         imu_filter,
-        imu_optical_to_ros,
         rear_camera_tf_transform,
     ])
 
@@ -81,8 +73,8 @@ def get_camera_launch(context: LaunchContext) -> List[Action]:
     use_low_quality = LaunchConfiguration('use_low_quality').perform(context).lower() == 'true'
     params = get_camera_params(use_low_quality)
 
-    # The driver and its stream encoder share one process, so colour frames reach the
-    # encoder intra-process without being copied or serialised.
+    # The driver, its stream encoder and the IMU relay share one process, so colour frames
+    # and IMU samples reach them intra-process without being copied or serialised.
     camera = ComposableNode(
         package='realsense2_camera',
         plugin='realsense2_camera::RealSenseNodeFactory',
@@ -93,12 +85,20 @@ def get_camera_launch(context: LaunchContext) -> List[Action]:
         extra_arguments=INTRA_PROCESS,
     )
     encoder = stream_encoder(camera_name, use_low_quality)
+    # /camera/camera/imu (optical axes) -> /camera/camera/imu_standard (ROS axes)
+    imu_relay = ComposableNode(
+        package='rover_cameras',
+        plugin='rover_cameras::ImuOpticalToStandard',
+        name='imu_optical_to_standard',
+        extra_arguments=INTRA_PROCESS,
+    )
 
     summary = LogInfo(msg=(
         f'Rear RealSense ({"low" if use_low_quality else "high"} quality): colour '
         f'{params["rgb_camera.color_profile"]}, depth {params["depth_module.depth_profile"]}, '
         f'topics under /{camera_name}; teleop stream on /{camera_name}/color/teleop_stream/ffmpeg'))
-    return [summary, *respawning_container('camera_container', camera_name, [camera, encoder])]
+    return [summary, *respawning_container('camera_container', camera_name,
+                                             [camera, encoder, imu_relay])]
 
 
 def get_remappings() -> List[Tuple[str, str]]:
@@ -211,9 +211,8 @@ def get_camera_params(use_low_quality: bool) -> Dict[str, Any]:
         'depth_module.depth_format': depth_fmt,
         'depth_module.infra_format': infra_fmt,
 
-        # Reliable, to match the Orbbec (which forces it under intra-process) and the image
-        # subscribers such as apriltag_observer. A reliable subscriber can't connect to a
-        # best-effort publisher.
+        # Reliable, to match the Orbbec (which forces it under intra-process) and any reliable
+        # image subscribers. A reliable subscriber can't connect to a best-effort publisher.
         'color_qos': 'DEFAULT',
 
         'decimation_filter.enable': True,

@@ -116,7 +116,7 @@ Check these before the bank, since they always match the installed version:
 
 ### imu_tools (Madgwick filter)
 - **Path:** `localisation/imu_tools/` (README and `imu_filter_madgwick/`)
-- **Used in:** `rover_cameras` RealSense launch (`imu_filter`), `imu_optical_to_standard.py`.
+- **Used in:** `rover_cameras` RealSense launch (`imu_filter`), `imu_optical_to_standard.cpp`.
 - **Keywords:** imu_filter_madgwick, madgwick, gain, zeta, use_mag, world_frame, enu, publish_tf, imu/data_raw, imu/data, orientation, gyro bias, rviz_imu_plugin
 
 ### AprilTag
