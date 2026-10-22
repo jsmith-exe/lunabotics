@@ -55,7 +55,7 @@ class TeleopWindow:
         self.add_autonomy_section()
         self.add_nav_autonomy_section()
 
-        self.enable()
+        self.disable()
         self._sync_drum_lift_slider() # After enable(), which sets the lift target from the slider
 
         # Make sure the initial size fits everything, including the status message set by enable().
@@ -127,7 +127,7 @@ class TeleopWindow:
 
         # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop
         for text, command in (("Nav Excavate", "NAV_EXCAVATE"), ("Nav Deposit", "NAV_DEPOSIT"),
-                              ("Full Autonomy (Low Risk)", "AUTO")):
+                              ("Full Autonomy", "AUTO")):
             button = ttk.Button(self.nav_autonomy_section.content, text=text,
                                 command=lambda command=command: self.nav_autonomy_command_function(command))
             button.pack(side="left", padx=5 * UI_SCALE)
