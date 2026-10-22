@@ -91,6 +91,20 @@ rqt --force-discover
 ros2 run rqt_tf_tree rqt_tf_tree --force-discover
 ```
 
+**TF tree to PDF**: Without rqt, `view_frames` listens to TF for 5 seconds and writes
+`frames_<timestamp>.pdf` (and a `.gv`) to the current directory. Run it outside the repo, or delete
+the files afterwards, so they don't get committed.
+```bash
+# Install if not already installed:
+sudo apt install ros-humble-tf2-tools
+
+cd /tmp
+ros2 run tf2_tools view_frames
+
+# Print a single transform live, e.g. base_link in odom:
+ros2 run tf2_ros tf2_echo odom base_link
+```
+
 
 ---
 ## ROS networking issues
