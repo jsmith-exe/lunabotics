@@ -125,14 +125,20 @@ class TeleopWindow:
         """ Nav2 autonomy, run by qpl_nav. Separate from the blind autonomy above, which is kept as a backup. """
         self.nav_autonomy_section = CollapsibleSection(self.root, "Nav Autonomy")
 
+        # Nav excavate/deposit on the first row; full autonomy and Stop on the second
+        nav_row = ttk.Frame(self.nav_autonomy_section.content)
+        nav_row.pack()
+        auto_row = ttk.Frame(self.nav_autonomy_section.content)
+        auto_row.pack(pady=(5 * UI_SCALE, 0))
+
         # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop
-        for text, command in (("Nav Excavate", "NAV_EXCAVATE"), ("Nav Deposit", "NAV_DEPOSIT"),
-                              ("Full Autonomy", "AUTO")):
-            button = ttk.Button(self.nav_autonomy_section.content, text=text,
+        for row, text, command in ((nav_row, "Nav Excavate", "NAV_EXCAVATE"), (nav_row, "Nav Deposit", "NAV_DEPOSIT"),
+                                   (auto_row, "Full Autonomy", "AUTO")):
+            button = ttk.Button(row, text=text,
                                 command=lambda command=command: self.nav_autonomy_command_function(command))
             button.pack(side="left", padx=5 * UI_SCALE)
             self.autonomy_start_buttons.append(button)
-        ttk.Button(self.nav_autonomy_section.content, text="Stop", width=10,
+        ttk.Button(auto_row, text="Stop", width=10,
                    command=self.stop_all_autonomy).pack(side="left", padx=5 * UI_SCALE)
 
     def stop_all_autonomy(self):
