@@ -129,12 +129,13 @@ controller_server:
         - PathAlign
         - PathDist
         - GoalDist
-      # 0.05, not 25: any trajectory with part of the footprint within the 0.53 m inscribed
-      # band of a wall scores 253 * scale. At 25 that outweighed every other critic, so the
-      # rover wouldn't bring any edge within ~0.6 m of a wall and stalled short of goals near
-      # them. Contact is still blocked: a footprint touching a lethal cell is rejected
-      # outright whatever the scale. Nav2's default for this critic is 0.02.
-      ObstacleFootprint.scale: 0.05
+      # Only lethal cells under the footprint's edges reject a trajectory, and the cameras
+      # mark only the faces of boulders and craters they have seen, so the rest of an obstacle
+      # is just high cost. At 0.05 DWB ignored that cost and brushed the unseen sides of
+      # boulders and the near rims of craters in every sim run. At 25 any edge in the inscribed
+      # band of a wall scored 253 * 25, which outweighed every other critic and stalled the
+      # rover short of goals near walls. 0.2 sits between them. Nav2's default is 0.02.
+      ObstacleFootprint.scale: 0.2
       # 5.0 -> 2.0: when localisation error puts the path over an obstacle, a strong
       # PathAlign fights ObstacleFootprint and the rover dithers instead of going round.
       PathAlign.scale: 2.0
@@ -178,6 +179,8 @@ local_costmap:
       height: 6
       resolution: 0.05
       footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
+      # 5 cm of hard margin: a lethal cell this close to the rover rejects the trajectory
+      footprint_padding: 0.05
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
@@ -234,16 +237,16 @@ local_costmap:
         # COST SCALING NOTE:
         # Lower = smoother/wider turns around corners.
         # Higher = tight, aggressive turns (closer to walls).
-        # 3.0 -> 8.0: cost now falls off quickly past the rover's half-width, so paths can
-        # run close to walls. 3.0 kept the rover too far off them to reach the excavation
-        # zone along the south wall. Contact is still prevented by the footprint check.
-        cost_scaling_factor: 8.0
+        # 8.0 -> 5.0 with the radius below: DWB (ObstacleFootprint) now sees cost a little
+        # further out, so it keeps the rover's sides off obstacles it has only partly seen.
+        # The dig and dump candidates in qpl_autonomy nav_autonomy.yaml stay at least
+        # 0.47 m from the walls, so the rover still reaches them.
+        cost_scaling_factor: 5.0
 
         # INFLATION RADIUS NOTE:
-        # Must be > the footprint's inscribed radius (0.53). The planner treats the rover
-        # as a point, so this is what keeps its paths off the walls.
-        # 0.75 -> 0.60: about 7 cm of soft margin beyond the rover's sides.
-        inflation_radius: 0.60
+        # Must be > the footprint's inscribed radius (0.58 with padding). Local costmap only:
+        # this is what DWB scores; the planner's paths come from the global costmap below.
+        inflation_radius: 0.75
 
   local_costmap_client:
     ros__parameters:
@@ -271,6 +274,8 @@ global_costmap:
       height: 9
       resolution: 0.05
       footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
+      # 5 cm of hard margin: a lethal cell this close to the rover rejects the trajectory
+      footprint_padding: 0.05
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
@@ -325,8 +330,13 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0 # keep in step with local_costmap
-        inflation_radius: 0.60
+        # Wider and softer than the local costmap. The planner treats the rover as a point
+        # and only keeps its centre outside the inscribed radius, so with 0.60 / 8.0 its
+        # shortest paths ran about 7 cm beside obstacles. Cost out to 1.1 m makes paths take
+        # the middle of a gap when there is room. Narrow gaps are still planned through as
+        # long as the padded footprint fits.
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.1
 
   global_costmap_client:
     ros__parameters:

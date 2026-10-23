@@ -56,6 +56,13 @@ floor hidden behind its near rim is marked too (crater_shadows()).
 Boulder and crater marks are remembered (ObstacleMemory) so they survive
 Nav2's raytracing once they are too close for the camera to see.
 
+The cameras only see the near face of a boulder, and DWB only rejects a
+trajectory when the footprint's edge crosses a marked cell, so in the sim the
+rover brushed the unseen backs and sides of boulders. Detections are grown
+before they are remembered (grow_detections()): bump points are extended away
+from the camera by up to grow_behind_m (the rulebook's boulders are at most
+0.40 m across), and every detection gets a grow_radius_m ring.
+
 Both outputs are in `level_frame` with z set to the sensor's z, so Nav2's 3D
 range checks act as 2D ones and its height band (set wide) never rejects them.
 Nav2 must be given `sensor_frame` for these sources, since the cloud's own frame
@@ -235,6 +242,34 @@ def crater_shadows(grid, rel, sensor_pos, usable, blocked, row_angle,
     return np.concatenate([fill[t <= 1.0], b])
 
 
+def grow_detections(pts, rel, sensor_pos, behind, radius, step):
+    """Extra obstacle points around local detections, in the level frame: bumps
+    (rel > 0) extended away from the sensor by up to `behind`, then a ring of
+    `radius` around those and every detection. One point per `step` cell."""
+    if len(pts) == 0 or (behind <= 0 and radius <= 0):
+        return np.empty((0, 3))
+    extra = []
+    with np.errstate(invalid='ignore'):
+        bumps = pts[rel > 0]
+    if behind > 0 and len(bumps):
+        away = bumps[:, :2] - sensor_pos[:2]
+        away /= np.maximum(np.linalg.norm(away, axis=1, keepdims=True), 1e-6)
+        k = np.arange(step, behind + 1e-9, step)
+        xy = (bumps[:, None, :2] + away[:, None, :] * k[None, :, None]).reshape(-1, 2)
+        extra.append(np.column_stack([xy, np.repeat(bumps[:, 2], len(k))]))
+    if radius > 0:
+        base = np.concatenate([pts] + extra)
+        angle = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
+        ring = radius * np.column_stack([np.cos(angle), np.sin(angle)])
+        xy = (base[:, None, :2] + ring[None]).reshape(-1, 2)
+        extra.append(np.column_stack([xy, np.repeat(base[:, 2], len(angle))]))
+    if not extra:
+        return np.empty((0, 3))
+    grown = np.concatenate(extra)
+    _, first = np.unique(np.floor(grown[:, :2] / step).astype(np.int64), axis=0, return_index=True)
+    return grown[first]
+
+
 def load_zones(names):
     """(x_min, x_max, y_min, y_max) of each named zone in the selected arena config."""
     arena_dir = os.path.join(get_package_share_directory('qpl_rover'), 'config', 'arena')
@@ -405,6 +440,11 @@ class DepthObstacleFilter(Node):
             self.declare_parameter('memory_floor_band', 0.03).value,
             int(self.declare_parameter('memory_floor_points', 3).value))
 
+        # Growth of boulder/crater detections (see grow_detections()).
+        self.grow_behind_m = self.declare_parameter('grow_behind_m', 0.30).value
+        self.grow_radius_m = self.declare_parameter('grow_radius_m', 0.05).value
+        self.grow_step_m = self.declare_parameter('grow_step_m', 0.05).value
+
         # Points inside this base_frame box are the rover itself.
         self.self_filter_x = self.declare_parameter('self_filter_x', 0.65).value
         self.self_filter_y = self.declare_parameter('self_filter_y', 0.56).value
@@ -499,6 +539,15 @@ class DepthObstacleFilter(Node):
         points, clearing, obstacle, local, rel = classify(
             self, grid, sensor_pos, base_pos, base_rot, row_angle,
             ignore(grid.reshape(-1, 3)) if ignore else None)
+        grown = grow_detections(points[local], rel[local], sensor_pos,
+                                self.grow_behind_m, self.grow_radius_m, self.grow_step_m)
+        if len(grown):
+            n = len(grown)
+            points = np.concatenate([points, grown])
+            clearing = np.concatenate([clearing, np.zeros(n, bool)])
+            obstacle = np.concatenate([obstacle, np.ones(n, bool)])
+            local = np.concatenate([local, np.ones(n, bool)])
+            rel = np.concatenate([rel, np.full(n, np.nan)])
         if ignore:
             dropped = ignore(points)
             obstacle &= ~dropped
