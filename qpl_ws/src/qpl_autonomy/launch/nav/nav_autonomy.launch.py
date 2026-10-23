@@ -15,6 +15,7 @@ def generate_launch_description():
     config_file = os.path.join(
         get_package_share_directory("qpl_autonomy"),
         "config",
+        "nav",
         "nav_autonomy.yaml",
     )
 

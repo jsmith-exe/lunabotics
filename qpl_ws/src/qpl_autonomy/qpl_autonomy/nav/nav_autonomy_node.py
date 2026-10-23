@@ -9,8 +9,8 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
-from qpl_autonomy.nav_excavation import NavExcavationSequence
-from qpl_autonomy.nav_deposition import NavDepositionSequence
+from qpl_autonomy.nav.nav_excavation import NavExcavationSequence
+from qpl_autonomy.nav.nav_deposition import NavDepositionSequence
 from qpl_autonomy.navigation import Navigation
 
 

@@ -197,7 +197,7 @@ def generate_launch_description():
         # until a command arrives on /nav_autonomy/command. The blind autonomy node is separate.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(
-                get_package_share_directory('qpl_autonomy'), 'launch', 'nav_autonomy.launch.py')),
+                get_package_share_directory('qpl_autonomy'), 'launch', 'nav', 'nav_autonomy.launch.py')),
             launch_arguments={'use_sim_time': use_sim_time}.items(),
             condition=IfCondition(nav_autonomy),
         ),
