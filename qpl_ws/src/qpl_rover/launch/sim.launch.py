@@ -177,6 +177,7 @@ def generate_launch_description():
                     "-entity", "rover",
                     "-x", "3.45", # set to 0 (default) if not using april_arena.world
                     "-y", "1.13", # set to 0 (default) if not using april_arena.world
+                    "-Y", "-1.69", # facing the AprilTag at (3.32, 0.02), so the rover is localised from the start
                     "-z", "0.35"], # drop in from above so it never spawns inside the terrain
                 output="screen",
             )
