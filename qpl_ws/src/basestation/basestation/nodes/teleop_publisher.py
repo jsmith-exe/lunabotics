@@ -2,15 +2,16 @@ import json
 import time
 
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 
 from std_msgs.msg import Float64, String
 from geometry_msgs.msg import Twist, Vector3
+from sensor_msgs.msg import JointState
 
 from ..base_station_state import BaseStationState
 from ..constants import MessageOptions, NAV_TOPIC, DRUM_ROTATION_TOPIC, DRUM_LIFT_TOPIC, \
     AUTONOMY_COMMAND_TOPIC, NAV_AUTONOMY_COMMAND_TOPIC, NAV_AUTONOMY_STATE_TOPIC, PUBLISHER_UPDATE_RATE, \
-    INVERT_BACKWARDS_STEERING, TANK_WHEEL_SEPARATION
+    INVERT_BACKWARDS_STEERING, TANK_WHEEL_SEPARATION, JOINT_STATES_TOPIC, DRUM_LIFT_JOINTS
 
 TANK_SIDES = {MessageOptions.TANK_LEFT: 'left', MessageOptions.TANK_RIGHT: 'right'}
 
@@ -45,6 +46,9 @@ class TeleopPublisher(Node):
         # Nav autonomy's state, for the teleop window's status line (latched by the rover)
         latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.create_subscription(String, NAV_AUTONOMY_STATE_TOPIC, self._nav_autonomy_state, latched)
+
+        # Drum lift position, so enabling teleop starts from the bucket's current height
+        self.create_subscription(JointState, JOINT_STATES_TOPIC, self._joint_states, qos_profile_sensor_data)
 
     def publish(self, topic_name: str, message_option: MessageOptions, throttle: float) -> None:
         """
@@ -118,6 +122,12 @@ class TeleopPublisher(Node):
         except ValueError:
             return
         self.state.nav_autonomy_time = time.monotonic()
+
+    def _joint_states(self, msg: JointState) -> None:
+        lift = [position for name, position in zip(msg.name, msg.position) if name in DRUM_LIFT_JOINTS]
+        if len(lift) == len(DRUM_LIFT_JOINTS):
+            self.state.lift_position_m = sum(lift) / len(lift)
+            self.state.lift_position_time = time.monotonic()
 
     def republish(self) -> None:
         """ Republish the most recent state for each topic at a fixed rate. """

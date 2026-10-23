@@ -15,6 +15,8 @@ DANGER_COLOR = "#ff1e39"
 CAUTION_COLOR = "#ffb020"
 READY_COLOR = "#3dd68c"
 # /nav_autonomy/state is republished every second; older than this means the node is gone
+# Lift feedback older than this isn't started from when teleop is enabled
+LIFT_FEEDBACK_MAX_AGE_S = 1.0
 NAV_STATE_STALE_S = 3.0
 # COMPLETE / REFUSED / STOPPED stay on the status line this long; FAILED stays until the next command
 NAV_RESULT_HOLD_S = 15
@@ -66,7 +68,7 @@ class TeleopWindow:
         self.add_nav_autonomy_section()
 
         self.disable()
-        self._sync_drum_lift_slider() # After enable(), which sets the lift target from the slider
+        self._sync_drum_lift_slider() # After disable(), which resets the lift target
 
         # Make sure the initial size fits everything, including the status message set by enable().
         self.root.update_idletasks()
@@ -108,9 +110,10 @@ class TeleopWindow:
 
     def _sync_drum_lift_slider(self):
         """ Buttons can also move the drum lift, so keep the slider showing the current lift target. """
-        # Skipped while disabled, where the target is reset to 0; enable() republishes the slider value.
-        if self.base_station_state.teleop_enabled:
-            lift_mm = round(self.base_station_state.topic_target_states[DRUM_LIFT_TOPIC]['value'] * 1000, 2)
+        # Skipped while disabled, where the target is reset to 0, and while the target is 0 (hold), which has no
+        # height to show; enable() sets the target to the bucket's current height.
+        lift_mm = round(self.base_station_state.topic_target_states[DRUM_LIFT_TOPIC]['value'] * 1000, 2)
+        if self.base_station_state.teleop_enabled and lift_mm != 0:
             if lift_mm != self.drum_lift_slider.value:
                 self.drum_lift_slider.value = lift_mm
                 # The slider's last sent value is now stale; forget it so the next drag isn't filtered out.
@@ -177,7 +180,17 @@ class TeleopWindow:
         for button in self.autonomy_start_buttons:
             button.state(["disabled"])
 
-        self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, self.drum_lift_slider.value / 1000)
+        # Start from the bucket's current height, so enabling doesn't move it. Without recent lift feedback, hold
+        # (0.0) until the slider is moved.
+        self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, self.current_lift_m())
+
+    def current_lift_m(self) -> float:
+        """ The drum lift's position from /joint_states, within the slider's range; 0.0 (hold) if not recent. """
+        state = self.base_station_state
+        if state.lift_position_m is None or time.monotonic() - state.lift_position_time > LIFT_FEEDBACK_MAX_AGE_S:
+            return 0.0
+        drum_config = self.canbus_config['drum']
+        return min(max(state.lift_position_m, drum_config['min_lift_mm'] / 1000), drum_config['max_lift_mm'] / 1000)
 
     def disable(self):
         # Send an explicit wheel stop before going quiet, rather than relying on the rover's command timeout.

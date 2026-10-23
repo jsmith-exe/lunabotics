@@ -39,6 +39,9 @@ class BaseStationState:
     # Latest /nav_autonomy/state (parsed JSON) and the time.monotonic() it arrived
     nav_autonomy: dict | None = None
     nav_autonomy_time: float = 0.0
+    # Latest mean drum lift position (m) from /joint_states and the time.monotonic() it arrived
+    lift_position_m: float | None = None
+    lift_position_time: float = 0.0
 
     def set_motor_drive_button_factor(self, value: float):
         self.motor_drive_button_factor = value

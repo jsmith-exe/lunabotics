@@ -4,15 +4,16 @@ nav_autonomy:
   ros__parameters:
     autonomy.update_rate_hz: 5.0 # Autonomy update / command publish rate
 
-    # Drum lift positions: bigger = higher. Keep within the actuators' range in
-    # diffdrive_canbus/hardware/can_config.yaml (25-225 mm), or they can never reach the
-    # target and the sequence waits forever.
+    # Drum lift positions: bigger = higher. drum_command_interface clamps lift commands to the
+    # actuators' range in diffdrive_canbus/hardware/can_config.yaml (32-218 mm). Keep these
+    # inside it: one further than position_tolerance_m outside is never reached, and the
+    # sequence waits forever.
 
     # EXCAVATION TUNING (rover stands still: spin, lower, hold for dig_duration_s, raise, stop spinning)
     # actuators
-    excavation.lowered_position_m: 0.03 # Bucket down in the regolith
+    excavation.lowered_position_m: 0.032 # Bucket down in the regolith
     excavation.dig_duration_s: 10.0 # How long to hold the bucket down spinning; nothing reports when it's full
-    excavation.raised_position_m: 0.22 # Bucket position after excavation
+    excavation.raised_position_m: 0.218 # Bucket position after excavation
     excavation.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
@@ -21,7 +22,7 @@ nav_autonomy:
 
     # DEPOSITION TUNING (rover stands still at the berm: bucket raised, spin, stop spinning)
     # actuators
-    deposition.raised_position_m: 0.22 # Bucket height while dumping
+    deposition.raised_position_m: 0.218 # Bucket height while dumping
     deposition.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
@@ -54,7 +55,7 @@ nav_autonomy:
     navigation.candidate_clearance_m: 0.10
     navigation.goal_timeout_s: 180.0
     navigation.max_retries: 2 # Failed goals re-sent before giving up
-    navigation.travel_lift_position_m: 0.22 # Bucket held here while navigating, so it doesn't plough the regolith
+    navigation.travel_lift_position_m: 0.218 # Bucket held here while navigating, so it doesn't plough the regolith
     # The dig/dump starts once within both of these of the waypoint. A small buffer so the
     # rover doesn't keep shuffling to correct itself; keep the yaw in line with Nav2's
     # yaw_goal_tolerance in qpl_rover/config/nav_params.yaml.
