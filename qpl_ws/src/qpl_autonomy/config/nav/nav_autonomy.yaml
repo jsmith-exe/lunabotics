@@ -35,12 +35,17 @@ nav_autonomy:
     # Candidates are flattened [x, y, yaw, x, y, yaw, ...]; the rover stands still at one to dig
     # or dump. Each leg takes the next candidate whose footprint (+ candidate_clearance_m) has
     # no lethal cell in the global costmap, and switches if it becomes blocked on the way.
-    # Dig spots: excavation zone (y 0-3), east of the start zone (x 2.32-4.57) and its rail,
-    # 1.1 m or more from the walls. Used in turn, so an old pit isn't dug again.
-    navigation.excavation_candidates: [6.0, 1.4, 0.0,
-                                       7.4, 1.4, 0.0,
-                                       6.7, 2.4, 0.0,
-                                       5.4, 2.4, 0.0]
+    # Dig spots: excavation zone (y 0-3), clear of the start zone (x 2.32-4.57) by 0.4 m and the
+    # walls by 0.68 m or more. All face north like the dump slots, so dig -> berm is a forward
+    # drive with no turn at the end. Columns x 7.9 / 6.7 / 5.5 (7.9 is almost straight south of
+    # the berm), south row (y 1.3) first so later trips to the north row (y 2.3) don't cross
+    # old pits. Used in turn; a spot with a boulder or crater under it is skipped.
+    navigation.excavation_candidates: [7.9, 1.3, 1.5708,
+                                       6.7, 1.3, 1.5708,
+                                       5.5, 1.3, 1.5708,
+                                       7.9, 2.3, 1.5708,
+                                       6.7, 2.3, 1.5708,
+                                       5.5, 2.3, 1.5708]
     # Dump spots: drum under the middle of the rover, so the rover centre sits on the berm's
     # centre line (x 8.14; berm x 7.69-8.59, y 5.30-7.50) facing north along it. North slot
     # first, 1 m apart, so the second approach stops short of the first pile; after the last

@@ -83,7 +83,9 @@ class NavAutonomyNode(Node):
         # Candidate poses, map frame, flattened [x, y, yaw, x, y, yaw, ...]. The rover stands still at
         # one to dig or dump. Each leg takes the next candidate whose footprint is clear in the
         # global costmap, so a boulder on a dig spot or an old pit doesn't block the run.
-        self.declare_parameter("navigation.excavation_candidates", [6.0, 1.4, 0.0, 7.4, 1.4, 0.0, 6.7, 2.4, 0.0, 5.4, 2.4, 0.0])
+        self.declare_parameter("navigation.excavation_candidates",
+                               [7.9, 1.3, 1.5708, 6.7, 1.3, 1.5708, 5.5, 1.3, 1.5708,
+                                7.9, 2.3, 1.5708, 6.7, 2.3, 1.5708, 5.5, 2.3, 1.5708])
         self.declare_parameter("navigation.deposition_candidates", [8.14, 6.95, 1.5708, 8.14, 5.95, 1.5708])
         # Dumps go through the candidates once, then keep using the last one, so a later approach
         # never drives over an earlier pile
