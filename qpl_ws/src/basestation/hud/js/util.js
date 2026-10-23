@@ -173,3 +173,33 @@ export const prefs = {
     }
   },
 };
+
+/** An on/off setting that teleop_hud owns (it holds the subscription), set
+ * with POST /<name>?on=0|1. Shows what was asked for until tele confirms it,
+ * then whatever the node reports. */
+export class ServerToggle {
+  constructor(name, read, onError) {
+    this.name = name;
+    this.read = read; // () => the node's current value from tele, or undefined
+    this.onError = onError;
+    this.want = null;
+  }
+
+  get on() {
+    const actual = this.read() ?? true;
+    if (this.want === actual) this.want = null;
+    return this.want ?? actual;
+  }
+
+  async toggle() {
+    const want = !this.on;
+    this.want = want;
+    try {
+      const r = await fetch(`/${this.name}?on=${want ? 1 : 0}`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch (e) {
+      this.want = null;
+      this.onError?.(this.name, e);
+    }
+  }
+}

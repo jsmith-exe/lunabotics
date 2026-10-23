@@ -257,6 +257,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .telemetry-off { display: none; color: var(--grey); font-size: 11px; letter-spacing: 0.1em; padding: 10px 4px; }
 .drawer.no-telemetry .links { display: none; }
 .drawer.no-telemetry .telemetry-off { display: block; }
+.link-meter { font-family: var(--f-mono); font-size: 11.5px; color: var(--text); padding: 3px 4px 6px; white-space: nowrap; }
+.link-meter .near { color: var(--amber); }
+.link-meter .over { color: var(--red); font-weight: 700; }
+.links tr.total td { color: var(--text-dim); }
 .links { width: 100%; border-collapse: collapse; font-family: var(--f-mono); font-size: 11.5px; font-weight: 400; }
 .links th { text-align: left; color: var(--text-dim); font-family: var(--f-label); font-weight: 700; font-size: 10px; letter-spacing: 0.14em; border-bottom: 1px solid var(--line-dim); padding: 3px 4px; position: sticky; top: 0; background: rgb(4, 3, 2); }
 .links td { padding: 2px 4px; border-bottom: 1px solid rgba(255,138,30,0.07); color: var(--text); white-space: nowrap; }

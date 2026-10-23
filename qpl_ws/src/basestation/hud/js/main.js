@@ -4,7 +4,7 @@
 // All data arrives on one Server-Sent Events stream from teleop_hud (/events);
 // camera frames come as MJPEG from /cam/<name>.mjpg.
 
-import { Surface, prefs, clamp, isNum, deg, fmtSigned, ga, applyIrish, STALE_S, DEAD_S, TILT_CAUTION, TILT_CRIT } from "./util.js";
+import { Surface, ServerToggle, prefs, clamp, isNum, deg, fmtSigned, ga, applyIrish, STALE_S, DEAD_S, TILT_CAUTION, TILT_CRIT } from "./util.js";
 import { CameraDeck } from "./cameras.js";
 import { TacticalMap } from "./map.js";
 import { drawDrive, drawWheels, drawAttitude, drawImplement, drawTrace, TraceHistory } from "./gauges.js";
@@ -36,8 +36,18 @@ const S = {
 
 const $ = (id) => document.getElementById(id);
 const trace = new TraceHistory(30, 20);
-const cams = new CameraDeck(S);
-const map = new TacticalMap($("map"), S);
+
+// Settings teleop_hud owns because each holds a subscription over the link.
+const toggleFailed = (name, e) =>
+  showTicker({ lvl: 30, node: "hud", msg: `could not switch ${name.replace("_", " ")}: ${e.message}` });
+const toggles = {
+  telemetry: new ServerToggle("telemetry", () => S.tele?.telemetry, toggleFailed),
+  costmap: new ServerToggle("costmap", () => S.tele?.costmap, toggleFailed),
+  front: new ServerToggle("front_camera", () => S.tele?.cams?.front?.on, toggleFailed),
+  rear: new ServerToggle("rear_camera", () => S.tele?.cams?.rear?.on, toggleFailed),
+};
+const cams = new CameraDeck(S, { front: toggles.front, rear: toggles.rear });
+const map = new TacticalMap($("map"), S, toggles.costmap);
 
 const surfaces = [
   new Surface($("c-drive"), (ctx, w, h) => drawDrive(ctx, w, h, S)),
@@ -201,15 +211,59 @@ for (const b of $("log-filters").querySelectorAll("button")) {
 }
 
 // ------------------------------------------------------------- data links
+const mbit = (bytesPerS) => (bytesPerS * 8) / 1e6;
+
+// Link use against its budget. The meter is the whole interface, so it is what
+// the network limiter actually sees.
+function linkUse() {
+  const l = S.tele?.link;
+  const budget = S.config?.link_budget;
+  if (!l || !isNum(l.rx) || !budget) return null;
+  return { iface: l.iface, rx: mbit(l.rx), tx: mbit(l.tx), rxMax: budget.rx, txMax: budget.tx };
+}
+
+function renderLinkMeter() {
+  const el = $("link-meter");
+  const u = linkUse();
+  if (!u) {
+    el.textContent = S.tele?.link ? `LINK ${S.tele.link.iface} · no counters` : "LINK · no interface found";
+    el.className = "link-meter";
+    return;
+  }
+  const part = (name, v, max) => {
+    const span = document.createElement("span");
+    span.className = v > max ? "over" : v > 0.85 * max ? "near" : "";
+    span.textContent = `${name} ${v.toFixed(2)} / ${max} Mbit/s`;
+    return span;
+  };
+  el.className = "link-meter";
+  el.replaceChildren(`LINK ${u.iface} · `, part("DOWN", u.rx, u.rxMax), " · ", part("UP", u.tx, u.txMax));
+}
+
 function renderLinks() {
   const t = S.tele;
   if (!t) return;
-  drawer.classList.toggle("no-telemetry", !telemetryOn());
-  $("telemetry").classList.toggle("on", telemetryOn());
-  $("telemetry").textContent = telemetryOn() ? "TELEMETRY ON" : "TELEMETRY OFF";
+  const telemetryOn = toggles.telemetry.on;
+  drawer.classList.toggle("no-telemetry", !telemetryOn);
+  $("telemetry").classList.toggle("on", telemetryOn);
+  $("telemetry").textContent = telemetryOn ? "TELEMETRY ON" : "TELEMETRY OFF";
+  renderLinkMeter();
   if (!t.topics) return;
   const rows = [...t.topics].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+  // Topic sizes are payload only; the rest of the link (video, DDS discovery
+  // and headers, anything else on the interface) is what the meter has left.
+  const topicBps = rows.reduce((sum, tp) => sum + (tp.bps || 0), 0);
+  const u = linkUse();
+  const totals = [["HUD topics (payload)", topicBps]];
+  if (u) totals.push(["rest of link (video, DDS…)", Math.max(0, t.link.rx - topicBps)]);
   $("links").replaceChildren(
+    ...totals.map(([name, bps]) => {
+      const tr = document.createElement("tr");
+      tr.className = "total";
+      tr.innerHTML = `<td></td><td></td><td></td><td></td><td>${(bps / 1024).toFixed(1)}</td>`;
+      tr.children[1].textContent = name;
+      return tr;
+    }),
     ...rows.map((tp) => {
       const tr = document.createElement("tr");
       const never = tp.age === null;
@@ -232,25 +286,9 @@ function renderLinks() {
   );
 }
 
-// Telemetry on/off lives in teleop_hud (it owns the /rosout subscription); the
-// page asks for a change and shows what the node reports back in tele.
-let telemetryWant = null; // requested, until tele confirms it
-function telemetryOn() {
-  const actual = S.tele?.telemetry ?? true;
-  if (telemetryWant === actual) telemetryWant = null;
-  return telemetryWant ?? actual;
-}
-async function toggleTelemetry() {
-  const want = !telemetryOn();
-  telemetryWant = want;
+function toggleTelemetry() {
+  toggles.telemetry.toggle();
   renderLinks();
-  try {
-    const r = await fetch(`/telemetry?on=${want ? 1 : 0}`, { method: "POST" });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  } catch (e) {
-    telemetryWant = null;
-    showTicker({ lvl: 30, node: "hud", msg: `could not switch telemetry: ${e.message}` });
-  }
 }
 
 // Topic table / event log split, dragged by the bar between them.
@@ -361,7 +399,10 @@ function computeWarnings() {
     w.push({ lvl: "caution", ga: "Ciúnas", txt: "MUX OUTPUT SILENT", sub: "commands sent, nothing on /diff_cont/cmd_vel_unstamped" });
   }
 
-  if (d.live && d.frame === "odom") w.push({ lvl: "info", ga: "Gan Suíomh", txt: "NO MAP FIX", sub: "map → base TF missing; map shows odom" });
+  const u = linkUse();
+  if (u && u.rx > u.rxMax) w.push({ lvl: "caution", ga: "Nasc Lán", txt: "LINK OVER BUDGET", sub: `${u.rx.toFixed(2)} / ${u.rxMax} Mbit/s down · cameras 1/2, costmap K` });
+
+  if (d.live && d.frame === "odom") w.push({ lvl: "info", ga: "Gan Suíomh", txt: "NO MAP FIX", sub: "no /odometry/global; map shows odom" });
   return w;
 }
 
@@ -486,6 +527,9 @@ window.addEventListener("keydown", (e) => {
     c: () => cams.swap(),
     v: () => cams.toggleAuto(),
     g: () => cams.toggleGuides(),
+    1: () => cams.togglePower("front"),
+    2: () => cams.togglePower("rear"),
+    k: () => map.toggleCostmap(),
     f: () => map.toggleFollow(),
     r: () => map.rotate(),
     0: () => map.resetView(),

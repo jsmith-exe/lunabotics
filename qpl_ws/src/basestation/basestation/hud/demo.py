@@ -1,15 +1,20 @@
 """Fake rover for exercising the teleop HUD without the rover or Gazebo.
 
 Publishes everything teleop_hud reads: TF (map -> odom -> base_footprint ->
-camera optical frames), /odometry/filtered, /joint_states, the command topics,
-drum/lift topics, camera_info plus synthetic JPEG camera frames (a projected
-ground grid, so the HUD's drive guides can be checked against it), a costmap,
+camera optical frames), /odometry/filtered and /odometry/global, /joint_states,
+the command topics, drum/lift topics, camera_info plus synthetic JPEG camera
+frames (a projected ground grid, so the HUD's drive guides can be checked
+against it), a costmap,
 a plan, AprilTag fixes and some log lines. The rover follows a loop around the
 arena, reverses now and then, hands over to "autonomy" for a stretch, and
 briefly stalls a wheel, so every HUD state shows up within a couple of minutes.
 
     ros2 run basestation hud_demo
-    ros2 launch basestation hud.launch.py transport:=compressed
+    ros2 launch basestation hud.launch.py
+
+The frames go straight onto /hud/{front,rear}_cam/compressed, the topics the
+HUD's own h264 decoders publish, so the HUD shows them with no stream encoder.
+Switching a camera off in the HUD therefore doesn't blank the demo's feed.
 
 It publishes on the real command topic names, so it refuses to start if
 anything else is already on them (twist_mux, diff_cont, a live rover). Use a
@@ -97,6 +102,7 @@ class HudDemo(Node):
         for t in ["/cmd_vel_teleop", "/cmd_vel_nav", "/diff_cont/cmd_vel_unstamped"]:
             pub(Twist, t)
         pub(Odometry, "/odometry/filtered")
+        pub(Odometry, "/odometry/global")
         pub(JointState, "/joint_states")
         pub(Float64, "/drum_spin_control/teleop")
         pub(Float64, "/drum_lift_control/teleop")
@@ -109,7 +115,7 @@ class HudDemo(Node):
         self.cams = [Cam("camera_front", 1), Cam("camera_rear", -1)]
         for c in self.cams:
             side = "front" if "front" in c.name else "rear"
-            pub(CompressedImage, f"/depth_camera_{side}/color/image_raw/compressed", 2)
+            pub(CompressedImage, f"/hud/{side}_cam/compressed", 2)
             pub(CameraInfo, f"/depth_camera_{side}/color/camera_info", 2)
 
         self.tf = TransformBroadcaster(self)
@@ -197,6 +203,14 @@ class HudDemo(Node):
         od.twist.twist.angular.z = self.w
         self.pubs["/odometry/filtered"].publish(od)
 
+        og = Odometry()
+        og.header.stamp = stamp
+        og.header.frame_id, og.child_frame_id = "map", "base_footprint"
+        og.pose.pose.position.x, og.pose.pose.position.y = self.x, self.y
+        og.pose.pose.orientation = quat(roll, pitch, self.yaw)
+        og.twist = od.twist
+        self.pubs["/odometry/global"].publish(og)
+
         wl = (self.v - self.w * SEP / 2) / WHEEL_R
         wr = (self.v + self.w * SEP / 2) / WHEEL_R
         stall = 70 < el % 120 < 73  # front-left wheel jams for a few seconds
@@ -278,7 +292,7 @@ class HudDemo(Node):
             m.header.frame_id = cam.frame
             m.format = "rgb8; jpeg compressed bgr8"
             m.data = jpg.tobytes()
-            self.pubs[f"/depth_camera_{side}/color/image_raw/compressed"].publish(m)
+            self.pubs[f"/hud/{side}_cam/compressed"].publish(m)
             info = CameraInfo()
             info.header = m.header
             info.width, info.height = IMG_W, IMG_H
