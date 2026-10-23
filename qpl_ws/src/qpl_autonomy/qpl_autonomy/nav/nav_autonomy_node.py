@@ -9,8 +9,8 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
-from qpl_autonomy.nav_excavation import NavExcavationSequence
-from qpl_autonomy.nav_deposition import NavDepositionSequence
+from qpl_autonomy.nav.nav_excavation import NavExcavationSequence
+from qpl_autonomy.nav.nav_deposition import NavDepositionSequence
 from qpl_autonomy.navigation import Navigation
 
 
@@ -35,7 +35,7 @@ class NavAutonomyNode(Node):
         self.declare_parameter("excavation.drum_spin_direction", 1.0)
         self.declare_parameter("excavation.lowered_position_m", 0.03)
         self.declare_parameter("excavation.dig_duration_s", 30.0)
-        self.declare_parameter("excavation.raised_position_m", 0.20)
+        self.declare_parameter("excavation.raised_position_m", 0.22)
         self.declare_parameter("excavation.position_tolerance_m", 0.005)
         excavation_config = {
             "drum_spin_speed": self.get_parameter("excavation.drum_spin_speed").value,
@@ -46,10 +46,10 @@ class NavAutonomyNode(Node):
             "position_tolerance_m": self.get_parameter("excavation.position_tolerance_m").value,
         }
 
-        self.declare_parameter("deposition.raised_position_m", 0.20)
+        self.declare_parameter("deposition.raised_position_m", 0.22)
         self.declare_parameter("deposition.dump_duration_s", 30.0)
         self.declare_parameter("deposition.drum_spin_speed", 0.4)
-        self.declare_parameter("deposition.drum_spin_direction", -1.0)
+        self.declare_parameter("deposition.drum_spin_direction", 1.0)
         self.declare_parameter("deposition.position_tolerance_m", 0.005)
         deposition_config = {
             "raised_position_m": self.get_parameter("deposition.raised_position_m").value,
@@ -64,7 +64,7 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.deposition_waypoint", [8.14, 6.40, 1.5708])
         self.declare_parameter("navigation.goal_timeout_s", 180.0)
         self.declare_parameter("navigation.max_retries", 2)
-        self.declare_parameter("navigation.travel_lift_position_m", 0.20)
+        self.declare_parameter("navigation.travel_lift_position_m", 0.22)
         self.travel_lift_position_m = self.get_parameter("navigation.travel_lift_position_m").value
         # Within this distance and heading of a waypoint the sequence starts, even if Nav2 is
         # still lining up. A small buffer so it doesn't keep shuffling to correct itself.

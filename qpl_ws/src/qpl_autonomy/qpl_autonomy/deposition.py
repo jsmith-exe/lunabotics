@@ -24,10 +24,12 @@ class DepositionSequence:
         drum_lift_pub,
         drum_spin_pub,
         config,
+        logger,
     ):
         self.cmd_vel_pub = cmd_vel_pub
         self.drum_lift_pub = drum_lift_pub
         self.drum_spin_pub = drum_spin_pub
+        self.logger = logger
 
         self.drive_to_zone_speed = config["drive_to_zone_speed"]
         self.drive_to_zone_distance_m = config["drive_to_zone_distance_m"]

@@ -25,10 +25,12 @@ class ExcavationSequence:
         drum_lift_pub,
         drum_spin_pub,
         config,
+        logger,
     ):
         self.cmd_vel_pub = cmd_vel_pub
         self.drum_lift_pub = drum_lift_pub
         self.drum_spin_pub = drum_spin_pub
+        self.logger = logger
 
         self.drive_speed = config["drive_speed"]
         self.drive_distance_m = config["drive_distance_m"]
@@ -83,6 +85,7 @@ class ExcavationSequence:
                     self.start_x = odom_position[0]
                     self.start_y = odom_position[1]
                 self.state = ExcavationState.DRIVE_FORWARD
+                self.logger.info(f"Lowered to max.")
 
         # 4. Drive forward while drum is spinning
         elif self.state == ExcavationState.DRIVE_FORWARD:
