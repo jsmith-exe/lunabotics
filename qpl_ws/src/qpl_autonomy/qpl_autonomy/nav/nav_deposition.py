@@ -16,7 +16,7 @@ class NavDepositionSequence:
     """Feedback-based FSM for the deposition sequence used by nav autonomy.
 
     Nav2 has already put the rover at the berm, so it stands still with the bucket raised
-    and spins the drum backwards to dump.
+    and spins the drum to dump.
     """
 
     def __init__(
@@ -65,7 +65,7 @@ class NavDepositionSequence:
                 self.dump_start_s = now_s
                 self.state = NavDepositionState.DUMP_REGOLITH
 
-        # 3. Spin drum backwards to dump. Nothing reports when the drum is empty, so this
+        # 3. Spin drum to dump. Nothing reports when the drum is empty, so this
         # one step is timed.
         elif self.state == NavDepositionState.DUMP_REGOLITH:
             self.stop_wheels()

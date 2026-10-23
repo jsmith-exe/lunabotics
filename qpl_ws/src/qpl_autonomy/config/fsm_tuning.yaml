@@ -39,4 +39,4 @@ autonomy:
 
     # drum bucket
     deposition.drum_spin_speed: 0.4
-    deposition.drum_spin_direction: 1.0
+    deposition.drum_spin_direction: -1.0
