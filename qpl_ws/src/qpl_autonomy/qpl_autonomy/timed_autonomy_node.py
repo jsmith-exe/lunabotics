@@ -59,12 +59,14 @@ class TimedAutonomyNode(AutonomyNode):
             drum_lift_pub=self.drum_lift_pub,
             drum_spin_pub=self.drum_spin_pub,
             config=excavation_config,
+            logger=self.get_logger(),
         )
         self.deposition = TimedDepositionSequence(
             cmd_vel_pub=self.cmd_vel_pub,
             drum_lift_pub=self.drum_lift_pub,
             drum_spin_pub=self.drum_spin_pub,
             config=deposition_config,
+            logger=self.get_logger(),
         )
 
         self.get_logger().info("Drive stages are timed.")
@@ -107,7 +109,7 @@ def main(args=None):
 
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,36 @@
+<!--
+  Humble's navigate_to_pose_w_replanning_and_recovery.xml with two changes:
+
+  1. The global costmap is never cleared. It is a fixed map of the arena that keeps
+     walls once the cameras have seen them (nav_params.yaml), and the planner may
+     route through unknown space, so clearing it lets the next plan go through walls.
+     Only the local costmap is cleared in recovery.
+  2. Spin and BackUp take their distances and timeouts from these ports, not from
+     behavior_server's parameters. Sized for the rover: the skid-steer turns at
+     about 0.8x the commanded rate, and the back-up has to move the rover's centre
+     further than the footprint's 0.53 m inscribed radius to get out of inflation.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <RateController hz="1.0">
+          <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <ReactiveFallback name="RecoveryFallback">
+        <GoalUpdated/>
+        <RoundRobin name="RecoveryActions">
+          <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
+          <Spin spin_dist="1.57" time_allowance="15"/>
+          <Wait wait_duration="5"/>
+          <BackUp backup_dist="0.60" backup_speed="0.10" time_allowance="10"/>
+        </RoundRobin>
+      </ReactiveFallback>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>

@@ -17,7 +17,9 @@ import os
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -29,6 +31,7 @@ def generate_launch_description():
     autostart = LaunchConfiguration('autostart')
     params_file = LaunchConfiguration('params_file')
     default_bt_xml_filename = LaunchConfiguration('default_bt_xml_filename')
+    nav_autonomy = LaunchConfiguration('nav_autonomy')
 
     lifecycle_nodes = [
         'controller_server',
@@ -39,10 +42,11 @@ def generate_launch_description():
         'velocity_smoother',
     ]
 
+    # Controller and recoveries -> /cmd_vel_nav_raw -> velocity_smoother -> /cmd_vel_nav -> drive mux
     common_remappings = [
         ('/tf', 'tf'),
         ('/tf_static', 'tf_static'),
-        ('/cmd_vel', '/cmd_vel_nav'),
+        ('/cmd_vel', '/cmd_vel_nav_raw'),
     ]
 
     return LaunchDescription([
@@ -69,11 +73,17 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'default_bt_xml_filename',
             default_value=os.path.join(
-                get_package_share_directory('nav2_bt_navigator'),
+                bringup_dir,
                 'behavior_trees',
-                'navigate_w_replanning_and_recovery.xml'
+                'navigate_to_pose_w_replanning_and_recovery.xml'
             ),
             description='Full path to the behavior tree xml file to use'
+        ),
+
+        DeclareLaunchArgument(
+            'nav_autonomy',
+            default_value='true',
+            description='Also start the Nav2 autonomy node (idle until a basestation button or qpl_auto)'
         ),
 
         Node(
@@ -120,7 +130,8 @@ def generate_launch_description():
             parameters=[
                 params_file,
                 {'use_sim_time': use_sim_time},
-                {'default_bt_xml_filename': default_bt_xml_filename},
+                # Humble's name for it; default_bt_xml_filename was Foxy's and is ignored.
+                {'default_nav_to_pose_bt_xml': default_bt_xml_filename},
             ],
             remappings=common_remappings,
         ),
@@ -149,8 +160,8 @@ def generate_launch_description():
             remappings=[
                 ('/tf', 'tf'),
                 ('/tf_static', 'tf_static'),
-                ('cmd_vel', 'cmd_vel_nav'),
-                ('cmd_vel_smoothed', 'cmd_vel'),
+                ('cmd_vel', 'cmd_vel_nav_raw'),
+                ('cmd_vel_smoothed', 'cmd_vel_nav'),
             ],
         ),
 
@@ -180,5 +191,14 @@ def generate_launch_description():
                 {'autostart': autostart},
                 {'node_names': lifecycle_nodes},
             ],
+        ),
+
+        # Nav2 autonomy (NAV_EXCAVATE / NAV_DEPOSIT / AUTO). Only starts the node; nothing moves
+        # until a command arrives on /nav_autonomy/command. The blind autonomy node is separate.
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(
+                get_package_share_directory('qpl_autonomy'), 'launch', 'nav', 'nav_autonomy.launch.py')),
+            launch_arguments={'use_sim_time': use_sim_time}.items(),
+            condition=IfCondition(nav_autonomy),
         ),
     ])

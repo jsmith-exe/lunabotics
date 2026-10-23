@@ -6,6 +6,18 @@
 #   obstacle if height >= min_obstacle_height + range * height_slope_per_m
 # The defaults give 0.16 m up close and 0.30 m at 4 m: the terrain world's
 # +-7 cm hills plus ~2 deg of IMU tilt error. Walls are 0.5 m.
+#
+# That misses the rulebook boulders (30-40 cm wide, often only 12-20 cm proud
+# of the sand) and every crater, so within local_max_range points are also
+# compared with the floor around them (median over local_window). The hills
+# stay within ~2 cm of that local floor, so:
+#   bump  if height above local floor >= min_bump_height + range * local_slope_per_m
+#   dip   if height below local floor >= min_dip_depth   + range * local_slope_per_m
+# A crater mostly hides its own floor; within shadow_max_range the floor hidden
+# behind its near rim is marked as well (crater_shadows() in the node).
+# Boulder/crater marks are remembered until seen again as plain floor (at most
+# memory_duration s) so Nav2's raytracing doesn't wipe them once they're too
+# close for the camera to see.
 
 /depth_obstacle_filter_front:
   ros__parameters:
@@ -22,6 +34,26 @@
     min_obstacle_height: 0.16
     height_slope_per_m: 0.035
     max_obstacle_height: 1.0
+    # local test: boulders and craters
+    local_enabled: true
+    local_max_range: 3.5
+    local_cell: 0.15          # floor estimate grid (m)
+    local_window: 0.6         # floor = median of cells within this (m)
+    local_min_cells: 6        # cells needed for a floor estimate
+    min_bump_height: 0.07
+    min_dip_depth: 0.06
+    local_slope_per_m: 0.01
+    min_cell_points: 2        # flagged points needed in a cell, so lone noisy returns don't mark
+    shadow_max_range: 2.0     # past this a 6 deg downslope can hide floor too
+    shadow_min_gap: 0.15
+    shadow_gap_ratio: 4.0     # x the row-to-row range step a flat floor would give
+    shadow_max_gap: 0.7
+    shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
+    shadow_fill_step: 0.05
+    memory_cell: 0.05
+    memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
+    memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
+    memory_floor_points: 3
     self_filter_x: 0.65
     self_filter_y: 0.56
 
@@ -40,5 +72,25 @@
     min_obstacle_height: 0.16
     height_slope_per_m: 0.035
     max_obstacle_height: 1.0
+    # local test: boulders and craters
+    local_enabled: true
+    local_max_range: 3.5
+    local_cell: 0.15          # floor estimate grid (m)
+    local_window: 0.6         # floor = median of cells within this (m)
+    local_min_cells: 6        # cells needed for a floor estimate
+    min_bump_height: 0.07
+    min_dip_depth: 0.06
+    local_slope_per_m: 0.01
+    min_cell_points: 2        # flagged points needed in a cell, so lone noisy returns don't mark
+    shadow_max_range: 2.0     # past this a 6 deg downslope can hide floor too
+    shadow_min_gap: 0.15
+    shadow_gap_ratio: 4.0     # x the row-to-row range step a flat floor would give
+    shadow_max_gap: 0.7
+    shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
+    shadow_fill_step: 0.05
+    memory_cell: 0.05
+    memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
+    memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
+    memory_floor_points: 3
     self_filter_x: 0.65
     self_filter_y: 0.56

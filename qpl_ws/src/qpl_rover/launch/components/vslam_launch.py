@@ -4,7 +4,8 @@ camera (the RealSense; the Orbbec has no aligned depth) and publishes /vo/odom
 for the local EKF to fuse as odom1. No TF, no map.
 
 Started automatically by qpl_rover and qpl_sim via components.launch.py.
-Pass use_vslam:=false to either to disable it. Standalone:
+Pass use_vslam:=false to either to disable it. Per-frame "Odom: quality=..."
+logs are hidden by default; pass vslam_log_level:=info to see them. Standalone:
 
     ros2 launch qpl_rover vslam_launch.py use_sim_time:=true
 """
@@ -37,6 +38,7 @@ ROVER_TOPICS = {
 def opaque_generate_launch_description(context):
     use_sim_time_str = LaunchConfiguration("use_sim_time").perform(context).lower()
     use_sim_time = use_sim_time_str in ["true", "1", "yes"]
+    log_level = LaunchConfiguration("vslam_log_level").perform(context)
 
     rover_pkg = get_package_share_directory("qpl_rover")
 
@@ -59,6 +61,8 @@ def opaque_generate_launch_description(context):
         executable="rgbd_odometry",
         name="visual_odometry",
         output="screen",
+        # rgbd_odometry logs every frame at INFO; lost-odometry is WARN/ERROR.
+        arguments=["--ros-args", "--log-level", f"visual_odometry:={log_level}"],
         parameters=[
             params_file,
             {"use_sim_time": use_sim_time},
@@ -84,7 +88,14 @@ def generate_launch_description():
         description="Enable if using simulation",
     )
 
+    log_level_parameter = DeclareLaunchArgument(
+        "vslam_log_level",
+        default_value="warn",
+        description="Log level for visual odometry (info shows every frame)",
+    )
+
     return LaunchDescription([
         use_sim_time_parameter,
+        log_level_parameter,
         OpaqueFunction(function=opaque_generate_launch_description),
     ])

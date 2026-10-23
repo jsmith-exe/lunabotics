@@ -11,7 +11,9 @@ Writes, into arena_terrain/meshes/:
 
 Run from anywhere:  python3 worlds/generate_arena_terrain.py
 
-Deterministic: same SEED -> same terrain. Needs numpy, scipy, opencv (all
+Deterministic: same SEED -> same terrain. The checked-in mesh has no
+obstacles; sim.launch.py rebuilds the mesh on every launch with random craters
+carved in (see arena_obstacles.py), reusing these hills and this texture. Needs numpy, scipy, opencv (all
 already on the dev machines). The source photo texture is ambientCG
 Ground079S (CC0), see arena_terrain/materials/source/README.md.
 
@@ -23,7 +25,6 @@ the floor the rover drives on drifted apart.
 
 import os
 
-import cv2
 import numpy as np
 from scipy.ndimage import gaussian_filter, map_coordinates
 
@@ -60,17 +61,6 @@ FLAT_ZONES = [
     (2.32, 0.00, 4.57, 2.25),  # starting zone, rover spawns at (3.45, 1.13)
     (7.14, 4.69, 9.14, 8.10),  # construction / berm zone
 ]
-
-# -----------------------------
-# Future features (empty for now)
-# -----------------------------
-# Craters are carved into the terrain mesh: (x, y, diameter) in arena metres.
-# Boulders would be separate static models placed on the surface in the world
-# file, so they can have their own shape and material.
-FEATURES = {
-    "craters": [],             # e.g. (6.0, 3.0, 0.5)
-    "boulders": [],            # e.g. (5.0, 5.0, 0.3)  - not implemented yet
-}
 
 # -----------------------------
 # Texture tuning
@@ -114,13 +104,16 @@ def hill_weight(x, y):
     return weight
 
 
-def add_crater(h, x, y, cx, cy, diameter):
-    """Bowl with a raised rim. Same proportions as draw_crater_sharp() in
-    terrain_heightmap_gen.py (total depth 0.22 x diameter, 60 % of it rim),
-    but built from cosine segments so the surface has no kinks or lip edges."""
+def add_crater(h, x, y, cx, cy, diameter, depth=None, rim_frac=0.6):
+    """Bowl with a raised rim. By default the same proportions as
+    draw_crater_sharp() in terrain_heightmap_gen.py (total depth 0.22 x
+    diameter, 60 % of it rim), but built from cosine segments so the surface
+    has no kinks or lip edges. depth is rim top to bowl floor (m), and
+    rim_frac of it is the rim raised above the surrounding ground."""
     r = diameter / 2
-    depth = 0.22 * diameter
-    rim = 0.6 * depth
+    if depth is None:
+        depth = 0.22 * diameter
+    rim = rim_frac * depth
     floor = depth - rim
     rim_width = 0.45                     # outer rim slope, in crater radii
     d = np.hypot(x - cx, y - cy) / r
@@ -138,7 +131,9 @@ def slope_stats(h):
     return slope, curvature
 
 
-def make_heightmap():
+def make_heightmap(craters=()):
+    """Hills from SEED, then craters given as (x, y, diameter, depth, rim_frac)
+    in arena metres; see add_crater()."""
     rng = np.random.default_rng(SEED)
     x, y = arena_grid(RES)
 
@@ -158,8 +153,8 @@ def make_heightmap():
     )
     h *= scale
 
-    for cx, cy, diameter in FEATURES["craters"]:
-        h = add_crater(h, x, y, cx, cy, diameter)
+    for cx, cy, diameter, depth, rim_frac in craters:
+        h = add_crater(h, x, y, cx, cy, diameter, depth, rim_frac)
 
     slope, curvature = slope_stats(h)
     flat = hill_weight(x, y) == 0
@@ -167,15 +162,24 @@ def make_heightmap():
     print(f"slope       max {slope.max():.1f} deg  mean {slope[~flat].mean():.1f} deg")
     print(f"curvature   min radius {1 / curvature:.2f} m")
     print(f"flat zones  max |z| {np.abs(h[flat]).max() * 1000:.1f} mm")
-    if FEATURES["craters"]:
+    if craters:
         print("note: craters are not slope-limited, check the numbers above")
     else:
         assert slope.max() <= MAX_SLOPE_DEG + 1e-6
     return h
 
 
+def height_at(h, x, y):
+    """Terrain height (m) at arena (x, y), interpolated from the working grid."""
+    half = TERRAIN_SIZE / 2
+    col = (np.asarray(x) - (CENTRE[0] - half)) / PX
+    row = ((CENTRE[1] + half) - np.asarray(y)) / PX
+    return map_coordinates(h, [np.atleast_1d(row), np.atleast_1d(col)], order=3, mode="nearest")
+
+
 def rotated_layer(src, angle_deg, scale, offset, size):
     """Tile a seamless source texture across `size`, rotated and shifted, with no seams."""
+    import cv2
     centre = (size / 2, size / 2)
     m = cv2.getRotationMatrix2D(centre, angle_deg, scale)
     m[:, 2] += offset
@@ -184,6 +188,7 @@ def rotated_layer(src, angle_deg, scale, offset, size):
 
 
 def make_texture():
+    import cv2  # only needed here, so launching the sim doesn't need OpenCV
     rng = np.random.default_rng(SEED + 1)
     src = cv2.imread(SOURCE_TEXTURE, cv2.IMREAD_COLOR).astype(np.float32)
     tile_px = TEX_RES * TEX_SOURCE_TILE_M / TERRAIN_SIZE
@@ -290,6 +295,7 @@ def write_mesh(h, mesh_dir):
 
 
 def main():
+    import cv2
     mesh_dir = os.path.join(OUT_DIR, "meshes")
     os.makedirs(mesh_dir, exist_ok=True)
 

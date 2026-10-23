@@ -23,15 +23,25 @@ The package is structured so that physical tuning values can be changed through 
 qpl_autonomy/
 ├── config/
 │   ├── fsm_tuning.yaml
+│   ├── nav/
+│   │   └── nav_autonomy.yaml
 │   └── legacy/
 ├── launch/
 │   ├── autonomy.launch.py
+│   ├── nav/
+│   │   └── nav_autonomy.launch.py
 │   └── legacy/
 ├── qpl_autonomy/
 │   ├── __init__.py
 │   ├── autonomy_node.py
 │   ├── excavation.py
 │   ├── deposition.py
+│   ├── nav/
+│   │   ├── __init__.py
+│   │   ├── nav_autonomy_node.py
+│   │   ├── nav_excavation.py
+│   │   └── nav_deposition.py
+│   ├── navigation.py
 │   └── legacy/
 └── ...
 ```
@@ -332,6 +342,48 @@ ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: 'STOP'}"
 ```
 
 The repository also provides shell aliases for these commands where configured.
+
+---
+
+## Nav Autonomy
+
+`nav_autonomy_node` uses Nav2 to drive between the excavation zone and the berm. It is a separate node from the blind autonomy above. The blind node, its variants, their sequences and `fsm_tuning.yaml` are not used or changed by it, so blind autonomy remains as a backup.
+
+It is started by `qpl_nav` (`qpl_rover` `navigation_launch.py`, which includes `launch/nav/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
+
+Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
+
+| Command        | Basestation button         | Alias              | Function                                                            |
+| -------------- | -------------------------- | ------------------ | ------------------------------------------------------------------- |
+| `NAV_EXCAVATE` | Nav Excavate               | `qpl_nav_excavate` | Drive to the excavation waypoint with Nav2, then excavate           |
+| `NAV_DEPOSIT`  | Nav Deposit                | `qpl_nav_deposit`  | Drive to the deposition waypoint with Nav2, then deposit            |
+| `AUTO`         | Full Autonomy (Low Risk)   | `qpl_auto`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP` |
+| `STOP`         | Stop                       | `qpl_auto_stop`    | Cancel the Nav2 goal or active sequence and return to `IDLE`        |
+
+The buttons are in the basestation's **Nav Autonomy** section. Like the blind autonomy buttons, they only work while teleop is disabled, because teleop has priority over Nav2 in the drive mux. Either Stop button in the basestation stops both autonomy nodes.
+
+### Full autonomy
+
+```text
+navigate to excavation waypoint -> excavate -> navigate to deposition waypoint -> deposit -> repeat
+```
+
+The rover stands still while digging and dumping, which is why it is labelled low risk:
+
+* **Excavation:** stop -> spin drum forward -> lower bucket -> hold it down for `dig_duration_s` -> raise bucket -> stop spinning.
+* **Deposition:** stop -> bucket raised -> spin drum backwards for `dump_duration_s` -> stop spinning.
+
+Nothing reports when the bucket is full or empty, so the dig and dump are timed (30 s each). The rest moves on actuator feedback.
+
+### Navigation
+
+* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, the command is refused.
+* Waypoints are map-frame `[x, y, yaw]` values in `config/nav/nav_autonomy.yaml` (`navigation.*`). The dig or dump starts once the rover is within `arrival_radius_m` (0.25 m) and `arrival_yaw_tolerance_rad` (0.3 rad, ~17°) of the waypoint, or when Nav2 reports the goal reached. That small buffer stops it shuffling to correct itself.
+* While navigating, the bucket is held at `travel_lift_position_m` so it does not plough the regolith.
+* A failed goal is retried `max_retries` times. After that, autonomy (including `AUTO`) returns to `IDLE`.
+* `STOP` and Ctrl-C cancel the active Nav2 goal; otherwise Nav2 would keep driving it.
+
+All nav autonomy tuning is in `config/nav/nav_autonomy.yaml`, under the node name `nav_autonomy`.
 
 ---
 

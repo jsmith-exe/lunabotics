@@ -16,6 +16,7 @@ setup(
     (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
     (os.path.join("share", package_name, "launch"), glob("launch/components/*.py")),
     (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
+    (os.path.join('share', package_name, 'worlds'), glob('worlds/*.py')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model'), glob('worlds/apriltag_model/model.config')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'scripts'), glob('worlds/apriltag_model/materials/scripts/*')),
     (os.path.join('share', package_name, 'worlds', 'apriltag_model', 'materials', 'textures'), glob('worlds/apriltag_model/materials/textures/*')),
@@ -25,6 +26,7 @@ setup(
     (os.path.join('share', package_name, 'worlds', 'arena_terrain'), glob('worlds/arena_terrain/model.*')),
     (os.path.join('share', package_name, 'worlds', 'arena_terrain', 'meshes'), glob('worlds/arena_terrain/meshes/*')),
     (os.path.join('share', package_name, 'config'), glob('config/*.*')),
+    (os.path.join('share', package_name, 'behavior_trees'), glob('behavior_trees/*.xml')),
     (os.path.join('share', package_name, 'config', 'arena'), glob('config/arena/*.*')),
     (os.path.join('share', package_name, 'config', 'localisation'), glob('config/localisation/*.*')),
     (os.path.join("share", package_name, "rviz"), glob("rviz/*")), 
@@ -43,6 +45,7 @@ setup(
     entry_points={
         'console_scripts': [
             'apriltag_observer = qpl_rover.apriltag_observer:main',
+            'apriltag_gate = qpl_rover.apriltag_gate:main',
             'depth_obstacle_filter = qpl_rover.depth_obstacle_filter:main',
             'drum_command_interface = qpl_rover.drum_command_interface:main',
             'teleop_watchdog = qpl_rover.teleop_watchdog:main',
