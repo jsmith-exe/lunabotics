@@ -6,11 +6,14 @@ from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
+from qpl_autonomy.nav.costmap_check import footprint_blocked
 from qpl_autonomy.nav.nav_excavation import NavExcavationSequence
 from qpl_autonomy.nav.nav_deposition import NavDepositionSequence
 from qpl_autonomy.navigation import Navigation
@@ -20,6 +23,15 @@ CLOCK_GRACE_S = 5.0
 # Local-EKF movement below this between samples isn't counted as driving, so pose jitter
 # while standing still doesn't add up
 DRIVE_STEP_M = 0.05
+# How often the current candidate is re-checked against the costmap while driving to it
+TARGET_CHECK_PERIOD_S = 1.0
+
+
+def parse_poses(flat):
+    # [x, y, yaw, x, y, yaw, ...] -> [(x, y, yaw), ...]
+    if not flat or len(flat) % 3:
+        raise ValueError(f"candidate list must be a non-empty flat list of x, y, yaw triples, got {list(flat)}")
+    return [tuple(float(v) for v in flat[i:i + 3]) for i in range(0, len(flat), 3)]
 
 
 class NavAutonomyNode(Node):
@@ -67,9 +79,22 @@ class NavAutonomyNode(Node):
             "position_tolerance_m": self.get_parameter("deposition.position_tolerance_m").value,
         }
 
-        # Waypoints, map frame: [x, y, yaw]. The rover stands still at each one to dig or dump.
-        self.declare_parameter("navigation.excavation_waypoint", [6.0, 1.5, 0.0])
-        self.declare_parameter("navigation.deposition_waypoint", [8.14, 6.40, 1.5708])
+        # Candidate poses, map frame, flattened [x, y, yaw, x, y, yaw, ...]. The rover stands still at
+        # one to dig or dump. Each leg takes the next candidate whose footprint is clear in the
+        # global costmap, so a boulder on a dig spot or an old pit doesn't block the run.
+        self.declare_parameter("navigation.excavation_candidates", [6.0, 1.4, 0.0, 7.4, 1.4, 0.0, 6.7, 2.4, 0.0, 5.4, 2.4, 0.0])
+        self.declare_parameter("navigation.deposition_candidates", [8.14, 6.95, 1.5708, 8.14, 5.95, 1.5708])
+        # Dumps go through the candidates once, then keep using the last one, so a later approach
+        # never drives over an earlier pile
+        self.declare_parameter("navigation.deposition_repeat_last", True)
+        self.deposition_repeat_last = self.get_parameter("navigation.deposition_repeat_last").value
+        # Footprint (half sizes, as nav_params.yaml) plus a margin, checked for lethal cells
+        self.declare_parameter("navigation.footprint_half_length_m", 0.62)
+        self.declare_parameter("navigation.footprint_half_width_m", 0.53)
+        self.declare_parameter("navigation.candidate_clearance_m", 0.10)
+        self.footprint_half_length_m = self.get_parameter("navigation.footprint_half_length_m").value
+        self.footprint_half_width_m = self.get_parameter("navigation.footprint_half_width_m").value
+        self.candidate_clearance_m = self.get_parameter("navigation.candidate_clearance_m").value
         self.declare_parameter("navigation.goal_timeout_s", 180.0)
         self.declare_parameter("navigation.max_retries", 2)
         self.declare_parameter("navigation.travel_lift_position_m", 0.22)
@@ -81,10 +106,17 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.arrival_yaw_tolerance_rad", 0.3)
         self.arrival_yaw_tolerance_rad = self.get_parameter("navigation.arrival_yaw_tolerance_rad").value
 
-        self.waypoints = {
-            "EXCAVATION": self.get_parameter("navigation.excavation_waypoint").value,
-            "DEPOSITION": self.get_parameter("navigation.deposition_waypoint").value,
+        self.candidates = {
+            "EXCAVATION": parse_poses(self.get_parameter("navigation.excavation_candidates").value),
+            "DEPOSITION": parse_poses(self.get_parameter("navigation.deposition_candidates").value),
         }
+        # Next candidate to try per zone, the current leg's candidate, and those found blocked on it
+        self.next_candidate = {"EXCAVATION": 0, "DEPOSITION": 0}
+        self.target_index = None
+        self.blocked_candidates = set()
+        self.retargets = 0
+        self.last_target_check_s = 0.0
+        self.global_costmap = None
         self.max_nav_retries = self.get_parameter("navigation.max_retries").value
         self.nav_retries = 0
         self.navigation = Navigation(self, self.get_parameter("navigation.goal_timeout_s").value)
@@ -129,6 +161,10 @@ class NavAutonomyNode(Node):
         # Every AprilTag fix (before apriltag_gate's rate limit), and the local EKF to measure driving since
         self.tag_subscription = self.create_subscription(PoseWithCovarianceStamped, "/apriltag/pose", self.tag_callback, 10)
         self.local_pose_subscription = self.create_subscription(Odometry, "/odometry/filtered", self.local_pose_callback, 10)
+        # Global costmap (latched), to check candidates are clear
+        latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.costmap_subscription = self.create_subscription(
+            OccupancyGrid, "/global_costmap/costmap", self.costmap_callback, latched)
 
         # Sequences
         self.excavation = NavExcavationSequence(
@@ -198,6 +234,9 @@ class NavAutonomyNode(Node):
         if step >= DRIVE_STEP_M:
             self.drive_since_fix += step
             self.drive_anchor = (p.x, p.y)
+
+    def costmap_callback(self, msg):
+        self.global_costmap = msg
 
     def localisation_status(self):
         # (localised, reason if not, fix age s or None, metres driven since the fix or None)
@@ -270,6 +309,10 @@ class NavAutonomyNode(Node):
     def start_navigation(self, target):
         self.state = f"NAVIGATING_TO_{target}"
         self.nav_retries = 0
+        self.retargets = 0
+        self.blocked_candidates = set()
+        self.target_index = self.choose_candidate(target)
+        self.last_target_check_s = time.monotonic()
         self.send_navigation_goal(target)
 
     def send_navigation_goal(self, target):
@@ -279,9 +322,65 @@ class NavAutonomyNode(Node):
             self.goal_pending = True
             return
         self.goal_pending = False
-        x, y, yaw = self.waypoints[target]
-        self.get_logger().info(f"Navigating to {target.lower()} waypoint ({x:.2f}, {y:.2f}, yaw {yaw:.2f}).")
+        x, y, yaw = self.target_pose(target)
+        self.get_logger().info(
+            f"Navigating to {target.lower()} candidate {self.target_index + 1}/{len(self.candidates[target])} "
+            f"({x:.2f}, {y:.2f}, yaw {yaw:.2f}).")
         self.navigation.navigate_to(x, y, yaw)
+
+    """Candidates"""
+    def target_pose(self, target):
+        return self.candidates[target][self.target_index]
+
+    def candidate_order(self, target):
+        # Indexes to try, starting from the next unused one. Dumps stay on the last candidate
+        # once they reach it (deposition_repeat_last); earlier ones are only a fallback.
+        n = len(self.candidates[target])
+        start = self.next_candidate[target]
+        if target == "DEPOSITION" and self.deposition_repeat_last:
+            start = min(start, n - 1)
+        return [(start + i) % n for i in range(n)]
+
+    def candidate_blocked(self, target, index):
+        # Lethal cell under the candidate's footprint (plus clearance) in the global costmap.
+        # Unknown space counts as clear.
+        if self.global_costmap is None:
+            return False
+        x, y, yaw = self.candidates[target][index]
+        return footprint_blocked(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
+                                 self.footprint_half_width_m, self.candidate_clearance_m)
+
+    def choose_candidate(self, target):
+        order = self.candidate_order(target)
+        for index in order:
+            if index not in self.blocked_candidates and not self.candidate_blocked(target, index):
+                return index
+        # Nothing looks clear: take the first not yet given up on, and let Nav2 try
+        index = next((i for i in order if i not in self.blocked_candidates), order[0])
+        self.get_logger().warning(f"No clear {target.lower()} candidate in the costmap. Trying candidate {index + 1} anyway.")
+        return index
+
+    def check_target(self, target):
+        # Switch candidates if the current one has become blocked. Returns True if it switched.
+        # A switch doesn't use up a retry; there are at most as many switches as candidates.
+        now = time.monotonic()
+        if now - self.last_target_check_s < TARGET_CHECK_PERIOD_S:
+            return False
+        self.last_target_check_s = now
+        if self.retargets >= len(self.candidates[target]) or not self.candidate_blocked(target, self.target_index):
+            return False
+        self.blocked_candidates.add(self.target_index)
+        index = self.choose_candidate(target)
+        if index in self.blocked_candidates:
+            return False
+        self.get_logger().warning(
+            f"{target.capitalize()} candidate {self.target_index + 1} is blocked in the costmap. "
+            f"Switching to candidate {index + 1}.")
+        self.retargets += 1
+        self.target_index = index
+        self.navigation.cancel()
+        self.send_navigation_goal(target)
+        return True
 
     def handle_stop(self):
         # Stop the active sequence or navigation in its current position
@@ -342,6 +441,8 @@ class NavAutonomyNode(Node):
             self.send_navigation_goal(target)
             return
         self.navigation.update()
+        if self.check_target(target):
+            return
 
         # Close enough and facing the right way counts, even if Nav2 is still lining up or
         # has given up on the spot
@@ -350,7 +451,8 @@ class NavAutonomyNode(Node):
                 not self.navigation.done or not self.navigation.succeeded):
             self.navigation.cancel()
             self.get_logger().info(
-                f"Within {error[0]:.2f} m and {error[1]:.2f} rad of {target.lower()} waypoint. Starting here.")
+                f"Within {error[0]:.2f} m and {error[1]:.2f} rad of {target.lower()} candidate "
+                f"{self.target_index + 1}. Starting here.")
             self.start_sequence(target)
             return
 
@@ -360,9 +462,10 @@ class NavAutonomyNode(Node):
         if self.navigation.succeeded:
             if error is not None:
                 self.get_logger().info(
-                    f"Reached {target.lower()} waypoint ({error[0]:.2f} m, {error[1]:.2f} rad off).")
+                    f"Reached {target.lower()} candidate {self.target_index + 1} "
+                    f"({error[0]:.2f} m, {error[1]:.2f} rad off).")
             else:
-                self.get_logger().info(f"Reached {target.lower()} waypoint.")
+                self.get_logger().info(f"Reached {target.lower()} candidate {self.target_index + 1}.")
             self.start_sequence(target)
             return
 
@@ -377,14 +480,16 @@ class NavAutonomyNode(Node):
             self.state = "IDLE"
 
     def waypoint_error(self, target):
-        # (distance, absolute heading error) from the waypoint, or None without a map pose
+        # (distance, absolute heading error) from the current candidate, or None without a map pose
         if self.map_x is None or self.map_y is None or self.map_yaw is None:
             return None
-        x, y, yaw = self.waypoints[target]
+        x, y, yaw = self.target_pose(target)
         yaw_error = abs((self.map_yaw - yaw + pi) % (2.0 * pi) - pi)
         return hypot(self.map_x - x, self.map_y - y), yaw_error
 
     def start_sequence(self, target):
+        # Digging or dumping starts here, so the next leg to this zone moves on to another candidate
+        self.next_candidate[target] = self.target_index + 1
         if target == "EXCAVATION":
             self.state = "EXCAVATING"
             self.excavation.start()

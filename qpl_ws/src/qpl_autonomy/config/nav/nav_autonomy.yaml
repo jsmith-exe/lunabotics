@@ -30,10 +30,28 @@ nav_autonomy:
     deposition.dump_duration_s: 15.0 # How long to spin; nothing reports when the drum is empty
 
     # NAVIGATION
-    # Map frame [x, y, yaw], US arena: origin at the arena's SW interior corner, the
-    # AprilTag wall is y = 0. The rover stands still at each waypoint to dig or dump.
-    navigation.excavation_waypoint: [6.0, 1.5, 0.0] # excavation zone (y 0-3), clear of the start zone
-    navigation.deposition_waypoint: [8.14, 6.40, 1.5708] # berm centre (x 7.69-8.59, y 5.30-7.50), drum over the berm, facing along it
+    # Map frame, US arena: origin at the arena's SW interior corner, the AprilTag wall is y = 0.
+    # Candidates are flattened [x, y, yaw, x, y, yaw, ...]; the rover stands still at one to dig
+    # or dump. Each leg takes the next candidate whose footprint (+ candidate_clearance_m) has
+    # no lethal cell in the global costmap, and switches if it becomes blocked on the way.
+    # Dig spots: excavation zone (y 0-3), east of the start zone (x 2.32-4.57) and its rail,
+    # 1.1 m or more from the walls. Used in turn, so an old pit isn't dug again.
+    navigation.excavation_candidates: [6.0, 1.4, 0.0,
+                                       7.4, 1.4, 0.0,
+                                       6.7, 2.4, 0.0,
+                                       5.4, 2.4, 0.0]
+    # Dump spots: drum under the middle of the rover, so the rover centre sits on the berm's
+    # centre line (x 8.14; berm x 7.69-8.59, y 5.30-7.50) facing north along it. North slot
+    # first, 1 m apart, so the second approach stops short of the first pile; after the last
+    # slot the rover keeps dumping there (deposition_repeat_last). The depth filter ignores
+    # piles inside the berm (ignore_zones in qpl_rover/config/depth_obstacle_filter.yaml).
+    navigation.deposition_candidates: [8.14, 6.95, 1.5708,
+                                       8.14, 5.95, 1.5708]
+    navigation.deposition_repeat_last: true
+    # Footprint half sizes as in nav_params.yaml, plus clearance for the candidate check
+    navigation.footprint_half_length_m: 0.62
+    navigation.footprint_half_width_m: 0.53
+    navigation.candidate_clearance_m: 0.10
     navigation.goal_timeout_s: 180.0
     navigation.max_retries: 2 # Failed goals re-sent before giving up
     navigation.travel_lift_position_m: 0.22 # Bucket held here while navigating, so it doesn't plough the regolith
