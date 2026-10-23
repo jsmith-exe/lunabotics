@@ -24,6 +24,31 @@ qpl_speedometer() {
   speedometer -s -l -m 625000 -r "$INTERFACE" -t "$INTERFACE"
 }
 
+# Prints the combined (upload + download) rate in Mbps, flagging intervals over the limit
+qpl_net_usage() {
+  local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
+  local MAX_KBITS=${2:-4000}
+  local INTERVAL=${3:-1}
+
+  local STATS="/sys/class/net/$INTERFACE/statistics"
+  if [[ ! -d "$STATS" ]]; then
+    echo "No such interface: $INTERFACE" >&2
+    return 1
+  fi
+
+  # The kernel counters are cumulative bytes, so sample them and divide the difference by the interval
+  local PREV CUR
+  PREV=$(( $(cat "$STATS/rx_bytes") + $(cat "$STATS/tx_bytes") ))
+  while sleep "$INTERVAL"; do
+    CUR=$(( $(cat "$STATS/rx_bytes") + $(cat "$STATS/tx_bytes") ))
+    awk -v b=$((CUR - PREV)) -v t="$INTERVAL" -v l="$MAX_KBITS" 'BEGIN {
+      k = b * 8 / 1000 / t
+      printf "%.2f Mbps%s\n", k / 1000, (k > l ? "  <-- OVER LIMIT" : "")
+    }'
+    PREV=$CUR
+  done
+}
+
 qpl_net_limit_set() {
   local INTERFACE=${1:-"$DEFAULT_LIMITED_INTERFACE"}
   local EGRESS_PERCENT=${2:-90}
