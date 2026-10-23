@@ -377,7 +377,7 @@ Nothing reports when the bucket is full or empty, so the dig and dump are timed 
 
 ### Navigation
 
-* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, the command is refused.
+* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, or the rover isn't localised (`localisation.*` in the config: a recent tag fix that the global EKF agrees with, and little driving since), the command is refused.
 * Waypoints are map-frame `[x, y, yaw]` values in `config/nav/nav_autonomy.yaml` (`navigation.*`). The dig or dump starts once the rover is within `arrival_radius_m` (0.25 m) and `arrival_yaw_tolerance_rad` (0.3 rad, ~17°) of the waypoint, or when Nav2 reports the goal reached. That small buffer stops it shuffling to correct itself.
 * While navigating, the bucket is held at `travel_lift_position_m` so it does not plough the regolith.
 * A failed goal is retried `max_retries` times. After that, autonomy (including `AUTO`) returns to `IDLE`.

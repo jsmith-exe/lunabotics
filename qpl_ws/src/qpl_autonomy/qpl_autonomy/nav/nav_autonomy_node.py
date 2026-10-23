@@ -6,7 +6,7 @@ from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
@@ -17,6 +17,9 @@ from qpl_autonomy.navigation import Navigation
 
 # Seconds after startup before a missing /clock counts as an error
 CLOCK_GRACE_S = 5.0
+# Local-EKF movement below this between samples isn't counted as driving, so pose jitter
+# while standing still doesn't add up
+DRIVE_STEP_M = 0.05
 
 
 class NavAutonomyNode(Node):
@@ -88,6 +91,20 @@ class NavAutonomyNode(Node):
         # A goal waiting for Nav2 to finish cancelling the previous one (see Navigation.ready)
         self.goal_pending = False
 
+        # Localisation check for new commands: a recent AprilTag fix, not much driving since,
+        # and the global EKF agreeing with it (it rejects fixes it thinks are outliers)
+        self.declare_parameter("localisation.require_localised", True)
+        self.declare_parameter("localisation.max_fix_age_s", 30.0)
+        self.declare_parameter("localisation.max_drive_since_fix_m", 1.0)
+        self.declare_parameter("localisation.max_fix_disagreement_m", 0.3)
+        self.require_localised = self.get_parameter("localisation.require_localised").value
+        self.max_fix_age_s = self.get_parameter("localisation.max_fix_age_s").value
+        self.max_drive_since_fix_m = self.get_parameter("localisation.max_drive_since_fix_m").value
+        self.max_fix_disagreement_m = self.get_parameter("localisation.max_fix_disagreement_m").value
+        self.tag_fix = None  # (map x, map y, monotonic time)
+        self.drive_since_fix = 0.0
+        self.drive_anchor = None  # local-EKF (x, y) the drive distance was last measured from
+
         # Top-level autonomy state
         self.state = "IDLE"
 
@@ -109,6 +126,9 @@ class NavAutonomyNode(Node):
         self.map_y = None
         self.map_yaw = None
         self.global_pose_subscription = self.create_subscription(Odometry, "/odometry/global", self.global_pose_callback, 10)
+        # Every AprilTag fix (before apriltag_gate's rate limit), and the local EKF to measure driving since
+        self.tag_subscription = self.create_subscription(PoseWithCovarianceStamped, "/apriltag/pose", self.tag_callback, 10)
+        self.local_pose_subscription = self.create_subscription(Odometry, "/odometry/filtered", self.local_pose_callback, 10)
 
         # Sequences
         self.excavation = NavExcavationSequence(
@@ -164,6 +184,39 @@ class NavAutonomyNode(Node):
         q = msg.pose.pose.orientation
         self.map_yaw = atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
 
+    def tag_callback(self, msg):
+        p = msg.pose.pose.position
+        self.tag_fix = (p.x, p.y, time.monotonic())
+        self.drive_since_fix = 0.0
+
+    def local_pose_callback(self, msg):
+        p = msg.pose.pose.position
+        if self.drive_anchor is None:
+            self.drive_anchor = (p.x, p.y)
+            return
+        step = hypot(p.x - self.drive_anchor[0], p.y - self.drive_anchor[1])
+        if step >= DRIVE_STEP_M:
+            self.drive_since_fix += step
+            self.drive_anchor = (p.x, p.y)
+
+    def localisation_status(self):
+        # (localised, reason if not, fix age s or None, metres driven since the fix or None)
+        if self.tag_fix is None:
+            return False, "no AprilTag fix yet; turn the rover until a camera sees the tag", None, None
+        fix_x, fix_y, fix_time = self.tag_fix
+        age = time.monotonic() - fix_time
+        drive = self.drive_since_fix
+        if age > self.max_fix_age_s:
+            return False, f"last AprilTag fix was {age:.0f} s ago", age, drive
+        if drive > self.max_drive_since_fix_m:
+            return False, f"driven {drive:.1f} m since the last AprilTag fix", age, drive
+        if self.map_x is None:
+            return False, "no pose from the global EKF", age, drive
+        disagreement = hypot(self.map_x - fix_x, self.map_y - fix_y)
+        if disagreement > self.max_fix_disagreement_m + drive:
+            return False, f"global EKF is {disagreement:.2f} m from the last AprilTag fix", age, drive
+        return True, "", age, drive
+
     """Basestation commands"""
     def command_callback(self, msg):
         command = msg.data.strip().upper()
@@ -190,6 +243,11 @@ class NavAutonomyNode(Node):
         if not self.navigation.is_available():
             self.get_logger().error(f"Not starting {command}: Nav2 is not running (start it with qpl_nav, or qpl_nav_sim against the sim).")
             return False
+        if self.require_localised:
+            localised, reason, _, _ = self.localisation_status()
+            if not localised:
+                self.get_logger().error(f"Not starting {command}: not localised ({reason}).")
+                return False
         return True
 
     def handle_navigate(self, target):

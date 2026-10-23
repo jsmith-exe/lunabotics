@@ -42,3 +42,13 @@ nav_autonomy:
     # yaw_goal_tolerance in qpl_rover/config/nav_params.yaml.
     navigation.arrival_radius_m: 0.25
     navigation.arrival_yaw_tolerance_rad: 0.3 # ~17 deg
+
+    # LOCALISATION
+    # NAV_EXCAVATE / NAV_DEPOSIT / AUTO are refused unless the rover is localised: an AprilTag
+    # fix no older than max_fix_age_s, at most max_drive_since_fix_m driven since it, and the
+    # global EKF within max_fix_disagreement_m (plus the distance driven) of it. Checked when a
+    # command arrives, not during a run. In the start zone, turn in RC until a camera sees the tag.
+    localisation.require_localised: true
+    localisation.max_fix_age_s: 30.0
+    localisation.max_drive_since_fix_m: 1.0
+    localisation.max_fix_disagreement_m: 0.3
