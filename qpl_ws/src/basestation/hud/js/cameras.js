@@ -42,8 +42,11 @@ function fallbackModel(key, rover) {
 }
 
 export class CameraDeck {
-  constructor(S) {
+  /** power: key -> ServerToggle for that camera's stream (off stops its decoder,
+   * and so the stream over the link). */
+  constructor(S, power) {
     this.S = S;
+    this.power = power;
     this.main = prefs.get("mainCam", "front");
     this.auto = prefs.get("autoRev", false);
     this.guides = prefs.get("guides", true);
@@ -72,6 +75,7 @@ export class CameraDeck {
     document.getElementById("corner-view").addEventListener("click", () => this.swap());
     document.getElementById("mode-guides").addEventListener("click", () => this.toggleGuides());
     document.getElementById("mode-auto").addEventListener("click", () => this.toggleAuto());
+    for (const k of KEYS) document.getElementById(`mode-cam-${k}`).addEventListener("click", () => this.togglePower(k));
     this.place();
   }
 
@@ -120,6 +124,10 @@ export class CameraDeck {
     this.place();
   }
 
+  togglePower(k) {
+    this.power[k].toggle();
+  }
+
   toggleGuides() {
     this.guides = !this.guides;
     prefs.set("guides", this.guides);
@@ -160,12 +168,14 @@ export class CameraDeck {
   camState(k) {
     const cam = this.S.tele?.cams?.[k];
     if (!this.S.connected) return { live: false, why: "HUD server offline" };
+    if (!this.power[k].on) return { live: false, why: `CAMERA OFF · press ${KEYS.indexOf(k) + 1} to stream it` };
     if (!cam || cam.age === null) return { live: false, why: `nothing received on ${this.S.config?.cams?.[k]?.topic ?? k}` };
     if (cam.age > 1.5) return { live: false, why: `last frame ${cam.age.toFixed(1)} s ago` };
     return { live: true, cam };
   }
 
   frame() {
+    for (const k of KEYS) document.getElementById(`mode-cam-${k}`).classList.toggle("on", this.power[k].on);
     for (const [pane, k] of [["main", this.main], ["corner", this.corner]]) {
       const st = this.camState(k);
       const ns = document.getElementById(`${pane}-nosig`);
@@ -175,9 +185,7 @@ export class CameraDeck {
       if (st.live) {
         const c = st.cam;
         const size = c.size ? `${c.size[0]}×${c.size[1]} · ` : "";
-        meta.textContent = pane === "main"
-          ? `${size}${c.hz.toFixed(0)} FPS · ${(c.bps / 1024).toFixed(0)} KB/S`
-          : `${c.hz.toFixed(0)} FPS`;
+        meta.textContent = pane === "main" ? `${size}${c.hz.toFixed(0)} FPS` : `${c.hz.toFixed(0)} FPS`;
       } else meta.textContent = "— FPS";
     }
     this.overlay.frame();

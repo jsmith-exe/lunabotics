@@ -66,8 +66,10 @@
         </div>
       </div>
     </div>
-    <div class="cam-meta" id="main-meta">— FPS · — KB/S</div>
+    <div class="cam-meta" id="main-meta">— FPS</div>
     <div class="cam-modes">
+      <span id="mode-cam-front" class="chip on" title="1: stream the front camera. Off stops its h264 stream over the link.">CAM 1</span>
+      <span id="mode-cam-rear" class="chip on" title="2: stream the rear camera. Off stops its h264 stream over the link.">CAM 2</span>
       <span id="mode-guides" class="chip on" title="G: drive guides (Treoirlínte)">GUIDES</span>
       <span id="mode-auto" class="chip" title="V: show the rear camera while reversing">AUTO-REV</span>
     </div>
@@ -78,9 +80,17 @@
     <aside id="drawer" class="drawer">
       <div class="drawer-head">
         <span class="tag-inline">SYSTEM // DATA LINKS <span class="ga" data-ga="Naisc Sonraí"></span></span>
-        <button class="x" id="drawer-close" title="Close (L)">✕</button>
+        <span>
+          <button id="telemetry" class="chip on" title="Per-topic rates and the /rosout log. Off drops the /rosout subscription, so rover logs stop using link bandwidth.">TELEMETRY ON</button>
+          <button class="x" id="drawer-close" title="Close (L)">✕</button>
+        </span>
       </div>
-      <table class="links"><thead><tr><th></th><th>TOPIC</th><th>HZ</th><th>AGE</th><th>KB/S</th></tr></thead><tbody id="links"></tbody></table>
+      <div class="links-wrap" id="links-wrap">
+        <div class="link-meter" id="link-meter" title="Whole network interface, as the link limiter sees it">LINK · —</div>
+        <table class="links"><thead><tr><th></th><th>TOPIC</th><th>HZ</th><th>AGE</th><th title="Serialised payload; DDS/UDP headers add ~80 B a message">KB/S</th></tr></thead><tbody id="links"></tbody></table>
+        <div class="telemetry-off" id="links-off">TELEMETRY OFF · per-topic rates and /rosout are not collected</div>
+      </div>
+      <div class="split" id="drawer-split" title="Drag to resize · double-click to reset"></div>
       <div class="drawer-head">
         <span class="tag-inline">EVENT LOG <span class="ga" data-ga="Loga Imeachtaí"></span></span>
         <span class="filters" id="log-filters">
@@ -108,6 +118,7 @@
   <section id="map-view" class="panel">
     <div class="tag tl">TACTICAL MAP <span class="ga" data-ga="Léarscáil Oirbheartach"></span></div>
     <div class="map-tools">
+      <button id="map-costmap" class="chip on" title="K: global costmap. Off drops the subscription (~0.6 Mbit/s with Nav2 running).">COST</button>
       <button id="map-follow" class="chip" title="F: follow rover">FOLLOW</button>
       <button id="map-rotate" class="chip" title="R: rotate map 90°">ROT 0°</button>
       <button id="map-reset" class="chip" title="0 or double-click: fit arena">FIT</button>
@@ -177,9 +188,11 @@
     <dl>
       <dt>SPACE / C</dt><dd>Swap main and corner camera (or click the corner camera)</dd>
       <dt>V</dt><dd>Auto-reverse view: show the rear camera while reversing</dd>
+      <dt>1 / 2</dt><dd>Front / rear camera stream on or off (off saves its link bandwidth)</dd>
       <dt>G</dt><dd>Drive guides on the camera</dd>
       <dt>F</dt><dd>Map follows the rover</dd>
       <dt>R</dt><dd>Rotate the map 90°</dd>
+      <dt>K</dt><dd>Costmap on the map on or off (off saves its link bandwidth)</dd>
       <dt>0</dt><dd>Fit the arena (also double-click the map; scroll to zoom, drag to pan)</dd>
       <dt>L</dt><dd>Data links and event log</dd>
       <dt>T / SHIFT+T</dt><dd>Start/stop the run timer / reset it</dd>

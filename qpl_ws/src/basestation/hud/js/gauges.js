@@ -300,20 +300,27 @@ export function drawImplement(ctx, w, h, S) {
   label(ctx, isNum(drum.vel) ? `${fmtSigned(drum.vel, 1)} r/s` : "—", cx, cy + rad + 28, { size: 12, color: C.text, align: "center", font: FONT_MONO, weight: 400 });
   label(ctx, spinCmd ? `CMD ${fmtSigned(spinCmd.v, 2)} ${spinSrc}` : "CMD —", cx, cy + rad + 41, { size: 9, color: spinCmd ? C.green : C.grey, align: "center" });
 
-  // Lift: left/right actuator positions with the commanded target marker.
+  // Lift: left/right actuator positions (m) with the commanded target marker,
+  // scaled to the actuator travel in diffdrive_canbus' can_config.yaml.
   // Laid out in whatever width is left right of the drum.
+  const lo = S.config?.lift?.min ?? 0.025;
+  const hi = S.config?.lift?.max ?? 0.225;
+  const frac = (m) => clamp((m - lo) / (hi - lo), 0, 1);
+  const mm = (m) => (m * 1000).toFixed(0);
   const x0 = cx + rad + 18;
   const avail = w - x0 - 12;
   const barW = clamp(avail * 0.22, 8, 18);
   const gap = clamp(avail * 0.14, 8, 20);
   const by = TOP + 30;
   const barH = Math.max(20, h - by - 34);
-  const target = lift.cmd && lift.cmd.age < 5 ? lift.cmd.v : null;
+  const cmd = lift.cmd && lift.cmd.age < 5 ? lift.cmd.v : null;
+  // A 0 setpoint means "stop and hold" to the actuators, not a position.
+  const hold = cmd === 0;
+  const target = isNum(cmd) && !hold ? cmd : null;
   const lpos = lift.pos ?? {};
   const cramped = barW + gap < 34;
-  const short = (v) => v.toFixed(2).replace(/^0/, "");
-  label(ctx, cramped && isNum(lpos.l) && isNum(lpos.r) ? `LIFT ${short(lpos.l)}/${short(lpos.r)}` : "LIFT", x0, TOP + 12, { size: cramped ? 9 : 10, color: C.textDim });
-  label(ctx, isNum(target) ? `TGT ${target.toFixed(2)}` : "TGT —", x0, TOP + 24, { size: 9, color: isNum(target) ? C.green : C.grey });
+  label(ctx, cramped && isNum(lpos.l) && isNum(lpos.r) ? `LIFT ${mm(lpos.l)}/${mm(lpos.r)}` : "LIFT MM", x0, TOP + 12, { size: cramped ? 9 : 10, color: C.textDim });
+  label(ctx, isNum(target) ? `TGT ${mm(target)}` : hold ? "TGT HOLD" : "TGT —", x0, TOP + 24, { size: 9, color: isNum(target) ? C.green : C.grey });
   ["l", "r"].forEach((k, i) => {
     const x = x0 + 4 + i * (barW + gap);
     const pos = lift.pos?.[k];
@@ -321,14 +328,14 @@ export function drawImplement(ctx, w, h, S) {
     ctx.lineWidth = 1.2;
     ctx.strokeRect(x, by, barW, barH);
     if (isNum(pos)) {
-      const f = clamp(pos, 0, 1);
+      const f = frac(pos);
       ctx.fillStyle = C.orange;
       glow(ctx, C.orange, 6);
       ctx.fillRect(x + 2, by + barH - f * barH, barW - 4, f * barH);
       noGlow(ctx);
     }
     if (isNum(target)) {
-      const ty = by + barH - clamp(target, 0, 1) * barH;
+      const ty = by + barH - frac(target) * barH;
       ctx.strokeStyle = C.green;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -337,11 +344,12 @@ export function drawImplement(ctx, w, h, S) {
       ctx.stroke();
     }
     label(ctx, k.toUpperCase(), x + barW / 2, by + barH + 12, { size: 10, color: C.textDim, align: "center" });
-    if (barW + gap >= 34) label(ctx, isNum(pos) ? pos.toFixed(2) : "—", x + barW / 2, by + barH + 25, { size: 10, color: C.text, align: "center", font: FONT_MONO, weight: 400 });
+    if (barW + gap >= 34) label(ctx, isNum(pos) ? mm(pos) : "—", x + barW / 2, by + barH + 25, { size: 10, color: C.text, align: "center", font: FONT_MONO, weight: 400 });
   });
   const lp = lift.pos ?? {};
-  if (isNum(lp.l) && isNum(lp.r) && Math.abs(lp.l - lp.r) > 0.08) {
-    label(ctx, `SKEW ${Math.abs(lp.l - lp.r).toFixed(2)}`, x0 + 4 + 2 * (barW + gap) - gap + 6, by + 10, { size: 10, color: C.amber });
+  // Skew: the actuators should move together; flag 8% of travel apart.
+  if (isNum(lp.l) && isNum(lp.r) && Math.abs(lp.l - lp.r) > 0.08 * (hi - lo)) {
+    label(ctx, `SKEW ${mm(Math.abs(lp.l - lp.r))}`, x0 + 4 + 2 * (barW + gap) - gap + 6, by + 10, { size: 10, color: C.amber });
   }
 }
 

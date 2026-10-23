@@ -7,10 +7,21 @@ of JSON channels and serves them, with the camera feeds, to a local web page:
 
   config    arena, zones, rover footprint, camera intrinsics/extrinsics
   tele      20 Hz: pose (map + odom), attitude, commanded vs measured motion,
-            wheel/drum/lift joints, control source, topic health
+            wheel/drum/lift joints, control source, topic health, link usage
   costmap   global costmap as a PNG, at most once a second
   plan      latest Nav2 global plan
-  log       recent /rosout lines
+  log       recent /rosout lines (only while telemetry is on)
+
+Everything here is chosen to keep the rover -> basestation link inside its
+budget (3.6 Mbit/s):
+  - Cameras come only from the rover's h264 teleop streams, decoded on this
+    laptop (basestation/hud/decoder.py). Each camera can be switched off, which
+    stops its decoder and so its stream.
+  - Poses come from the EKF odometry topics, not /tf: /tf also carries every
+    wheel, drum and lift joint at the joint_states rate. Only /tf_static is
+    used, for the camera extrinsics.
+  - The costmap, /rosout and the per-topic rates can be switched off from the
+    page or with parameters; off drops the subscription itself.
 
 Open http://localhost:8765 (see launch/hud.launch.py).
 """
@@ -28,6 +39,7 @@ import yaml
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy, qos_profile_sensor_data
+from rclpy.serialization import deserialize_message
 from rclpy.time import Time
 from ament_index_python.packages import get_package_share_directory
 
@@ -37,7 +49,10 @@ from nav_msgs.msg import Odometry, OccupancyGrid, Path
 from sensor_msgs.msg import JointState, CompressedImage, CameraInfo
 from std_msgs.msg import Float64, Float64MultiArray
 from rcl_interfaces.msg import Log
+from tf2_msgs.msg import TFMessage
 
+from basestation.constants import CANBUS_CONFIG_PATH
+from basestation.hud.decoder import Decoder
 from basestation.hud.server import Hub, CameraFeed, HudServer
 
 
@@ -113,8 +128,63 @@ def jpeg_size(data):
     return None
 
 
+def default_route_interface():
+    """Name of the interface carrying the default route, or None."""
+    try:
+        with open("/proc/net/route") as f:
+            next(f)
+            routes = [line.split() for line in f]
+        best = min((r for r in routes if r[1] == "00000000"), key=lambda r: int(r[6]))
+        return best[0]
+    except (OSError, ValueError, StopIteration, IndexError):
+        return None
+
+
+class LinkMeter:
+    """Bytes in and out of one network interface, from /proc/net/dev.
+
+    This is the whole link: video, every ROS topic, DDS discovery and anything
+    else on the interface, so it is the number to hold against the budget.
+    """
+
+    WINDOW = 2.0
+
+    def __init__(self, iface):
+        self.iface = iface
+        self.samples = deque()
+
+    def _read(self):
+        with open("/proc/net/dev") as f:
+            for line in f:
+                name, _, rest = line.partition(":")
+                if name.strip() == self.iface:
+                    fields = rest.split()
+                    return int(fields[0]), int(fields[8])
+        return None
+
+    def summary(self, now):
+        if not self.iface:
+            return None
+        try:
+            rx_tx = self._read()
+        except OSError:
+            rx_tx = None
+        if rx_tx is None:
+            return {"iface": self.iface, "rx": None, "tx": None}
+        self.samples.append((now, *rx_tx))
+        while len(self.samples) > 2 and now - self.samples[0][0] > self.WINDOW:
+            self.samples.popleft()
+        t0, rx0, tx0 = self.samples[0]
+        dt = now - t0
+        if dt <= 0:
+            return {"iface": self.iface, "rx": None, "tx": None}
+        return {"iface": self.iface, "rx": int((rx_tx[0] - rx0) / dt), "tx": int((rx_tx[1] - tx0) / dt)}
+
+
 class TopicStats:
-    """Message rate and age for one subscription, for the DATA LINKS panel."""
+    """Message rate, age and serialised size for one subscription, for the
+    DATA LINKS panel. Sizes are the CDR payload; DDS/UDP headers add ~80 B a
+    message on top."""
 
     def __init__(self, name, kind):
         self.name = name
@@ -141,12 +211,17 @@ class TopicStats:
 
 
 class Camera:
-    def __init__(self, key, label, topic):
+    def __init__(self, key, label, stream, decoded, on):
         self.key = key
         self.label = label
-        self.topic = topic
+        self.stream = stream    # rover's teleop stream base topic
+        self.decoded = decoded  # this laptop's decoder output base topic
+        self.on = on            # written from an HTTP thread, applied in publish_slow()
+        self.decoder = None
         self.feed = CameraFeed(key)
-        self.stats = TopicStats(topic, "camera")
+        # The decoded JPEGs never cross the link, so no size is counted here;
+        # the stream's share shows up in the link meter instead.
+        self.stats = TopicStats(f"{stream}/ffmpeg", "camera")
         self.size = None
         self.model = None  # intrinsics + extrinsics once known
         self.info = None
@@ -163,17 +238,31 @@ class HudNode(Node):
         self.map_frame = p("map_frame", "map").value
         self.odom_frame = p("odom_frame", "odom").value
         self.base_frame = p("base_frame", "base_footprint").value
-        front_topic = p("front_camera_topic", "/depth_camera_front/color/image_raw/compressed").value
-        rear_topic = p("rear_camera_topic", "/depth_camera_rear/color/image_raw/compressed").value
+        # Local EKF (odom -> base) and global EKF (map -> base).
+        self.odom_topic = p("odom_topic", "/odometry/filtered").value
+        self.map_odom_topic = p("map_odom_topic", "/odometry/global").value
+        front_stream = p("front_camera_stream", "/depth_camera_front/color/teleop_stream").value
+        rear_stream = p("rear_camera_stream", "/depth_camera_rear/color/teleop_stream").value
         front_info = p("front_camera_info", "/depth_camera_front/color/camera_info").value
         rear_info = p("rear_camera_info", "/depth_camera_rear/color/camera_info").value
+        front_on = bool(p("front_camera", True).value)
+        rear_on = bool(p("rear_camera", True).value)
         web_root = p("web_root", "").value or os.path.join(
             get_package_share_directory("basestation"), "hud")
+        # "" = the interface with the default route.
+        self.link = LinkMeter(p("link_interface", "").value or default_route_interface())
+        self.link_budget = {"rx": p("link_down_mbps", 3.6).value, "tx": p("link_up_mbps", 0.4).value}
+        # Written from an HTTP thread; publish_slow() applies them on the executor.
+        self.telemetry = bool(p("telemetry", True).value)
+        self.costmap_on = bool(p("costmap", True).value)
+        self.rosout_sub = None
+        self.costmap_sub = None
 
         self.hub = Hub()
         self.stats = {}
         self.state = {
             "odom": None,         # /odometry/filtered
+            "odom_map": None,     # /odometry/global
             "cmd_teleop": None,   # (Twist, wall time)
             "cmd_nav": None,
             "cmd_out": None,
@@ -194,18 +283,24 @@ class HudNode(Node):
         self.costmap_sent = 0.0
         self.start_wall = time.time()
 
+        # Static transforms only (camera extrinsics). No TransformListener: /tf
+        # would bring every moving joint across the link as well.
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # Best effort for the high-rate streams: over the Wi-Fi link a dropped
         # sample is better than a retransmit queue, and it still matches the
         # rover's reliable publishers.
         fast = qos_profile_sensor_data
-        latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
-                             durability=DurabilityPolicy.TRANSIENT_LOCAL,
-                             history=HistoryPolicy.KEEP_LAST)
+        self.latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                                  durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                  history=HistoryPolicy.KEEP_LAST)
+        static_qos = QoSProfile(depth=100, reliability=ReliabilityPolicy.RELIABLE,
+                                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                history=HistoryPolicy.KEEP_LAST)
 
-        self._sub(Odometry, "/odometry/filtered", self.on_odom, fast, "odom")
+        self._sub(TFMessage, "/tf_static", self.on_tf_static, static_qos, "tf")
+        self._sub(Odometry, self.odom_topic, self.on_odom, fast, "odom")
+        self._sub(Odometry, self.map_odom_topic, self.on_map_odom, fast, "odom")
         self._sub(JointState, "/joint_states", self.on_joints, fast, "joints")
         self._sub(Twist, "/cmd_vel_teleop", lambda m: self._stamp("cmd_teleop", m), fast, "cmd")
         self._sub(Twist, "/cmd_vel_nav", lambda m: self._stamp("cmd_nav", m), fast, "cmd")
@@ -219,22 +314,30 @@ class HudNode(Node):
         self._sub(Float64MultiArray, "/drum_lift_cont/commands",
                   lambda m: self._stamp("lift_cmd", list(m.data)), fast, "drum")
         self._sub(PoseWithCovarianceStamped, "/apriltag/pose", self.on_tag, 10, "loc")
-        self._sub(OccupancyGrid, "/global_costmap/costmap", self.on_costmap, latched, "nav")
         self._sub(Path, "/plan", self.on_plan, 10, "nav")
-        self._sub(Log, "/rosout", self.on_log, QoSProfile(depth=200), "log")
+        self.stats["/global_costmap/costmap"] = TopicStats("/global_costmap/costmap", "nav")
+        self.stats["/rosout"] = TopicStats("/rosout", "log")
+        self._apply_telemetry()
+        self._apply_costmap()
 
         self.cameras = {
-            "front": Camera("front", "FRONT", front_topic),
-            "rear": Camera("rear", "REAR", rear_topic),
+            "front": Camera("front", "FRONT", front_stream, "/hud/front_cam", front_on),
+            "rear": Camera("rear", "REAR", rear_stream, "/hud/rear_cam", rear_on),
         }
+        use_sim_time = self.get_parameter("use_sim_time").value
         for cam, info in ((self.cameras["front"], front_info), (self.cameras["rear"], rear_info)):
-            self.create_subscription(CompressedImage, cam.topic,
+            cam.decoder = Decoder(f"hud_{cam.key}_decoder", cam.stream, cam.decoded,
+                                  use_sim_time, self.get_logger())
+            cam.decoder.ensure(cam.on)
+            # The decoder's output is local to this laptop, so this costs no link bandwidth.
+            self.create_subscription(CompressedImage, f"{cam.decoded}/compressed",
                                      lambda m, c=cam: self.on_image(c, m), fast)
             # Intrinsics are only needed once; the subscription is dropped after.
             cam.info_sub = self.create_subscription(
                 CameraInfo, info, lambda m, c=cam: self.on_info(c, m), fast)
 
         self.arena = self._load_arena()
+        self.lift_limits = self._load_lift_limits()
         self.config_dirty = True
 
         self.create_timer(1.0 / TELE_HZ, self.publish_tele)
@@ -243,6 +346,10 @@ class HudNode(Node):
 
         self.server = HudServer(self.host, self.port, web_root, self.hub,
                                 {k: c.feed for k, c in self.cameras.items()},
+                                {"telemetry": self.set_telemetry,
+                                 "costmap": self.set_costmap,
+                                 "front_camera": lambda on: setattr(self.cameras["front"], "on", on),
+                                 "rear_camera": lambda on: setattr(self.cameras["rear"], "on", on)},
                                 self.get_logger())
         self.server.start()
         shown = "localhost" if self.host in ("0.0.0.0", "127.0.0.1") else self.host
@@ -250,13 +357,44 @@ class HudNode(Node):
 
     # ------------------------------------------------------------------ setup
     def _sub(self, mtype, topic, cb, qos, kind):
-        stats = self.stats[topic] = TopicStats(topic, kind)
+        """Subscribe with rate and size accounting. Taken raw so the serialised
+        size is known; deserialising here costs the same as rclpy doing it."""
+        stats = self.stats.setdefault(topic, TopicStats(topic, kind))
 
-        def wrapped(msg):
-            stats.tick(time.time())
-            cb(msg)
+        def wrapped(data):
+            stats.tick(time.time(), len(data))
+            cb(deserialize_message(data, mtype))
 
-        self.create_subscription(mtype, topic, wrapped, qos)
+        return self.create_subscription(mtype, topic, wrapped, qos, raw=True)
+
+    def set_telemetry(self, on):
+        self.telemetry = on
+
+    def set_costmap(self, on):
+        self.costmap_on = on
+
+    def _apply_costmap(self):
+        """Hold the costmap subscription only while the map shows it. Latched, so
+        turning it back on brings the current map straight away."""
+        if self.costmap_on and self.costmap_sub is None:
+            self.costmap_sub = self._sub(OccupancyGrid, "/global_costmap/costmap", self.on_costmap,
+                                         self.latched, "nav")
+            self.get_logger().info("Costmap on: subscribed to /global_costmap/costmap")
+        elif not self.costmap_on and self.costmap_sub is not None:
+            self.destroy_subscription(self.costmap_sub)
+            self.costmap_sub = None
+            self.costmap_dirty = False
+            self.get_logger().info("Costmap off: dropped /global_costmap/costmap")
+
+    def _apply_telemetry(self):
+        """Hold the /rosout subscription only while telemetry is on."""
+        if self.telemetry and self.rosout_sub is None:
+            self.rosout_sub = self._sub(Log, "/rosout", self.on_log, QoSProfile(depth=200), "log")
+            self.get_logger().info("Telemetry on: subscribed to /rosout")
+        elif not self.telemetry and self.rosout_sub is not None:
+            self.destroy_subscription(self.rosout_sub)
+            self.rosout_sub = None
+            self.get_logger().info("Telemetry off: dropped /rosout; per-topic rates not sent")
 
     def _stamp(self, key, value):
         self.state[key] = (value, time.time())
@@ -281,9 +419,27 @@ class HudNode(Node):
             self.get_logger().warn(f"Could not load arena config: {e}")
             return None
 
+    def _load_lift_limits(self):
+        """Drum lift actuator travel (m) from diffdrive_canbus' can_config.yaml,
+        the limits the hardware interface clamps lift setpoints to."""
+        try:
+            with open(CANBUS_CONFIG_PATH) as f:
+                drum = yaml.safe_load(f)["drum"]
+            return {"min": drum["min_lift_mm"] / 1000.0, "max": drum["max_lift_mm"] / 1000.0}
+        except Exception as e:  # the lift gauge falls back to its own defaults
+            self.get_logger().warn(f"Could not load lift limits from {CANBUS_CONFIG_PATH}: {e}")
+            return None
+
     # -------------------------------------------------------------- callbacks
     def on_odom(self, msg):
         self.state["odom"] = msg
+
+    def on_map_odom(self, msg):
+        self.state["odom_map"] = msg
+
+    def on_tf_static(self, msg):
+        for t in msg.transforms:
+            self.tf_buffer.set_transform_static(t, "tf_static")
 
     def on_joints(self, msg):
         joints = self.state["joints"]
@@ -329,7 +485,7 @@ class HudNode(Node):
             if not ok:
                 return
             data = enc.tobytes()
-        cam.stats.tick(time.time(), len(msg.data))
+        cam.stats.tick(time.time())
         if cam.size is None:
             cam.size = jpeg_size(data)
         cam.feed.push(data)
@@ -367,15 +523,13 @@ class HudNode(Node):
             self.get_logger().info(f"{cam.label} camera model resolved from {frame}")
 
     # ------------------------------------------------------------- publishers
-    def _lookup(self, target):
-        """Pose of the base in `target`, with its age, or None."""
-        try:
-            t = self.tf_buffer.lookup_transform(target, self.base_frame, Time())
-        except tf2_ros.TransformException:
+    def _pose(self, odom):
+        """Pose of the base from an EKF odometry message, with its age, or None."""
+        if odom is None:
             return None
-        stamp = Time.from_msg(t.header.stamp)
+        stamp = Time.from_msg(odom.header.stamp)
         age = (self.get_clock().now() - stamp).nanoseconds * 1e-9
-        tr, q = t.transform.translation, t.transform.rotation
+        tr, q = odom.pose.pose.position, odom.pose.pose.orientation
         roll, pitch, yaw = rpy_of(q)
         return {"x": num(tr.x, 3), "y": num(tr.y, 3), "z": num(tr.z, 3),
                 "roll": num(roll), "pitch": num(pitch), "yaw": num(yaw), "age": num(age, 2)}
@@ -411,7 +565,7 @@ class HudNode(Node):
         if s["odom"] is not None:
             tw = s["odom"].twist.twist
             odom = {"vx": num(tw.linear.x, 3), "vy": num(tw.linear.y, 3), "wz": num(tw.angular.z, 3),
-                    "age": num(now - self.stats["/odometry/filtered"].last, 2)}
+                    "age": num(now - self.stats[self.odom_topic].last, 2)}
 
         joints = s["joints"]
         wheels = {k: num((joints.get(j) or (None, None))[1], 3) for k, j in WHEEL_JOINTS.items()}
@@ -423,19 +577,18 @@ class HudNode(Node):
             x, y, yaw, t, frame = s["tag"]
             tag = {"x": num(x, 3), "y": num(y, 3), "yaw": num(yaw), "age": num(now - t, 1), "frame": frame}
 
-        topics = [st.summary(now) for st in self.stats.values()]
-        topics += [c.stats.summary(now) for c in self.cameras.values()]
+        joints_last = self.stats["/joint_states"].last
         cams = {}
         for k, c in self.cameras.items():
             summ = c.stats.summary(now)
-            cams[k] = {"hz": summ["hz"], "age": summ["age"], "bps": summ["bps"],
+            cams[k] = {"hz": summ["hz"], "age": summ["age"], "on": c.on,
                        "size": list(c.size) if c.size else None}
 
         tele = {
             "t": round(now, 3),
             "up": round(now - self.start_wall, 1),
-            "map": self._lookup(self.map_frame),
-            "odom_pose": self._lookup(self.odom_frame),
+            "map": self._pose(s["odom_map"]),
+            "odom_pose": self._pose(s["odom"]),
             "odom": odom,
             "source": source,
             "cmd": {"teleop": cmd_teleop, "nav": cmd_nav, "out": self._twist(s["cmd_out"], now)},
@@ -454,25 +607,37 @@ class HudNode(Node):
             },
             "tag": tag,
             "cams": cams,
-            "topics": topics,
+            "joints_age": None if joints_last is None else num(now - joints_last, 2),
+            "telemetry": self.telemetry,
+            "costmap": self.costmap_on,
+            "link": self.link.summary(now),
         }
+        if self.telemetry:
+            tele["topics"] = ([st.summary(now) for st in self.stats.values()]
+                              + [c.stats.summary(now) for c in self.cameras.values()])
         try:
             self.hub.publish("tele", tele)
         except ValueError as e:
             self.get_logger().warn(f"Dropped a telemetry frame: {e}", throttle_duration_sec=5.0)
 
     def publish_slow(self):
+        self._apply_telemetry()
+        self._apply_costmap()
+        for cam in self.cameras.values():
+            cam.decoder.ensure(cam.on)
         if self.config_dirty:
             self.config_dirty = False
             self.hub.publish("config", {
                 "arena": self.arena,
                 "rover": ROVER,
+                "lift": self.lift_limits,
                 "frames": {"map": self.map_frame, "odom": self.odom_frame, "base": self.base_frame},
-                "cams": {k: {"label": c.label, "topic": c.topic, "model": c.model}
+                "cams": {k: {"label": c.label, "topic": c.stats.name, "model": c.model}
                          for k, c in self.cameras.items()},
                 "source_hold": SOURCE_HOLD,
+                "link_budget": self.link_budget,
             })
-        if self.log_dirty:
+        if self.log_dirty and self.telemetry:
             self.log_dirty = False
             self.hub.publish("log", list(self.logs)[-LOG_SEND:])
         if self.costmap_dirty and time.monotonic() - self.costmap_sent >= 1.0:
@@ -503,6 +668,8 @@ class HudNode(Node):
 
     def destroy_node(self):
         self.server.stop()
+        for cam in self.cameras.values():
+            cam.decoder.stop(quiet=True)
         super().destroy_node()
 
 

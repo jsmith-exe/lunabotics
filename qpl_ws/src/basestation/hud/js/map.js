@@ -16,8 +16,10 @@ const TRAIL_STEP = 0.03; // m between stored trail points
 const FOOT_H = 30;       // px reserved for the readout bar
 
 export class TacticalMap {
-  constructor(canvas, S) {
+  /** costmap: ServerToggle for the costmap layer (off drops the subscription). */
+  constructor(canvas, S, costmap) {
     this.S = S;
+    this.costmapToggle = costmap;
     this.canvas = canvas;
     this.rot = prefs.get("mapRot", 0);
     this.follow = prefs.get("mapFollow", false);
@@ -49,6 +51,7 @@ export class TacticalMap {
   }
 
   onTele() {
+    document.getElementById("map-costmap").classList.toggle("on", this.costmapToggle.on);
     const d = this.S.derived;
     if (!d.pose) return;
     if (d.frame !== this.trailFrame) {
@@ -112,6 +115,12 @@ export class TacticalMap {
   syncButtons() {
     document.getElementById("map-follow").classList.toggle("on", this.follow);
     document.getElementById("map-rotate").textContent = `ROT ${this.rot * 90}°`;
+    document.getElementById("map-costmap").classList.toggle("on", this.costmapToggle.on);
+  }
+
+  toggleCostmap() {
+    this.costmapToggle.toggle();
+    this.syncButtons();
   }
 
   toggleFollow() {
@@ -179,6 +188,7 @@ export class TacticalMap {
     cv.addEventListener("pointercancel", end);
     cv.addEventListener("dblclick", () => this.resetView());
     document.getElementById("map-follow").addEventListener("click", () => this.toggleFollow());
+    document.getElementById("map-costmap").addEventListener("click", () => this.toggleCostmap());
     document.getElementById("map-rotate").addEventListener("click", () => this.rotate());
     document.getElementById("map-reset").addEventListener("click", () => this.resetView());
   }
@@ -251,7 +261,8 @@ export class TacticalMap {
 
     this.drawGrid(ctx, w, h);
     if (a) this.drawArena(ctx, a, inMap || !d.frame);
-    if (this.costImg && this.cost && this.cost.frame === (d.frame || "map")) this.drawCostmap(ctx);
+    const showCost = this.costmapToggle.on && this.costImg && this.cost && this.cost.frame === (d.frame || "map");
+    if (showCost) this.drawCostmap(ctx);
     if (S.plan && S.plan.frame === d.frame) this.drawPlan(ctx, S.plan.pts);
     this.drawTrail(ctx);
     if (inMap && d.pose) this.drawBermBearing(ctx, d.pose);
