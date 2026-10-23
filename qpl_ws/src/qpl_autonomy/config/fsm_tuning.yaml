@@ -11,7 +11,7 @@ autonomy:
     # wheels
     excavation.drive_speed: 0.2
     excavation.drive_distance_m: 1.0
-    excavation.drive_duration_s: 5.0 # timed_autonomy_node only, replaces drive_distance_m
+    excavation.drive_duration_s: 10.0 # timed_autonomy_node only, replaces drive_distance_m
 
     # actuators
     excavation.contact_position_m: 0.035 # Actuator position where bucket reaches regolith
@@ -27,10 +27,10 @@ autonomy:
     # wheels
     deposition.drive_to_zone_speed: 0.2
     deposition.drive_to_zone_distance_m: 1.5
-    deposition.drive_to_zone_duration_s: 7.5 # timed_autonomy_node only, replaces drive_to_zone_distance_m
+    deposition.drive_to_zone_duration_s: 15.0 # timed_autonomy_node only, replaces drive_to_zone_distance_m
     deposition.deposit_drive_speed: 0.1
-    deposition.deposit_drive_distance_m: 2.0
-    deposition.deposit_drive_duration_s: 20.0 # timed_autonomy_node only, replaces deposit_drive_distance_m
+    deposition.deposit_drive_distance_m: 1.5
+    deposition.deposit_drive_duration_s: 15.0 # timed_autonomy_node only, replaces deposit_drive_distance_m
 
     # actuators
     deposition.max_height_position_m: 0.22 # Bucket height for depositing regolith
