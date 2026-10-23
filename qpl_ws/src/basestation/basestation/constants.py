@@ -6,6 +6,7 @@ DRUM_ROTATION_TOPIC = '/drum_spin_control/teleop'
 DRUM_LIFT_TOPIC = '/drum_lift_control/teleop'
 AUTONOMY_COMMAND_TOPIC = '/autonomy/command'
 NAV_AUTONOMY_COMMAND_TOPIC = '/nav_autonomy/command'
+NAV_AUTONOMY_STATE_TOPIC = '/nav_autonomy/state'
 PUBLISHER_UPDATE_RATE = 5
 INVERT_BACKWARDS_STEERING = False
 DEFAULT_MOTOR_DRIVE_BUTTON_FACTOR = 0.3

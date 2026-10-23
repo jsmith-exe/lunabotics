@@ -1,11 +1,16 @@
+import json
+import time
+
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 from std_msgs.msg import Float64, String
 from geometry_msgs.msg import Twist, Vector3
 
 from ..base_station_state import BaseStationState
 from ..constants import MessageOptions, NAV_TOPIC, DRUM_ROTATION_TOPIC, DRUM_LIFT_TOPIC, \
-    AUTONOMY_COMMAND_TOPIC, NAV_AUTONOMY_COMMAND_TOPIC, PUBLISHER_UPDATE_RATE, INVERT_BACKWARDS_STEERING, TANK_WHEEL_SEPARATION
+    AUTONOMY_COMMAND_TOPIC, NAV_AUTONOMY_COMMAND_TOPIC, NAV_AUTONOMY_STATE_TOPIC, PUBLISHER_UPDATE_RATE, \
+    INVERT_BACKWARDS_STEERING, TANK_WHEEL_SEPARATION
 
 TANK_SIDES = {MessageOptions.TANK_LEFT: 'left', MessageOptions.TANK_RIGHT: 'right'}
 
@@ -36,6 +41,10 @@ class TeleopPublisher(Node):
         # Rover mux are set to stop if they don't receive messages for a while, so the most
         # recent state for each topic is republished on a timer regardless of new input.
         self.timer = self.create_timer(1 / PUBLISHER_UPDATE_RATE, self.republish)
+
+        # Nav autonomy's state, for the teleop window's status line (latched by the rover)
+        latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(String, NAV_AUTONOMY_STATE_TOPIC, self._nav_autonomy_state, latched)
 
     def publish(self, topic_name: str, message_option: MessageOptions, throttle: float) -> None:
         """
@@ -102,6 +111,13 @@ class TeleopPublisher(Node):
             linear=Vector3(x=float(linear['x']), y=float(linear['y']), z=float(linear['z'])),
             angular=Vector3(x=float(angular['x']), y=float(angular['y']), z=float(angular['z']))
         )
+
+    def _nav_autonomy_state(self, msg: String) -> None:
+        try:
+            self.state.nav_autonomy = json.loads(msg.data)
+        except ValueError:
+            return
+        self.state.nav_autonomy_time = time.monotonic()
 
     def republish(self) -> None:
         """ Republish the most recent state for each topic at a fixed rate. """

@@ -36,6 +36,9 @@ class BaseStationState:
     motor_drum_button_factor: float = DEFAULT_MOTOR_DRUM_BUTTON_FACTOR
     control_map: dict = field(default_factory=lambda: default_control_map)
     topic_target_states: dict = field(default_factory=generate_topic_state)
+    # Latest /nav_autonomy/state (parsed JSON) and the time.monotonic() it arrived
+    nav_autonomy: dict | None = None
+    nav_autonomy_time: float = 0.0
 
     def set_motor_drive_button_factor(self, value: float):
         self.motor_drive_button_factor = value

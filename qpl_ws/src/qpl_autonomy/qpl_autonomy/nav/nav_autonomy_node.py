@@ -1,3 +1,4 @@
+import json
 import time
 from math import atan2, hypot, pi
 
@@ -188,6 +189,16 @@ class NavAutonomyNode(Node):
             10,
         )
 
+        # State for the HUD and teleop window (JSON, latched): what is running, the last event, and
+        # the result of the last command (COMPLETE / FAILED / REFUSED / STOPPED), so the team
+        # can announce completion or failure without touching anything
+        self.state_pub = self.create_publisher(String, "/nav_autonomy/state", latched)
+        self.mode = None  # AUTO / NAV_EXCAVATE / NAV_DEPOSIT while one is running
+        self.result = None
+        self.result_time = None  # monotonic time the result was set
+        self.message = "Waiting for a command."
+        self.last_state = None
+
         # Update the active FSM and refresh active commands at the configured rate
         self.sequence_timer = self.create_timer(
             1.0 / update_rate_hz,
@@ -269,31 +280,45 @@ class NavAutonomyNode(Node):
         elif command == "STOP":
             self.handle_stop()
         else:
-            self.get_logger().warning(f"Unknown nav autonomy command: {command}")
+            self.report(f"Unknown nav autonomy command: {command}", "warning")
+        self.publish_state()
+
+    def report(self, message, level="info", result=None):
+        # Log an event and show it on /nav_autonomy/state; result marks how a command ended
+        getattr(self.get_logger(), level)(message)
+        self.message = message
+        if result is not None:
+            self.result = result
+            self.result_time = time.monotonic()
+            self.mode = None
 
     def can_start(self, command):
-        # Whether a new command may start; logs why not
+        # Whether a new command may start; reports why not
         if self.state != "IDLE":
-            self.get_logger().warning(f"Cannot start {command} while in state: {self.state}")
+            self.report(f"Cannot start {command} while in state: {self.state}", "warning")
             return False
         if not self.time_ok:
-            self.get_logger().error(f"Not starting {command}: {self.time_message}")
+            self.report(f"Not starting {command}: {self.time_message}", "error", "REFUSED")
             return False
         if not self.navigation.is_available():
-            self.get_logger().error(f"Not starting {command}: Nav2 is not running (start it with qpl_nav, or qpl_nav_sim against the sim).")
+            self.report(f"Not starting {command}: Nav2 is not running (start it with qpl_nav, or qpl_nav_sim "
+                        "against the sim).", "error", "REFUSED")
             return False
         if self.require_localised:
             localised, reason, _, _ = self.localisation_status()
             if not localised:
-                self.get_logger().error(f"Not starting {command}: not localised ({reason}).")
+                self.report(f"Not starting {command}: not localised ({reason}).", "error", "REFUSED")
                 return False
         return True
 
     def handle_navigate(self, target):
         # Drive to the target's waypoint with Nav2, then start its sequence
-        if not self.can_start(f"NAV_{target}"):
+        command = "NAV_EXCAVATE" if target == "EXCAVATION" else "NAV_DEPOSIT"
+        if not self.can_start(command):
             return
 
+        self.mode = command
+        self.result = None
         self.start_navigation(target)
 
     def handle_auto(self):
@@ -303,7 +328,9 @@ class NavAutonomyNode(Node):
 
         self.auto_mode = True
         self.auto_cycle = 1
-        self.get_logger().info("AUTO started. Cycle 1.")
+        self.mode = "AUTO"
+        self.result = None
+        self.report("AUTO started. Cycle 1.")
         self.start_navigation("EXCAVATION")
 
     def start_navigation(self, target):
@@ -323,7 +350,7 @@ class NavAutonomyNode(Node):
             return
         self.goal_pending = False
         x, y, yaw = self.target_pose(target)
-        self.get_logger().info(
+        self.report(
             f"Navigating to {target.lower()} candidate {self.target_index + 1}/{len(self.candidates[target])} "
             f"({x:.2f}, {y:.2f}, yaw {yaw:.2f}).")
         self.navigation.navigate_to(x, y, yaw)
@@ -373,9 +400,9 @@ class NavAutonomyNode(Node):
         index = self.choose_candidate(target)
         if index in self.blocked_candidates:
             return False
-        self.get_logger().warning(
+        self.report(
             f"{target.capitalize()} candidate {self.target_index + 1} is blocked in the costmap. "
-            f"Switching to candidate {index + 1}.")
+            f"Switching to candidate {index + 1}.", "warning")
         self.retargets += 1
         self.target_index = index
         self.navigation.cancel()
@@ -388,6 +415,7 @@ class NavAutonomyNode(Node):
             self.get_logger().info("Nav autonomy already idle.")
             return
 
+        stopped_from = self.state
         self.get_logger().info(f"Stopping nav autonomy from state: {self.state}")
         self.auto_mode = False
         self.goal_pending = False
@@ -403,7 +431,7 @@ class NavAutonomyNode(Node):
             self.cmd_vel_pub.publish(Twist())
 
         self.state = "IDLE"
-        self.get_logger().info("Nav autonomy stopped. State: IDLE")
+        self.report(f"Nav autonomy stopped from {stopped_from}. State: IDLE", result="STOPPED")
 
     """FSM update"""
     def update_sequence(self):
@@ -416,21 +444,22 @@ class NavAutonomyNode(Node):
             self.excavation.update(actuator_positions=actuator_positions, now_s=now_s)
             if self.excavation.is_complete():
                 if self.auto_mode:
-                    self.get_logger().info("Excavation complete.")
+                    self.report("Excavation complete.")
                     self.start_navigation("DEPOSITION")
                 else:
                     self.state = "IDLE"
-                    self.get_logger().info("Excavation complete. State: IDLE")
+                    self.report("Excavation complete. State: IDLE", result="COMPLETE")
         elif self.state == "DEPOSITING":
             self.deposition.update(actuator_positions=actuator_positions, now_s=now_s)
             if self.deposition.is_complete():
                 if self.auto_mode:
                     self.auto_cycle += 1
-                    self.get_logger().info(f"Deposition complete. AUTO cycle {self.auto_cycle}.")
+                    self.report(f"Deposition complete. AUTO cycle {self.auto_cycle}.")
                     self.start_navigation("EXCAVATION")
                 else:
                     self.state = "IDLE"
-                    self.get_logger().info("Deposition complete. State: IDLE")
+                    self.report("Deposition complete. State: IDLE", result="COMPLETE")
+        self.publish_state()
 
     def update_navigation(self, target):
         # Wait for Nav2 to reach the waypoint, retrying a failed goal before giving up.
@@ -450,7 +479,7 @@ class NavAutonomyNode(Node):
         if error is not None and error[0] <= self.arrival_radius_m and error[1] <= self.arrival_yaw_tolerance_rad and (
                 not self.navigation.done or not self.navigation.succeeded):
             self.navigation.cancel()
-            self.get_logger().info(
+            self.report(
                 f"Within {error[0]:.2f} m and {error[1]:.2f} rad of {target.lower()} candidate "
                 f"{self.target_index + 1}. Starting here.")
             self.start_sequence(target)
@@ -461,23 +490,24 @@ class NavAutonomyNode(Node):
 
         if self.navigation.succeeded:
             if error is not None:
-                self.get_logger().info(
+                self.report(
                     f"Reached {target.lower()} candidate {self.target_index + 1} "
                     f"({error[0]:.2f} m, {error[1]:.2f} rad off).")
             else:
-                self.get_logger().info(f"Reached {target.lower()} candidate {self.target_index + 1}.")
+                self.report(f"Reached {target.lower()} candidate {self.target_index + 1}.")
             self.start_sequence(target)
             return
 
         self.nav_retries += 1
         if self.nav_retries <= self.max_nav_retries:
-            self.get_logger().warning(f"Navigation failed. Retry {self.nav_retries}/{self.max_nav_retries}.")
+            self.report(f"Navigation failed. Retry {self.nav_retries}/{self.max_nav_retries}.", "warning")
             self.send_navigation_goal(target)
         else:
-            self.get_logger().error("Navigation failed after retries. State: IDLE")
             self.cmd_vel_pub.publish(Twist())
             self.auto_mode = False
             self.state = "IDLE"
+            self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
+                        "State: IDLE", "error", "FAILED")
 
     def waypoint_error(self, target):
         # (distance, absolute heading error) from the current candidate, or None without a map pose
@@ -493,11 +523,11 @@ class NavAutonomyNode(Node):
         if target == "EXCAVATION":
             self.state = "EXCAVATING"
             self.excavation.start()
-            self.get_logger().info("Starting excavation sequence.")
+            self.report("Starting excavation sequence.")
         else:
             self.state = "DEPOSITING"
             self.deposition.start()
-            self.get_logger().info("Starting deposition sequence.")
+            self.report("Starting deposition sequence.")
 
     """Health (steady clock, so it runs even when ROS time is stuck)"""
     def check_clock(self):
@@ -519,6 +549,56 @@ class NavAutonomyNode(Node):
             else:
                 self.get_logger().error(f"Clock problem: {message}")
         self.time_ok, self.time_message = ok, message
+        self.publish_state(heartbeat=True)
+
+    """State topic"""
+    def sequence_phase(self):
+        # (sequence step name, seconds left in a timed dig/dump) or (None, None)
+        if self.state not in ("EXCAVATING", "DEPOSITING"):
+            return None, None
+        now_s = self.get_clock().now().nanoseconds / 1e9
+        if self.state == "EXCAVATING":
+            sequence, start_s, duration_s = self.excavation, self.excavation.dig_start_s, self.excavation.dig_duration_s
+        else:
+            sequence, start_s, duration_s = self.deposition, self.deposition.dump_start_s, self.deposition.dump_duration_s
+        remaining = None
+        if sequence.state.name in ("DIG", "DUMP_REGOLITH") and start_s is not None:
+            remaining = round(max(0.0, duration_s - (now_s - start_s)), 1)
+        return sequence.state.name, remaining
+
+    def publish_state(self, heartbeat=False):
+        # Publish when something changed, and every second from the steady clock regardless
+        localised, loc_reason, fix_age, drive = self.localisation_status()
+        phase, remaining = self.sequence_phase()
+        target = None
+        if self.state != "IDLE" and self.target_index is not None:
+            kind = "EXCAVATION" if self.state in ("NAVIGATING_TO_EXCAVATION", "EXCAVATING") else "DEPOSITION"
+            x, y, yaw = self.candidates[kind][self.target_index]
+            target = {"kind": kind, "index": self.target_index + 1, "count": len(self.candidates[kind]),
+                      "x": x, "y": y, "yaw": yaw}
+        state = {
+            "state": self.state,
+            "mode": self.mode,
+            "cycle": self.auto_cycle if self.mode == "AUTO" else None,
+            "phase": phase,
+            "remaining_s": remaining,
+            "target": target,
+            "retries": self.nav_retries,
+            "max_retries": self.max_nav_retries,
+            "result": self.result,
+            "result_age_s": None if self.result_time is None else int(time.monotonic() - self.result_time),
+            "message": self.message,
+            "localised": localised,
+            "loc_reason": loc_reason,
+            "fix_age_s": None if fix_age is None else int(fix_age),
+            "drive_since_fix_m": None if drive is None else round(drive, 2),
+            "time_ok": self.time_ok,
+            "time_message": self.time_message,
+        }
+        if state == self.last_state and not heartbeat:
+            return
+        self.last_state = state
+        self.state_pub.publish(String(data=json.dumps({**state, "stamp": round(time.time(), 2)})))
 
     def shutdown(self):
         # Without this Nav2 keeps driving the last goal after the node dies

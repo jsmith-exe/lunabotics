@@ -1,3 +1,4 @@
+import time
 from collections.abc import Callable
 from tkinter import font, ttk, PhotoImage
 from os import environ
@@ -11,6 +12,15 @@ from ..controllers.base_controller import BaseController
 from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
 
 DANGER_COLOR = "#ff1e39"
+CAUTION_COLOR = "#ffb020"
+READY_COLOR = "#3dd68c"
+# /nav_autonomy/state is republished every second; older than this means the node is gone
+NAV_STATE_STALE_S = 3.0
+# COMPLETE / REFUSED / STOPPED stay on the status line this long; FAILED stays until the next command
+NAV_RESULT_HOLD_S = 15
+NAV_PHASES = {"STOP_WHEELS": "stopping", "START_SPIN": "starting the drum", "LOWER_BUCKET": "lowering the bucket",
+              "DIG": "digging", "RAISE_BUCKET": "raising the bucket", "DUMP_REGOLITH": "dumping",
+              "STOP_BUCKET": "stopping the drum"}
 UI_SCALE = float(environ.get('QPL_TELEOP_WINDOW_SCALE', 1.0))
 WINDOW_WIDTH = 300  # Minimum width; the window widens if expanded sections need more room.
 
@@ -141,6 +151,17 @@ class TeleopWindow:
         ttk.Button(auto_row, text="Stop", width=10,
                    command=self.stop_all_autonomy).pack(side="left", padx=5 * UI_SCALE)
 
+        # What nav autonomy is doing, so the team can see it finish or fail without touching anything
+        self.nav_status = ttk.Label(self.nav_autonomy_section.content, text="", justify="center",
+                                    wraplength=int(300 * UI_SCALE))
+        self.nav_status.pack(pady=(8 * UI_SCALE, 0))
+        self._refresh_nav_status()
+
+    def _refresh_nav_status(self):
+        text, color = nav_status(self.base_station_state)
+        self.nav_status.config(text=text, foreground=color)
+        self.root.after(250, self._refresh_nav_status)
+
     def stop_all_autonomy(self):
         # Either Stop button stops both autonomy nodes, so the operator can't press the wrong one
         self.autonomy_command_function("STOP")
@@ -239,6 +260,37 @@ class CollapsibleSection:
         window.update_idletasks()
         height_change = window.winfo_reqheight() - height_before
         window.geometry(f"{fit_window_width(window)}x{window.winfo_height() + height_change}")
+
+
+def nav_status(state: BaseStationState) -> tuple[str, str]:
+    """ (text, colour) for the nav autonomy status line, from the latest /nav_autonomy/state. """
+    a = state.nav_autonomy
+    if a is None:
+        return "Nav autonomy: not running (qpl_nav)", ""
+    age = time.monotonic() - state.nav_autonomy_time
+    if age > NAV_STATE_STALE_S:
+        return f"Nav autonomy: no update for {age:.0f} s", CAUTION_COLOR
+    if not a.get("time_ok", True):
+        return f"CLOCK ERROR: {a.get('time_message', '')}", DANGER_COLOR
+    target = a.get("target")
+    spot = f"{'dig spot' if target['kind'] == 'EXCAVATION' else 'berm slot'} {target['index']}/{target['count']}" if target else ""
+    cycle = f", cycle {a['cycle']}" if a.get("cycle") else ""
+    if a["state"].startswith("NAVIGATING_TO_"):
+        return f"{a.get('mode') or 'NAV'}{cycle}: driving to {spot}", ""
+    if a["state"] in ("EXCAVATING", "DEPOSITING"):
+        left = f" ({a['remaining_s']:.0f} s left)" if a.get("remaining_s") is not None else ""
+        phase = NAV_PHASES.get(a.get("phase"), a["state"].lower())
+        return f"{a.get('mode') or 'NAV'}{cycle}: {phase}{left} at {spot}", ""
+    recent = a.get("result_age_s") is not None and a["result_age_s"] < NAV_RESULT_HOLD_S
+    if a.get("result") == "FAILED":
+        return f"FAILED: {a.get('message', '')} Announce the failure before taking manual control.", DANGER_COLOR
+    if a.get("result") == "COMPLETE" and recent:
+        return f"COMPLETE: {a.get('message', '')}", READY_COLOR
+    if a.get("result") in ("REFUSED", "STOPPED") and recent:
+        return f"{a['result']}: {a.get('message', '')}", CAUTION_COLOR
+    if not a.get("localised"):
+        return f"Not localised: {a.get('loc_reason', '')}", CAUTION_COLOR
+    return "Ready (localised)", READY_COLOR
 
 
 def fit_window_width(window) -> int:

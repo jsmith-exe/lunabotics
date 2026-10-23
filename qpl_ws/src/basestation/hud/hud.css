@@ -145,6 +145,30 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .source.teleop { color: var(--green); background: rgba(10,60,25,0.55); text-shadow: 0 0 8px var(--green); }
 .source.auto { color: var(--purple); background: rgba(45,20,90,0.55); text-shadow: 0 0 8px var(--purple); }
 
+/* Nav autonomy: what it is doing, or how the last command ended (/nav_autonomy/state). */
+.auto {
+  min-width: clamp(170px, 14vw, 270px); max-width: 28vw; padding: 0 12px; align-items: flex-start;
+  border-left: 1px solid var(--line-dim); overflow: hidden;
+}
+.auto-k { font-size: 10px; letter-spacing: 0.25em; color: var(--text-dim); white-space: nowrap; }
+.auto-k .ga { margin-left: 6px; color: var(--amber); letter-spacing: 0.05em; }
+.auto-v {
+  font-family: var(--f-title); font-size: clamp(16px, 1.35vw, 26px); line-height: 1.05; white-space: nowrap;
+  transform: scaleY(1.1); transform-origin: left center;
+}
+.auto-sub {
+  font-size: clamp(10px, 0.72vw, 13px); color: var(--text-dim); max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.auto.off .auto-v { color: var(--grey); }
+.auto.ready .auto-v { color: var(--green); text-shadow: 0 0 8px var(--green); }
+.auto.wait .auto-v { color: var(--amber); text-shadow: 0 0 6px rgba(255,194,58,0.5); }
+.auto.run .auto-v { color: var(--purple); text-shadow: 0 0 8px var(--purple); }
+.auto.done .auto-v { color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+.auto.fail { background: rgba(80,0,0,0.5); }
+.auto.fail .auto-v { color: var(--red); text-shadow: 0 0 8px var(--red); animation: auto-blink 0.9s steps(2) infinite; }
+@keyframes auto-blink { 50% { opacity: 0.35; } }
+
 /* MAGI trio: three trapezoid lobes that each give a verdict. */
 .magi { flex-direction: row !important; align-items: stretch; gap: 4px; padding: 0 2px; }
 .magi-node {
