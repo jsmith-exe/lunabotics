@@ -67,7 +67,8 @@ What's on screen:
   rover footprint and trail, AprilTag fixes, and the distance and bearing to the berm. Scroll to zoom,
   drag to pan, `F` to follow, `R` to rotate, `K` (COST) to drop the costmap and its subscription.
 - **Header**: who has control (TELEOP / AUTONOMY / IDLE, from the drive mux inputs), three health
-  verdicts (LINK, DRIVE, LOCALISE), the current zone, and a run timer (`T`).
+  verdicts (LINK, DRIVE, LOCALISE), the current zone, total link use (upload + download against the
+  combined budget; amber above 85%, red over), and a run timer (`T`).
 - **Bottom strip**: commanded vs measured motion, wheel surface speeds with stall detection, pitch/roll,
   drum and lift, and a 30 s velocity trace.
 - **Warnings**: telemetry loss, tilt, wall proximity / out of bounds, wheel stall, a silent mux
@@ -80,9 +81,10 @@ What's on screen:
   `telemetry:=false`.
 
 #### Link bandwidth
-The rover -> basestation budget is 3.6 Mbit/s. The drawer's **LINK** line is the whole network
-interface (`link_interface:=`, default the one with the default route), so it is what the limiter
-sees: video, every ROS topic, DDS discovery, and anything else on that interface. Per-topic KB/s is
+The rover -> basestation budget is 3.6 Mbit/s, with 0.4 Mbit/s the other way: 4 Mbit/s in total. The
+header's **LINK** box is the sum of both directions against that total, and the drawer's **LINK**
+line splits it by direction. Both are the whole network interface (`link_interface:=`, default the
+one with the default route), so they are what the limiter sees: video, every ROS topic, DDS discovery, and anything else on that interface. Per-topic KB/s is
 the serialised payload of what the HUD subscribes to; DDS/UDP headers add ~80 B a message.
 
 What the HUD pulls, roughly: each camera up to 1.3 Mbit/s (the encoder's `bit_rate`), the global

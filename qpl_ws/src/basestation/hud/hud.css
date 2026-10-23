@@ -164,8 +164,13 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .magi-node.off  { background: #2a2420; color: #6d5a48; }
 @keyframes blink-bg { 50% { background: var(--red-deep); } }
 
-.zone-box, .timer, .clock { padding: 0 12px; border-left: 1px solid var(--line-dim); align-items: flex-start; }
+.zone-box, .link-box, .timer, .clock { padding: 0 12px; border-left: 1px solid var(--line-dim); align-items: flex-start; }
 .zone-box .v { font-size: clamp(14px, 1.15vw, 21px); color: var(--amber); text-shadow: 0 0 6px rgba(255,194,58,0.5); min-width: 9ch; }
+.link-box .v { font-family: var(--f-mono); font-weight: 700; font-size: clamp(14px, 1.15vw, 21px); color: var(--cyan); font-variant-numeric: tabular-nums; min-width: 10ch; }
+.link-box .u { font-size: 0.6em; color: var(--text-dim); margin-left: 4px; }
+.link-box.near .v { color: var(--amber); text-shadow: 0 0 6px rgba(255,194,58,0.5); }
+.link-box.over .v { color: var(--red); text-shadow: 0 0 8px var(--red); animation: blink 0.9s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.45; } }
 .timer { min-width: clamp(120px, 9vw, 175px); text-align: left; }
 .timer .v, .clock .v { font-family: var(--f-mono); font-weight: 700; font-size: clamp(18px, 1.55vw, 30px); line-height: 1; color: var(--orange); text-shadow: var(--glow); font-variant-numeric: tabular-nums; }
 .timer.running .v { color: var(--green); text-shadow: 0 0 8px var(--green); }

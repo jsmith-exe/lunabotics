@@ -219,7 +219,21 @@ function linkUse() {
   const l = S.tele?.link;
   const budget = S.config?.link_budget;
   if (!l || !isNum(l.rx) || !budget) return null;
-  return { iface: l.iface, rx: mbit(l.rx), tx: mbit(l.tx), rxMax: budget.rx, txMax: budget.tx };
+  const rx = mbit(l.rx);
+  const tx = mbit(l.tx);
+  // The limiter splits one total between the two directions, so the sum is
+  // what has to stay under the total budget.
+  return { iface: l.iface, rx, tx, rxMax: budget.rx, txMax: budget.tx, total: rx + tx, totalMax: budget.rx + budget.tx };
+}
+
+// Always-visible header readout of upload + download.
+function renderLinkBox() {
+  const el = $("link-box");
+  const u = linkUse();
+  $("link-iface").textContent = S.tele?.link?.iface ?? "";
+  $("link-total").textContent = u ? u.total.toFixed(2) : "—";
+  $("link-max").textContent = u ? `/ ${u.totalMax.toFixed(1)} Mbit/s` : "";
+  el.className = "link-box" + (!u ? "" : u.total > u.totalMax ? " over" : u.total > 0.85 * u.totalMax ? " near" : "");
 }
 
 function renderLinkMeter() {
@@ -357,6 +371,7 @@ function renderHeader() {
   else verdict($("magi-loc"), "warn");
 
   $("zone").textContent = map.zoneName() ?? "—";
+  renderLinkBox();
 }
 
 // --------------------------------------------------------------- warnings
@@ -400,7 +415,8 @@ function computeWarnings() {
   }
 
   const u = linkUse();
-  if (u && u.rx > u.rxMax) w.push({ lvl: "caution", ga: "Nasc Lán", txt: "LINK OVER BUDGET", sub: `${u.rx.toFixed(2)} / ${u.rxMax} Mbit/s down · cameras 1/2, costmap K` });
+  if (u && u.total > u.totalMax) w.push({ lvl: "caution", ga: "Nasc Lán", txt: "LINK OVER BUDGET", sub: `${u.total.toFixed(2)} / ${u.totalMax.toFixed(1)} Mbit/s up + down · cameras 1/2, costmap K` });
+  else if (u && u.rx > u.rxMax) w.push({ lvl: "caution", ga: "Nasc Lán", txt: "LINK OVER BUDGET", sub: `${u.rx.toFixed(2)} / ${u.rxMax} Mbit/s down · cameras 1/2, costmap K` });
 
   if (d.live && d.frame === "odom") w.push({ lvl: "info", ga: "Gan Suíomh", txt: "NO MAP FIX", sub: "no /odometry/global; map shows odom" });
   return w;
