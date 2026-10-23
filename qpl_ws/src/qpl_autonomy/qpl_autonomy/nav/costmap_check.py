@@ -6,11 +6,11 @@ import numpy as np
 LETHAL = 100
 
 
-def footprint_blocked(grid, x, y, yaw, half_length, half_width, margin=0.0):
-    """True if a lethal cell lies under the rover's rectangle, grown by margin, at (x, y, yaw).
+def footprint_lethal_cells(grid, x, y, yaw, half_length, half_width, margin=0.0):
+    """Number of lethal cells under the rover's rectangle, grown by margin, at (x, y, yaw).
 
     Unknown cells count as free, since the cameras may not have seen the spot yet. A rectangle
-    that leaves the grid counts as blocked. Assumes the grid's origin isn't rotated, which
+    that leaves the grid counts as every cell lethal. Assumes the grid's origin isn't rotated, which
     holds for Nav2 costmaps.
     """
     info = grid.info
@@ -23,11 +23,11 @@ def footprint_blocked(grid, x, y, yaw, half_length, half_width, margin=0.0):
     i0, i1 = int(np.floor((min(xs) - ox) / res)), int(np.floor((max(xs) - ox) / res))
     j0, j1 = int(np.floor((min(ys) - oy) / res)), int(np.floor((max(ys) - oy) / res))
     if i0 < 0 or j0 < 0 or i1 >= info.width or j1 >= info.height:
-        return True
+        return info.width * info.height
 
     cells = np.asarray(grid.data, dtype=np.int16).reshape(info.height, info.width)[j0:j1 + 1, i0:i1 + 1]
     jj, ii = np.mgrid[j0:j1 + 1, i0:i1 + 1]
     dx = ox + (ii + 0.5) * res - x
     dy = oy + (jj + 0.5) * res - y
     inside = (np.abs(c * dx + s * dy) <= hl) & (np.abs(-s * dx + c * dy) <= hw)
-    return bool(np.any(cells[inside] >= LETHAL))
+    return int(np.count_nonzero(cells[inside] >= LETHAL))

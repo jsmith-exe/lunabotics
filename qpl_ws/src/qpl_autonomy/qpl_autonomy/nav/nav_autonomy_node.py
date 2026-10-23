@@ -14,7 +14,7 @@ from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
-from qpl_autonomy.nav.costmap_check import footprint_blocked
+from qpl_autonomy.nav.costmap_check import footprint_lethal_cells
 from qpl_autonomy.nav.nav_excavation import NavExcavationSequence
 from qpl_autonomy.nav.nav_deposition import NavDepositionSequence
 from qpl_autonomy.navigation import Navigation
@@ -94,7 +94,11 @@ class NavAutonomyNode(Node):
         # Footprint (half sizes, as nav_params.yaml) plus a margin, checked for lethal cells
         self.declare_parameter("navigation.footprint_half_length_m", 0.62)
         self.declare_parameter("navigation.footprint_half_width_m", 0.53)
-        self.declare_parameter("navigation.candidate_clearance_m", 0.10)
+        self.declare_parameter("navigation.candidate_clearance_m", 0.05)
+        # A candidate is blocked with at least this many lethal cells under it, so isolated
+        # specks of sensor noise don't rule out every spot
+        self.declare_parameter("navigation.candidate_min_lethal_cells", 4)
+        self.candidate_min_lethal_cells = self.get_parameter("navigation.candidate_min_lethal_cells").value
         self.footprint_half_length_m = self.get_parameter("navigation.footprint_half_length_m").value
         self.footprint_half_width_m = self.get_parameter("navigation.footprint_half_width_m").value
         self.candidate_clearance_m = self.get_parameter("navigation.candidate_clearance_m").value
@@ -106,6 +110,13 @@ class NavAutonomyNode(Node):
         # still lining up. A small buffer so it doesn't keep shuffling to correct itself.
         self.declare_parameter("navigation.arrival_radius_m", 0.25)
         self.arrival_radius_m = self.get_parameter("navigation.arrival_radius_m").value
+        # Within stall_radius_m (and the yaw tolerance) but no 5 cm closer for stall_time_s: Nav2
+        # is shuffling near the goal, so start there instead
+        self.declare_parameter("navigation.stall_radius_m", 0.40)
+        self.declare_parameter("navigation.stall_time_s", 10.0)
+        self.stall_radius_m = self.get_parameter("navigation.stall_radius_m").value
+        self.stall_time_s = self.get_parameter("navigation.stall_time_s").value
+        self.best_error = None  # (closest distance this leg, time it was reached)
         self.declare_parameter("navigation.arrival_yaw_tolerance_rad", 0.3)
         self.arrival_yaw_tolerance_rad = self.get_parameter("navigation.arrival_yaw_tolerance_rad").value
 
@@ -347,7 +358,8 @@ class NavAutonomyNode(Node):
         self.nav_retries = 0
         self.retargets = 0
         self.blocked_candidates = set()
-        self.target_index = self.choose_candidate(target)
+        self.target_index, _ = self.choose_candidate(target)
+        self.best_error = None
         self.last_target_check_s = time.monotonic()
         self.send_navigation_goal(target)
 
@@ -377,28 +389,36 @@ class NavAutonomyNode(Node):
             start = min(start, n - 1)
         return [(start + i) % n for i in range(n)]
 
+    def candidate_lethal_cells(self, target, index):
+        if self.global_costmap is None:
+            return 0
+        x, y, yaw = self.candidates[target][index]
+        return footprint_lethal_cells(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
+                                      self.footprint_half_width_m, self.candidate_clearance_m)
+
     def candidate_blocked(self, target, index):
         # Lethal cell under the candidate's footprint (plus clearance) in the global costmap.
         # Unknown space counts as clear.
         if self.global_costmap is None:
             return False
         x, y, yaw = self.candidates[target][index]
-        return footprint_blocked(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
-                                 self.footprint_half_width_m, self.candidate_clearance_m)
+        return self.candidate_lethal_cells(target, index) >= self.candidate_min_lethal_cells
 
     def choose_candidate(self, target):
+        # (index, clear): the next clear candidate, or the least blocked one if none is clear
         order = self.candidate_order(target)
         for index in order:
             if index not in self.blocked_candidates and not self.candidate_blocked(target, index):
-                return index
-        # Nothing looks clear: take the first not yet given up on, and let Nav2 try
-        index = next((i for i in order if i not in self.blocked_candidates), order[0])
-        self.get_logger().warning(f"No clear {target.lower()} candidate in the costmap. Trying candidate {index + 1} anyway.")
-        return index
+                return index, True
+        index = min(order, key=lambda i: self.candidate_lethal_cells(target, i))
+        self.report(f"No clear {target.lower()} candidate in the costmap. Trying candidate {index + 1}, "
+                    "the least blocked.", "warning")
+        return index, False
 
     def check_target(self, target):
         # Switch candidates if the current one has become blocked. Returns True if it switched.
-        # A switch doesn't use up a retry; there are at most as many switches as candidates.
+        # A switch doesn't use up a retry; there are at most as many switches as candidates, and
+        # none once no candidate is clear.
         now = time.monotonic()
         if now - self.last_target_check_s < TARGET_CHECK_PERIOD_S:
             return False
@@ -406,14 +426,17 @@ class NavAutonomyNode(Node):
         if self.retargets >= len(self.candidates[target]) or not self.candidate_blocked(target, self.target_index):
             return False
         self.blocked_candidates.add(self.target_index)
-        index = self.choose_candidate(target)
-        if index in self.blocked_candidates:
+        index, clear = self.choose_candidate(target)
+        if not clear:
+            # Keep going to the current one and stop checking for this leg
+            self.retargets = len(self.candidates[target])
             return False
         self.report(
             f"{target.capitalize()} candidate {self.target_index + 1} is blocked in the costmap. "
             f"Switching to candidate {index + 1}.", "warning")
         self.retargets += 1
         self.target_index = index
+        self.best_error = None
         self.navigation.cancel()
         self.send_navigation_goal(target)
         return True
@@ -493,6 +516,19 @@ class NavAutonomyNode(Node):
                 f"{self.target_index + 1}. Starting here.")
             self.start_sequence(target)
             return
+
+        # Close but no longer getting closer: Nav2 is shuffling near the goal, so start here
+        if error is not None and error[0] <= self.stall_radius_m and error[1] <= self.arrival_yaw_tolerance_rad:
+            now_s = self.get_clock().now().nanoseconds / 1e9
+            if self.best_error is None or error[0] < self.best_error[0] - 0.05:
+                self.best_error = (error[0], now_s)
+            elif now_s - self.best_error[1] >= self.stall_time_s:
+                self.navigation.cancel()
+                self.report(
+                    f"No closer than {error[0]:.2f} m to {target.lower()} candidate {self.target_index + 1} "
+                    f"for {self.stall_time_s:.0f} s. Starting here.")
+                self.start_sequence(target)
+                return
 
         if not self.navigation.done:
             return

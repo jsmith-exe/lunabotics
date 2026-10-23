@@ -54,7 +54,10 @@ nav_autonomy:
     # Footprint half sizes as in nav_params.yaml, plus clearance for the candidate check
     navigation.footprint_half_length_m: 0.62
     navigation.footprint_half_width_m: 0.53
-    navigation.candidate_clearance_m: 0.10
+    navigation.candidate_clearance_m: 0.05
+    # Blocked only with at least this many lethal cells (5 cm each) under it, so sensor specks
+    # don't rule out every spot. With none clear, the least blocked one is used.
+    navigation.candidate_min_lethal_cells: 4
     navigation.goal_timeout_s: 180.0
     navigation.max_retries: 2 # Failed goals re-sent before giving up
     navigation.travel_lift_position_m: 0.218 # Bucket held here while navigating, so it doesn't plough the regolith
@@ -62,6 +65,10 @@ nav_autonomy:
     # rover doesn't keep shuffling to correct itself; keep the yaw in line with Nav2's
     # yaw_goal_tolerance in qpl_rover/config/nav_params.yaml.
     navigation.arrival_radius_m: 0.25
+    # Within stall_radius_m (and the yaw tolerance) but no 5 cm closer for stall_time_s, the
+    # dig/dump starts anyway: Nav2 can shuffle near a goal by the berm for minutes.
+    navigation.stall_radius_m: 0.40
+    navigation.stall_time_s: 10.0
     navigation.arrival_yaw_tolerance_rad: 0.3 # ~17 deg
 
     # LOCALISATION
