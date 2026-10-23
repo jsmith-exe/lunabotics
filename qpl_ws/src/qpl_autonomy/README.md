@@ -371,7 +371,7 @@ navigate to excavation waypoint -> excavate -> navigate to deposition waypoint -
 The rover stands still while digging and dumping, which is why it is labelled low risk:
 
 * **Excavation:** stop -> spin drum forward -> lower bucket -> hold it down for `dig_duration_s` -> raise bucket -> stop spinning.
-* **Deposition:** stop -> bucket raised -> spin drum for `dump_duration_s` -> stop spinning.
+* **Deposition:** stop -> bucket raised -> spin drum backwards for `dump_duration_s` -> stop spinning.
 
 Nothing reports when the bucket is full or empty, so the dig and dump are timed (30 s each). The rest moves on actuator feedback.
 
