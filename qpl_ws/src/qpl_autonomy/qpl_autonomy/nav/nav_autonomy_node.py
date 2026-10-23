@@ -1,6 +1,8 @@
+import time
 from math import atan2, hypot, pi
 
 import rclpy
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 
@@ -12,6 +14,9 @@ from std_msgs.msg import Float64, String
 from qpl_autonomy.nav.nav_excavation import NavExcavationSequence
 from qpl_autonomy.nav.nav_deposition import NavDepositionSequence
 from qpl_autonomy.navigation import Navigation
+
+# Seconds after startup before a missing /clock counts as an error
+CLOCK_GRACE_S = 5.0
 
 
 class NavAutonomyNode(Node):
@@ -133,6 +138,13 @@ class NavAutonomyNode(Node):
             self.update_sequence,
         )
 
+        # The timer above runs on ROS time: with use_sim_time and no /clock (qpl_nav_sim on the
+        # rover) it never fires, and nothing would say why. This one runs on the steady clock.
+        self.started_s = time.monotonic()
+        self.time_ok = True
+        self.time_message = ""
+        self.health_timer = self.create_timer(1.0, self.check_health, clock=Clock(clock_type=ClockType.STEADY_TIME))
+
         self.get_logger().info("Nav autonomy started.")
         self.get_logger().info("State: IDLE")
         self.get_logger().info("Waiting for NAV_EXCAVATE, NAV_DEPOSIT, AUTO, or STOP command.")
@@ -167,24 +179,29 @@ class NavAutonomyNode(Node):
         else:
             self.get_logger().warning(f"Unknown nav autonomy command: {command}")
 
+    def can_start(self, command):
+        # Whether a new command may start; logs why not
+        if self.state != "IDLE":
+            self.get_logger().warning(f"Cannot start {command} while in state: {self.state}")
+            return False
+        if not self.time_ok:
+            self.get_logger().error(f"Not starting {command}: {self.time_message}")
+            return False
+        if not self.navigation.is_available():
+            self.get_logger().error(f"Not starting {command}: Nav2 is not running (start it with qpl_nav, or qpl_nav_sim against the sim).")
+            return False
+        return True
+
     def handle_navigate(self, target):
         # Drive to the target's waypoint with Nav2, then start its sequence
-        if self.state != "IDLE":
-            self.get_logger().warning(f"Cannot start navigation while in state: {self.state}")
-            return
-        if not self.navigation.is_available():
-            self.get_logger().error("Nav2 is not running (start it with qpl_nav). Not starting.")
+        if not self.can_start(f"NAV_{target}"):
             return
 
         self.start_navigation(target)
 
     def handle_auto(self):
         # Loop excavation and deposition at their waypoints until STOP
-        if self.state != "IDLE":
-            self.get_logger().warning(f"Cannot start AUTO while in state: {self.state}")
-            return
-        if not self.navigation.is_available():
-            self.get_logger().error("Nav2 is not running (start it with qpl_nav). Not starting.")
+        if not self.can_start("AUTO"):
             return
 
         self.auto_mode = True
@@ -318,6 +335,27 @@ class NavAutonomyNode(Node):
             self.state = "DEPOSITING"
             self.deposition.start()
             self.get_logger().info("Starting deposition sequence.")
+
+    """Health (steady clock, so it runs even when ROS time is stuck)"""
+    def check_clock(self):
+        # (ok, message): is ROS time usable for this node's timers and Nav2's?
+        if self.get_parameter("use_sim_time").value:
+            if self.get_clock().now().nanoseconds > 0 or time.monotonic() - self.started_s < CLOCK_GRACE_S:
+                return True, ""
+            return False, ("use_sim_time is true but nothing publishes /clock. On the rover start Nav2 with "
+                           "qpl_nav; qpl_nav_sim is for the sim.")
+        if self.count_publishers("/clock") > 0:
+            return False, "the sim is publishing /clock but this node runs on wall time. Start Nav2 with qpl_nav_sim."
+        return True, ""
+
+    def check_health(self):
+        ok, message = self.check_clock()
+        if (ok, message) != (self.time_ok, self.time_message):
+            if ok:
+                self.get_logger().info("Clock OK.")
+            else:
+                self.get_logger().error(f"Clock problem: {message}")
+        self.time_ok, self.time_message = ok, message
 
     def shutdown(self):
         # Without this Nav2 keeps driving the last goal after the node dies

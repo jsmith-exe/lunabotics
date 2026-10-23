@@ -54,8 +54,10 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'use_sim_time',
-            default_value='true',
-            description='Use simulation (Gazebo) clock if true'
+            default_value='false',
+            # The rover has no /clock, so on sim time nav_autonomy's timer never runs.
+            # qpl_nav_sim passes true.
+            description='Use simulation (Gazebo) clock if true (qpl_nav_sim). Leave false on the rover (qpl_nav).'
         ),
 
         DeclareLaunchArgument(
