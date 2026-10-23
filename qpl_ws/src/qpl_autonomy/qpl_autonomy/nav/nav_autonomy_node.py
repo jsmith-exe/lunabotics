@@ -285,7 +285,14 @@ class NavAutonomyNode(Node):
 
     def report(self, message, level="info", result=None):
         # Log an event and show it on /nav_autonomy/state; result marks how a command ended
-        getattr(self.get_logger(), level)(message)
+        # One call per severity: rclpy raises if a single logging call site changes severity
+        logger = self.get_logger()
+        if level == "error":
+            logger.error(message)
+        elif level == "warning":
+            logger.warning(message)
+        else:
+            logger.info(message)
         self.message = message
         if result is not None:
             self.result = result

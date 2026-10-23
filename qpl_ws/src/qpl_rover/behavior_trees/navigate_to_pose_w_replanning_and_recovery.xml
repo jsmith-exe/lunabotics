@@ -9,10 +9,6 @@
      behavior_server's parameters. Sized for the rover: the skid-steer turns at
      about 0.8x the commanded rate, and the back-up has to move the rover's centre
      further than the footprint's 0.53 m inscribed radius to get out of inflation.
-  3. BackUp comes before Spin. A spin in place swings the corners through space the
-     front and rear cameras can't see, and in the sim one swung a corner into the
-     wall by the berm. Backing up along the rear camera's view is checked against
-     what it can see.
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
@@ -30,9 +26,9 @@
         <GoalUpdated/>
         <RoundRobin name="RecoveryActions">
           <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
-          <BackUp backup_dist="0.60" backup_speed="0.10" time_allowance="10"/>
-          <Wait wait_duration="5"/>
           <Spin spin_dist="1.57" time_allowance="15"/>
+          <Wait wait_duration="5"/>
+          <BackUp backup_dist="0.60" backup_speed="0.10" time_allowance="10"/>
         </RoundRobin>
       </ReactiveFallback>
     </RecoveryNode>
