@@ -80,6 +80,8 @@ class NavAutonomyNode(Node):
         self.max_nav_retries = self.get_parameter("navigation.max_retries").value
         self.nav_retries = 0
         self.navigation = Navigation(self, self.get_parameter("navigation.goal_timeout_s").value)
+        # A goal waiting for Nav2 to finish cancelling the previous one (see Navigation.ready)
+        self.goal_pending = False
 
         # Top-level autonomy state
         self.state = "IDLE"
@@ -196,6 +198,12 @@ class NavAutonomyNode(Node):
         self.send_navigation_goal(target)
 
     def send_navigation_goal(self, target):
+        # Sent while Nav2 is still cancelling the last goal, Nav2 aborts it; update_navigation
+        # sends it once the cancel has finished
+        if not self.navigation.ready():
+            self.goal_pending = True
+            return
+        self.goal_pending = False
         x, y, yaw = self.waypoints[target]
         self.get_logger().info(f"Navigating to {target.lower()} waypoint ({x:.2f}, {y:.2f}, yaw {yaw:.2f}).")
         self.navigation.navigate_to(x, y, yaw)
@@ -208,6 +216,7 @@ class NavAutonomyNode(Node):
 
         self.get_logger().info(f"Stopping nav autonomy from state: {self.state}")
         self.auto_mode = False
+        self.goal_pending = False
         actuator_positions = (self.left_actuator_position, self.right_actuator_position)
 
         if self.state == "EXCAVATING":
@@ -253,6 +262,10 @@ class NavAutonomyNode(Node):
         # Wait for Nav2 to reach the waypoint, retrying a failed goal before giving up.
         # Hold the bucket raised so it doesn't plough the regolith on the way.
         self.drum_lift_pub.publish(Float64(data=self.travel_lift_position_m))
+        if self.goal_pending:
+            # The last goal is still being cancelled; done/succeeded below still describe it
+            self.send_navigation_goal(target)
+            return
         self.navigation.update()
 
         # Close enough and facing the right way counts, even if Nav2 is still lining up or
