@@ -86,7 +86,7 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.excavation_candidates",
                                [7.9, 1.3, 1.5708, 6.7, 1.3, 1.5708, 5.5, 1.3, 1.5708,
                                 7.9, 2.3, 1.5708, 6.7, 2.3, 1.5708, 5.5, 2.3, 1.5708])
-        self.declare_parameter("navigation.deposition_candidates", [8.14, 6.95, 1.5708, 8.14, 5.95, 1.5708])
+        self.declare_parameter("navigation.deposition_candidates", [8.14, 6.40, 1.5708])
         # Dumps go through the candidates once, then keep using the last one, so a later approach
         # never drives over an earlier pile
         self.declare_parameter("navigation.deposition_repeat_last", True)
