@@ -81,9 +81,10 @@ def _bottleneck(dist, start, goal):
 
 
 def widest_route(grid, start_xy, goal_xy, min_clearance, spacing=1.5, end_gap=1.0):
-    """(waypoints, clearance): map-frame (x, y) points about `spacing` apart along the shortest of
-    the widest routes from start_xy to goal_xy, leaving out the last `end_gap` m before the goal,
-    and the clearance it keeps from lethal cells. ([], clearance) when it is under min_clearance."""
+    """(waypoints, clearance, path): map-frame (x, y) points about `spacing` apart along the
+    shortest of the widest routes from start_xy to goal_xy, leaving out the last `end_gap` m
+    before the goal; the clearance it keeps from lethal cells; and the whole route, cell by cell.
+    ([], clearance, []) when it is under min_clearance."""
     info = grid.info
     res, ox, oy = info.resolution, info.origin.position.x, info.origin.position.y
 
@@ -97,10 +98,10 @@ def widest_route(grid, start_xy, goal_xy, min_clearance, spacing=1.5, end_gap=1.
     dist[start], dist[goal] = max(dist[start], 1e3), max(dist[goal], 1e3)
     clearance = _bottleneck(dist, start, goal)
     if clearance < min_clearance:
-        return [], clearance
+        return [], clearance, []
     path = _search(dist, start, goal, clearance - 0.05)
     if not path:
-        return [], clearance
+        return [], clearance, []
     points = [(ox + (c + 0.5) * res, oy + (r + 0.5) * res) for r, c in path]
     waypoints, travelled, last = [], 0.0, points[0]
     for p in points[1:]:
@@ -109,4 +110,21 @@ def widest_route(grid, start_xy, goal_xy, min_clearance, spacing=1.5, end_gap=1.
         if travelled >= spacing and hypot(goal_xy[0] - p[0], goal_xy[1] - p[1]) > end_gap:
             waypoints.append(p)
             travelled = 0.0
-    return waypoints, clearance
+    return waypoints, clearance, points
+
+
+def path_clearance(grid, points, step=0.05):
+    """Smallest clearance from lethal cells along the polyline through map-frame (x, y) points."""
+    info = grid.info
+    dist = clearance_map(grid)
+    res, ox, oy = info.resolution, info.origin.position.x, info.origin.position.y
+    best = float("inf")
+    for (x0, y0), (x1, y1) in zip(points[:-1], points[1:]):
+        n = max(1, int(hypot(x1 - x0, y1 - y0) / step))
+        for k in range(n + 1):
+            x, y = x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n
+            r = min(max(int((y - oy) / res), 0), info.height - 1)
+            c = min(max(int((x - ox) / res), 0), info.width - 1)
+            best = min(best, float(dist[r, c]))
+    return best
+

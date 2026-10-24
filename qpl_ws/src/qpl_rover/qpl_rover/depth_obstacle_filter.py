@@ -728,12 +728,13 @@ class DepthObstacleFilter(Node):
             remembered = remembered[~ignore(remembered)]
 
         flat = np.concatenate([points[obstacle], remembered])
-        # Nothing under the rover itself: the cameras can't see there, so a remembered mark the
-        # rover has edged onto (a crater rim it grazed) was republished every frame, and with
-        # its footprint "in collision" Nav2 rejected every trajectory, spin and backup, and it
-        # never moved again. The marks stay in memory and come back once it has moved off.
+        # Nothing deep under the rover: the cameras can't see there, so a remembered mark the
+        # rover had edged well onto was republished every frame and Nav2 rejected every move.
+        # Not the whole footprint: grazing a boulder, the part under its corner then vanished
+        # from the costmap and DWB drove on into it (sim seed 7). Marks it only overlaps at the
+        # edges stay; nav_autonomy's unstick move gets it clear of those.
         in_base = (flat - base_pos) @ base_rot
-        flat = flat[~((np.abs(in_base[:, 0]) < self.self_filter_x) & (np.abs(in_base[:, 1]) < self.self_filter_y))]
+        flat = flat[~((np.abs(in_base[:, 0]) < self.self_filter_x - 0.2) & (np.abs(in_base[:, 1]) < self.self_filter_y - 0.2))]
         flat[:, 2] = sensor_pos[2]
         clear = points[clearing]
         clear[:, 2] = sensor_pos[2]

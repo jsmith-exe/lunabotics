@@ -16,7 +16,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
 from qpl_autonomy.nav.costmap_check import footprint_lethal_cells
-from qpl_autonomy.nav.route import widest_route
+from qpl_autonomy.nav.route import path_clearance, widest_route
 from qpl_autonomy.nav.nav_excavation import NavExcavationSequence
 from qpl_autonomy.nav.nav_deposition import NavDepositionSequence
 from qpl_autonomy.navigation import Navigation
@@ -230,6 +230,7 @@ class NavAutonomyNode(Node):
         self.route_min_clearance_m = self.get_parameter("navigation.route_min_clearance_m").value
         self.route_spacing_m = self.get_parameter("navigation.route_waypoint_spacing_m").value
         self.route = []  # map-frame (x, y) waypoints still to pass on this leg
+        self.route_path = []  # the route cell by cell, to check it's still clear
         self.route_checked_s = 0.0  # monotonic time the route was last recomputed
         # The planner (Smac lattice) checks the start pose at its nearest primitive heading, so a
         # rover clear at its own heading can still be "in lethal space" for it. Its headings, from
@@ -452,7 +453,7 @@ class NavAutonomyNode(Node):
         self.state = f"NAVIGATING_TO_{target}"
         self.nav_retries = 0
         self.unstick = None
-        self.route = []
+        self.route, self.route_path = [], []
         self.retargets = 0
         self.blocked_candidates = set()
         self.target_index, _ = self.choose_candidate(target)
@@ -661,11 +662,19 @@ class NavAutonomyNode(Node):
             # close, and following it the rover got wedged. Recompute from here and switch if the
             # way round has moved.
             old = self.route
-            self.plan_route(target, quiet=True)
-            if self.route and hypot(self.route[0][0] - old[0][0], self.route[0][1] - old[0][1]) <= 0.5:
-                self.route = old  # much the same: keep the waypoint Nav2 is driving to
+            # Keep the current route while it's still wide enough, unless a new one is clearly
+            # wider: two similar routes swapped every refresh and the rover dithered between them
+            # (along the part still ahead, up to the last waypoint: the ends can be close to
+            # obstacles, a dig spot by a boulder)
+            current = self.route_ahead_clearance(old[-1])
+            old_path = self.route_path
+            new_clearance = self.plan_route(target, quiet=True)
+            if (self.route and (hypot(self.route[0][0] - old[0][0], self.route[0][1] - old[0][1]) <= 0.5
+                                or (current >= self.route_min_clearance_m and new_clearance < current + 0.1))):
+                self.route, self.route_path = old, old_path  # keep the waypoint Nav2 is driving to
             else:
-                self.report("The widest way round has changed; following the new one.")
+                self.report(f"The widest way round has changed ({current:.2f} m clear ahead on the old one, "
+                            f"{new_clearance:.2f} m on the new one); following the new one.")
                 self.navigation.cancel()
                 self.send_navigation_goal(target)
                 return
@@ -782,14 +791,24 @@ class NavAutonomyNode(Node):
         # The widest way round to the candidate, as waypoints for the rest of this leg
         self.route_checked_s = time.monotonic()
         if self.global_costmap is None or self.map_x is None:
-            return
+            return 0.0
         x, y, _ = self.candidates[target][self.target_index]
-        waypoints, clearance = widest_route(self.global_costmap, (self.map_x, self.map_y), (x, y),
-                                            self.route_min_clearance_m, self.route_spacing_m)
-        self.route = waypoints
+        waypoints, clearance, path = widest_route(self.global_costmap, (self.map_x, self.map_y), (x, y),
+                                                  self.route_min_clearance_m, self.route_spacing_m)
+        self.route, self.route_path = waypoints, path
         if waypoints and not quiet:
             self.report(f"Taking the widest way round: {len(waypoints)} waypoints, {clearance:.2f} m clear of "
                         "obstacles.")
+        return clearance
+
+    def route_ahead_clearance(self, last_waypoint):
+        # Clearance along the stored route from its point nearest the rover to its last waypoint
+        path = self.route_path
+        if len(path) < 2:
+            return float("inf")
+        near = min(range(len(path)), key=lambda i: hypot(path[i][0] - self.map_x, path[i][1] - self.map_y))
+        end = min(range(len(path)), key=lambda i: hypot(path[i][0] - last_waypoint[0], path[i][1] - last_waypoint[1]))
+        return path_clearance(self.global_costmap, path[near:end + 1]) if end > near else float("inf")
 
     def start_unstick(self, why="before retrying"):
         # Get to a pose the planner can start from: first a small turn on the spot onto the

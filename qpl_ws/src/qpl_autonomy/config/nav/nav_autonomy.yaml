@@ -93,9 +93,9 @@ nav_autonomy:
     # route_min_clearance_m from lethal cells (the centre; the body is 0.53 m wide each side),
     # otherwise straight to the candidate.
     # The route is always the widest available; this is only how narrow it may be before going
-    # straight to the candidate instead. 0.8 (the corners) left no route at all in a cluster, and
-    # going straight was worse than the 0.7 m way round.
-    navigation.route_min_clearance_m: 0.6
+    # straight to the candidate instead: just over the body's 0.53 m half-width, as going straight
+    # (the planner's shortest way) was worse than any route that fits.
+    navigation.route_min_clearance_m: 0.55
     navigation.route_waypoint_spacing_m: 1.0
     navigation.travel_lift_position_m: 0.218 # Bucket held here while navigating, so it doesn't plough the regolith
     # The dig/dump starts once within this of the waypoint, whatever the heading (the drum is
