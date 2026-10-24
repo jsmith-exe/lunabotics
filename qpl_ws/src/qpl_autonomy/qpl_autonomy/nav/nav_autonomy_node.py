@@ -2,6 +2,7 @@ import json
 import time
 from math import atan2, cos, hypot, pi, sin
 
+import numpy as np
 import rclpy
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
@@ -15,6 +16,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64, String
 
 from qpl_autonomy.nav.costmap_check import footprint_lethal_cells
+from qpl_autonomy.nav.route import widest_route
 from qpl_autonomy.nav.nav_excavation import NavExcavationSequence
 from qpl_autonomy.nav.nav_deposition import NavDepositionSequence
 from qpl_autonomy.navigation import Navigation
@@ -26,6 +28,8 @@ CLOCK_GRACE_S = 5.0
 DRIVE_STEP_M = 0.05
 # How often the current candidate is re-checked against the costmap while driving to it
 TARGET_CHECK_PERIOD_S = 1.0
+# How often the widest way round is recomputed while following it
+ROUTE_REFRESH_S = 3.0
 # Clearance round the footprint (at the planner's heading) for a pose to count as unstuck
 UNSTICK_MARGIN_M = 0.05
 
@@ -183,6 +187,8 @@ class NavAutonomyNode(Node):
         self.declare_parameter("relocalise.heading_tolerance_rad", 0.15)
         self.declare_parameter("relocalise.timeout_s", 40.0)
         self.declare_parameter("relocalise.rear_camera_max_range_m", 2.5)
+        self.declare_parameter("relocalise.turn_clearance_m", 1.25)
+        self.relocalise_turn_clearance_m = self.get_parameter("relocalise.turn_clearance_m").value
         self.declare_parameter("relocalise.max_range_m", 4.0)
         self.declare_parameter("relocalise.min_angle_from_wall_rad", 0.35)
         self.relocalise_enabled = self.get_parameter("relocalise.enabled").value
@@ -216,6 +222,15 @@ class NavAutonomyNode(Node):
         self.unstick_m = self.get_parameter("navigation.unstick_m").value
         self.unstick_speed = self.get_parameter("navigation.unstick_speed").value
         self.unstick = None  # dict: kind "turn" (to yaw) or "drive" (direction, distance), start pose and time
+        # Each leg (and each retry, from where the rover is) goes via waypoints along the widest way
+        # round in the global costmap (qpl_autonomy/nav/route.py), not the planner's shortest way
+        # that fits, which in a cluster of craters was often a gap the rover then grazed or stuck in
+        self.declare_parameter("navigation.route_min_clearance_m", 0.6)
+        self.declare_parameter("navigation.route_waypoint_spacing_m", 1.5)
+        self.route_min_clearance_m = self.get_parameter("navigation.route_min_clearance_m").value
+        self.route_spacing_m = self.get_parameter("navigation.route_waypoint_spacing_m").value
+        self.route = []  # map-frame (x, y) waypoints still to pass on this leg
+        self.route_checked_s = 0.0  # monotonic time the route was last recomputed
         # The planner (Smac lattice) checks the start pose at its nearest primitive heading, so a
         # rover clear at its own heading can still be "in lethal space" for it. Its headings, from
         # the same primitives file as qpl_rover/config/nav_params.yaml.
@@ -437,6 +452,7 @@ class NavAutonomyNode(Node):
         self.state = f"NAVIGATING_TO_{target}"
         self.nav_retries = 0
         self.unstick = None
+        self.route = []
         self.retargets = 0
         self.blocked_candidates = set()
         self.target_index, _ = self.choose_candidate(target)
@@ -447,6 +463,7 @@ class NavAutonomyNode(Node):
         self.approach_stage = (target == "DEPOSITION" and self.deposition_approach_m > 0 and
                                (self.map_x is None or hypot(x - self.map_x, y - self.map_y) > self.deposition_approach_m + 0.3))
         self.last_target_check_s = time.monotonic()
+        self.plan_route(target)
         # Starting with the footprint on a lethal cell (the map pose moved under a remembered mark
         # when re-localising, or a mark grew as it was seen closer), the planner can't start
         if (self.global_costmap is not None and self.map_x is not None and self.map_yaw is not None
@@ -462,6 +479,15 @@ class NavAutonomyNode(Node):
             self.goal_pending = True
             return
         self.goal_pending = False
+        if self.route:
+            # Facing on along the route (the next waypoint, or the candidate), so no turn at this one
+            x, y = self.route[0]
+            nx, ny = self.route[1] if len(self.route) > 1 else self.candidates[target][self.target_index][:2]
+            yaw = atan2(ny - y, nx - x)
+            self.report(f"Navigating via waypoint ({x:.2f}, {y:.2f}), {len(self.route)} left to "
+                        f"{target.lower()} candidate {self.target_index + 1}.")
+            self.navigation.navigate_to(x, y, yaw)
+            return
         x, y, yaw = self.target_pose(target)
         if self.map_x is not None and not (target == "DEPOSITION" and self.approach_stage):
             # Heading doesn't matter for digging or dumping (the drum is under the middle): arrive
@@ -630,6 +656,27 @@ class NavAutonomyNode(Node):
             self.send_navigation_goal(target)
             return
         self.navigation.update()
+        if self.route and time.monotonic() - self.route_checked_s >= ROUTE_REFRESH_S:
+            # Obstacles keep appearing as the cameras get closer: a gap the route went through can
+            # close, and following it the rover got wedged. Recompute from here and switch if the
+            # way round has moved.
+            old = self.route
+            self.plan_route(target, quiet=True)
+            if self.route and hypot(self.route[0][0] - old[0][0], self.route[0][1] - old[0][1]) <= 0.5:
+                self.route = old  # much the same: keep the waypoint Nav2 is driving to
+            else:
+                self.report("The widest way round has changed; following the new one.")
+                self.navigation.cancel()
+                self.send_navigation_goal(target)
+                return
+        if self.route and self.map_x is not None:
+            # Passing a waypoint (or Nav2 reaching it): on to the next, or the candidate itself
+            x, y = self.route[0]
+            if hypot(x - self.map_x, y - self.map_y) <= 0.6 or (self.navigation.done and self.navigation.succeeded):
+                self.route.pop(0)
+                self.navigation.cancel()
+                self.send_navigation_goal(target)
+                return
         if self.check_target(target):
             return
 
@@ -683,6 +730,7 @@ class NavAutonomyNode(Node):
                     self.report(f"Couldn't reach dig spot {self.target_index + 1}. Trying dig spot {index + 1}.", "warning")
                     self.target_index = index
                     self.best_error = None
+            self.plan_route(target)
             if not self.start_unstick():
                 self.send_navigation_goal(target)
         else:
@@ -691,6 +739,19 @@ class NavAutonomyNode(Node):
             self.state = "IDLE"
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
                         "State: IDLE", "error", "FAILED")
+
+    def nearest_lethal_m(self):
+        # Distance from the rover's centre to the nearest lethal cell in the global costmap, or None
+        if self.global_costmap is None or self.map_x is None:
+            return None
+        info = self.global_costmap.info
+        cells = np.array(self.global_costmap.data, dtype=np.int16).reshape(info.height, info.width)
+        rows, cols = np.nonzero(cells == 100)
+        if len(rows) == 0:
+            return None
+        xs = info.origin.position.x + (cols + 0.5) * info.resolution
+        ys = info.origin.position.y + (rows + 0.5) * info.resolution
+        return float(np.min(np.hypot(xs - self.map_x, ys - self.map_y)))
 
     def move_blocked(self, forward=0.0, turn=0.0):
         # For the moves this node drives itself (re-localising turn, back-out, unstick): would
@@ -716,6 +777,19 @@ class NavAutonomyNode(Node):
         # heading, with a little margin for the map pose moving
         return footprint_lethal_cells(self.global_costmap, x, y, self.planner_heading(yaw), self.footprint_half_length_m,
                                       self.footprint_half_width_m, UNSTICK_MARGIN_M) > 0
+
+    def plan_route(self, target, quiet=False):
+        # The widest way round to the candidate, as waypoints for the rest of this leg
+        self.route_checked_s = time.monotonic()
+        if self.global_costmap is None or self.map_x is None:
+            return
+        x, y, _ = self.candidates[target][self.target_index]
+        waypoints, clearance = widest_route(self.global_costmap, (self.map_x, self.map_y), (x, y),
+                                            self.route_min_clearance_m, self.route_spacing_m)
+        self.route = waypoints
+        if waypoints and not quiet:
+            self.report(f"Taking the widest way round: {len(waypoints)} waypoints, {clearance:.2f} m clear of "
+                        "obstacles.")
 
     def start_unstick(self, why="before retrying"):
         # Get to a pose the planner can start from: first a small turn on the spot onto the
@@ -819,6 +893,12 @@ class NavAutonomyNode(Node):
         if hypot(dx, dy) > self.relocalise_max_range_m or atan2(dy, abs(dx)) < self.relocalise_min_angle:
             self.report(f"Not re-localising here: the AprilTag is {hypot(dx, dy):.1f} m away at "
                         f"{atan2(dy, abs(dx)) * 180.0 / pi:.0f} deg to its wall, too far or oblique to detect.")
+            self.start_navigation("DEPOSITION")
+            return
+        nearest = self.nearest_lethal_m()
+        if nearest is not None and nearest < self.relocalise_turn_clearance_m:
+            self.report(f"Not turning to the AprilTag to re-localise: an obstacle is {nearest:.1f} m away, and "
+                        "turning on the spot the rover can slide into it.")
             self.start_navigation("DEPOSITION")
             return
         self.state = "RELOCALISING"

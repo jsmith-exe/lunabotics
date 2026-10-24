@@ -87,6 +87,16 @@ nav_autonomy:
     # move and its own recoveries refuse to move, so a plain retry fails at once.
     navigation.unstick_m: 0.4
     navigation.unstick_speed: 0.08 # m/s
+    # Each leg (and each retry) goes via waypoints this far apart along the widest way round in the
+    # global costmap (the planner takes the shortest way that fits, which in a cluster of craters
+    # was often a gap the rover grazed or stuck in). Only when the route keeps at least
+    # route_min_clearance_m from lethal cells (the centre; the body is 0.53 m wide each side),
+    # otherwise straight to the candidate.
+    # The route is always the widest available; this is only how narrow it may be before going
+    # straight to the candidate instead. 0.8 (the corners) left no route at all in a cluster, and
+    # going straight was worse than the 0.7 m way round.
+    navigation.route_min_clearance_m: 0.6
+    navigation.route_waypoint_spacing_m: 1.0
     navigation.travel_lift_position_m: 0.218 # Bucket held here while navigating, so it doesn't plough the regolith
     # The dig/dump starts once within this of the waypoint, whatever the heading (the drum is
     # under the middle of the rover). A small buffer so the rover doesn't keep shuffling.
@@ -119,6 +129,10 @@ nav_autonomy:
     # sim the front camera got ~1 fix/s out to 5 m at any angle to the tag; the rear one none past
     # 2.5-3 m, or 2 m at 30 deg to the wall. Check both at the practice run.
     relocalise.rear_camera_max_range_m: 2.5
+    # Only turned when nothing lethal is within this of the rover: the corners sweep 0.82 m, and
+    # turning on the spot by a boulder after a dig the sim rover slid 0.45 m into it (the EKF
+    # didn't see the slide, so the per-step check couldn't stop it)
+    relocalise.turn_clearance_m: 1.25
 
     # LOCALISATION
     # NAV_EXCAVATE / NAV_DEPOSIT / AUTO are refused unless the rover is localised: an AprilTag
