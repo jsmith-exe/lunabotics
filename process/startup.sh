@@ -26,7 +26,7 @@ startup() {
 silent() {
     "$@" >/dev/null 2>/dev/null
 }
-alias s=silent
+alias s='silent '
 
 if [ -z "${QPL_PROJECT:-}" ]; then
   echo "ERROR: QPL_PROJECT is not set. Export it in bashrc."
