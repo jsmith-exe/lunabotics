@@ -1,6 +1,6 @@
 import json
 import time
-from math import atan2, hypot, pi
+from math import atan2, cos, hypot, pi, sin
 
 import rclpy
 from rclpy.clock import Clock, ClockType
@@ -86,10 +86,12 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.excavation_candidates",
                                [7.8, 1.5, 1.5708, 6.2, 1.5, 1.5708, 4.6, 1.5, 1.5708, 1.4, 1.5, 1.5708, 3.0, 1.5, 1.5708,
                                 7.8, 2.4, 1.5708, 6.2, 2.4, 1.5708, 4.6, 2.4, 1.5708, 1.4, 2.4, 1.5708, 3.0, 2.4, 1.5708])
-        self.declare_parameter("navigation.deposition_candidates", [8.14, 6.40, 1.5708])
+        self.declare_parameter("navigation.deposition_candidates", [8.0, 6.40, 1.5708])
         # Dumps go through the candidates once, then keep using the last one, so a later approach
         # never drives over an earlier pile
         self.declare_parameter("navigation.deposition_repeat_last", True)
+        self.declare_parameter("navigation.deposition_approach_m", 1.5)
+        self.deposition_approach_m = self.get_parameter("navigation.deposition_approach_m").value
         self.deposition_repeat_last = self.get_parameter("navigation.deposition_repeat_last").value
         # Footprint (half sizes, as nav_params.yaml) plus a margin, checked for lethal cells
         self.declare_parameter("navigation.footprint_half_length_m", 0.62)
@@ -127,6 +129,8 @@ class NavAutonomyNode(Node):
         # Next candidate to try per zone, the current leg's candidate, and those found blocked on it
         self.next_candidate = {"EXCAVATION": 0, "DEPOSITION": 0}
         self.target_index = None
+        self.goal_yaw = None  # yaw sent to Nav2 for the current leg
+        self.approach_stage = False  # driving to the point before the dump spot
         self.blocked_candidates = set()
         self.retargets = 0
         self.last_target_check_s = 0.0
@@ -148,6 +152,10 @@ class NavAutonomyNode(Node):
         self.max_drive_since_fix_m = self.get_parameter("localisation.max_drive_since_fix_m").value
         self.max_fix_disagreement_m = self.get_parameter("localisation.max_fix_disagreement_m").value
         self.tag_fix = None  # (map x, map y, monotonic time)
+        # Driving since the last autonomy run that started localised (None: no such run yet).
+        # A run's EKF pose is still good for the next command unless the rover was driven by
+        # hand, so NAV_EXCAVATE then NAV_DEPOSIT isn't refused for an old tag fix.
+        self.drive_since_run = None
         self.drive_since_fix = 0.0
         self.drive_anchor = None  # local-EKF (x, y) the drive distance was last measured from
 
@@ -257,6 +265,8 @@ class NavAutonomyNode(Node):
         step = hypot(p.x - self.drive_anchor[0], p.y - self.drive_anchor[1])
         if step >= DRIVE_STEP_M:
             self.drive_since_fix += step
+            if self.drive_since_run is not None and self.state == "IDLE":
+                self.drive_since_run += step
             self.drive_anchor = (p.x, p.y)
 
     def costmap_callback(self, msg):
@@ -269,6 +279,8 @@ class NavAutonomyNode(Node):
         fix_x, fix_y, fix_time = self.tag_fix
         age = time.monotonic() - fix_time
         drive = self.drive_since_fix
+        if self.drive_since_run is not None and self.drive_since_run <= self.max_drive_since_fix_m:
+            return True, "", age, drive
         if age > self.max_fix_age_s:
             return False, f"last AprilTag fix was {age:.0f} s ago", age, drive
         if drive > self.max_drive_since_fix_m:
@@ -329,6 +341,7 @@ class NavAutonomyNode(Node):
             if not localised:
                 self.report(f"Not starting {command}: not localised ({reason}).", "error", "REFUSED")
                 return False
+            self.drive_since_run = 0.0
         return True
 
     def handle_navigate(self, target):
@@ -360,6 +373,12 @@ class NavAutonomyNode(Node):
         self.blocked_candidates = set()
         self.target_index, _ = self.choose_candidate(target)
         self.best_error = None
+        # Dumps go via a point deposition_approach_m short of the dump spot, on its heading, so the
+        # rover arrives lined up instead of swinging round by the wall (its corners hit the east wall)
+        x, y, _ = self.candidates[target][self.target_index]
+        self.approach_stage = (target == "DEPOSITION" and self.deposition_approach_m > 0 and
+                               (self.map_x is None or hypot(x - self.map_x, y - self.map_y) > self.deposition_approach_m + 0.3))
+        self.goal_yaw = self.target_pose(target)[2]
         self.last_target_check_s = time.monotonic()
         self.send_navigation_goal(target)
 
@@ -371,6 +390,15 @@ class NavAutonomyNode(Node):
             return
         self.goal_pending = False
         x, y, yaw = self.target_pose(target)
+        if target == "EXCAVATION" and self.map_x is not None:
+            # Heading doesn't matter for digging: arrive facing the way the rover drives there (or
+            # as it is, when already close), so there's no turn on the spot at the goal. It orbited
+            # goals it had to turn round at.
+            if hypot(x - self.map_x, y - self.map_y) > 0.3:
+                yaw = atan2(y - self.map_y, x - self.map_x)
+            elif self.map_yaw is not None:
+                yaw = self.map_yaw
+        self.goal_yaw = yaw
         self.report(
             f"Navigating to {target.lower()} candidate {self.target_index + 1}/{len(self.candidates[target])} "
             f"({x:.2f}, {y:.2f}, yaw {yaw:.2f}).")
@@ -378,7 +406,22 @@ class NavAutonomyNode(Node):
 
     """Candidates"""
     def target_pose(self, target):
-        return self.candidates[target][self.target_index]
+        x, y, yaw = self.candidates[target][self.target_index]
+        if target == "DEPOSITION" and self.approach_stage:
+            d = self.deposition_approach_m
+            return x - d * cos(yaw), y - d * sin(yaw), yaw
+        return x, y, yaw
+
+    def leg_arrived(self, target):
+        # At the berm approach point: drive straight on to the dump spot. Otherwise start digging/dumping.
+        if target == "DEPOSITION" and self.approach_stage:
+            self.approach_stage = False
+            self.best_error = None
+            self.navigation.cancel()
+            self.report("At the berm approach point. Driving straight on to the dump spot.")
+            self.send_navigation_goal(target)
+            return
+        self.start_sequence(target)
 
     def candidate_order(self, target):
         # Indexes to try, starting from the next unused one. Dumps stay on the last candidate
@@ -514,7 +557,7 @@ class NavAutonomyNode(Node):
             self.report(
                 f"Within {error[0]:.2f} m and {error[1]:.2f} rad of {target.lower()} candidate "
                 f"{self.target_index + 1}. Starting here.")
-            self.start_sequence(target)
+            self.leg_arrived(target)
             return
 
         # Close but no longer getting closer: Nav2 is shuffling near the goal, so start here
@@ -527,7 +570,7 @@ class NavAutonomyNode(Node):
                 self.report(
                     f"No closer than {error[0]:.2f} m to {target.lower()} candidate {self.target_index + 1} "
                     f"for {self.stall_time_s:.0f} s. Starting here.")
-                self.start_sequence(target)
+                self.leg_arrived(target)
                 return
 
         if not self.navigation.done:
@@ -540,7 +583,7 @@ class NavAutonomyNode(Node):
                     f"({error[0]:.2f} m, {error[1]:.2f} rad off).")
             else:
                 self.report(f"Reached {target.lower()} candidate {self.target_index + 1}.")
-            self.start_sequence(target)
+            self.leg_arrived(target)
             return
 
         self.nav_retries += 1
@@ -555,11 +598,12 @@ class NavAutonomyNode(Node):
                         "State: IDLE", "error", "FAILED")
 
     def waypoint_error(self, target):
-        # (distance, absolute heading error) from the current candidate, or None without a map pose
+        # (distance, absolute heading error) from the current candidate, or None without a map pose.
+        # Any heading will do for digging, so its heading error is 0.
         if self.map_x is None or self.map_y is None or self.map_yaw is None:
             return None
-        x, y, yaw = self.target_pose(target)
-        yaw_error = abs((self.map_yaw - yaw + pi) % (2.0 * pi) - pi)
+        x, y, _ = self.target_pose(target)
+        yaw_error = 0.0 if target == "EXCAVATION" else abs((self.map_yaw - self.goal_yaw + pi) % (2.0 * pi) - pi)
         return hypot(self.map_x - x, self.map_y - y), yaw_error
 
     def start_sequence(self, target):

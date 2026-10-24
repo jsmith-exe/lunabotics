@@ -64,7 +64,7 @@
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30
-    grow_radius_m: 0.05
+    grow_radius_m: 0.10    # 0.05 left wheels over crater edges in the sim
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
@@ -109,7 +109,7 @@
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30
-    grow_radius_m: 0.05
+    grow_radius_m: 0.10    # 0.05 left wheels over crater edges in the sim
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
