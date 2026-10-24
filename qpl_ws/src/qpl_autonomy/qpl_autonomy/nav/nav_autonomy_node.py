@@ -195,6 +195,9 @@ class NavAutonomyNode(Node):
         self.relocalise_max_range_m = self.get_parameter("relocalise.max_range_m").value
         self.relocalise_min_angle = self.get_parameter("relocalise.min_angle_from_wall_rad").value
         self.relocalise_start = None  # (monotonic start, tag fix time before, EKF x, EKF y)
+        self.declare_parameter("relocalise.min_fixes", 5)
+        self.relocalise_min_fixes = self.get_parameter("relocalise.min_fixes").value
+        self.relocalise_fixes = 0  # fixes seen while re-localising
 
         # Leaving the berm (AUTO): after a dump, reverse back the way the rover drove in (along
         # the dump spot's heading) before heading for the next dig spot. It faces north by the east wall there, and in
@@ -318,6 +321,8 @@ class NavAutonomyNode(Node):
         p = msg.pose.pose.position
         self.tag_fix = (p.x, p.y, time.monotonic())
         self.drive_since_fix = 0.0
+        if self.state == "RELOCALISING":
+            self.relocalise_fixes += 1
 
     def local_pose_callback(self, msg):
         p = msg.pose.pose.position
@@ -754,10 +759,9 @@ class NavAutonomyNode(Node):
         if self.back_out_m <= 0.0 or self.map_x is None or self.map_yaw is None:
             self.start_navigation("EXCAVATION")
             return
-        # Back out along the dump spot's heading (the way the rover came in from the approach
-        # point), straightening up to it on the way. Lethal cells where the footprint ends up, so
-        # it doesn't reverse into anything
-        yaw = self.candidates["DEPOSITION"][self.target_index][2]
+        # Straight back the way the rover drove in, holding its heading. Lethal cells where the
+        # footprint ends up, so it doesn't reverse into anything
+        yaw = self.map_yaw
         bx = self.map_x - self.back_out_m * cos(yaw)
         by = self.map_y - self.back_out_m * sin(yaw)
         if self.global_costmap is not None and footprint_lethal_cells(
@@ -805,6 +809,7 @@ class NavAutonomyNode(Node):
             self.start_navigation("DEPOSITION")
             return
         self.state = "RELOCALISING"
+        self.relocalise_fixes = 0
         self.relocalise_start = (time.monotonic(), None if self.tag_fix is None else self.tag_fix[2],
                                  self.map_x, self.map_y)
         fix = "no AprilTag fix yet" if age is None else f"last AprilTag fix {age:.0f} s ago"
@@ -823,7 +828,10 @@ class NavAutonomyNode(Node):
         start_s, fix_before, x0, y0 = self.relocalise_start
         elapsed = time.monotonic() - start_s
         fresh = self.tag_fix is not None and self.tag_fix[2] != fix_before
-        if fresh and hypot(self.map_x - self.tag_fix[0], self.map_y - self.tag_fix[1]) <= self.max_fix_disagreement_m:
+        # Several fixes standing still, so the EKF averages out their noise (a single one from
+        # ~4 m was up to 0.3 m out in the sim), then the EKF agreeing with the latest
+        if (self.relocalise_fixes >= self.relocalise_min_fixes
+                and hypot(self.map_x - self.tag_fix[0], self.map_y - self.tag_fix[1]) <= self.max_fix_disagreement_m):
             self.cmd_vel_pub.publish(Twist())
             self.report(f"Re-localised: the map pose moved {hypot(self.map_x - x0, self.map_y - y0):.2f} m.")
             self.start_navigation("DEPOSITION")
