@@ -64,6 +64,10 @@
     shadow_max_gap: 0.7
     shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
     shadow_fill_step: 0.05
+    # The foot of a wall reads as a strip of bumps. Boulder/crater detections in clusters longer
+    # than this (rulebook boulders are at most 0.4 m across, craters 0.5 m) are dropped: grown,
+    # remembered and smeared by pose drift, they built a metre-wide strip down the walls.
+    max_detection_extent_m: 0.8
     memory_cell: 0.05
     memory_frame: map         # odom drifts; map is corrected by the AprilTag
     memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
@@ -118,6 +122,10 @@
     shadow_max_gap: 0.7
     shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
     shadow_fill_step: 0.05
+    # The foot of a wall reads as a strip of bumps. Boulder/crater detections in clusters longer
+    # than this (rulebook boulders are at most 0.4 m across, craters 0.5 m) are dropped: grown,
+    # remembered and smeared by pose drift, they built a metre-wide strip down the walls.
+    max_detection_extent_m: 0.8
     memory_cell: 0.05
     memory_frame: map         # odom drifts; map is corrected by the AprilTag
     memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough

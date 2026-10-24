@@ -295,6 +295,35 @@ def load_zones(names):
     return [zones[n] for n in names]
 
 
+def long_clusters(xy, max_extent, cell=0.1):
+    """Mask of xy points in clusters (8-connected cells of `cell`) longer than max_extent along x
+    or y: walls, not boulders or craters, which the rulebook keeps under 0.5 m across."""
+    if len(xy) == 0:
+        return np.zeros(0, bool)
+    ij = np.floor(xy / cell).astype(np.int64)
+    cells, inverse = np.unique(ij, axis=0, return_inverse=True)
+    index = {tuple(c): k for k, c in enumerate(cells)}
+    label = np.full(len(cells), -1)
+    long = np.zeros(len(cells), bool)
+    for k in range(len(cells)):
+        if label[k] >= 0:
+            continue
+        label[k] = k
+        stack, members = [k], [k]
+        while stack:
+            i, j = cells[stack.pop()]
+            for di in (-1, 0, 1):
+                for dj in (-1, 0, 1):
+                    n = index.get((i + di, j + dj))
+                    if n is not None and label[n] < 0:
+                        label[n] = k
+                        stack.append(n)
+                        members.append(n)
+        span = (cells[members].max(axis=0) - cells[members].min(axis=0) + 1) * cell
+        long[members] = span.max() > max_extent
+    return long[inverse.ravel()]
+
+
 def classify(p, grid, sensor_pos, base_pos, base_rot, row_angle, ignored=None):
     """Split a levelled point grid into Nav2 clouds. p holds the node's
     parameters (attributes of the same names). Returns (points, clearing,
@@ -333,6 +362,12 @@ def classify(p, grid, sensor_pos, base_pos, base_rot, row_angle, ignored=None):
             p.local_cell, p.local_window, p.local_min_cells,
             p.min_bump_height, p.min_dip_depth, p.local_slope_per_m,
             p.min_cell_points)
+        # The foot of a wall reads as a long strip of bumps against the floor beside it. Grown
+        # and remembered, with the map pose drifting, those built a metre-wide strip down the
+        # walls in the sim that blocked the way to the berm, so clusters longer than any
+        # rulebook obstacle are dropped.
+        sub = flat_grid[near, :2]
+        flagged[flagged] &= ~long_clusters(sub[flagged], p.max_detection_extent_m)
         local[near] = flagged & ~obstacle[near]
         obstacle[near] |= flagged
         shape = grid.shape[:2]
@@ -340,6 +375,8 @@ def classify(p, grid, sensor_pos, base_pos, base_rot, row_angle, ignored=None):
             grid, rel.reshape(shape), sensor_pos, (clearing & ~ignored).reshape(shape), obstacle.reshape(shape),
             row_angle, p.shadow_max_range, p.shadow_min_gap, p.shadow_gap_ratio,
             p.shadow_max_gap, p.shadow_min_depth, p.shadow_fill_step)
+        if len(extra):
+            extra = extra[~long_clusters(extra[:, :2], p.max_detection_extent_m)]
 
     points = np.concatenate([flat_grid[clearing], extra])
     n = clearing.sum()
@@ -445,6 +482,8 @@ class DepthObstacleFilter(Node):
         self.shadow_max_gap = self.declare_parameter('shadow_max_gap', 0.7).value
         self.shadow_min_depth = self.declare_parameter('shadow_min_depth', 0.02).value
         self.shadow_fill_step = self.declare_parameter('shadow_fill_step', 0.05).value
+        # Boulder/crater detections in clusters longer than this are wall feet, see classify()
+        self.max_detection_extent_m = self.declare_parameter('max_detection_extent_m', 0.8).value
         self.memory = ObstacleMemory(
             self.declare_parameter('memory_cell', 0.05).value,
             self.declare_parameter('memory_duration', 60.0).value,

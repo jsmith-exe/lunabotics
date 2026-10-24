@@ -201,7 +201,7 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.unstick_speed", 0.08)
         self.unstick_m = self.get_parameter("navigation.unstick_m").value
         self.unstick_speed = self.get_parameter("navigation.unstick_speed").value
-        self.unstick = None  # (monotonic start, EKF x, EKF y, +1 forwards / -1 backwards)
+        self.unstick = None  # (monotonic start, EKF x, EKF y, +1 forwards / -1 backwards, distance)
 
         # Top-level autonomy state
         self.state = "IDLE"
@@ -424,6 +424,12 @@ class NavAutonomyNode(Node):
         self.approach_stage = (target == "DEPOSITION" and self.deposition_approach_m > 0 and
                                (self.map_x is None or hypot(x - self.map_x, y - self.map_y) > self.deposition_approach_m + 0.3))
         self.last_target_check_s = time.monotonic()
+        # Starting with the footprint on a lethal cell (the map pose moved under a remembered mark
+        # when re-localising, or a mark grew as it was seen closer), the planner can't start
+        if (self.global_costmap is not None and self.map_x is not None and self.map_yaw is not None
+                and self.footprint_blocked(self.map_x, self.map_y, self.map_yaw)
+                and self.start_unstick("before setting off")):
+            return
         self.send_navigation_goal(target)
 
     def send_navigation_goal(self, target):
@@ -663,27 +669,33 @@ class NavAutonomyNode(Node):
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
                         "State: IDLE", "error", "FAILED")
 
-    def start_unstick(self):
-        # Back (or, if that's blocked, forwards) unstick_m to a pose with no lethal cell under the
-        # footprint. False if there's no map pose or costmap, or neither way is clear.
+    def footprint_blocked(self, x, y, yaw):
+        return footprint_lethal_cells(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
+                                      self.footprint_half_width_m) > 0
+
+    def start_unstick(self, why="before retrying"):
+        # Back (or, if that's blocked, forwards) to the nearest of 1x, 1.75x and 2.5x unstick_m
+        # with no lethal cell under the footprint. False if there's no map pose or costmap, or
+        # nowhere is clear.
         if self.map_x is None or self.map_yaw is None or self.global_costmap is None or self.unstick_m <= 0.0:
             return False
-        for direction in (-1.0, 1.0):
-            x = self.map_x + direction * self.unstick_m * cos(self.map_yaw)
-            y = self.map_y + direction * self.unstick_m * sin(self.map_yaw)
-            if footprint_lethal_cells(self.global_costmap, x, y, self.map_yaw, self.footprint_half_length_m,
-                                      self.footprint_half_width_m) == 0:
-                self.navigation.cancel()
-                self.unstick = (time.monotonic(), self.map_x, self.map_y, direction)
-                self.report(f"Moving {self.unstick_m:.1f} m {'back' if direction < 0 else 'forwards'} "
-                            "to get clear before retrying.")
-                return True
+        for scale in (1.0, 1.75, 2.5):
+            distance = scale * self.unstick_m
+            for direction in (-1.0, 1.0):
+                x = self.map_x + direction * distance * cos(self.map_yaw)
+                y = self.map_y + direction * distance * sin(self.map_yaw)
+                if not self.footprint_blocked(x, y, self.map_yaw):
+                    self.navigation.cancel()
+                    self.unstick = (time.monotonic(), self.map_x, self.map_y, direction, distance)
+                    self.report(f"Moving {distance:.1f} m {'back' if direction < 0 else 'forwards'} "
+                                f"to get clear {why}.")
+                    return True
         return False
 
     def update_unstick(self, target):
-        start_s, x0, y0, direction = self.unstick
-        if (hypot(self.map_x - x0, self.map_y - y0) >= self.unstick_m
-                or time.monotonic() - start_s > 2.0 * self.unstick_m / self.unstick_speed):
+        start_s, x0, y0, direction, distance = self.unstick
+        if (hypot(self.map_x - x0, self.map_y - y0) >= distance
+                or time.monotonic() - start_s > 2.0 * distance / self.unstick_speed):
             self.cmd_vel_pub.publish(Twist())
             self.unstick = None
             self.send_navigation_goal(target)
