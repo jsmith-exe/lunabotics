@@ -66,11 +66,29 @@ controller_server:
       # TOLERANCE NOTE: If robot oscillates at the goal, increase these slightly.
       xy_goal_tolerance: 0.20 # Tighten slightly if precision is needed, match with DWB
       # 0.20 (~11 deg) kept the skid-steer shuffling on the goal trying to line up; 0.3
-      # (~17 deg) leaves a small buffer. nav_autonomy's arrival_yaw_tolerance_rad matches it.
+      # (~17 deg) leaves a small buffer. nav_autonomy ignores heading except at the berm
+      # approach point, and sends dig/dump goals facing the way the rover drives in.
       yaw_goal_tolerance: 0.3
 
+    # RotationShim turns on the spot towards the path (and at the end to the goal heading)
+    # and hands over to DWB once lined up. On its own DWB reversed for metres from an
+    # arbitrary start heading (after a 360 in teleop, or the sim spawn facing the tag), and
+    # crept round big heading changes at a few hundredths of a rad/s that the skid-steer
+    # doesn't turn at. It checks the rotation against the local costmap before turning.
     FollowPath:
-      plugin: "dwb_core::DWBLocalPlanner"
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "dwb_core::DWBLocalPlanner"
+      angular_dist_threshold: 0.785     # turn on the spot when the path is more than 45 deg off
+      angular_disengage_threshold: 0.3  # until within ~17 deg, then DWB
+      forward_sampling_distance: 0.5
+      rotate_to_heading_angular_vel: 0.4  # max_vel_theta
+      max_angular_accel: 0.8              # acc_lim_theta
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: true        # final heading turned on the spot, not shuffled to
+      # Ramp from the last command, not the measured rate: the skid-steer doesn't start turning
+      # at the first small step (0.08 rad/s), so closed loop never got past it and the rover
+      # sat still until a recovery spin.
+      closed_loop: false
       debug_trajectory_details: false
 
       ### VELOCITY LIMITS (Slowing it down) ##
@@ -274,6 +292,13 @@ global_costmap:
       height: 9
       resolution: 0.05
       footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
+      # NavFn plans the rover's centre against the inscribed radius (0.53 m), but turning, the
+      # corners sweep 0.82 m, so it planned through gaps the rover then stuck in (1.3 m between
+      # a crater and a boulder in the sim). Padding here (global costmap only, so DWB and goals
+      # by walls are unchanged) makes the inscribed radius 0.63 m: gaps under ~1.26 m are not
+      # planned through. The dump spot is 1.0 m and the dig spots 0.8 m from walls, so all
+      # stay reachable.
+      footprint_padding: 0.10
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true

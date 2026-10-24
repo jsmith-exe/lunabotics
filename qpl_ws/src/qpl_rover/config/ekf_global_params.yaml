@@ -22,7 +22,10 @@ common:
   base_link_frame: base_footprint
   world_frame: map
 
-  transform_time_offset: 0.0
+  # map -> odom is stamped this far ahead (AMCL does the same). The planner stamps paths with
+  # the current time, a few ms after the latest map -> odom, so lookups of path poses failed
+  # as extrapolation into the future; Nav2's RotationShim then never turned on the spot.
+  transform_time_offset: 0.1
   transform_timeout: 0.1
 
   # AprilTag poses carry the image timestamp, so they arrive lagged.
