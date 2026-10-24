@@ -17,7 +17,8 @@
 # behind its near rim is marked as well (crater_shadows() in the node).
 # Boulder/crater marks are remembered until seen again as plain floor (at most
 # memory_duration s) so Nav2's raytracing doesn't wipe them once they're too
-# close for the camera to see.
+# close for the camera to see, or out of sight. They are kept in the map frame,
+# so what a 360 in teleop maps before AUTO stays where it is for the whole run.
 #
 # The cameras see only the near face of a boulder, so detections are grown before
 # they are remembered: bumps away from the camera by up to grow_behind_m (rulebook
@@ -53,14 +54,20 @@
     min_dip_depth: 0.06
     local_slope_per_m: 0.01
     min_cell_points: 2        # flagged points needed in a cell, so lone noisy returns don't mark
-    shadow_max_range: 2.0     # past this a 6 deg downslope can hide floor too
+    # 2.0 / 4.0 found no crater past 2.0 m: there a flat floor's rows are already ~0.15 m apart,
+    # so a crater's 0.4 m gap was under 4x. 2.5 / 2.5 marks them out to ~2.4 m (replayed sim
+    # frames: rear camera at 2.0-2.5 m 0/20 -> 12/20, front unchanged). Further out, or a lower
+    # ratio, starts marking the downslopes behind terrain crests near the walls.
+    shadow_max_range: 2.5
     shadow_min_gap: 0.15
-    shadow_gap_ratio: 4.0     # x the row-to-row range step a flat floor would give
+    shadow_gap_ratio: 2.5     # x the row-to-row range step a flat floor would give
     shadow_max_gap: 0.7
     shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
     shadow_fill_step: 0.05
     memory_cell: 0.05
-    memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
+    memory_frame: map         # odom drifts; map is corrected by the AprilTag
+    memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
+                              # for a 360 in teleop to still count at the end of a run
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30
@@ -98,14 +105,20 @@
     min_dip_depth: 0.06
     local_slope_per_m: 0.01
     min_cell_points: 2        # flagged points needed in a cell, so lone noisy returns don't mark
-    shadow_max_range: 2.0     # past this a 6 deg downslope can hide floor too
+    # 2.0 / 4.0 found no crater past 2.0 m: there a flat floor's rows are already ~0.15 m apart,
+    # so a crater's 0.4 m gap was under 4x. 2.5 / 2.5 marks them out to ~2.4 m (replayed sim
+    # frames: rear camera at 2.0-2.5 m 0/20 -> 12/20, front unchanged). Further out, or a lower
+    # ratio, starts marking the downslopes behind terrain crests near the walls.
+    shadow_max_range: 2.5
     shadow_min_gap: 0.15
-    shadow_gap_ratio: 4.0     # x the row-to-row range step a flat floor would give
+    shadow_gap_ratio: 2.5     # x the row-to-row range step a flat floor would give
     shadow_max_gap: 0.7
     shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
     shadow_fill_step: 0.05
     memory_cell: 0.05
-    memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
+    memory_frame: map         # odom drifts; map is corrected by the AprilTag
+    memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
+                              # for a 360 in teleop to still count at the end of a run
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30

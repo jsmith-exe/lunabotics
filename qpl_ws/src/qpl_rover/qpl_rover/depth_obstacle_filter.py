@@ -350,8 +350,8 @@ class ObstacleMemory:
     (a level camera 0.35 m up sees no floor closer than ~0.85 m). A remembered
     cell is kept while it is out of sight, however long the rover waits there,
     and dropped once it is seen again as plain floor. `duration` seconds after
-    its last detection it is dropped anyway, so odometry drift can't leave
-    stale marks around for ever."""
+    its last detection it is dropped anyway, so localisation error can't leave
+    stale marks around for ever. The node keeps it in memory_frame (map)."""
 
     def __init__(self, cell, duration, floor_band, min_floor_points):
         self.cell, self.duration = cell, duration
@@ -439,6 +439,10 @@ class DepthObstacleFilter(Node):
             self.declare_parameter('memory_duration', 60.0).value,
             self.declare_parameter('memory_floor_band', 0.03).value,
             int(self.declare_parameter('memory_floor_points', 3).value))
+        # Remembered marks are kept in this frame. map, not the level frame (odom): odom drifts,
+        # so marks kept for minutes (a 360 in teleop maps the arena before AUTO) would end up
+        # beside the obstacles. Until map exists nothing is remembered.
+        self.memory_frame = self.declare_parameter('memory_frame', 'map').value
 
         # Growth of boulder/crater detections (see grow_detections()).
         self.grow_behind_m = self.declare_parameter('grow_behind_m', 0.30).value
@@ -487,6 +491,23 @@ class DepthObstacleFilter(Node):
             if abs((Time.from_msg(tf.header.stamp) - stamp).nanoseconds) > 1e8:
                 raise
             return tf
+
+    def remember(self, stamp, points, clearing, obstacle, local, rel):
+        """Update the obstacle memory with this frame's level-frame points; the remembered
+        marks back in the level frame ((0, 3) without a memory_frame transform yet)."""
+        if self.memory_frame == self.level_frame:
+            return self.memory.update(stamp.nanoseconds * 1e-9, points, clearing, obstacle, local, rel)
+        try:
+            # Latest, not at stamp: map -> odom only moves on a localisation correction
+            tf = self.tf_buffer.lookup_transform(self.memory_frame, self.level_frame, Time())
+        except tf2_ros.TransformException as e:
+            self.get_logger().warn(f'No {self.memory_frame} frame, so nothing is remembered: {e}',
+                                   throttle_duration_sec=10.0)
+            return np.empty((0, 3))
+        rot, pos = transform_parts(tf)
+        remembered = self.memory.update(stamp.nanoseconds * 1e-9, points @ rot.T + pos,
+                                        clearing, obstacle, local, rel)
+        return (remembered - pos) @ rot if len(remembered) else remembered
 
     def ignore_test(self, base_pos):
         """A function (N, 3) level-frame points -> mask of those inside an ignore zone and below
@@ -552,7 +573,7 @@ class DepthObstacleFilter(Node):
             dropped = ignore(points)
             obstacle &= ~dropped
             local &= ~dropped
-        remembered = self.memory.update(stamp.nanoseconds * 1e-9, points, clearing, obstacle, local, rel)
+        remembered = self.remember(stamp, points, clearing, obstacle, local, rel)
         if ignore and len(remembered):
             remembered = remembered[~ignore(remembered)]
 
