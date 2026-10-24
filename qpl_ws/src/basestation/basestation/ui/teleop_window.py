@@ -290,6 +290,8 @@ def nav_status(state: BaseStationState) -> tuple[str, str]:
     cycle = f", cycle {a['cycle']}" if a.get("cycle") else ""
     if a["state"].startswith("NAVIGATING_TO_"):
         return f"{a.get('mode') or 'NAV'}{cycle}: driving to {spot}", ""
+    if a["state"] == "RELOCALISING":
+        return f"{a.get('mode') or 'NAV'}{cycle}: re-localising, turning a camera to the AprilTag", ""
     if a["state"] in ("EXCAVATING", "DEPOSITING"):
         left = f" ({a['remaining_s']:.0f} s left)" if a.get("remaining_s") is not None else ""
         phase = NAV_PHASES.get(a.get("phase"), a["state"].lower())

@@ -92,6 +92,11 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.deposition_repeat_last", True)
         self.declare_parameter("navigation.deposition_approach_m", 1.5)
         self.deposition_approach_m = self.get_parameter("navigation.deposition_approach_m").value
+        # The approach point is only somewhere to pass through: any heading, and a looser radius.
+        # Held to the dump spot's yaw tolerance the rover orbited it by the east wall until the
+        # goal timed out.
+        self.declare_parameter("navigation.approach_radius_m", 0.4)
+        self.approach_radius_m = self.get_parameter("navigation.approach_radius_m").value
         self.deposition_repeat_last = self.get_parameter("navigation.deposition_repeat_last").value
         # Footprint (half sizes, as nav_params.yaml) plus a margin, checked for lethal cells
         self.declare_parameter("navigation.footprint_half_length_m", 0.62)
@@ -112,15 +117,13 @@ class NavAutonomyNode(Node):
         # still lining up. A small buffer so it doesn't keep shuffling to correct itself.
         self.declare_parameter("navigation.arrival_radius_m", 0.25)
         self.arrival_radius_m = self.get_parameter("navigation.arrival_radius_m").value
-        # Within stall_radius_m (and the yaw tolerance) but no 5 cm closer for stall_time_s: Nav2
+        # Within stall_radius_m but no 5 cm closer for stall_time_s: Nav2
         # is shuffling near the goal, so start there instead
         self.declare_parameter("navigation.stall_radius_m", 0.40)
         self.declare_parameter("navigation.stall_time_s", 10.0)
         self.stall_radius_m = self.get_parameter("navigation.stall_radius_m").value
         self.stall_time_s = self.get_parameter("navigation.stall_time_s").value
         self.best_error = None  # (closest distance this leg, time it was reached)
-        self.declare_parameter("navigation.arrival_yaw_tolerance_rad", 0.3)
-        self.arrival_yaw_tolerance_rad = self.get_parameter("navigation.arrival_yaw_tolerance_rad").value
 
         self.candidates = {
             "EXCAVATION": parse_poses(self.get_parameter("navigation.excavation_candidates").value),
@@ -129,7 +132,6 @@ class NavAutonomyNode(Node):
         # Next candidate to try per zone, the current leg's candidate, and those found blocked on it
         self.next_candidate = {"EXCAVATION": 0, "DEPOSITION": 0}
         self.target_index = None
-        self.goal_yaw = None  # yaw sent to Nav2 for the current leg
         self.approach_stage = False  # driving to the point before the dump spot
         self.blocked_candidates = set()
         self.retargets = 0
@@ -158,6 +160,26 @@ class NavAutonomyNode(Node):
         self.drive_since_run = None
         self.drive_since_fix = 0.0
         self.drive_anchor = None  # local-EKF (x, y) the drive distance was last measured from
+
+        # Re-localising in AUTO: after a dig, with no recent tag fix, turn on the spot until a
+        # camera faces the AprilTag and wait for a fix before driving to the berm. Turns on the
+        # spot and digging slip the skid-steer, and the berm is too far from the tag to correct
+        # it there: in the sim the map pose was 0.4-0.6 m out by the berm, enough to hit walls.
+        self.declare_parameter("relocalise.enabled", True)
+        self.declare_parameter("relocalise.tag_xy", [3.32, 0.02])  # qpl_rover/config/arena/<arena>.yaml
+        self.declare_parameter("relocalise.max_fix_age_s", 15.0)  # a fix newer than this is enough
+        self.declare_parameter("relocalise.turn_speed", 0.4)
+        self.declare_parameter("relocalise.heading_tolerance_rad", 0.15)
+        self.declare_parameter("relocalise.timeout_s", 40.0)
+        self.declare_parameter("relocalise.rear_camera_max_range_m", 2.5)
+        self.relocalise_enabled = self.get_parameter("relocalise.enabled").value
+        self.tag_xy = list(self.get_parameter("relocalise.tag_xy").value)
+        self.relocalise_max_fix_age_s = self.get_parameter("relocalise.max_fix_age_s").value
+        self.relocalise_turn_speed = self.get_parameter("relocalise.turn_speed").value
+        self.relocalise_tolerance = self.get_parameter("relocalise.heading_tolerance_rad").value
+        self.relocalise_timeout_s = self.get_parameter("relocalise.timeout_s").value
+        self.relocalise_rear_range_m = self.get_parameter("relocalise.rear_camera_max_range_m").value
+        self.relocalise_start = None  # (monotonic start, tag fix time before, EKF x, EKF y)
 
         # Top-level autonomy state
         self.state = "IDLE"
@@ -378,7 +400,6 @@ class NavAutonomyNode(Node):
         x, y, _ = self.candidates[target][self.target_index]
         self.approach_stage = (target == "DEPOSITION" and self.deposition_approach_m > 0 and
                                (self.map_x is None or hypot(x - self.map_x, y - self.map_y) > self.deposition_approach_m + 0.3))
-        self.goal_yaw = self.target_pose(target)[2]
         self.last_target_check_s = time.monotonic()
         self.send_navigation_goal(target)
 
@@ -390,15 +411,17 @@ class NavAutonomyNode(Node):
             return
         self.goal_pending = False
         x, y, yaw = self.target_pose(target)
-        if target == "EXCAVATION" and self.map_x is not None:
-            # Heading doesn't matter for digging: arrive facing the way the rover drives there (or
-            # as it is, when already close), so there's no turn on the spot at the goal. It orbited
-            # goals it had to turn round at.
+        if self.map_x is not None and not (target == "DEPOSITION" and self.approach_stage):
+            # Heading doesn't matter for digging or dumping (the drum is under the middle): arrive
+            # facing the way the rover drives there (or as it is, when already close), so there's no
+            # turn on the spot at the goal. It orbited goals it had to turn round at, and by the
+            # berm, with the map pose ~0.4 m out that far from the AprilTag, a turn to the dump
+            # spot's heading swept into the east wall and stalled until the goal timed out.
+            # Only the berm approach point keeps its heading, so the rover arrives lined up.
             if hypot(x - self.map_x, y - self.map_y) > 0.3:
                 yaw = atan2(y - self.map_y, x - self.map_x)
             elif self.map_yaw is not None:
                 yaw = self.map_yaw
-        self.goal_yaw = yaw
         self.report(
             f"Navigating to {target.lower()} candidate {self.target_index + 1}/{len(self.candidates[target])} "
             f"({x:.2f}, {y:.2f}, yaw {yaw:.2f}).")
@@ -504,6 +527,8 @@ class NavAutonomyNode(Node):
             # Nav2 keeps driving its goal unless it's cancelled
             self.navigation.cancel()
             self.cmd_vel_pub.publish(Twist())
+        elif self.state == "RELOCALISING":
+            self.cmd_vel_pub.publish(Twist())
 
         self.state = "IDLE"
         self.report(f"Nav autonomy stopped from {stopped_from}. State: IDLE", result="STOPPED")
@@ -520,10 +545,12 @@ class NavAutonomyNode(Node):
             if self.excavation.is_complete():
                 if self.auto_mode:
                     self.report("Excavation complete.")
-                    self.start_navigation("DEPOSITION")
+                    self.start_relocalising()
                 else:
                     self.state = "IDLE"
                     self.report("Excavation complete. State: IDLE", result="COMPLETE")
+        elif self.state == "RELOCALISING":
+            self.update_relocalising()
         elif self.state == "DEPOSITING":
             self.deposition.update(actuator_positions=actuator_positions, now_s=now_s)
             if self.deposition.is_complete():
@@ -548,27 +575,27 @@ class NavAutonomyNode(Node):
         if self.check_target(target):
             return
 
-        # Close enough and facing the right way counts, even if Nav2 is still lining up or
-        # has given up on the spot
+        # Close enough counts, even if Nav2 is still lining up or has given up on the spot
         error = self.waypoint_error(target)
-        if error is not None and error[0] <= self.arrival_radius_m and error[1] <= self.arrival_yaw_tolerance_rad and (
+        radius = self.approach_radius_m if target == "DEPOSITION" and self.approach_stage else self.arrival_radius_m
+        if error is not None and error <= radius and (
                 not self.navigation.done or not self.navigation.succeeded):
             self.navigation.cancel()
             self.report(
-                f"Within {error[0]:.2f} m and {error[1]:.2f} rad of {target.lower()} candidate "
+                f"Within {error:.2f} m of {target.lower()} candidate "
                 f"{self.target_index + 1}. Starting here.")
             self.leg_arrived(target)
             return
 
         # Close but no longer getting closer: Nav2 is shuffling near the goal, so start here
-        if error is not None and error[0] <= self.stall_radius_m and error[1] <= self.arrival_yaw_tolerance_rad:
+        if error is not None and error <= self.stall_radius_m:
             now_s = self.get_clock().now().nanoseconds / 1e9
-            if self.best_error is None or error[0] < self.best_error[0] - 0.05:
-                self.best_error = (error[0], now_s)
+            if self.best_error is None or error < self.best_error[0] - 0.05:
+                self.best_error = (error, now_s)
             elif now_s - self.best_error[1] >= self.stall_time_s:
                 self.navigation.cancel()
                 self.report(
-                    f"No closer than {error[0]:.2f} m to {target.lower()} candidate {self.target_index + 1} "
+                    f"No closer than {error:.2f} m to {target.lower()} candidate {self.target_index + 1} "
                     f"for {self.stall_time_s:.0f} s. Starting here.")
                 self.leg_arrived(target)
                 return
@@ -580,7 +607,7 @@ class NavAutonomyNode(Node):
             if error is not None:
                 self.report(
                     f"Reached {target.lower()} candidate {self.target_index + 1} "
-                    f"({error[0]:.2f} m, {error[1]:.2f} rad off).")
+                    f"({error:.2f} m off).")
             else:
                 self.report(f"Reached {target.lower()} candidate {self.target_index + 1}.")
             self.leg_arrived(target)
@@ -598,13 +625,64 @@ class NavAutonomyNode(Node):
                         "State: IDLE", "error", "FAILED")
 
     def waypoint_error(self, target):
-        # (distance, absolute heading error) from the current candidate, or None without a map pose.
-        # Any heading will do for digging, so its heading error is 0.
-        if self.map_x is None or self.map_y is None or self.map_yaw is None:
+        # Distance from the current waypoint, or None without a map pose. Any heading will do.
+        if self.map_x is None or self.map_y is None:
             return None
         x, y, _ = self.target_pose(target)
-        yaw_error = 0.0 if target == "EXCAVATION" else abs((self.map_yaw - self.goal_yaw + pi) % (2.0 * pi) - pi)
-        return hypot(self.map_x - x, self.map_y - y), yaw_error
+        return hypot(self.map_x - x, self.map_y - y)
+
+    """Re-localising (AUTO, between a dig and the berm)"""
+    def start_relocalising(self):
+        age = None if self.tag_fix is None else time.monotonic() - self.tag_fix[2]
+        if not self.relocalise_enabled or self.map_x is None or self.map_yaw is None or (
+                age is not None and age <= self.relocalise_max_fix_age_s):
+            self.start_navigation("DEPOSITION")
+            return
+        if self.turn_blocked():
+            self.report("Not turning to the AprilTag to re-localise: an obstacle is within the rover's "
+                        "turning circle.", "warning")
+            self.start_navigation("DEPOSITION")
+            return
+        self.state = "RELOCALISING"
+        self.relocalise_start = (time.monotonic(), None if self.tag_fix is None else self.tag_fix[2],
+                                 self.map_x, self.map_y)
+        fix = "no AprilTag fix yet" if age is None else f"last AprilTag fix {age:.0f} s ago"
+        self.report(f"Re-localising ({fix}): turning a camera to the AprilTag.")
+
+    def turn_blocked(self):
+        # Lethal cells where the footprint sweeps when turning on the spot (four headings)
+        if self.global_costmap is None:
+            return False
+        return any(footprint_lethal_cells(self.global_costmap, self.map_x, self.map_y, k * pi / 4,
+                                          self.footprint_half_length_m, self.footprint_half_width_m,
+                                          self.candidate_clearance_m) >= self.candidate_min_lethal_cells
+                   for k in range(4))
+
+    def update_relocalising(self):
+        start_s, fix_before, x0, y0 = self.relocalise_start
+        elapsed = time.monotonic() - start_s
+        fresh = self.tag_fix is not None and self.tag_fix[2] != fix_before
+        if fresh and hypot(self.map_x - self.tag_fix[0], self.map_y - self.tag_fix[1]) <= self.max_fix_disagreement_m:
+            self.cmd_vel_pub.publish(Twist())
+            self.report(f"Re-localised: the map pose moved {hypot(self.map_x - x0, self.map_y - y0):.2f} m.")
+            self.start_navigation("DEPOSITION")
+            return
+        if elapsed > self.relocalise_timeout_s:
+            self.cmd_vel_pub.publish(Twist())
+            why = ("the global EKF isn't taking the AprilTag fix" if fresh else "no AprilTag fix")
+            self.report(f"Re-localising timed out after {elapsed:.0f} s ({why}). Driving on.", "warning")
+            self.start_navigation("DEPOSITION")
+            return
+        # Face the tag with the front camera, or the rear one (it looks backwards) if that's a
+        # smaller turn and the tag is close enough for it
+        bearing = atan2(self.tag_xy[1] - self.map_y, self.tag_xy[0] - self.map_x)
+        near = hypot(self.tag_xy[0] - self.map_x, self.tag_xy[1] - self.map_y) <= self.relocalise_rear_range_m
+        errors = [(bearing + offset - self.map_yaw + pi) % (2.0 * pi) - pi for offset in ((0.0, pi) if near else (0.0,))]
+        error = min(errors, key=abs)
+        cmd = Twist()
+        if abs(error) > self.relocalise_tolerance:
+            cmd.angular.z = self.relocalise_turn_speed if error > 0 else -self.relocalise_turn_speed
+        self.cmd_vel_pub.publish(cmd)
 
     def start_sequence(self, target):
         # Digging or dumping starts here, so the next leg to this zone moves on to another candidate
@@ -660,7 +738,7 @@ class NavAutonomyNode(Node):
         localised, loc_reason, fix_age, drive = self.localisation_status()
         phase, remaining = self.sequence_phase()
         target = None
-        if self.state != "IDLE" and self.target_index is not None:
+        if self.state not in ("IDLE", "RELOCALISING") and self.target_index is not None:
             kind = "EXCAVATION" if self.state in ("NAVIGATING_TO_EXCAVATION", "EXCAVATING") else "DEPOSITION"
             x, y, yaw = self.candidates[kind][self.target_index]
             target = {"kind": kind, "index": self.target_index + 1, "count": len(self.candidates[kind]),

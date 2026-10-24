@@ -394,6 +394,7 @@ function autoView(a) {
     const retry = a.retries ? ` · RETRY ${a.retries}/${a.max_retries}` : "";
     return ["run", `NAV → ${spot}`, `${a.mode ?? ""}${cycle}${retry}`];
   }
+  if (a.state === "RELOCALISING") return ["run", "RE-LOCALISING", `${a.mode ?? ""}${cycle} · turning to the AprilTag`];
   if (a.state === "EXCAVATING" || a.state === "DEPOSITING") {
     const left = isNum(a.remaining_s) ? ` ${Math.ceil(a.remaining_s)} S` : "";
     return ["run", `${AUTO_PHASES[a.phase] ?? a.phase ?? a.state}${left}`, `${a.mode ?? ""}${cycle} · ${spot}`];
