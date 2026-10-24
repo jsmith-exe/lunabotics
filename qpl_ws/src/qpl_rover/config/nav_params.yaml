@@ -401,7 +401,7 @@ planner_server:
       reverse_penalty: 2.0           # reversing allowed but discouraged
       change_penalty: 0.05
       non_straight_penalty: 1.05
-      cost_penalty: 2.0              # stay in the middle of gaps
+      cost_penalty: 2.0              # stay in the middle of gaps (10 failed to plan often and was no better)
       rotation_penalty: 5.0          # turns on the spot slip the skid-steer; use them when needed
       retrospective_penalty: 0.015
       lookup_table_size: 20.0

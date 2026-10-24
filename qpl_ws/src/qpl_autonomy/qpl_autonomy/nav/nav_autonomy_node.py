@@ -821,26 +821,12 @@ class NavAutonomyNode(Node):
                         f"{atan2(dy, abs(dx)) * 180.0 / pi:.0f} deg to its wall, too far or oblique to detect.")
             self.start_navigation("DEPOSITION")
             return
-        if self.turn_blocked():
-            self.report("Not turning to the AprilTag to re-localise: an obstacle is within the rover's "
-                        "turning circle.", "warning")
-            self.start_navigation("DEPOSITION")
-            return
         self.state = "RELOCALISING"
         self.relocalise_fixes = 0
         self.relocalise_start = (time.monotonic(), None if self.tag_fix is None else self.tag_fix[2],
                                  self.map_x, self.map_y)
         fix = "no AprilTag fix yet" if age is None else f"last AprilTag fix {age:.0f} s ago"
         self.report(f"Re-localising ({fix}): turning a camera to the AprilTag.")
-
-    def turn_blocked(self):
-        # Lethal cells where the footprint sweeps when turning on the spot (four headings)
-        if self.global_costmap is None:
-            return False
-        return any(footprint_lethal_cells(self.global_costmap, self.map_x, self.map_y, k * pi / 4,
-                                          self.footprint_half_length_m, self.footprint_half_width_m,
-                                          self.candidate_clearance_m) >= self.candidate_min_lethal_cells
-                   for k in range(4))
 
     def update_relocalising(self):
         start_s, fix_before, x0, y0 = self.relocalise_start

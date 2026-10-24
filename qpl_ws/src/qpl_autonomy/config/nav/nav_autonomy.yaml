@@ -96,13 +96,12 @@ nav_autonomy:
     navigation.stall_radius_m: 0.40
     navigation.stall_time_s: 10.0
 
-    # RE-LOCALISING (AUTO): after each dig, unless an AprilTag fix is newer than max_fix_age_s,
-    # the rover turns on the spot until the front or rear camera faces the tag, waits for a fix
-    # the global EKF takes, then drives to the berm. Skipped when an obstacle is inside its
-    # turning circle, or the tag is out of the cameras' range; gives up after timeout_s. Turns on
-    # the spot and digging slip the skid-steer, and nothing corrects the pose by the berm (~8 m
-    # from the tag): without this the sim's map pose was 0.4-0.6 m out there, enough to hit the
-    # east wall.
+    # RE-LOCALISING (AUTO): after each dig the rover turns on the spot until the front (or rear)
+    # camera faces the tag, waits for min_fixes and the global EKF agreeing, then drives to the
+    # berm. Skipped when the tag is out of the cameras' range; stops turning if the next step
+    # would put the footprint on an obstacle; gives up after timeout_s. Turns on the spot and
+    # digging slip the skid-steer, and nothing corrects the pose by the berm (~8 m from the tag):
+    # without this the sim's map pose was 0.4-0.6 m out there, enough to hit the east wall.
     relocalise.enabled: true
     relocalise.tag_xy: [3.32, 0.02] # the AprilTag in qpl_rover/config/arena/us.yaml
     # 0: always, when in range. A recent fix isn't enough: from ~4 m one was up to 0.3 m out.

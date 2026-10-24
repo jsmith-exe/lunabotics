@@ -261,27 +261,31 @@ def extend(pts, sensor_pos, length, step, sign):
     return np.column_stack([xy, np.repeat(pts[:, 2], len(k))])
 
 
-def grow_detections(pts, rel, sensor_pos, behind, radius, step, near=0.0):
+def grow_detections(pts, rel, sensor_pos, behind, radius, step, near=0.0, crater_radius=None):
     """Extra obstacle points around local detections, in the level frame: bumps
     (rel > 0) extended away from the sensor by up to `behind`, dips (rel < 0)
-    towards it by up to `near`, then a disc of `radius` around those and every
-    detection. One point per `step` cell."""
-    if len(pts) == 0 or (behind <= 0 and radius <= 0 and near <= 0):
+    towards it by up to `near`, then a disc round every detection: `radius` for
+    bumps, `crater_radius` (default `radius`) for dips and crater-shadow points
+    (rel NaN). One point per `step` cell."""
+    crater_radius = radius if crater_radius is None else crater_radius
+    if len(pts) == 0 or (behind <= 0 and radius <= 0 and near <= 0 and crater_radius <= 0):
         return np.empty((0, 3))
-    extra = []
     with np.errstate(invalid='ignore'):
-        bumps = pts[rel > 0]
-        dips = pts[rel < 0]
-    if behind > 0 and len(bumps):
-        extra.append(extend(bumps, sensor_pos, behind, step, 1.0))
-    if near > 0 and len(dips):
+        is_bump = rel > 0
+        is_dip = rel < 0
+    bumps, craters = [pts[is_bump]], [pts[~is_bump]]  # crater: dips and shadow points (rel NaN)
+    if behind > 0 and is_bump.any():
+        bumps.append(extend(pts[is_bump], sensor_pos, behind, step, 1.0))
+    if near > 0 and is_dip.any():
         # A crater's near rim reads as the start of the dip and is only partly flagged
-        extra.append(extend(dips, sensor_pos, near, step, -1.0))
-    if radius > 0:
-        base = np.concatenate([pts] + extra)
+        craters.append(extend(pts[is_dip], sensor_pos, near, step, -1.0))
+    extra = bumps[1:] + craters[1:]
+    for base, r in ((np.concatenate(bumps), radius), (np.concatenate(craters), crater_radius)):
+        if r <= 0 or len(base) == 0:
+            continue
         _, first = np.unique(np.floor(base[:, :2] / step).astype(np.int64), axis=0, return_index=True)
         base = base[first]  # one point per step cell, so the disc below stays cheap
-        disc = disc_offsets(radius, step)
+        disc = disc_offsets(r, step)
         xy = (base[:, None, :2] + disc[None]).reshape(-1, 2)
         extra.append(np.column_stack([xy, np.repeat(base[:, 2], len(disc))]))
     if not extra:
@@ -303,6 +307,16 @@ def load_zones(names):
     if missing:
         raise ValueError(f'arena {arena} has no zone {missing}; it has {sorted(zones)}')
     return [zones[n] for n in names]
+
+
+def load_arena_size():
+    """(width, length) of the selected arena config: map x runs 0..width, y 0..length."""
+    arena_dir = os.path.join(get_package_share_directory('qpl_rover'), 'config', 'arena')
+    with open(os.path.join(arena_dir, 'selector.yaml')) as f:
+        arena = yaml.safe_load(f)['arena']
+    with open(os.path.join(arena_dir, f'{arena}.yaml')) as f:
+        a = yaml.safe_load(f)['arena']
+    return a['width'], a['length']
 
 
 def long_clusters(xy, max_extent, cell=0.1):
@@ -409,12 +423,20 @@ class ObstacleMemory:
     cell is kept while it is out of sight, however long the rover waits there,
     and dropped once it is seen again as plain floor. `duration` seconds after
     its last detection it is dropped anyway, so localisation error can't leave
-    stale marks around for ever. The node keeps it in memory_frame (map)."""
+    stale marks around for ever. The node keeps it in memory_frame (map).
 
-    def __init__(self, cell, duration, floor_band, min_floor_points):
+    A detection is only remembered once its `confirm_cell` square has been
+    flagged in `confirm_frames` frames within `confirm_s`: driving over the
+    terrain, a moment of tilt makes floor read as a bump in one frame, and
+    remembered for minutes those phantoms blocked routes in the sim."""
+
+    def __init__(self, cell, duration, floor_band, min_floor_points,
+                 confirm_frames=1, confirm_s=3.0, confirm_cell=0.15):
         self.cell, self.duration = cell, duration
         self.floor_band, self.min_floor_points = floor_band, min_floor_points
+        self.confirm_frames, self.confirm_s, self.confirm_cell = confirm_frames, confirm_s, confirm_cell
         self.cells = {}                       # (i, j) -> (x, y, z, last seen)
+        self.pending = {}                     # confirm square -> list of frame times it was flagged
 
     def update(self, now, points, clearing, obstacle, local, rel):
         ij = np.floor(points[:, :2] / self.cell).astype(np.int64)
@@ -427,13 +449,27 @@ class ObstacleMemory:
             for c, n in zip(map(tuple, cells), counts):
                 if n >= self.min_floor_points and c not in blocked:
                     self.cells.pop(c, None)
-        for c, pt in zip(map(tuple, ij[local]), points[local]):
+        confirmed = self.confirm(now, points[local])
+        for c, pt in zip(map(tuple, ij[local][confirmed]), points[local][confirmed]):
             self.cells[c] = (pt[0], pt[1], pt[2], now)
         for c in [c for c, v in self.cells.items() if now - v[3] > self.duration]:
             del self.cells[c]
         if not self.cells:
             return np.empty((0, 3))
         return np.array([v[:3] for v in self.cells.values()])
+
+
+    def confirm(self, now, pts):
+        # Mask of pts whose confirm square has now been flagged in enough frames
+        if self.confirm_frames <= 1 or len(pts) == 0:
+            return np.ones(len(pts), bool)
+        squares = [tuple(c) for c in np.floor(pts[:, :2] / self.confirm_cell).astype(np.int64)]
+        for sq in set(squares):
+            times = [t for t in self.pending.get(sq, []) if now - t <= self.confirm_s]
+            self.pending[sq] = times + [now]
+        for sq in [sq for sq, t in self.pending.items() if now - t[-1] > self.confirm_s]:
+            del self.pending[sq]
+        return np.array([len(self.pending[sq]) >= self.confirm_frames for sq in squares])
 
 
 def make_cloud(header, xyz):
@@ -498,15 +534,21 @@ class DepthObstacleFilter(Node):
             self.declare_parameter('memory_cell', 0.05).value,
             self.declare_parameter('memory_duration', 60.0).value,
             self.declare_parameter('memory_floor_band', 0.03).value,
-            int(self.declare_parameter('memory_floor_points', 3).value))
+            int(self.declare_parameter('memory_floor_points', 3).value),
+            int(self.declare_parameter('memory_confirm_frames', 1).value),
+            self.declare_parameter('memory_confirm_s', 3.0).value)
         # Remembered marks are kept in this frame. map, not the level frame (odom): odom drifts,
         # so marks kept for minutes (a 360 in teleop maps the arena before AUTO) would end up
         # beside the obstacles. Until map exists nothing is remembered.
         self.memory_frame = self.declare_parameter('memory_frame', 'map').value
+        # Detections within this of the arena walls (memory_frame = map) aren't remembered
+        self.memory_wall_margin = self.declare_parameter('memory_wall_margin_m', 0.0).value
+        self.arena_width, self.arena_length = load_arena_size() if self.memory_wall_margin > 0 else (0.0, 0.0)
 
         # Growth of boulder/crater detections (see grow_detections()).
         self.grow_behind_m = self.declare_parameter('grow_behind_m', 0.30).value
         self.grow_near_m = self.declare_parameter('grow_near_m', 0.0).value
+        self.grow_crater_radius_m = self.declare_parameter('grow_crater_radius_m', 0.05).value
         self.grow_radius_m = self.declare_parameter('grow_radius_m', 0.05).value
         self.grow_step_m = self.declare_parameter('grow_step_m', 0.05).value
 
@@ -566,8 +608,14 @@ class DepthObstacleFilter(Node):
                                    throttle_duration_sec=10.0)
             return np.empty((0, 3))
         rot, pos = transform_parts(tf)
-        remembered = self.memory.update(stamp.nanoseconds * 1e-9, points @ rot.T + pos,
-                                        clearing, obstacle, local, rel)
+        in_map = points @ rot.T + pos
+        if self.memory_wall_margin > 0:
+            # Not by the walls: wall feet read as bumps there, and remembered with the map pose
+            # drifting they built lethal strips down the walls. The rover can't go there anyway.
+            w, l, m = self.arena_width, self.arena_length, self.memory_wall_margin
+            by_wall = ((in_map[:, 0] < m) | (in_map[:, 0] > w - m) | (in_map[:, 1] < m) | (in_map[:, 1] > l - m))
+            local = local & ~by_wall
+        remembered = self.memory.update(stamp.nanoseconds * 1e-9, in_map, clearing, obstacle, local, rel)
         return (remembered - pos) @ rot if len(remembered) else remembered
 
     def ignore_test(self, base_pos):
@@ -621,8 +669,8 @@ class DepthObstacleFilter(Node):
         points, clearing, obstacle, local, rel = classify(
             self, grid, sensor_pos, base_pos, base_rot, row_angle,
             ignore(grid.reshape(-1, 3)) if ignore else None)
-        grown = grow_detections(points[local], rel[local], sensor_pos,
-                                self.grow_behind_m, self.grow_radius_m, self.grow_step_m, self.grow_near_m)
+        grown = grow_detections(points[local], rel[local], sensor_pos, self.grow_behind_m, self.grow_radius_m,
+                                self.grow_step_m, self.grow_near_m, self.grow_crater_radius_m)
         if len(grown):
             n = len(grown)
             points = np.concatenate([points, grown])

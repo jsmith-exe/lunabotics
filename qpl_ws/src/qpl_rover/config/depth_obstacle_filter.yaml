@@ -70,10 +70,16 @@
     max_detection_extent_m: 0.8
     memory_cell: 0.05
     memory_frame: map         # odom drifts; map is corrected by the AprilTag
+    memory_wall_margin_m: 0.25 # wall feet read as bumps; not remembered this close to the walls
     memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
                               # for a 360 in teleop to still count at the end of a run
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
+    # Remembered only once flagged in this many frames within memory_confirm_s (per 0.15 m
+    # square): a moment of tilt driving over the terrain makes floor read as a bump in one frame,
+    # and remembered for 10 min those phantoms blocked the open way to the berm in the sim
+    memory_confirm_frames: 3
+    memory_confirm_s: 3.0
     grow_behind_m: 0.30
     # Dips (craters) extended towards the camera: the near rim reads as the start of the dip and
     # was only partly flagged, so with the rover's position spot on its footprint still went
@@ -84,6 +90,9 @@
     # and at 0.20 (with DWB's 0.04) sim seed 7 had no route to the berm at all. The cost
     # round obstacles keeps the rover in the middle of wider gaps.
     grow_radius_m: 0.12
+    # Craters get more: their far side is hidden, and in the sim the marks covered only 80-95%
+    # of a crater, so the rover grazed the rest. Boulders' far side is covered by grow_behind_m.
+    grow_crater_radius_m: 0.20
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
@@ -133,10 +142,16 @@
     max_detection_extent_m: 0.8
     memory_cell: 0.05
     memory_frame: map         # odom drifts; map is corrected by the AprilTag
+    memory_wall_margin_m: 0.25 # wall feet read as bumps; not remembered this close to the walls
     memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
                               # for a 360 in teleop to still count at the end of a run
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
+    # Remembered only once flagged in this many frames within memory_confirm_s (per 0.15 m
+    # square): a moment of tilt driving over the terrain makes floor read as a bump in one frame,
+    # and remembered for 10 min those phantoms blocked the open way to the berm in the sim
+    memory_confirm_frames: 3
+    memory_confirm_s: 3.0
     grow_behind_m: 0.30
     # Dips (craters) extended towards the camera: the near rim reads as the start of the dip and
     # was only partly flagged, so with the rover's position spot on its footprint still went
@@ -147,6 +162,9 @@
     # and at 0.20 (with DWB's 0.04) sim seed 7 had no route to the berm at all. The cost
     # round obstacles keeps the rover in the middle of wider gaps.
     grow_radius_m: 0.12
+    # Craters get more: their far side is hidden, and in the sim the marks covered only 80-95%
+    # of a crater, so the rover grazed the rest. Boulders' far side is covered by grow_behind_m.
+    grow_crater_radius_m: 0.20
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
