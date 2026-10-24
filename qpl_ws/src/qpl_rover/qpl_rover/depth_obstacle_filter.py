@@ -58,10 +58,12 @@ Nav2's raytracing once they are too close for the camera to see.
 
 The cameras only see the near face of a boulder, and DWB only rejects a
 trajectory when the footprint's edge crosses a marked cell, so in the sim the
-rover brushed the unseen backs and sides of boulders. Detections are grown
-before they are remembered (grow_detections()): bump points are extended away
-from the camera by up to grow_behind_m (the rulebook's boulders are at most
-0.40 m across), and every detection gets a grow_radius_m disc round it.
+rover brushed the unseen backs and sides of boulders. Detections are grown:
+bumps are extended away from the camera by up to grow_behind_m (the rulebook's
+boulders are at most 0.40 m across) and dips towards it by grow_near_m
+(extensions()), and these are remembered; then every detection, this frame's
+and remembered, gets a disc of grow_radius_m (boulders) or grow_crater_radius_m
+round it on output (dilate_cells()), so the margin can't be forgotten as floor.
 
 Both outputs are in `level_frame` with z set to the sensor's z, so Nav2's 3D
 range checks act as 2D ones and its height band (set wide) never rejects them.
@@ -84,6 +86,10 @@ import os
 
 import numpy as np
 import rclpy
+try:
+    import cv2
+except ImportError:  # dilate_cells falls back on disc offsets
+    cv2 = None
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from rclpy.duration import Duration
@@ -261,38 +267,48 @@ def extend(pts, sensor_pos, length, step, sign):
     return np.column_stack([xy, np.repeat(pts[:, 2], len(k))])
 
 
-def grow_detections(pts, rel, sensor_pos, behind, radius, step, near=0.0, crater_radius=None):
-    """Extra obstacle points around local detections, in the level frame: bumps
-    (rel > 0) extended away from the sensor by up to `behind`, dips (rel < 0)
-    towards it by up to `near`, then a disc round every detection: `radius` for
-    bumps, `crater_radius` (default `radius`) for dips and crater-shadow points
-    (rel NaN). One point per `step` cell."""
-    crater_radius = radius if crater_radius is None else crater_radius
-    if len(pts) == 0 or (behind <= 0 and radius <= 0 and near <= 0 and crater_radius <= 0):
-        return np.empty((0, 3))
+BUMP, CRATER = 1, 2  # kinds of remembered detection
+
+
+def extensions(pts, rel, sensor_pos, behind, near, step):
+    """(points, kinds) extending detections along the line from the sensor: bumps (rel > 0) away
+    from it by up to `behind`, dips (rel < 0) towards it by up to `near`."""
     with np.errstate(invalid='ignore'):
-        is_bump = rel > 0
-        is_dip = rel < 0
-    bumps, craters = [pts[is_bump]], [pts[~is_bump]]  # crater: dips and shadow points (rel NaN)
+        is_bump, is_dip = rel > 0, rel < 0
+    out, kinds = [np.empty((0, 3))], [np.empty(0, np.int8)]
     if behind > 0 and is_bump.any():
-        bumps.append(extend(pts[is_bump], sensor_pos, behind, step, 1.0))
+        e = extend(pts[is_bump], sensor_pos, behind, step, 1.0)
+        out.append(e)
+        kinds.append(np.full(len(e), BUMP, np.int8))
     if near > 0 and is_dip.any():
-        # A crater's near rim reads as the start of the dip and is only partly flagged
-        craters.append(extend(pts[is_dip], sensor_pos, near, step, -1.0))
-    extra = bumps[1:] + craters[1:]
-    for base, r in ((np.concatenate(bumps), radius), (np.concatenate(craters), crater_radius)):
-        if r <= 0 or len(base) == 0:
+        e = extend(pts[is_dip], sensor_pos, near, step, -1.0)
+        out.append(e)
+        kinds.append(np.full(len(e), CRATER, np.int8))
+    return np.concatenate(out), np.concatenate(kinds)
+
+
+def dilate_cells(xyz, kinds, radii, cell):
+    """Points filling a disc of radii[kind] round every xyz point of that kind, on a `cell` grid."""
+    out = []
+    for kind, radius in radii.items():
+        sel = kinds == kind
+        if radius <= 0 or not sel.any():
             continue
-        _, first = np.unique(np.floor(base[:, :2] / step).astype(np.int64), axis=0, return_index=True)
-        base = base[first]  # one point per step cell, so the disc below stays cheap
-        disc = disc_offsets(r, step)
-        xy = (base[:, None, :2] + disc[None]).reshape(-1, 2)
-        extra.append(np.column_stack([xy, np.repeat(base[:, 2], len(disc))]))
-    if not extra:
-        return np.empty((0, 3))
-    grown = np.concatenate(extra)
-    _, first = np.unique(np.floor(grown[:, :2] / step).astype(np.int64), axis=0, return_index=True)
-    return grown[first]
+        ij = np.floor(xyz[sel, :2] / cell).astype(np.int64)
+        k = int(np.ceil(radius / cell))
+        if cv2 is None:
+            disc = np.round(disc_offsets(radius, cell) / cell).astype(np.int64)
+            cells = np.unique((ij[:, None, :] + disc[None]).reshape(-1, 2), axis=0)
+        else:
+            lo = ij.min(axis=0) - k
+            grid = np.zeros(tuple(ij.max(axis=0) - lo + k + 1), np.uint8)
+            grid[ij[:, 0] - lo[0], ij[:, 1] - lo[1]] = 1
+            di, dj = np.mgrid[-k:k + 1, -k:k + 1]
+            kernel = (np.hypot(di, dj) * cell <= radius).astype(np.uint8)
+            cells = np.argwhere(cv2.dilate(grid, kernel)) + lo
+        z = np.full(len(cells), float(np.mean(xyz[sel, 2])))
+        out.append(np.column_stack([(cells + 0.5) * cell, z]))
+    return np.concatenate(out) if out else np.empty((0, 3))
 
 
 def load_zones(names):
@@ -435,10 +451,15 @@ class ObstacleMemory:
         self.cell, self.duration = cell, duration
         self.floor_band, self.min_floor_points = floor_band, min_floor_points
         self.confirm_frames, self.confirm_s, self.confirm_cell = confirm_frames, confirm_s, confirm_cell
-        self.cells = {}                       # (i, j) -> (x, y, z, last seen)
+        self.cells = {}                       # (i, j) -> (x, y, z, last seen, kind)
         self.pending = {}                     # confirm square -> list of frame times it was flagged
 
-    def update(self, now, points, clearing, obstacle, local, rel):
+    def update(self, now, points, clearing, obstacle, local, rel, kinds=None):
+        """Remembered marks as (xyz, kinds) after this frame. kinds (BUMP/CRATER per point) is
+        stored with each cell; the node grows the marks by kind each frame, so the margin round an
+        obstacle can't be forgotten as plain floor the way stored margin cells were."""
+        if kinds is None:
+            kinds = np.full(len(points), CRATER, np.int8)
         ij = np.floor(points[:, :2] / self.cell).astype(np.int64)
         # forget cells now seen as plain floor: enough near-floor returns, no obstacle
         with np.errstate(invalid='ignore'):
@@ -450,13 +471,14 @@ class ObstacleMemory:
                 if n >= self.min_floor_points and c not in blocked:
                     self.cells.pop(c, None)
         confirmed = self.confirm(now, points[local])
-        for c, pt in zip(map(tuple, ij[local][confirmed]), points[local][confirmed]):
-            self.cells[c] = (pt[0], pt[1], pt[2], now)
+        for c, pt, k in zip(map(tuple, ij[local][confirmed]), points[local][confirmed], kinds[local][confirmed]):
+            self.cells[c] = (pt[0], pt[1], pt[2], now, k)
         for c in [c for c, v in self.cells.items() if now - v[3] > self.duration]:
             del self.cells[c]
         if not self.cells:
-            return np.empty((0, 3))
-        return np.array([v[:3] for v in self.cells.values()])
+            return np.empty((0, 3)), np.empty(0, np.int8)
+        values = list(self.cells.values())
+        return np.array([v[:3] for v in values]), np.array([v[4] for v in values], np.int8)
 
 
     def confirm(self, now, pts):
@@ -547,7 +569,7 @@ class DepthObstacleFilter(Node):
         self.memory_wall_margin = self.declare_parameter('memory_wall_margin_m', 0.0).value
         self.arena_width, self.arena_length = load_arena_size() if self.memory_wall_margin > 0 else (0.0, 0.0)
 
-        # Growth of boulder/crater detections (see grow_detections()).
+        # Growth of boulder/crater detections (see extensions() and dilate_cells()).
         self.grow_behind_m = self.declare_parameter('grow_behind_m', 0.30).value
         self.grow_near_m = self.declare_parameter('grow_near_m', 0.0).value
         self.grow_crater_radius_m = self.declare_parameter('grow_crater_radius_m', 0.05).value
@@ -597,18 +619,18 @@ class DepthObstacleFilter(Node):
                 raise
             return tf
 
-    def remember(self, stamp, points, clearing, obstacle, local, rel, sensor_pos):
+    def remember(self, stamp, points, clearing, obstacle, local, rel, sensor_pos, kinds):
         """Update the obstacle memory with this frame's level-frame points; the remembered
         marks back in the level frame ((0, 3) without a memory_frame transform yet)."""
         if self.memory_frame == self.level_frame:
-            return self.memory.update(stamp.nanoseconds * 1e-9, points, clearing, obstacle, local, rel)
+            return self.memory.update(stamp.nanoseconds * 1e-9, points, clearing, obstacle, local, rel, kinds)
         try:
             # Latest, not at stamp: map -> odom only moves on a localisation correction
             tf = self.tf_buffer.lookup_transform(self.memory_frame, self.level_frame, Time())
         except tf2_ros.TransformException as e:
             self.get_logger().warn(f'No {self.memory_frame} frame, so nothing is remembered: {e}',
                                    throttle_duration_sec=10.0)
-            return np.empty((0, 3))
+            return np.empty((0, 3)), np.empty(0, np.int8)
         rot, pos = transform_parts(tf)
         in_map = points @ rot.T + pos
         if self.memory_max_range > 0:
@@ -624,8 +646,9 @@ class DepthObstacleFilter(Node):
             w, l, m = self.arena_width, self.arena_length, self.memory_wall_margin
             by_wall = ((in_map[:, 0] < m) | (in_map[:, 0] > w - m) | (in_map[:, 1] < m) | (in_map[:, 1] > l - m))
             local = local & ~by_wall
-        remembered = self.memory.update(stamp.nanoseconds * 1e-9, in_map, clearing, obstacle, local, rel)
-        return (remembered - pos) @ rot if len(remembered) else remembered
+        remembered, kinds = self.memory.update(stamp.nanoseconds * 1e-9, in_map, clearing, obstacle, local, rel,
+                                               kinds)
+        return ((remembered - pos) @ rot if len(remembered) else remembered), kinds
 
     def ignore_test(self, base_pos):
         """A function (N, 3) level-frame points -> mask of those inside an ignore zone and below
@@ -678,20 +701,29 @@ class DepthObstacleFilter(Node):
         points, clearing, obstacle, local, rel = classify(
             self, grid, sensor_pos, base_pos, base_rot, row_angle,
             ignore(grid.reshape(-1, 3)) if ignore else None)
-        grown = grow_detections(points[local], rel[local], sensor_pos, self.grow_behind_m, self.grow_radius_m,
-                                self.grow_step_m, self.grow_near_m, self.grow_crater_radius_m)
-        if len(grown):
-            n = len(grown)
-            points = np.concatenate([points, grown])
+        # Detections plus their extensions along the sensor line go into memory, by kind; the disc
+        # round them is added on output, for this frame's and remembered marks alike
+        with np.errstate(invalid='ignore'):
+            kinds = np.where(rel > 0, BUMP, CRATER).astype(np.int8)
+        ext, ext_kinds = extensions(points[local], rel[local], sensor_pos, self.grow_behind_m, self.grow_near_m,
+                                    self.grow_step_m)
+        if len(ext):
+            n = len(ext)
+            points = np.concatenate([points, ext])
             clearing = np.concatenate([clearing, np.zeros(n, bool)])
             obstacle = np.concatenate([obstacle, np.ones(n, bool)])
             local = np.concatenate([local, np.ones(n, bool)])
             rel = np.concatenate([rel, np.full(n, np.nan)])
+            kinds = np.concatenate([kinds, ext_kinds])
         if ignore:
             dropped = ignore(points)
             obstacle &= ~dropped
             local &= ~dropped
-        remembered = self.remember(stamp, points, clearing, obstacle, local, rel, sensor_pos)
+        remembered, remembered_kinds = self.remember(stamp, points, clearing, obstacle, local, rel, sensor_pos, kinds)
+        radii = {BUMP: self.grow_radius_m, CRATER: self.grow_crater_radius_m}
+        grown = dilate_cells(np.concatenate([points[local], remembered]),
+                             np.concatenate([kinds[local], remembered_kinds]), radii, self.grow_step_m)
+        remembered = np.concatenate([remembered, grown])
         if ignore and len(remembered):
             remembered = remembered[~ignore(remembered)]
 
