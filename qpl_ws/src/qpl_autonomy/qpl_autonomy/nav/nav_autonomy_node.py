@@ -172,6 +172,8 @@ class NavAutonomyNode(Node):
         self.declare_parameter("relocalise.heading_tolerance_rad", 0.15)
         self.declare_parameter("relocalise.timeout_s", 40.0)
         self.declare_parameter("relocalise.rear_camera_max_range_m", 2.5)
+        self.declare_parameter("relocalise.max_range_m", 4.0)
+        self.declare_parameter("relocalise.min_angle_from_wall_rad", 0.35)
         self.relocalise_enabled = self.get_parameter("relocalise.enabled").value
         self.tag_xy = list(self.get_parameter("relocalise.tag_xy").value)
         self.relocalise_max_fix_age_s = self.get_parameter("relocalise.max_fix_age_s").value
@@ -179,6 +181,8 @@ class NavAutonomyNode(Node):
         self.relocalise_tolerance = self.get_parameter("relocalise.heading_tolerance_rad").value
         self.relocalise_timeout_s = self.get_parameter("relocalise.timeout_s").value
         self.relocalise_rear_range_m = self.get_parameter("relocalise.rear_camera_max_range_m").value
+        self.relocalise_max_range_m = self.get_parameter("relocalise.max_range_m").value
+        self.relocalise_min_angle = self.get_parameter("relocalise.min_angle_from_wall_rad").value
         self.relocalise_start = None  # (monotonic start, tag fix time before, EKF x, EKF y)
 
         # Top-level autonomy state
@@ -636,6 +640,14 @@ class NavAutonomyNode(Node):
         age = None if self.tag_fix is None else time.monotonic() - self.tag_fix[2]
         if not self.relocalise_enabled or self.map_x is None or self.map_yaw is None or (
                 age is not None and age <= self.relocalise_max_fix_age_s):
+            self.start_navigation("DEPOSITION")
+            return
+        # The tag is on the y = 0 wall facing into the arena: too far, or seen too obliquely, the
+        # cameras don't detect it, and turning would only waste the timeout
+        dx, dy = self.map_x - self.tag_xy[0], self.map_y - self.tag_xy[1]
+        if hypot(dx, dy) > self.relocalise_max_range_m or atan2(dy, abs(dx)) < self.relocalise_min_angle:
+            self.report(f"Not re-localising here: the AprilTag is {hypot(dx, dy):.1f} m away at "
+                        f"{atan2(dy, abs(dx)) * 180.0 / pi:.0f} deg to its wall, too far or oblique to detect.")
             self.start_navigation("DEPOSITION")
             return
         if self.turn_blocked():

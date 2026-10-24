@@ -86,15 +86,21 @@ nav_autonomy:
     # RE-LOCALISING (AUTO): after each dig, unless an AprilTag fix is newer than max_fix_age_s,
     # the rover turns on the spot until the front or rear camera faces the tag, waits for a fix
     # the global EKF takes, then drives to the berm. Skipped when an obstacle is inside its
-    # turning circle; gives up after timeout_s. Turns on the spot and digging slip the
-    # skid-steer, and nothing corrects the pose by the berm (~8 m from the tag): without this the
-    # sim's map pose was 0.4-0.6 m out there, enough to hit the east wall.
+    # turning circle, or the tag is out of the cameras' range; gives up after timeout_s. Turns on
+    # the spot and digging slip the skid-steer, and nothing corrects the pose by the berm (~8 m
+    # from the tag): without this the sim's map pose was 0.4-0.6 m out there, enough to hit the
+    # east wall.
     relocalise.enabled: true
     relocalise.tag_xy: [3.32, 0.02] # the AprilTag in qpl_rover/config/arena/us.yaml
     relocalise.max_fix_age_s: 15.0
     relocalise.turn_speed: 0.4 # rad/s
     relocalise.heading_tolerance_rad: 0.15
-    relocalise.timeout_s: 40.0
+    relocalise.timeout_s: 25.0
+    # Only tried this close to the tag and this far off its wall (0.35 rad = 20 deg). In the sim
+    # the front camera lost the tag past ~4 m at 30 deg to the wall, so the dig spots by the
+    # berm (x 7.8, ~18 deg) are skipped. Check the real cameras' range at the practice run.
+    relocalise.max_range_m: 4.0
+    relocalise.min_angle_from_wall_rad: 0.35
     # The front camera, or the rear one when it's a smaller turn and the tag is within this. In the
     # sim the front camera got ~1 fix/s out to 5 m at any angle to the tag; the rear one none past
     # 2.5-3 m, or 2 m at 30 deg to the wall. Check both at the practice run.
