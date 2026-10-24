@@ -88,8 +88,8 @@ qpl_rviz_rover() {
 # One browser window for driving: cameras with drive guides, arena map,
 # drive/wheel/attitude/drum telemetry and health, at http://localhost:8765.
 # Monitoring only; it never publishes commands. Keys: press H on the page.
-alias qpl_hud='ros2 launch basestation hud.launch.py use_sim_time:=true'  # against the sim
-alias qpl_hud_rover='ros2 launch basestation hud.launch.py'  # against the rover
+alias qpl_hud='ros2 launch basestation hud.launch.py use_sim_time:=false'  # against the rover
+alias qpl_hud_sim='ros2 launch basestation hud.launch.py use_sim_time:=true'  # against the sim
 alias qpl_hud_demo='ros2 run basestation hud_demo'  # fake rover data; use a private ROS_DOMAIN_ID
 
 
