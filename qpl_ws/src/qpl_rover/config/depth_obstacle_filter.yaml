@@ -71,6 +71,8 @@
     memory_cell: 0.05
     memory_frame: map         # odom drifts; map is corrected by the AprilTag
     memory_wall_margin_m: 0.25 # wall feet read as bumps; not remembered this close to the walls
+    memory_max_range_m: 3.0   # far detections (the least reliable, and never seen as floor again)
+                              # aren't remembered; a far phantom blocked the dump spot in the sim
     memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
                               # for a 360 in teleop to still count at the end of a run
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
@@ -143,6 +145,8 @@
     memory_cell: 0.05
     memory_frame: map         # odom drifts; map is corrected by the AprilTag
     memory_wall_margin_m: 0.25 # wall feet read as bumps; not remembered this close to the walls
+    memory_max_range_m: 3.0   # far detections (the least reliable, and never seen as floor again)
+                              # aren't remembered; a far phantom blocked the dump spot in the sim
     memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
                               # for a 360 in teleop to still count at the end of a run
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten

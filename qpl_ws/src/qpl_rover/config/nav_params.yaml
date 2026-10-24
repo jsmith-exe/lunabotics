@@ -301,7 +301,11 @@ global_costmap:
       width: 10
       height: 9
       resolution: 0.05
-      footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
+      # 4 cm in from the real footprint each side (global costmap only; DWB checks the real one
+      # plus padding in the local costmap). Boulder and crater marks are already grown 0.12-0.20 m,
+      # and with the real footprint Smac refused to plan from wherever a corner just overlapped a
+      # grown mark ("Starting point in lethal space", sim seed 5), so the rover never moved off.
+      footprint: "[[0.58, 0.44], [0.573, 0.465], [0.555, 0.483], [0.53, 0.49], [-0.53, 0.49], [-0.555, 0.483], [-0.573, 0.465], [-0.58, 0.44], [-0.58, -0.44], [-0.573, -0.465], [-0.555, -0.483], [-0.53, -0.49], [0.53, -0.49], [0.555, -0.483], [0.573, -0.465], [0.58, -0.44]]"
       # No footprint_padding: 0.10 (inscribed 0.63 m) was tried so NavFn would keep room to
       # turn, but obstacle marks are bigger than the obstacles (grown behind boulders, crater
       # shadows), so it closed a 1.25 m gap the rover drives through and sent it round into a

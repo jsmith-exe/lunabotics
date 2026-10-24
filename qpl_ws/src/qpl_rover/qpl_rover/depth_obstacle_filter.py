@@ -541,6 +541,8 @@ class DepthObstacleFilter(Node):
         # so marks kept for minutes (a 360 in teleop maps the arena before AUTO) would end up
         # beside the obstacles. Until map exists nothing is remembered.
         self.memory_frame = self.declare_parameter('memory_frame', 'map').value
+        # Detections further than this from the camera aren't remembered
+        self.memory_max_range = self.declare_parameter('memory_max_range_m', 0.0).value
         # Detections within this of the arena walls (memory_frame = map) aren't remembered
         self.memory_wall_margin = self.declare_parameter('memory_wall_margin_m', 0.0).value
         self.arena_width, self.arena_length = load_arena_size() if self.memory_wall_margin > 0 else (0.0, 0.0)
@@ -595,7 +597,7 @@ class DepthObstacleFilter(Node):
                 raise
             return tf
 
-    def remember(self, stamp, points, clearing, obstacle, local, rel):
+    def remember(self, stamp, points, clearing, obstacle, local, rel, sensor_pos):
         """Update the obstacle memory with this frame's level-frame points; the remembered
         marks back in the level frame ((0, 3) without a memory_frame transform yet)."""
         if self.memory_frame == self.level_frame:
@@ -609,6 +611,13 @@ class DepthObstacleFilter(Node):
             return np.empty((0, 3))
         rot, pos = transform_parts(tf)
         in_map = points @ rot.T + pos
+        if self.memory_max_range > 0:
+            # Far detections are the least reliable, and past local_max_range nothing can show the
+            # cell as plain floor again, so a far phantom stayed for the whole memory_duration
+            # (one blocked the dump spot in the sim). They're published this frame only, and
+            # remembered once the rover is close enough to confirm them.
+            far = np.hypot(points[:, 0] - sensor_pos[0], points[:, 1] - sensor_pos[1]) > self.memory_max_range
+            local = local & ~far
         if self.memory_wall_margin > 0:
             # Not by the walls: wall feet read as bumps there, and remembered with the map pose
             # drifting they built lethal strips down the walls. The rover can't go there anyway.
@@ -682,7 +691,7 @@ class DepthObstacleFilter(Node):
             dropped = ignore(points)
             obstacle &= ~dropped
             local &= ~dropped
-        remembered = self.remember(stamp, points, clearing, obstacle, local, rel)
+        remembered = self.remember(stamp, points, clearing, obstacle, local, rel, sensor_pos)
         if ignore and len(remembered):
             remembered = remembered[~ignore(remembered)]
 
