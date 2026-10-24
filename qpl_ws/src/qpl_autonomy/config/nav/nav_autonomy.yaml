@@ -4,15 +4,16 @@ nav_autonomy:
   ros__parameters:
     autonomy.update_rate_hz: 5.0 # Autonomy update / command publish rate
 
-    # Drum lift positions: bigger = higher. Keep within the actuators' range in
-    # diffdrive_canbus/hardware/can_config.yaml (25-225 mm), or they can never reach the
-    # target and the sequence waits forever.
+    # Drum lift positions: bigger = higher. drum_command_interface clamps lift commands to the
+    # actuators' range in diffdrive_canbus/hardware/can_config.yaml (32-218 mm). Keep these
+    # inside it: one further than position_tolerance_m outside is never reached, and the
+    # sequence waits forever.
 
     # EXCAVATION TUNING (rover stands still: spin, lower, hold for dig_duration_s, raise, stop spinning)
     # actuators
-    excavation.lowered_position_m: 0.03 # Bucket down in the regolith
+    excavation.lowered_position_m: 0.032 # Bucket down in the regolith
     excavation.dig_duration_s: 10.0 # How long to hold the bucket down spinning; nothing reports when it's full
-    excavation.raised_position_m: 0.22 # Bucket position after excavation
+    excavation.raised_position_m: 0.218 # Bucket position after excavation
     excavation.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
@@ -21,7 +22,7 @@ nav_autonomy:
 
     # DEPOSITION TUNING (rover stands still at the berm: bucket raised, spin, stop spinning)
     # actuators
-    deposition.raised_position_m: 0.22 # Bucket height while dumping
+    deposition.raised_position_m: 0.218 # Bucket height while dumping
     deposition.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
@@ -30,15 +31,63 @@ nav_autonomy:
     deposition.dump_duration_s: 15.0 # How long to spin; nothing reports when the drum is empty
 
     # NAVIGATION
-    # Map frame [x, y, yaw], US arena: origin at the arena's SW interior corner, the
-    # AprilTag wall is y = 0. The rover stands still at each waypoint to dig or dump.
-    navigation.excavation_waypoint: [6.0, 1.5, 0.0] # excavation zone (y 0-3), clear of the start zone
-    navigation.deposition_waypoint: [8.14, 6.40, 1.5708] # berm centre (x 7.69-8.59, y 5.30-7.50), drum over the berm, facing along it
+    # Map frame, US arena: origin at the arena's SW interior corner, the AprilTag wall is y = 0.
+    # Candidates are flattened [x, y, yaw, x, y, yaw, ...]; the rover stands still at one to dig
+    # or dump. Each leg takes the next candidate whose footprint (+ candidate_clearance_m) has
+    # no lethal cell in the global costmap, and switches if it becomes blocked on the way.
+    # Dig spots: spread over the whole excavation zone (x 0-9.14, y 0-3.0), which includes the
+    # start zone (rulebook section 6.2.1), so a cluster of obstacles can't block all of them. Every
+    # footprint stays at least 0.8 m from the walls, so none is near a wall or in a corner, where
+    # the rover gets stuck. All face north like the dump spot. Columns x 7.8 / 6.2 / 4.6 / 1.4 /
+    # 3.0: nearest the berm first, and in each row the spot just north of the start last. The south
+    # row (y 1.5) is used first so later trips to the north row (y 2.4) don't cross old pits.
+    # Used in turn; a spot with a boulder or crater under it is skipped.
+    navigation.excavation_candidates: [7.8, 1.5, 1.5708,
+                                       6.2, 1.5, 1.5708,
+                                       4.6, 1.5, 1.5708,
+                                       1.4, 1.5, 1.5708,
+                                       3.0, 1.5, 1.5708,
+                                       7.8, 2.4, 1.5708,
+                                       6.2, 2.4, 1.5708,
+                                       4.6, 2.4, 1.5708,
+                                       1.4, 2.4, 1.5708,
+                                       3.0, 2.4, 1.5708]
+    # Dump spot: one, on the berm (x 7.69-8.59, y 5.30-7.50) as the rules specify. The drum is
+    # under the middle of the rover, so its centre sits on the berm facing north, the
+    # same way as the dig spots. The depth filter ignores piles inside the berm (ignore_zones in
+    # qpl_rover/config/depth_obstacle_filter.yaml), so earlier dumps don't block it.
+    # x 8.0, not the berm's centre line (8.14): turning on the spot the corners sweep 0.82 m, and at
+    # 8.14 the rear wheels hit the east wall. The drum is still 0.31 m inside the berm's west edge.
+    navigation.deposition_candidates: [8.0, 6.40, 1.5708]
+    # Dumps go via a point this far short of the dump spot (8.0, 4.9), then straight on, so the
+    # rover arrives lined up rather than swinging round near the east wall
+    navigation.deposition_approach_m: 1.5
+    # Footprint half sizes as in nav_params.yaml, plus clearance for the candidate check
+    navigation.footprint_half_length_m: 0.62
+    navigation.footprint_half_width_m: 0.53
+    navigation.candidate_clearance_m: 0.05
+    # Blocked only with at least this many lethal cells (5 cm each) under it, so sensor specks
+    # don't rule out every spot. With none clear, the least blocked one is used.
+    navigation.candidate_min_lethal_cells: 4
     navigation.goal_timeout_s: 180.0
     navigation.max_retries: 2 # Failed goals re-sent before giving up
-    navigation.travel_lift_position_m: 0.22 # Bucket held here while navigating, so it doesn't plough the regolith
+    navigation.travel_lift_position_m: 0.218 # Bucket held here while navigating, so it doesn't plough the regolith
     # The dig/dump starts once within both of these of the waypoint. A small buffer so the
     # rover doesn't keep shuffling to correct itself; keep the yaw in line with Nav2's
     # yaw_goal_tolerance in qpl_rover/config/nav_params.yaml.
     navigation.arrival_radius_m: 0.25
+    # Within stall_radius_m (and the yaw tolerance) but no 5 cm closer for stall_time_s, the
+    # dig/dump starts anyway: Nav2 can shuffle near a goal by the berm for minutes.
+    navigation.stall_radius_m: 0.40
+    navigation.stall_time_s: 10.0
     navigation.arrival_yaw_tolerance_rad: 0.3 # ~17 deg
+
+    # LOCALISATION
+    # NAV_EXCAVATE / NAV_DEPOSIT / AUTO are refused unless the rover is localised: an AprilTag
+    # fix no older than max_fix_age_s, at most max_drive_since_fix_m driven since it, and the
+    # global EKF within max_fix_disagreement_m (plus the distance driven) of it. Checked when a
+    # command arrives, not during a run. In the start zone, turn in RC until a camera sees the tag.
+    localisation.require_localised: true
+    localisation.max_fix_age_s: 30.0
+    localisation.max_drive_since_fix_m: 1.0
+    localisation.max_fix_disagreement_m: 0.3

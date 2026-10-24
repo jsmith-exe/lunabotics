@@ -27,6 +27,7 @@ Open http://localhost:8765 (see launch/hud.launch.py).
 """
 
 import base64
+import json
 import math
 import os
 import time
@@ -47,7 +48,7 @@ import tf2_ros
 from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry, OccupancyGrid, Path
 from sensor_msgs.msg import JointState, CompressedImage, CameraInfo
-from std_msgs.msg import Float64, Float64MultiArray
+from std_msgs.msg import Float64, Float64MultiArray, String
 from rcl_interfaces.msg import Log
 from tf2_msgs.msg import TFMessage
 
@@ -274,6 +275,7 @@ class HudNode(Node):
             "lift_cmd": None,     # /drum_lift_cont/commands
             "joints": {},         # name -> (pos, vel)
             "tag": None,          # (x, y, yaw, wall time)
+            "auto": None,         # (/nav_autonomy/state dict, wall time)
         }
         self.logs = deque(maxlen=LOG_KEEP)
         self.log_id = 0
@@ -315,6 +317,7 @@ class HudNode(Node):
                   lambda m: self._stamp("lift_cmd", list(m.data)), fast, "drum")
         self._sub(PoseWithCovarianceStamped, "/apriltag/pose", self.on_tag, 10, "loc")
         self._sub(Path, "/plan", self.on_plan, 10, "nav")
+        self._sub(String, "/nav_autonomy/state", self.on_auto, self.latched, "auto")
         self.stats["/global_costmap/costmap"] = TopicStats("/global_costmap/costmap", "nav")
         self.stats["/rosout"] = TopicStats("/rosout", "log")
         self._apply_telemetry()
@@ -457,6 +460,12 @@ class HudNode(Node):
         self.costmap_msg = msg
         self.costmap_dirty = True
 
+    def on_auto(self, msg):
+        try:
+            self.state["auto"] = (json.loads(msg.data), time.time())
+        except ValueError:
+            self.get_logger().warn("Bad /nav_autonomy/state message", throttle_duration_sec=5.0)
+
     def on_plan(self, msg):
         pts = [(ps.pose.position.x, ps.pose.position.y) for ps in msg.poses]
         if len(pts) > 200:
@@ -584,6 +593,10 @@ class HudNode(Node):
             cams[k] = {"hz": summ["hz"], "age": summ["age"], "on": c.on,
                        "size": list(c.size) if c.size else None}
 
+        auto = None
+        if s["auto"] is not None:
+            auto = {**s["auto"][0], "age": num(now - s["auto"][1], 1)}
+
         tele = {
             "t": round(now, 3),
             "up": round(now - self.start_wall, 1),
@@ -606,6 +619,7 @@ class HudNode(Node):
                 "cmd": self._scalar(s["lift_cmd"], now),
             },
             "tag": tag,
+            "auto": auto,
             "cams": cams,
             "joints_age": None if joints_last is None else num(now - joints_last, 2),
             "telemetry": self.telemetry,

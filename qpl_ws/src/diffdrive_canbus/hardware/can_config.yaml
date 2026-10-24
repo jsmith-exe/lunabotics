@@ -1,5 +1,6 @@
 drum:
-  min_lift_mm: 25
-  max_lift_mm: 225
+  # Inside the 30-220 mm the position feedback reads, so the driver's 3 mm stop band is reachable at both ends
+  min_lift_mm: 32
+  max_lift_mm: 218
   synchronise_actuators: true
   max_distance_between_points_metres: 0.04

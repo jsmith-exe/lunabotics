@@ -349,7 +349,7 @@ The repository also provides shell aliases for these commands where configured.
 
 `nav_autonomy_node` uses Nav2 to drive between the excavation zone and the berm. It is a separate node from the blind autonomy above. The blind node, its variants, their sequences and `fsm_tuning.yaml` are not used or changed by it, so blind autonomy remains as a backup.
 
-It is started by `qpl_nav` (`qpl_rover` `navigation_launch.py`, which includes `launch/nav/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
+It is started by `qpl_nav` on the rover or `qpl_nav_sim` against the sim (`qpl_rover` `navigation_launch.py`, which includes `launch/nav/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
 
 Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
 
@@ -377,8 +377,8 @@ Nothing reports when the bucket is full or empty, so the dig and dump are timed 
 
 ### Navigation
 
-* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, the command is refused.
-* Waypoints are map-frame `[x, y, yaw]` values in `config/nav/nav_autonomy.yaml` (`navigation.*`). The dig or dump starts once the rover is within `arrival_radius_m` (0.25 m) and `arrival_yaw_tolerance_rad` (0.3 rad, ~17°) of the waypoint, or when Nav2 reports the goal reached. That small buffer stops it shuffling to correct itself.
+* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, or the rover isn't localised (`localisation.*` in the config: a recent tag fix that the global EKF agrees with, and little driving since), the command is refused.
+* Dig and dump spots are lists of map-frame `[x, y, yaw]` candidates in `config/nav/nav_autonomy.yaml` (`navigation.excavation_candidates`, `navigation.deposition_candidates`). Each leg takes the next candidate whose footprint is clear in the global costmap, and switches if it becomes blocked on the way. Dig spots are used in turn; there is one dump spot, on the berm. Dig spots are approached head-on (any heading). The dig or dump starts once the rover is within `arrival_radius_m` (0.25 m) and `arrival_yaw_tolerance_rad` (0.3 rad, ~17°) of the candidate, or when Nav2 reports the goal reached. That small buffer stops it shuffling to correct itself.
 * While navigating, the bucket is held at `travel_lift_position_m` so it does not plough the regolith.
 * A failed goal is retried `max_retries` times. After that, autonomy (including `AUTO`) returns to `IDLE`.
 * `STOP` and Ctrl-C cancel the active Nav2 goal; otherwise Nav2 would keep driving it.

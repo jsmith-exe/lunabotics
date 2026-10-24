@@ -264,6 +264,7 @@ export class TacticalMap {
     const showCost = this.costmapToggle.on && this.costImg && this.cost && this.cost.frame === (d.frame || "map");
     if (showCost) this.drawCostmap(ctx);
     if (S.plan && S.plan.frame === d.frame) this.drawPlan(ctx, S.plan.pts);
+    if (inMap && S.tele?.auto?.target && S.tele.auto.state !== "IDLE") this.drawAutoTarget(ctx, S.tele.auto.target);
     this.drawTrail(ctx);
     if (inMap && d.pose) this.drawBermBearing(ctx, d.pose);
     if (S.tele?.tag && S.tele.tag.age < 4 && inMap) this.drawTagFix(ctx, S.tele.tag);
@@ -447,6 +448,25 @@ export class TacticalMap {
     ctx.lineTo(...this.toScreen(...b));
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  // Nav autonomy's current dig or dump candidate: footprint outline and heading tick.
+  drawAutoTarget(ctx, target) {
+    if (!isNum(target.x) || !isNum(target.yaw)) return;
+    ctx.strokeStyle = C.purple;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    this.poly(ctx, this.footprint(target));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const [sx, sy] = this.toScreen(target.x, target.y);
+    const [hx, hy] = this.toScreen(target.x + 0.5 * Math.cos(target.yaw), target.y + 0.5 * Math.sin(target.yaw));
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(hx, hy);
+    ctx.stroke();
+    label(ctx, `${target.kind === "EXCAVATION" ? "DIG" : "BERM"} ${target.index}/${target.count}`, sx + 10, sy - 10,
+          { size: 10, color: C.purple });
   }
 
   drawTagFix(ctx, tag) {

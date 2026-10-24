@@ -178,6 +178,9 @@ local_costmap:
       height: 6
       resolution: 0.05
       footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
+      # Wheels are the footprint's edges, and skid-steer slips on tight turns, so DWB gets 4 cm of
+      # margin. Local costmap only: goals near walls are planned as before.
+      footprint_padding: 0.04
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
@@ -325,8 +328,13 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0 # keep in step with local_costmap
-        inflation_radius: 0.60
+        # Wider and softer than the local costmap. The planner treats the rover as a point
+        # and only keeps its centre outside the inscribed radius, so with 0.60 / 8.0 its
+        # shortest paths ran about 7 cm beside obstacles. Cost out to 1.1 m makes paths take
+        # the middle of a gap when there is room. Narrow gaps are still planned through as
+        # long as the footprint fits.
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.1
 
   global_costmap_client:
     ros__parameters:

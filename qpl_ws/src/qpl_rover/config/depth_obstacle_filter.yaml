@@ -18,6 +18,15 @@
 # Boulder/crater marks are remembered until seen again as plain floor (at most
 # memory_duration s) so Nav2's raytracing doesn't wipe them once they're too
 # close for the camera to see.
+#
+# The cameras see only the near face of a boulder, so detections are grown before
+# they are remembered: bumps away from the camera by up to grow_behind_m (rulebook
+# boulders are at most 0.40 m across), and every detection by a grow_radius_m ring.
+#
+# Inside the arena zones in ignore_zones (from qpl_rover/config/arena/<arena>.yaml)
+# nothing lower than ignore_max_height above the floor is marked, so the rover's
+# own dump piles don't block the next dump slot (qpl_autonomy nav_autonomy.yaml).
+# The rulebook lets the rover push obstacles aside in the construction zone.
 
 /depth_obstacle_filter_front:
   ros__parameters:
@@ -54,8 +63,15 @@
     memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
+    grow_behind_m: 0.30
+    grow_radius_m: 0.10    # 0.05 left wheels over crater edges in the sim
+    grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
+    ignore_enabled: true
+    ignore_zones: ["BERM"]
+    ignore_frame: map
+    ignore_max_height: 0.6
 
 /depth_obstacle_filter_rear:
   ros__parameters:
@@ -92,5 +108,12 @@
     memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
+    grow_behind_m: 0.30
+    grow_radius_m: 0.10    # 0.05 left wheels over crater edges in the sim
+    grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
+    ignore_enabled: true
+    ignore_zones: ["BERM"]
+    ignore_frame: map
+    ignore_max_height: 0.6

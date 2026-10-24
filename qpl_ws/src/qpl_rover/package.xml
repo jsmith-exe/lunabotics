@@ -25,6 +25,8 @@
   <exec_depend>geometry_msgs</exec_depend>
   <!-- apriltag_gate reads the navigate_to_pose action status -->
   <exec_depend>action_msgs</exec_depend>
+  <!-- drum_command_interface reads the lift limits from its can_config.yaml -->
+  <exec_depend>diffdrive_canbus</exec_depend>
 
   <!-- Localisation + IMU chain -->
   <exec_depend>tf2_ros</exec_depend>

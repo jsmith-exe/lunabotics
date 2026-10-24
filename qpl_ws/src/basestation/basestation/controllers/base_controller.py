@@ -66,7 +66,8 @@ class BaseController:
         # Step before the first wait, so a quick tap still moves the value.
         while self.state.teleop_enabled:
             current = self.state.topic_target_states[command.topic_name]['value']
-            new_value = min(max(current + step, lower), upper)
+            # A value outside the limits isn't one to step from: 0.0 holds the drum lift wherever it is
+            new_value = min(max(current + step, lower), upper) if lower <= current <= upper else current
             if new_value != current:
                 self.publish_function(command.topic_name, command.message_option, new_value)
             if stop.wait(1 / INCREMENT_UPDATE_RATE):

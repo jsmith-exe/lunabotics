@@ -56,6 +56,13 @@ floor hidden behind its near rim is marked too (crater_shadows()).
 Boulder and crater marks are remembered (ObstacleMemory) so they survive
 Nav2's raytracing once they are too close for the camera to see.
 
+The cameras only see the near face of a boulder, and DWB only rejects a
+trajectory when the footprint's edge crosses a marked cell, so in the sim the
+rover brushed the unseen backs and sides of boulders. Detections are grown
+before they are remembered (grow_detections()): bump points are extended away
+from the camera by up to grow_behind_m (the rulebook's boulders are at most
+0.40 m across), and every detection gets a grow_radius_m ring.
+
 Both outputs are in `level_frame` with z set to the sensor's z, so Nav2's 3D
 range checks act as 2D ones and its height band (set wide) never rejects them.
 Nav2 must be given `sensor_frame` for these sources, since the cloud's own frame
@@ -65,11 +72,20 @@ Input is the depth image, not the driver's point cloud: the sim clouds are
 10-13 MB a frame and were dropped in transport for seconds at a time (Nav2 then
 reuses the last cloud, from wherever the rover was). The image is ~8x smaller and
 is deprojected here at the decimated resolution only.
+
+Nothing lower than ignore_max_height is marked inside the arena zones named in
+ignore_zones (the berm by default), so the rover's own dump piles don't block
+the next dump slot. The rulebook lets the rover push obstacles aside in the
+construction zone. Those points still clear. Needs ignore_frame (map) -> odom;
+without it nothing is ignored.
 """
 import math
+import os
 
 import numpy as np
 import rclpy
+import yaml
+from ament_index_python.packages import get_package_share_directory
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -226,15 +242,61 @@ def crater_shadows(grid, rel, sensor_pos, usable, blocked, row_angle,
     return np.concatenate([fill[t <= 1.0], b])
 
 
-def classify(p, grid, sensor_pos, base_pos, base_rot, row_angle):
+def grow_detections(pts, rel, sensor_pos, behind, radius, step):
+    """Extra obstacle points around local detections, in the level frame: bumps
+    (rel > 0) extended away from the sensor by up to `behind`, then a ring of
+    `radius` around those and every detection. One point per `step` cell."""
+    if len(pts) == 0 or (behind <= 0 and radius <= 0):
+        return np.empty((0, 3))
+    extra = []
+    with np.errstate(invalid='ignore'):
+        bumps = pts[rel > 0]
+    if behind > 0 and len(bumps):
+        away = bumps[:, :2] - sensor_pos[:2]
+        away /= np.maximum(np.linalg.norm(away, axis=1, keepdims=True), 1e-6)
+        k = np.arange(step, behind + 1e-9, step)
+        xy = (bumps[:, None, :2] + away[:, None, :] * k[None, :, None]).reshape(-1, 2)
+        extra.append(np.column_stack([xy, np.repeat(bumps[:, 2], len(k))]))
+    if radius > 0:
+        base = np.concatenate([pts] + extra)
+        angle = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
+        ring = radius * np.column_stack([np.cos(angle), np.sin(angle)])
+        xy = (base[:, None, :2] + ring[None]).reshape(-1, 2)
+        extra.append(np.column_stack([xy, np.repeat(base[:, 2], len(angle))]))
+    if not extra:
+        return np.empty((0, 3))
+    grown = np.concatenate(extra)
+    _, first = np.unique(np.floor(grown[:, :2] / step).astype(np.int64), axis=0, return_index=True)
+    return grown[first]
+
+
+def load_zones(names):
+    """(x_min, x_max, y_min, y_max) of each named zone in the selected arena config."""
+    arena_dir = os.path.join(get_package_share_directory('qpl_rover'), 'config', 'arena')
+    with open(os.path.join(arena_dir, 'selector.yaml')) as f:
+        arena = yaml.safe_load(f)['arena']
+    with open(os.path.join(arena_dir, f'{arena}.yaml')) as f:
+        zones = {z['name']: (z['x_min'], z['x_max'], z['y_min'], z['y_max'])
+                 for z in yaml.safe_load(f)['arena']['zones']}
+    missing = [n for n in names if n not in zones]
+    if missing:
+        raise ValueError(f'arena {arena} has no zone {missing}; it has {sorted(zones)}')
+    return [zones[n] for n in names]
+
+
+def classify(p, grid, sensor_pos, base_pos, base_rot, row_angle, ignored=None):
     """Split a levelled point grid into Nav2 clouds. p holds the node's
     parameters (attributes of the same names). Returns (points, clearing,
     obstacle, local, rel): points (N, 3) still at true height, boolean masks
     for the clearing cloud, the obstacle cloud and the obstacles found by the
     local tests (boulders, craters), and each point's height above its local
-    floor (NaN where unknown)."""
+    floor (NaN where unknown). Points flagged in `ignored` (per grid point) are
+    left out of the local tests, so a dump pile doesn't raise the floor estimate
+    around it; the caller removes their marks."""
     flat_grid = grid.reshape(-1, 3)
     finite = np.isfinite(flat_grid[:, 2])
+    if ignored is None:
+        ignored = np.zeros(len(flat_grid), bool)
 
     # Drop the rover itself (box in base_frame).
     in_base = (flat_grid - base_pos) @ base_rot
@@ -254,7 +316,7 @@ def classify(p, grid, sensor_pos, base_pos, base_rot, row_angle):
     rel = np.full(len(flat_grid), np.nan)
     local = np.zeros_like(clearing)
     if p.local_enabled:
-        near = clearing & (rng <= p.local_max_range)
+        near = clearing & (rng <= p.local_max_range) & ~ignored
         flagged, rel[near] = local_anomalies(
             flat_grid[near, :2], height[near], rng[near], ~obstacle[near],
             p.local_cell, p.local_window, p.local_min_cells,
@@ -264,7 +326,7 @@ def classify(p, grid, sensor_pos, base_pos, base_rot, row_angle):
         obstacle[near] |= flagged
         shape = grid.shape[:2]
         extra = crater_shadows(
-            grid, rel.reshape(shape), sensor_pos, clearing.reshape(shape), obstacle.reshape(shape),
+            grid, rel.reshape(shape), sensor_pos, (clearing & ~ignored).reshape(shape), obstacle.reshape(shape),
             row_angle, p.shadow_max_range, p.shadow_min_gap, p.shadow_gap_ratio,
             p.shadow_max_gap, p.shadow_min_depth, p.shadow_fill_step)
 
@@ -378,9 +440,21 @@ class DepthObstacleFilter(Node):
             self.declare_parameter('memory_floor_band', 0.03).value,
             int(self.declare_parameter('memory_floor_points', 3).value))
 
+        # Growth of boulder/crater detections (see grow_detections()).
+        self.grow_behind_m = self.declare_parameter('grow_behind_m', 0.30).value
+        self.grow_radius_m = self.declare_parameter('grow_radius_m', 0.05).value
+        self.grow_step_m = self.declare_parameter('grow_step_m', 0.05).value
+
         # Points inside this base_frame box are the rover itself.
         self.self_filter_x = self.declare_parameter('self_filter_x', 0.65).value
         self.self_filter_y = self.declare_parameter('self_filter_y', 0.56).value
+
+        # Arena zones where nothing below ignore_max_height is marked (see the module docstring).
+        self.ignore_enabled = self.declare_parameter('ignore_enabled', True).value
+        self.ignore_zones = list(self.declare_parameter('ignore_zones', ['BERM']).value)
+        self.ignore_frame = self.declare_parameter('ignore_frame', 'map').value
+        self.ignore_max_height = self.declare_parameter('ignore_max_height', 0.6).value
+        self.ignore_rects = load_zones(self.ignore_zones) if self.ignore_enabled else []
 
         self.tf_buffer = tf2_ros.Buffer()
         # No spin_thread: it adds this same node to a second executor, which
@@ -414,6 +488,26 @@ class DepthObstacleFilter(Node):
                 raise
             return tf
 
+    def ignore_test(self, base_pos):
+        """A function (N, 3) level-frame points -> mask of those inside an ignore zone and below
+        ignore_max_height, or None when nothing can be ignored (no zones, or no map frame yet)."""
+        if not self.ignore_rects:
+            return None
+        try:
+            tf = self.tf_buffer.lookup_transform(self.ignore_frame, self.level_frame, Time())
+        except tf2_ros.TransformException:
+            return None
+        rot, pos = transform_parts(tf)
+
+        def test(pts):
+            xy = (pts @ rot.T + pos)[:, :2]
+            inside = np.zeros(len(pts), bool)
+            with np.errstate(invalid='ignore'):
+                for x_min, x_max, y_min, y_max in self.ignore_rects:
+                    inside |= (xy[:, 0] >= x_min) & (xy[:, 0] <= x_max) & (xy[:, 1] >= y_min) & (xy[:, 1] <= y_max)
+                return inside & (pts[:, 2] - base_pos[2] < self.ignore_max_height)
+        return test
+
     def on_depth(self, msg):
         if self.info is None:
             self.get_logger().warn(f'No camera_info on {self.info_topic} yet', throttle_duration_sec=5.0)
@@ -441,9 +535,26 @@ class DepthObstacleFilter(Node):
         grid = deproject(msg, self.info, stride) @ sensor_rot.T + sensor_pos
         # angle between decimated rows (camera_info may be for another resolution)
         row_angle = stride / (self.info.k[4] * msg.height / self.info.height)
+        ignore = self.ignore_test(base_pos)
         points, clearing, obstacle, local, rel = classify(
-            self, grid, sensor_pos, base_pos, base_rot, row_angle)
+            self, grid, sensor_pos, base_pos, base_rot, row_angle,
+            ignore(grid.reshape(-1, 3)) if ignore else None)
+        grown = grow_detections(points[local], rel[local], sensor_pos,
+                                self.grow_behind_m, self.grow_radius_m, self.grow_step_m)
+        if len(grown):
+            n = len(grown)
+            points = np.concatenate([points, grown])
+            clearing = np.concatenate([clearing, np.zeros(n, bool)])
+            obstacle = np.concatenate([obstacle, np.ones(n, bool)])
+            local = np.concatenate([local, np.ones(n, bool)])
+            rel = np.concatenate([rel, np.full(n, np.nan)])
+        if ignore:
+            dropped = ignore(points)
+            obstacle &= ~dropped
+            local &= ~dropped
         remembered = self.memory.update(stamp.nanoseconds * 1e-9, points, clearing, obstacle, local, rel)
+        if ignore and len(remembered):
+            remembered = remembered[~ignore(remembered)]
 
         flat = np.concatenate([points[obstacle], remembered])
         flat[:, 2] = sensor_pos[2]

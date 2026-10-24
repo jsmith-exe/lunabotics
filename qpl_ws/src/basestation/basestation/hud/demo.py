@@ -127,7 +127,7 @@ class HudDemo(Node):
         self.wp = 1
         self.t0 = time.time()
         self.drum_phase = 0.0
-        self.lift = 0.2   # m, inside can_config.yaml's 25-225 mm travel
+        self.lift = 0.2   # m, inside can_config.yaml's 32-218 mm travel
         self.lift_target = 0.2
         self.reverse_until = 0.0
         self.next_reverse = self.t0 + 20.0

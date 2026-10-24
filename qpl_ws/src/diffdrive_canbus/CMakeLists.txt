@@ -79,6 +79,12 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+# drum_command_interface (qpl_rover) clamps lift commands to the limits in here
+install(
+  FILES hardware/can_config.yaml
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # -------------------------------------------------------------------
 # Install library
 # -------------------------------------------------------------------
