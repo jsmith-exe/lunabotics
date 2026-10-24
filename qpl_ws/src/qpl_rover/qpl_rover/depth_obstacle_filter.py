@@ -61,7 +61,7 @@ trajectory when the footprint's edge crosses a marked cell, so in the sim the
 rover brushed the unseen backs and sides of boulders. Detections are grown
 before they are remembered (grow_detections()): bump points are extended away
 from the camera by up to grow_behind_m (the rulebook's boulders are at most
-0.40 m across), and every detection gets a grow_radius_m ring.
+0.40 m across), and every detection gets a grow_radius_m disc round it.
 
 Both outputs are in `level_frame` with z set to the sensor's z, so Nav2's 3D
 range checks act as 2D ones and its height band (set wide) never rejects them.
@@ -242,9 +242,19 @@ def crater_shadows(grid, rel, sensor_pos, usable, blocked, row_angle,
     return np.concatenate([fill[t <= 1.0], b])
 
 
+def disc_offsets(radius, step):
+    """(N, 2) offsets filling a disc of `radius`: rings every `step`, points about `step` apart."""
+    rings = [np.zeros((1, 2))]
+    for r in np.arange(step, radius + 1e-9, step):
+        n = max(8, int(np.ceil(2.0 * np.pi * r / step)))
+        angle = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False)
+        rings.append(r * np.column_stack([np.cos(angle), np.sin(angle)]))
+    return np.concatenate(rings)
+
+
 def grow_detections(pts, rel, sensor_pos, behind, radius, step):
     """Extra obstacle points around local detections, in the level frame: bumps
-    (rel > 0) extended away from the sensor by up to `behind`, then a ring of
+    (rel > 0) extended away from the sensor by up to `behind`, then a disc of
     `radius` around those and every detection. One point per `step` cell."""
     if len(pts) == 0 or (behind <= 0 and radius <= 0):
         return np.empty((0, 3))
@@ -259,10 +269,11 @@ def grow_detections(pts, rel, sensor_pos, behind, radius, step):
         extra.append(np.column_stack([xy, np.repeat(bumps[:, 2], len(k))]))
     if radius > 0:
         base = np.concatenate([pts] + extra)
-        angle = np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False)
-        ring = radius * np.column_stack([np.cos(angle), np.sin(angle)])
-        xy = (base[:, None, :2] + ring[None]).reshape(-1, 2)
-        extra.append(np.column_stack([xy, np.repeat(base[:, 2], len(angle))]))
+        _, first = np.unique(np.floor(base[:, :2] / step).astype(np.int64), axis=0, return_index=True)
+        base = base[first]  # one point per step cell, so the disc below stays cheap
+        disc = disc_offsets(radius, step)
+        xy = (base[:, None, :2] + disc[None]).reshape(-1, 2)
+        extra.append(np.column_stack([xy, np.repeat(base[:, 2], len(disc))]))
     if not extra:
         return np.empty((0, 3))
     grown = np.concatenate(extra)

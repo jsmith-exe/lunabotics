@@ -43,20 +43,22 @@ nav_autonomy:
     # start zone (rulebook section 6.2.1), so a cluster of obstacles can't block all of them. Every
     # footprint stays at least 0.8 m from the walls, so none is near a wall or in a corner, where
     # the rover gets stuck. The yaw is only used for the costmap check: the rover digs facing the
-    # way it drove there, so it doesn't turn on the spot at the goal. Columns x 7.8 / 6.2 / 4.6 / 1.4 /
-    # 3.0: nearest the berm first, and in each row the spot just north of the start last. The south
+    # way it drove there, so it doesn't turn on the spot at the goal. Columns x 6.9 / 5.5 / 4.1 / 1.4 /
+    # 2.7: nearest the berm first, and in each row the spot just north of the start last. Not
+    # further east: from x 7.8 the cameras couldn't see the AprilTag to re-localise (4.6 m away at
+    # 18 deg to its wall), and the map pose drifted ~0.5 m by the berm. The south
     # row (y 1.5) is used first so later trips to the north row (y 2.4) don't cross old pits.
     # Used in turn; a spot with a boulder or crater under it is skipped.
-    navigation.excavation_candidates: [7.8, 1.5, 1.5708,
-                                       6.2, 1.5, 1.5708,
-                                       4.6, 1.5, 1.5708,
+    navigation.excavation_candidates: [6.9, 1.5, 1.5708,
+                                       5.5, 1.5, 1.5708,
+                                       4.1, 1.5, 1.5708,
                                        1.4, 1.5, 1.5708,
-                                       3.0, 1.5, 1.5708,
-                                       7.8, 2.4, 1.5708,
-                                       6.2, 2.4, 1.5708,
-                                       4.6, 2.4, 1.5708,
+                                       2.7, 1.5, 1.5708,
+                                       6.9, 2.4, 1.5708,
+                                       5.5, 2.4, 1.5708,
+                                       4.1, 2.4, 1.5708,
                                        1.4, 2.4, 1.5708,
-                                       3.0, 2.4, 1.5708]
+                                       2.7, 2.4, 1.5708]
     # Dump spot: one, on the berm (x 7.69-8.59, y 5.30-7.50) as the rules specify. The drum is
     # under the middle of the rover, so its centre sits on the berm facing north. The depth
     # filter ignores piles inside the berm (ignore_zones in
@@ -77,7 +79,12 @@ nav_autonomy:
     # don't rule out every spot. With none clear, the least blocked one is used.
     navigation.candidate_min_lethal_cells: 4
     navigation.goal_timeout_s: 180.0
-    navigation.max_retries: 2 # Failed goals re-sent before giving up
+    navigation.max_retries: 3 # Failed goals re-sent before giving up (each after a short unstick move)
+    # Before each retry, drive this far back (or forwards, if behind is blocked) to a pose with
+    # nothing lethal under the footprint: touching an obstacle or a wall, Nav2 can't plan a first
+    # move and its own recoveries refuse to move, so a plain retry fails at once.
+    navigation.unstick_m: 0.4
+    navigation.unstick_speed: 0.08 # m/s
     navigation.travel_lift_position_m: 0.218 # Bucket held here while navigating, so it doesn't plough the regolith
     # The dig/dump starts once within this of the waypoint, whatever the heading (the drum is
     # under the middle of the rover). A small buffer so the rover doesn't keep shuffling.
@@ -103,7 +110,7 @@ nav_autonomy:
     # Only tried this close to the tag and this far off its wall (0.35 rad = 20 deg). In the sim
     # the front camera lost the tag past ~4 m at 30 deg to the wall, so the dig spots by the
     # berm (x 7.8, ~18 deg) are skipped. Check the real cameras' range at the practice run.
-    relocalise.max_range_m: 4.0
+    relocalise.max_range_m: 4.4   # the dig spot at (6.9, 2.4) is 4.3 m away at 34 deg
     relocalise.min_angle_from_wall_rad: 0.35
     # The front camera, or the rear one when it's a smaller turn and the tag is within this. In the
     # sim the front camera got ~1 fix/s out to 5 m at any angle to the tag; the rear one none past

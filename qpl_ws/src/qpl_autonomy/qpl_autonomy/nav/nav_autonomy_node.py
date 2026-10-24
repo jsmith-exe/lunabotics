@@ -194,6 +194,15 @@ class NavAutonomyNode(Node):
         self.back_out_speed = self.get_parameter("deposition.back_out_speed").value
         self.back_out_start = None  # (monotonic start, EKF x, EKF y, heading to straighten up to)
 
+        # Before re-sending a failed goal, move a little clear first: with its footprint touching a
+        # lethal cell (it grazed something, or the map pose is off by a wall) Nav2's planner finds
+        # no first move and its recoveries all report a collision, so a plain retry fails at once.
+        self.declare_parameter("navigation.unstick_m", 0.4)
+        self.declare_parameter("navigation.unstick_speed", 0.08)
+        self.unstick_m = self.get_parameter("navigation.unstick_m").value
+        self.unstick_speed = self.get_parameter("navigation.unstick_speed").value
+        self.unstick = None  # (monotonic start, EKF x, EKF y, +1 forwards / -1 backwards)
+
         # Top-level autonomy state
         self.state = "IDLE"
 
@@ -404,6 +413,7 @@ class NavAutonomyNode(Node):
     def start_navigation(self, target):
         self.state = f"NAVIGATING_TO_{target}"
         self.nav_retries = 0
+        self.unstick = None
         self.retargets = 0
         self.blocked_candidates = set()
         self.target_index, _ = self.choose_candidate(target)
@@ -530,6 +540,7 @@ class NavAutonomyNode(Node):
         self.get_logger().info(f"Stopping nav autonomy from state: {self.state}")
         self.auto_mode = False
         self.goal_pending = False
+        self.unstick = None
         actuator_positions = (self.left_actuator_position, self.right_actuator_position)
 
         if self.state == "EXCAVATING":
@@ -582,6 +593,9 @@ class NavAutonomyNode(Node):
         # Wait for Nav2 to reach the waypoint, retrying a failed goal before giving up.
         # Hold the bucket raised so it doesn't plough the regolith on the way.
         self.drum_lift_pub.publish(Float64(data=self.travel_lift_position_m))
+        if self.unstick is not None:
+            self.update_unstick(target)
+            return
         if self.goal_pending:
             # The last goal is still being cancelled; done/succeeded below still describe it
             self.send_navigation_goal(target)
@@ -631,13 +645,52 @@ class NavAutonomyNode(Node):
         self.nav_retries += 1
         if self.nav_retries <= self.max_nav_retries:
             self.report(f"Navigation failed. Retry {self.nav_retries}/{self.max_nav_retries}.", "warning")
-            self.send_navigation_goal(target)
+            if target == "EXCAVATION":
+                # Any dig spot will do: one Nav2 couldn't reach (no path fits the footprint past the
+                # obstacles in the way) is left for this leg and the next clear one tried instead
+                self.blocked_candidates.add(self.target_index)
+                index, clear = self.choose_candidate(target)
+                if clear and index != self.target_index:
+                    self.report(f"Couldn't reach dig spot {self.target_index + 1}. Trying dig spot {index + 1}.", "warning")
+                    self.target_index = index
+                    self.best_error = None
+            if not self.start_unstick():
+                self.send_navigation_goal(target)
         else:
             self.cmd_vel_pub.publish(Twist())
             self.auto_mode = False
             self.state = "IDLE"
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
                         "State: IDLE", "error", "FAILED")
+
+    def start_unstick(self):
+        # Back (or, if that's blocked, forwards) unstick_m to a pose with no lethal cell under the
+        # footprint. False if there's no map pose or costmap, or neither way is clear.
+        if self.map_x is None or self.map_yaw is None or self.global_costmap is None or self.unstick_m <= 0.0:
+            return False
+        for direction in (-1.0, 1.0):
+            x = self.map_x + direction * self.unstick_m * cos(self.map_yaw)
+            y = self.map_y + direction * self.unstick_m * sin(self.map_yaw)
+            if footprint_lethal_cells(self.global_costmap, x, y, self.map_yaw, self.footprint_half_length_m,
+                                      self.footprint_half_width_m) == 0:
+                self.navigation.cancel()
+                self.unstick = (time.monotonic(), self.map_x, self.map_y, direction)
+                self.report(f"Moving {self.unstick_m:.1f} m {'back' if direction < 0 else 'forwards'} "
+                            "to get clear before retrying.")
+                return True
+        return False
+
+    def update_unstick(self, target):
+        start_s, x0, y0, direction = self.unstick
+        if (hypot(self.map_x - x0, self.map_y - y0) >= self.unstick_m
+                or time.monotonic() - start_s > 2.0 * self.unstick_m / self.unstick_speed):
+            self.cmd_vel_pub.publish(Twist())
+            self.unstick = None
+            self.send_navigation_goal(target)
+            return
+        cmd = Twist()
+        cmd.linear.x = direction * self.unstick_speed
+        self.cmd_vel_pub.publish(cmd)
 
     def waypoint_error(self, target):
         # Distance from the current waypoint, or None without a map pose. Any heading will do.

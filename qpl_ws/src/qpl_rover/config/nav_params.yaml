@@ -78,9 +78,13 @@ controller_server:
     FollowPath:
       plugin: "nav2_rotation_shim_controller::RotationShimController"
       primary_controller: "dwb_core::DWBLocalPlanner"
-      angular_dist_threshold: 0.785     # turn on the spot when the path is more than 45 deg off
-      angular_disengage_threshold: 0.3  # until within ~17 deg, then DWB
-      forward_sampling_distance: 0.5
+      # Turn on the spot when the path 1.0 m ahead is more than ~29 deg off, so the rover faces
+      # where it's about to drive before driving there. The cameras see only +-0.51 rad: arcing
+      # round a bend at speed, the front corner swept ground they hadn't seen and clipped a
+      # boulder just outside the view (sim seed 11). 0.785 / 0.5 m let it arc into gentle bends.
+      angular_dist_threshold: 0.5
+      angular_disengage_threshold: 0.2  # until within ~11 deg, then DWB
+      forward_sampling_distance: 1.0
       rotate_to_heading_angular_vel: 0.4  # max_vel_theta
       max_angular_accel: 0.8              # acc_lim_theta
       simulate_ahead_time: 1.0
@@ -372,11 +376,32 @@ planner_server:
     expected_planner_frequency: 5.0
     planner_plugins: ["GridBased"]
 
+    # Smac lattice, not NavFn: NavFn plans the rover's centre point against the inscribed radius,
+    # so it sent it into gaps the 1.06 m-wide footprint couldn't pass or turn in, and it wedged
+    # there between craters and boulders in the sim. The lattice planner checks the whole
+    # footprint at every pose, with diff-drive motion primitives (arcs, straights and turns on the
+    # spot) at the costmap's 5 cm resolution. Needs the global inflation radius (1.1 m) to be past
+    # the footprint's circumscribed radius (0.82 m).
     GridBased:
-      plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.5
-      use_astar: true # Speeds up global path calculations dramatically.
-      allow_unknown: true # Allows planner to route through unmapped/unknown space
+      plugin: "nav2_smac_planner/SmacPlannerLattice"
+      lattice_filepath: "/opt/ros/humble/share/nav2_smac_planner/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json"
+      allow_unknown: true            # the cameras haven't seen everything
+      tolerance: 0.25                # m; if the goal itself is blocked, plan to within this of it
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 2.0         # s; replanned every second by the behaviour tree
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 3.0
+      reverse_penalty: 2.0           # reversing allowed but discouraged
+      change_penalty: 0.05
+      non_straight_penalty: 1.05
+      cost_penalty: 2.0              # stay in the middle of gaps
+      rotation_penalty: 5.0          # turns on the spot slip the skid-steer; use them when needed
+      retrospective_penalty: 0.015
+      lookup_table_size: 20.0
+      cache_obstacle_heuristic: false
+      allow_reverse_expansion: true
+      smooth_path: true
 
 planner_server_rclcpp_node:
   ros__parameters:

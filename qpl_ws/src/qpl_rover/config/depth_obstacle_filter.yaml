@@ -22,7 +22,7 @@
 #
 # The cameras see only the near face of a boulder, so detections are grown before
 # they are remembered: bumps away from the camera by up to grow_behind_m (rulebook
-# boulders are at most 0.40 m across), and every detection by a grow_radius_m ring.
+# boulders are at most 0.40 m across), and every detection by a grow_radius_m disc.
 #
 # Inside the arena zones in ignore_zones (from qpl_rover/config/arena/<arena>.yaml)
 # nothing lower than ignore_max_height above the floor is marked, so the rover's
@@ -71,7 +71,10 @@
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30
-    grow_radius_m: 0.10    # 0.05 left wheels over crater edges in the sim
+    # Clearance round boulders and craters only (walls aren't grown). 0.10 still let the rover
+    # clip them in the sim: the map pose is ~0.1 m out, and DWB runs the footprint right up to
+    # lethal cells. 0.20 keeps the dump spot reachable in 190/200 generated layouts (197 at 0.10).
+    grow_radius_m: 0.20
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
@@ -122,7 +125,10 @@
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30
-    grow_radius_m: 0.10    # 0.05 left wheels over crater edges in the sim
+    # Clearance round boulders and craters only (walls aren't grown). 0.10 still let the rover
+    # clip them in the sim: the map pose is ~0.1 m out, and DWB runs the footprint right up to
+    # lethal cells. 0.20 keeps the dump spot reachable in 190/200 generated layouts (197 at 0.10).
+    grow_radius_m: 0.20
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
