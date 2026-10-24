@@ -252,21 +252,31 @@ def disc_offsets(radius, step):
     return np.concatenate(rings)
 
 
-def grow_detections(pts, rel, sensor_pos, behind, radius, step):
+def extend(pts, sensor_pos, length, step, sign):
+    """pts extended along the line from the sensor, away (sign 1) or towards it (-1), up to length."""
+    away = pts[:, :2] - sensor_pos[:2]
+    away /= np.maximum(np.linalg.norm(away, axis=1, keepdims=True), 1e-6)
+    k = np.arange(step, length + 1e-9, step)
+    xy = (pts[:, None, :2] + sign * away[:, None, :] * k[None, :, None]).reshape(-1, 2)
+    return np.column_stack([xy, np.repeat(pts[:, 2], len(k))])
+
+
+def grow_detections(pts, rel, sensor_pos, behind, radius, step, near=0.0):
     """Extra obstacle points around local detections, in the level frame: bumps
-    (rel > 0) extended away from the sensor by up to `behind`, then a disc of
-    `radius` around those and every detection. One point per `step` cell."""
-    if len(pts) == 0 or (behind <= 0 and radius <= 0):
+    (rel > 0) extended away from the sensor by up to `behind`, dips (rel < 0)
+    towards it by up to `near`, then a disc of `radius` around those and every
+    detection. One point per `step` cell."""
+    if len(pts) == 0 or (behind <= 0 and radius <= 0 and near <= 0):
         return np.empty((0, 3))
     extra = []
     with np.errstate(invalid='ignore'):
         bumps = pts[rel > 0]
+        dips = pts[rel < 0]
     if behind > 0 and len(bumps):
-        away = bumps[:, :2] - sensor_pos[:2]
-        away /= np.maximum(np.linalg.norm(away, axis=1, keepdims=True), 1e-6)
-        k = np.arange(step, behind + 1e-9, step)
-        xy = (bumps[:, None, :2] + away[:, None, :] * k[None, :, None]).reshape(-1, 2)
-        extra.append(np.column_stack([xy, np.repeat(bumps[:, 2], len(k))]))
+        extra.append(extend(bumps, sensor_pos, behind, step, 1.0))
+    if near > 0 and len(dips):
+        # A crater's near rim reads as the start of the dip and is only partly flagged
+        extra.append(extend(dips, sensor_pos, near, step, -1.0))
     if radius > 0:
         base = np.concatenate([pts] + extra)
         _, first = np.unique(np.floor(base[:, :2] / step).astype(np.int64), axis=0, return_index=True)
@@ -496,6 +506,7 @@ class DepthObstacleFilter(Node):
 
         # Growth of boulder/crater detections (see grow_detections()).
         self.grow_behind_m = self.declare_parameter('grow_behind_m', 0.30).value
+        self.grow_near_m = self.declare_parameter('grow_near_m', 0.0).value
         self.grow_radius_m = self.declare_parameter('grow_radius_m', 0.05).value
         self.grow_step_m = self.declare_parameter('grow_step_m', 0.05).value
 
@@ -611,7 +622,7 @@ class DepthObstacleFilter(Node):
             self, grid, sensor_pos, base_pos, base_rot, row_angle,
             ignore(grid.reshape(-1, 3)) if ignore else None)
         grown = grow_detections(points[local], rel[local], sensor_pos,
-                                self.grow_behind_m, self.grow_radius_m, self.grow_step_m)
+                                self.grow_behind_m, self.grow_radius_m, self.grow_step_m, self.grow_near_m)
         if len(grown):
             n = len(grown)
             points = np.concatenate([points, grown])

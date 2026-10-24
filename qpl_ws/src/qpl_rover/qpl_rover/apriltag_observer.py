@@ -287,9 +287,9 @@ class AprilTagObserver(Node):
 
             # If we passed the fence, publish to EKF
             #self.get_logger().info(f"Position X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}") # debug test message DO NOT REMOVE
-            self.publish_pose(T_map_footprint, msg.header.stamp)
+            self.publish_pose(T_map_footprint, msg.header.stamp, float(np.linalg.norm(ros_t)))
 
-    def publish_pose(self, T, stamp):
+    def publish_pose(self, T, stamp, tag_range):
         msg = PoseWithCovarianceStamped()
         msg.header.stamp = stamp
         msg.header.frame_id = 'map'
@@ -310,8 +310,12 @@ class AprilTagObserver(Node):
         # 2. ADJUST COVARIANCE FOR 3D
         # Now that we trust Z, we lower its covariance value.
         # Format: [x, y, z, roll, pitch, yaw]
-        # We use 0.001 for high trust, and maybe 0.05 for rotation/Z
-        diag = [0.001, 0.001, 0.005, 0.1, 0.1, 0.01]
+        # x/y and yaw get less trusted with range: in the sim fixes were ~1 cm out at 1.6 m but
+        # 0.3-0.4 m out at 4-6 m, and with every fix at 0.001 the EKF took the far ones as
+        # truth and was pulled 0.35 m off. Standard deviation 0.015 m per m^2 of range, at
+        # least 0.03 m.
+        sigma = max(0.03, 0.015 * tag_range ** 2)
+        diag = [sigma ** 2, sigma ** 2, 0.005, 0.1, 0.1, 0.01 * max(1.0, (tag_range / 1.5) ** 2)]
         msg.pose.covariance = np.diag(diag).flatten().tolist()
 
         self.pose_pub.publish(msg)

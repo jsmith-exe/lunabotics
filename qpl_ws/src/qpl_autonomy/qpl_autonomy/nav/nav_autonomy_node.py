@@ -26,6 +26,17 @@ CLOCK_GRACE_S = 5.0
 DRIVE_STEP_M = 0.05
 # How often the current candidate is re-checked against the costmap while driving to it
 TARGET_CHECK_PERIOD_S = 1.0
+# Clearance round the footprint (at the planner's heading) for a pose to count as unstuck
+UNSTICK_MARGIN_M = 0.05
+
+
+def load_lattice_headings(path):
+    # Heading angles of a Smac lattice primitives file; 16 evenly spaced if it can't be read
+    try:
+        with open(path) as f:
+            return list(json.load(f)["lattice_metadata"]["heading_angles"])
+    except (OSError, ValueError, KeyError):
+        return [k * pi / 8.0 for k in range(16)]
 
 
 def parse_poses(flat):
@@ -201,7 +212,14 @@ class NavAutonomyNode(Node):
         self.declare_parameter("navigation.unstick_speed", 0.08)
         self.unstick_m = self.get_parameter("navigation.unstick_m").value
         self.unstick_speed = self.get_parameter("navigation.unstick_speed").value
-        self.unstick = None  # (monotonic start, EKF x, EKF y, +1 forwards / -1 backwards, distance)
+        self.unstick = None  # dict: kind "turn" (to yaw) or "drive" (direction, distance), start pose and time
+        # The planner (Smac lattice) checks the start pose at its nearest primitive heading, so a
+        # rover clear at its own heading can still be "in lethal space" for it. Its headings, from
+        # the same primitives file as qpl_rover/config/nav_params.yaml.
+        self.declare_parameter(
+            "navigation.lattice_file",
+            "/opt/ros/humble/share/nav2_smac_planner/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json")
+        self.lattice_headings = load_lattice_headings(self.get_parameter("navigation.lattice_file").value)
 
         # Top-level autonomy state
         self.state = "IDLE"
@@ -669,16 +687,29 @@ class NavAutonomyNode(Node):
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
                         "State: IDLE", "error", "FAILED")
 
+    def planner_heading(self, yaw):
+        # The lattice heading the planner would snap yaw to
+        return min(self.lattice_headings, key=lambda h: abs((h - yaw + pi) % (2.0 * pi) - pi))
+
     def footprint_blocked(self, x, y, yaw):
-        return footprint_lethal_cells(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
-                                      self.footprint_half_width_m) > 0
+        # Lethal cells under the footprint as the planner checks it: at its nearest primitive
+        # heading, with a little margin for the map pose moving
+        return footprint_lethal_cells(self.global_costmap, x, y, self.planner_heading(yaw), self.footprint_half_length_m,
+                                      self.footprint_half_width_m, UNSTICK_MARGIN_M) > 0
 
     def start_unstick(self, why="before retrying"):
-        # Back (or, if that's blocked, forwards) to the nearest of 1x, 1.75x and 2.5x unstick_m
-        # with no lethal cell under the footprint. False if there's no map pose or costmap, or
-        # nowhere is clear.
+        # Get to a pose the planner can start from: first a small turn on the spot onto the
+        # nearest primitive heading (it then checks the true footprint), else back (or forwards)
+        # 1x, 1.75x or 2.5x unstick_m. False without a map pose or costmap, or with nowhere clear.
         if self.map_x is None or self.map_yaw is None or self.global_costmap is None or self.unstick_m <= 0.0:
             return False
+        heading = self.planner_heading(self.map_yaw)
+        off_heading = abs((heading - self.map_yaw + pi) % (2.0 * pi) - pi) > 0.05
+        if off_heading and not self.footprint_blocked(self.map_x, self.map_y, heading):
+            self.navigation.cancel()
+            self.unstick = {"kind": "turn", "yaw": heading, "start": time.monotonic()}
+            self.report(f"Turning onto heading {heading:.2f} to get clear {why}.")
+            return True
         for scale in (1.0, 1.75, 2.5):
             distance = scale * self.unstick_m
             for direction in (-1.0, 1.0):
@@ -686,22 +717,29 @@ class NavAutonomyNode(Node):
                 y = self.map_y + direction * distance * sin(self.map_yaw)
                 if not self.footprint_blocked(x, y, self.map_yaw):
                     self.navigation.cancel()
-                    self.unstick = (time.monotonic(), self.map_x, self.map_y, direction, distance)
+                    self.unstick = {"kind": "drive", "direction": direction, "distance": distance,
+                                    "x": self.map_x, "y": self.map_y, "start": time.monotonic()}
                     self.report(f"Moving {distance:.1f} m {'back' if direction < 0 else 'forwards'} "
                                 f"to get clear {why}.")
                     return True
         return False
 
     def update_unstick(self, target):
-        start_s, x0, y0, direction, distance = self.unstick
-        if (hypot(self.map_x - x0, self.map_y - y0) >= distance
-                or time.monotonic() - start_s > 2.0 * distance / self.unstick_speed):
+        u = self.unstick
+        cmd = Twist()
+        if u["kind"] == "turn":
+            error = (u["yaw"] - self.map_yaw + pi) % (2.0 * pi) - pi
+            done = abs(error) < 0.03 or time.monotonic() - u["start"] > 10.0
+            cmd.angular.z = max(-0.3, min(0.3, 2.0 * error))
+        else:
+            done = (hypot(self.map_x - u["x"], self.map_y - u["y"]) >= u["distance"]
+                    or time.monotonic() - u["start"] > 2.0 * u["distance"] / self.unstick_speed)
+            cmd.linear.x = u["direction"] * self.unstick_speed
+        if done:
             self.cmd_vel_pub.publish(Twist())
             self.unstick = None
             self.send_navigation_goal(target)
             return
-        cmd = Twist()
-        cmd.linear.x = direction * self.unstick_speed
         self.cmd_vel_pub.publish(cmd)
 
     def waypoint_error(self, target):

@@ -1,5 +1,5 @@
 <!--
-  Humble's navigate_to_pose_w_replanning_and_recovery.xml with two changes:
+  Humble's navigate_to_pose_w_replanning_and_recovery.xml with three changes:
 
   1. The global costmap is never cleared. It is a fixed map of the arena that keeps
      walls once the cameras have seen them (nav_params.yaml), and the planner may
@@ -9,13 +9,20 @@
      behavior_server's parameters. Sized for the rover: the skid-steer turns at
      about 0.8x the commanded rate, and the back-up has to move the rover's centre
      further than the footprint's 0.53 m inscribed radius to get out of inflation.
+  3. A replan that fails keeps the current path while that is still collision-free
+     (IsPathValid). Smac checks the start at its nearest primitive heading, so passing
+     close to an obstacle it could refuse to plan for a moment, and every refusal used
+     to abort the leg into recovery.
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <RecoveryNode number_of_retries="6" name="NavigateRecovery">
       <PipelineSequence name="NavigateWithReplanning">
         <RateController hz="1.0">
-          <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+          <Fallback name="ReplanOrKeepPath">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <IsPathValid path="{path}"/>
+          </Fallback>
         </RateController>
         <RecoveryNode number_of_retries="1" name="FollowPath">
           <FollowPath path="{path}" controller_id="FollowPath"/>

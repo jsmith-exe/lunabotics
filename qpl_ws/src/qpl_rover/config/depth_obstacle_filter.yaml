@@ -75,10 +75,15 @@
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30
-    # Clearance round boulders and craters only (walls aren't grown). 0.10 still let the rover
-    # clip them in the sim: the map pose is ~0.1 m out, and DWB runs the footprint right up to
-    # lethal cells. 0.20 keeps the dump spot reachable in 190/200 generated layouts (197 at 0.10).
-    grow_radius_m: 0.20
+    # Dips (craters) extended towards the camera: the near rim reads as the start of the dip and
+    # was only partly flagged, so with the rover's position spot on its footprint still went
+    # 4 cm over a crater's edge squeezing past it (sim seed 7)
+    grow_near_m: 0.10
+    # Clearance round boulders and craters only (walls aren't grown). Not more: in rulebook
+    # layouts the only way to the berm can be a gap of ~1.4 m, ~0.16 m each side of the rover,
+    # and at 0.20 (with DWB's 0.04) sim seed 7 had no route to the berm at all. The cost
+    # round obstacles keeps the rover in the middle of wider gaps.
+    grow_radius_m: 0.12
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
@@ -133,10 +138,15 @@
     memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
     memory_floor_points: 3
     grow_behind_m: 0.30
-    # Clearance round boulders and craters only (walls aren't grown). 0.10 still let the rover
-    # clip them in the sim: the map pose is ~0.1 m out, and DWB runs the footprint right up to
-    # lethal cells. 0.20 keeps the dump spot reachable in 190/200 generated layouts (197 at 0.10).
-    grow_radius_m: 0.20
+    # Dips (craters) extended towards the camera: the near rim reads as the start of the dip and
+    # was only partly flagged, so with the rover's position spot on its footprint still went
+    # 4 cm over a crater's edge squeezing past it (sim seed 7)
+    grow_near_m: 0.10
+    # Clearance round boulders and craters only (walls aren't grown). Not more: in rulebook
+    # layouts the only way to the berm can be a gap of ~1.4 m, ~0.16 m each side of the rover,
+    # and at 0.20 (with DWB's 0.04) sim seed 7 had no route to the berm at all. The cost
+    # round obstacles keeps the rover in the middle of wider gaps.
+    grow_radius_m: 0.12
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
