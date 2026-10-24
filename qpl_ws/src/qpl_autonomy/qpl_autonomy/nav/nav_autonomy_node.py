@@ -185,14 +185,14 @@ class NavAutonomyNode(Node):
         self.relocalise_min_angle = self.get_parameter("relocalise.min_angle_from_wall_rad").value
         self.relocalise_start = None  # (monotonic start, tag fix time before, EKF x, EKF y)
 
-        # Leaving the berm (AUTO): after a dump, reverse straight back the way the rover drove in
-        # before heading for the next dig spot. It faces north by the east wall there, and in
+        # Leaving the berm (AUTO): after a dump, reverse back the way the rover drove in (along
+        # the dump spot's heading) before heading for the next dig spot. It faces north by the east wall there, and in
         # the sim the turn round swept its corners into the wall, so Nav2 couldn't start the leg.
         self.declare_parameter("deposition.back_out_m", 1.0)
         self.declare_parameter("deposition.back_out_speed", 0.1)
         self.back_out_m = self.get_parameter("deposition.back_out_m").value
         self.back_out_speed = self.get_parameter("deposition.back_out_speed").value
-        self.back_out_start = None  # (monotonic start, EKF x, EKF y)
+        self.back_out_start = None  # (monotonic start, EKF x, EKF y, heading to straighten up to)
 
         # Top-level autonomy state
         self.state = "IDLE"
@@ -651,21 +651,24 @@ class NavAutonomyNode(Node):
         if self.back_out_m <= 0.0 or self.map_x is None or self.map_yaw is None:
             self.start_navigation("EXCAVATION")
             return
-        # Lethal cells where the footprint ends up (straight back), so it doesn't reverse into anything
-        bx = self.map_x - self.back_out_m * cos(self.map_yaw)
-        by = self.map_y - self.back_out_m * sin(self.map_yaw)
+        # Back out along the dump spot's heading (the way the rover came in from the approach
+        # point), straightening up to it on the way. Lethal cells where the footprint ends up, so
+        # it doesn't reverse into anything
+        yaw = self.candidates["DEPOSITION"][self.target_index][2]
+        bx = self.map_x - self.back_out_m * cos(yaw)
+        by = self.map_y - self.back_out_m * sin(yaw)
         if self.global_costmap is not None and footprint_lethal_cells(
-                self.global_costmap, bx, by, self.map_yaw, self.footprint_half_length_m,
+                self.global_costmap, bx, by, yaw, self.footprint_half_length_m,
                 self.footprint_half_width_m) >= self.candidate_min_lethal_cells:
             self.report("Not backing out of the berm: something is behind the rover.", "warning")
             self.start_navigation("EXCAVATION")
             return
         self.state = "BACKING_OUT"
-        self.back_out_start = (time.monotonic(), self.map_x, self.map_y)
+        self.back_out_start = (time.monotonic(), self.map_x, self.map_y, yaw)
         self.report(f"Backing {self.back_out_m:.1f} m out of the berm.")
 
     def update_back_out(self):
-        start_s, x0, y0 = self.back_out_start
+        start_s, x0, y0, yaw = self.back_out_start
         moved = hypot(self.map_x - x0, self.map_y - y0)
         # Twice the time it should take, in case it's held up
         if moved >= self.back_out_m or time.monotonic() - start_s > 2.0 * self.back_out_m / self.back_out_speed:
@@ -674,6 +677,8 @@ class NavAutonomyNode(Node):
             return
         cmd = Twist()
         cmd.linear.x = -self.back_out_speed
+        error = (yaw - self.map_yaw + pi) % (2.0 * pi) - pi
+        cmd.angular.z = max(-0.3, min(0.3, 1.5 * error))
         self.cmd_vel_pub.publish(cmd)
 
     """Re-localising (AUTO, between a dig and the berm)"""
