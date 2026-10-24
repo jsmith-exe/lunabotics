@@ -29,6 +29,10 @@ nav_autonomy:
     deposition.drum_spin_speed: 0.4
     deposition.drum_spin_direction: -1.0 # opposite to excavation, to dump
     deposition.dump_duration_s: 15.0 # How long to spin; nothing reports when the drum is empty
+    # AUTO: after a dump, reverse this far straight back (the way the rover drove in) before
+    # heading for the next dig spot, so it has room to turn away from the east wall
+    deposition.back_out_m: 1.0
+    deposition.back_out_speed: 0.1 # m/s
 
     # NAVIGATION
     # Map frame, US arena: origin at the arena's SW interior corner, the AprilTag wall is y = 0.

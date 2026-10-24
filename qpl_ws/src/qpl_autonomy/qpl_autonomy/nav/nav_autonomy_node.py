@@ -185,6 +185,15 @@ class NavAutonomyNode(Node):
         self.relocalise_min_angle = self.get_parameter("relocalise.min_angle_from_wall_rad").value
         self.relocalise_start = None  # (monotonic start, tag fix time before, EKF x, EKF y)
 
+        # Leaving the berm (AUTO): after a dump, reverse straight back the way the rover drove in
+        # before heading for the next dig spot. It faces north by the east wall there, and in
+        # the sim the turn round swept its corners into the wall, so Nav2 couldn't start the leg.
+        self.declare_parameter("deposition.back_out_m", 1.0)
+        self.declare_parameter("deposition.back_out_speed", 0.1)
+        self.back_out_m = self.get_parameter("deposition.back_out_m").value
+        self.back_out_speed = self.get_parameter("deposition.back_out_speed").value
+        self.back_out_start = None  # (monotonic start, EKF x, EKF y)
+
         # Top-level autonomy state
         self.state = "IDLE"
 
@@ -531,7 +540,7 @@ class NavAutonomyNode(Node):
             # Nav2 keeps driving its goal unless it's cancelled
             self.navigation.cancel()
             self.cmd_vel_pub.publish(Twist())
-        elif self.state == "RELOCALISING":
+        elif self.state in ("RELOCALISING", "BACKING_OUT"):
             self.cmd_vel_pub.publish(Twist())
 
         self.state = "IDLE"
@@ -555,13 +564,15 @@ class NavAutonomyNode(Node):
                     self.report("Excavation complete. State: IDLE", result="COMPLETE")
         elif self.state == "RELOCALISING":
             self.update_relocalising()
+        elif self.state == "BACKING_OUT":
+            self.update_back_out()
         elif self.state == "DEPOSITING":
             self.deposition.update(actuator_positions=actuator_positions, now_s=now_s)
             if self.deposition.is_complete():
                 if self.auto_mode:
                     self.auto_cycle += 1
                     self.report(f"Deposition complete. AUTO cycle {self.auto_cycle}.")
-                    self.start_navigation("EXCAVATION")
+                    self.start_back_out()
                 else:
                     self.state = "IDLE"
                     self.report("Deposition complete. State: IDLE", result="COMPLETE")
@@ -634,6 +645,36 @@ class NavAutonomyNode(Node):
             return None
         x, y, _ = self.target_pose(target)
         return hypot(self.map_x - x, self.map_y - y)
+
+    """Backing out of the berm (AUTO, after a dump)"""
+    def start_back_out(self):
+        if self.back_out_m <= 0.0 or self.map_x is None or self.map_yaw is None:
+            self.start_navigation("EXCAVATION")
+            return
+        # Lethal cells where the footprint ends up (straight back), so it doesn't reverse into anything
+        bx = self.map_x - self.back_out_m * cos(self.map_yaw)
+        by = self.map_y - self.back_out_m * sin(self.map_yaw)
+        if self.global_costmap is not None and footprint_lethal_cells(
+                self.global_costmap, bx, by, self.map_yaw, self.footprint_half_length_m,
+                self.footprint_half_width_m) >= self.candidate_min_lethal_cells:
+            self.report("Not backing out of the berm: something is behind the rover.", "warning")
+            self.start_navigation("EXCAVATION")
+            return
+        self.state = "BACKING_OUT"
+        self.back_out_start = (time.monotonic(), self.map_x, self.map_y)
+        self.report(f"Backing {self.back_out_m:.1f} m out of the berm.")
+
+    def update_back_out(self):
+        start_s, x0, y0 = self.back_out_start
+        moved = hypot(self.map_x - x0, self.map_y - y0)
+        # Twice the time it should take, in case it's held up
+        if moved >= self.back_out_m or time.monotonic() - start_s > 2.0 * self.back_out_m / self.back_out_speed:
+            self.cmd_vel_pub.publish(Twist())
+            self.start_navigation("EXCAVATION")
+            return
+        cmd = Twist()
+        cmd.linear.x = -self.back_out_speed
+        self.cmd_vel_pub.publish(cmd)
 
     """Re-localising (AUTO, between a dig and the berm)"""
     def start_relocalising(self):
@@ -750,7 +791,7 @@ class NavAutonomyNode(Node):
         localised, loc_reason, fix_age, drive = self.localisation_status()
         phase, remaining = self.sequence_phase()
         target = None
-        if self.state not in ("IDLE", "RELOCALISING") and self.target_index is not None:
+        if self.state not in ("IDLE", "RELOCALISING", "BACKING_OUT") and self.target_index is not None:
             kind = "EXCAVATION" if self.state in ("NAVIGATING_TO_EXCAVATION", "EXCAVATING") else "DEPOSITION"
             x, y, yaw = self.candidates[kind][self.target_index]
             target = {"kind": kind, "index": self.target_index + 1, "count": len(self.candidates[kind]),
