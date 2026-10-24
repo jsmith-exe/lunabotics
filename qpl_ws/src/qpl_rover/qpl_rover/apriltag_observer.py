@@ -312,9 +312,9 @@ class AprilTagObserver(Node):
         # Format: [x, y, z, roll, pitch, yaw]
         # x/y and yaw get less trusted with range: in the sim fixes were ~1 cm out at 1.6 m but
         # 0.3-0.4 m out at 4-6 m, and with every fix at 0.001 the EKF took the far ones as
-        # truth and was pulled 0.35 m off. Standard deviation 0.015 m per m^2 of range, at
-        # least 0.03 m.
-        sigma = max(0.03, 0.015 * tag_range ** 2)
+        # truth and was pulled 0.35 m off. Standard deviation 0.01 m per m^2 of range, at
+        # least 0.03 m, so far fixes still count when there are several of them.
+        sigma = max(0.03, 0.01 * tag_range ** 2)
         diag = [sigma ** 2, sigma ** 2, 0.005, 0.1, 0.1, 0.01 * max(1.0, (tag_range / 1.5) ** 2)]
         msg.pose.covariance = np.diag(diag).flatten().tolist()
 

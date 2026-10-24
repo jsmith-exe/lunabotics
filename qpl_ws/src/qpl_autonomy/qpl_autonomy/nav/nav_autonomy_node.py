@@ -692,6 +692,21 @@ class NavAutonomyNode(Node):
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
                         "State: IDLE", "error", "FAILED")
 
+    def move_blocked(self, forward=0.0, turn=0.0):
+        # For the moves this node drives itself (re-localising turn, back-out, unstick): would
+        # going `forward` m or turning `turn` rad from here put more lethal cells under the
+        # footprint than there are now? The skid-steer slides when it turns on the spot (0.4 m
+        # in the sim, into a boulder), so this is checked every step, not just at the start.
+        if self.global_costmap is None or self.map_x is None or self.map_yaw is None:
+            return False
+        def cells(x, y, yaw):
+            return footprint_lethal_cells(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
+                                          self.footprint_half_width_m)
+        now = cells(self.map_x, self.map_y, self.map_yaw)
+        ahead = cells(self.map_x + forward * cos(self.map_yaw), self.map_y + forward * sin(self.map_yaw),
+                      self.map_yaw + turn)
+        return ahead > now
+
     def planner_heading(self, yaw):
         # The lattice heading the planner would snap yaw to
         return min(self.lattice_headings, key=lambda h: abs((h - yaw + pi) % (2.0 * pi) - pi))
@@ -734,11 +749,13 @@ class NavAutonomyNode(Node):
         cmd = Twist()
         if u["kind"] == "turn":
             error = (u["yaw"] - self.map_yaw + pi) % (2.0 * pi) - pi
-            done = abs(error) < 0.03 or time.monotonic() - u["start"] > 10.0
+            done = (abs(error) < 0.03 or time.monotonic() - u["start"] > 10.0
+                    or self.move_blocked(turn=0.1 if error > 0 else -0.1))
             cmd.angular.z = max(-0.3, min(0.3, 2.0 * error))
         else:
             done = (hypot(self.map_x - u["x"], self.map_y - u["y"]) >= u["distance"]
-                    or time.monotonic() - u["start"] > 2.0 * u["distance"] / self.unstick_speed)
+                    or time.monotonic() - u["start"] > 2.0 * u["distance"] / self.unstick_speed
+                    or self.move_blocked(forward=0.1 * u["direction"]))
             cmd.linear.x = u["direction"] * self.unstick_speed
         if done:
             self.cmd_vel_pub.publish(Twist())
@@ -778,7 +795,8 @@ class NavAutonomyNode(Node):
         start_s, x0, y0, yaw = self.back_out_start
         moved = hypot(self.map_x - x0, self.map_y - y0)
         # Twice the time it should take, in case it's held up
-        if moved >= self.back_out_m or time.monotonic() - start_s > 2.0 * self.back_out_m / self.back_out_speed:
+        if (moved >= self.back_out_m or time.monotonic() - start_s > 2.0 * self.back_out_m / self.back_out_speed
+                or self.move_blocked(forward=-0.1)):
             self.cmd_vel_pub.publish(Twist())
             self.start_navigation("EXCAVATION")
             return
@@ -850,6 +868,11 @@ class NavAutonomyNode(Node):
         error = min(errors, key=abs)
         cmd = Twist()
         if abs(error) > self.relocalise_tolerance:
+            if self.move_blocked(turn=0.15 if error > 0 else -0.15):
+                self.cmd_vel_pub.publish(Twist())
+                self.report("Stopped turning to the AprilTag: an obstacle is in the way. Driving on.", "warning")
+                self.start_navigation("DEPOSITION")
+                return
             cmd.angular.z = self.relocalise_turn_speed if error > 0 else -self.relocalise_turn_speed
         self.cmd_vel_pub.publish(cmd)
 
