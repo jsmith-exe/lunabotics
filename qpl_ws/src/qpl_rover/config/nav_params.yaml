@@ -292,13 +292,10 @@ global_costmap:
       height: 9
       resolution: 0.05
       footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
-      # NavFn plans the rover's centre against the inscribed radius (0.53 m), but turning, the
-      # corners sweep 0.82 m, so it planned through gaps the rover then stuck in (1.3 m between
-      # a crater and a boulder in the sim). Padding here (global costmap only, so DWB and goals
-      # by walls are unchanged) makes the inscribed radius 0.63 m: gaps under ~1.26 m are not
-      # planned through. The dump spot is 1.0 m and the dig spots 0.8 m from walls, so all
-      # stay reachable.
-      footprint_padding: 0.10
+      # No footprint_padding: 0.10 (inscribed 0.63 m) was tried so NavFn would keep room to
+      # turn, but obstacle marks are bigger than the obstacles (grown behind boulders, crater
+      # shadows), so it closed a 1.25 m gap the rover drives through and sent it round into a
+      # tight cluster of craters instead, where it stuck (sim seed 7, 3 runs).
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
