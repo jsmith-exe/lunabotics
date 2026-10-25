@@ -95,9 +95,10 @@ from ament_index_python.packages import get_package_share_directory
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
+from std_msgs.msg import Bool
 import tf2_ros
 
 
@@ -600,6 +601,14 @@ class DepthObstacleFilter(Node):
             PointCloud2, f'{self.output_namespace}/clearing', qos_profile_sensor_data)
         self.create_subscription(CameraInfo, self.info_topic, self.on_info, qos_profile_sensor_data)
         self.create_subscription(Image, self.depth_topic, self.on_depth, qos_profile_sensor_data)
+        # Tight mode (nav_autonomy, after a failed leg): smaller discs round obstacles, so the
+        # rover can squeeze through a gap the full clearance closes
+        self.grow_radius_tight_m = self.declare_parameter('grow_radius_tight_m', 0.05).value
+        self.grow_crater_radius_tight_m = self.declare_parameter('grow_crater_radius_tight_m', 0.08).value
+        self.tight = False
+        latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                             reliability=ReliabilityPolicy.RELIABLE)
+        self.create_subscription(Bool, '/nav_autonomy/tight', lambda m: setattr(self, 'tight', m.data), latched)
 
         self.info = None
         self.last_stamp = None
@@ -720,7 +729,10 @@ class DepthObstacleFilter(Node):
             obstacle &= ~dropped
             local &= ~dropped
         remembered, remembered_kinds = self.remember(stamp, points, clearing, obstacle, local, rel, sensor_pos, kinds)
-        radii = {BUMP: self.grow_radius_m, CRATER: self.grow_crater_radius_m}
+        if self.tight:
+            radii = {BUMP: self.grow_radius_tight_m, CRATER: self.grow_crater_radius_tight_m}
+        else:
+            radii = {BUMP: self.grow_radius_m, CRATER: self.grow_crater_radius_m}
         grown = dilate_cells(np.concatenate([points[local], remembered]),
                              np.concatenate([kinds[local], remembered_kinds]), radii, self.grow_step_m)
         remembered = np.concatenate([remembered, grown])

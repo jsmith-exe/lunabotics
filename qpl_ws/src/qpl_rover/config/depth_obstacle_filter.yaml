@@ -95,6 +95,10 @@
     # Craters get more: their far side is hidden, and in the sim the marks covered only 80-95%
     # of a crater, so the rover grazed the rest. Boulders' far side is covered by grow_behind_m.
     grow_crater_radius_m: 0.20
+    # While nav_autonomy is in tight mode (/nav_autonomy/tight, after a failed leg): small discs,
+    # so a gap the full clearance closes (sim seed 7's 1.4 m between a crater and a boulder) opens
+    grow_radius_tight_m: 0.05
+    grow_crater_radius_tight_m: 0.08
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56
@@ -169,6 +173,10 @@
     # Craters get more: their far side is hidden, and in the sim the marks covered only 80-95%
     # of a crater, so the rover grazed the rest. Boulders' far side is covered by grow_behind_m.
     grow_crater_radius_m: 0.20
+    # While nav_autonomy is in tight mode (/nav_autonomy/tight, after a failed leg): small discs,
+    # so a gap the full clearance closes (sim seed 7's 1.4 m between a crater and a boulder) opens
+    grow_radius_tight_m: 0.05
+    grow_crater_radius_tight_m: 0.08
     grow_step_m: 0.05
     self_filter_x: 0.65
     self_filter_y: 0.56

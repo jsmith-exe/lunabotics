@@ -11,9 +11,10 @@ from rclpy.signals import SignalHandlerOptions
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
+from nav2_msgs.msg import SpeedLimit
 from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64, String
+from std_msgs.msg import Bool, Float64, String
 
 from qpl_autonomy.nav.costmap_check import footprint_lethal_cells
 from qpl_autonomy.nav.route import path_clearance, widest_route
@@ -232,6 +233,12 @@ class NavAutonomyNode(Node):
         self.route = []  # map-frame (x, y) waypoints still to pass on this leg
         self.route_path = []  # the route cell by cell, to check it's still clear
         self.route_checked_s = 0.0  # monotonic time the route was last recomputed
+        # Tight mode, after a failed leg: the depth filters shrink the margins round obstacles
+        # (qpl_rover depth_obstacle_filter.yaml *_tight_m) and Nav2 slows down, so the rover can
+        # squeeze through a gap the full clearance closes. Off again at the next leg.
+        self.declare_parameter("navigation.tight_speed_percent", 50.0)
+        self.tight_speed_percent = self.get_parameter("navigation.tight_speed_percent").value
+        self.tight = False
         # The planner (Smac lattice) checks the start pose at its nearest primitive heading, so a
         # rover clear at its own heading can still be "in lethal space" for it. Its headings, from
         # the same primitives file as qpl_rover/config/nav_params.yaml.
@@ -249,6 +256,11 @@ class NavAutonomyNode(Node):
 
         # Command publishers, the same ones the blind autonomy node uses
         self.cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel_nav", 10)
+        tight_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                               reliability=ReliabilityPolicy.RELIABLE)
+        self.tight_pub = self.create_publisher(Bool, "/nav_autonomy/tight", tight_qos)
+        self.speed_limit_pub = self.create_publisher(SpeedLimit, "/speed_limit", 10)
+        self.tight_pub.publish(Bool(data=False))
         self.drum_lift_pub = self.create_publisher(Float64, "/drum_lift_control/autonomy", 10)
         self.drum_spin_pub = self.create_publisher(Float64, "/drum_spin_control/autonomy", 10)
 
@@ -452,6 +464,7 @@ class NavAutonomyNode(Node):
     def start_navigation(self, target):
         self.state = f"NAVIGATING_TO_{target}"
         self.nav_retries = 0
+        self.set_tight(False)
         self.unstick = None
         self.route, self.route_path = [], []
         self.retargets = 0
@@ -597,6 +610,7 @@ class NavAutonomyNode(Node):
         self.auto_mode = False
         self.goal_pending = False
         self.unstick = None
+        self.set_tight(False)
         actuator_positions = (self.left_actuator_position, self.right_actuator_position)
 
         if self.state == "EXCAVATING":
@@ -657,6 +671,14 @@ class NavAutonomyNode(Node):
             self.send_navigation_goal(target)
             return
         self.navigation.update()
+        if not self.route and self.tight and time.monotonic() - self.route_checked_s >= ROUTE_REFRESH_S:
+            # Tight mode came on with no route: once the smaller margins are in the costmap there
+            # may be one
+            if self.plan_route(target, quiet=True) and self.route:
+                self.report("A way round fits with the smaller margins; following it.")
+                self.navigation.cancel()
+                self.send_navigation_goal(target)
+                return
         if self.route and time.monotonic() - self.route_checked_s >= ROUTE_REFRESH_S:
             # Obstacles keep appearing as the cameras get closer: a gap the route went through can
             # close, and following it the rover got wedged. Recompute from here and switch if the
@@ -730,6 +752,10 @@ class NavAutonomyNode(Node):
         self.nav_retries += 1
         if self.nav_retries <= self.max_nav_retries:
             self.report(f"Navigation failed. Retry {self.nav_retries}/{self.max_nav_retries}.", "warning")
+            if not self.tight:
+                self.set_tight(True)
+                self.report("Squeezing through: smaller margins round obstacles and half speed for the rest of "
+                            "this leg.", "warning")
             if target == "EXCAVATION":
                 # Any dig spot will do: one Nav2 couldn't reach (no path fits the footprint past the
                 # obstacles in the way) is left for this leg and the next clear one tried instead
@@ -744,6 +770,7 @@ class NavAutonomyNode(Node):
                 self.send_navigation_goal(target)
         else:
             self.cmd_vel_pub.publish(Twist())
+            self.set_tight(False)
             self.auto_mode = False
             self.state = "IDLE"
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
@@ -809,6 +836,16 @@ class NavAutonomyNode(Node):
         near = min(range(len(path)), key=lambda i: hypot(path[i][0] - self.map_x, path[i][1] - self.map_y))
         end = min(range(len(path)), key=lambda i: hypot(path[i][0] - last_waypoint[0], path[i][1] - last_waypoint[1]))
         return path_clearance(self.global_costmap, path[near:end + 1]) if end > near else float("inf")
+
+    def set_tight(self, tight):
+        if tight == self.tight:
+            return
+        self.tight = tight
+        self.tight_pub.publish(Bool(data=tight))
+        limit = SpeedLimit()
+        limit.percentage = True
+        limit.speed_limit = self.tight_speed_percent if tight else 0.0  # 0: no limit
+        self.speed_limit_pub.publish(limit)
 
     def start_unstick(self, why="before retrying"):
         # Get to a pose the planner can start from: first a small turn on the spot onto the

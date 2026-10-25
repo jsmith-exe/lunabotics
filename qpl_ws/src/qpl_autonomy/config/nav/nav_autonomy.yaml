@@ -87,6 +87,11 @@ nav_autonomy:
     # move and its own recoveries refuse to move, so a plain retry fails at once.
     navigation.unstick_m: 0.4
     navigation.unstick_speed: 0.08 # m/s
+    # Tight mode, from the first retry of a leg to its end: the depth filters shrink the margins
+    # round obstacles (grow_*_tight_m in qpl_rover/config/depth_obstacle_filter.yaml) and Nav2 runs
+    # at this percentage of full speed, so the rover can squeeze through a gap the full clearance
+    # closes. In dense layouts in the sim there was otherwise no way to the berm at all.
+    navigation.tight_speed_percent: 50.0
     # Each leg (and each retry) goes via waypoints this far apart along the widest way round in the
     # global costmap (the planner takes the shortest way that fits, which in a cluster of craters
     # was often a gap the rover grazed or stuck in). Only when the route keeps at least
