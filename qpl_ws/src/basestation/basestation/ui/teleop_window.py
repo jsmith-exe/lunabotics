@@ -14,9 +14,9 @@ from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
 DANGER_COLOR = "#ff1e39"
 CAUTION_COLOR = "#ffb020"
 READY_COLOR = "#3dd68c"
-# /nav_autonomy/state is republished every second; older than this means the node is gone
 # Lift feedback older than this isn't started from when teleop is enabled
 LIFT_FEEDBACK_MAX_AGE_S = 1.0
+# /nav_autonomy/state is republished every second; older than this means the node is gone
 NAV_STATE_STALE_S = 3.0
 # COMPLETE / REFUSED / STOPPED stay on the status line this long; FAILED stays until the next command
 NAV_RESULT_HOLD_S = 15
@@ -286,18 +286,19 @@ def nav_status(state: BaseStationState) -> tuple[str, str]:
     if not a.get("time_ok", True):
         return f"CLOCK ERROR: {a.get('time_message', '')}", DANGER_COLOR
     target = a.get("target")
-    spot = f"{'dig spot' if target['kind'] == 'EXCAVATION' else 'berm slot'} {target['index']}/{target['count']}" if target else ""
+    spot = f"{'dig spot' if target['kind'] == 'EXCAVATION' else 'berm'} {target['index']}/{target['count']}" if target else ""
     cycle = f", cycle {a['cycle']}" if a.get("cycle") else ""
+    running = f"{a.get('mode') or 'NAV'}{cycle}"
     if a["state"].startswith("NAVIGATING_TO_"):
-        return f"{a.get('mode') or 'NAV'}{cycle}: driving to {spot}", ""
+        return f"{running}: driving to {spot}", ""
     if a["state"] == "RELOCALISING":
-        return f"{a.get('mode') or 'NAV'}{cycle}: re-localising, turning a camera to the AprilTag", ""
+        return f"{running}: re-localising, turning a camera to the AprilTag", ""
     if a["state"] == "BACKING_OUT":
-        return f"{a.get('mode') or 'NAV'}{cycle}: backing out of the berm", ""
+        return f"{running}: backing out of the berm", ""
     if a["state"] in ("EXCAVATING", "DEPOSITING"):
         left = f" ({a['remaining_s']:.0f} s left)" if a.get("remaining_s") is not None else ""
         phase = NAV_PHASES.get(a.get("phase"), a["state"].lower())
-        return f"{a.get('mode') or 'NAV'}{cycle}: {phase}{left} at {spot}", ""
+        return f"{running}: {phase}{left} at {spot}", ""
     recent = a.get("result_age_s") is not None and a["result_age_s"] < NAV_RESULT_HOLD_S
     if a.get("result") == "FAILED":
         return f"FAILED: {a.get('message', '')} Announce the failure before taking manual control.", DANGER_COLOR

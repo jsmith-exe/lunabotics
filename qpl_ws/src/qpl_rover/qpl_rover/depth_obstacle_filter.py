@@ -77,7 +77,7 @@ is deprojected here at the decimated resolution only.
 
 Nothing lower than ignore_max_height is marked inside the arena zones named in
 ignore_zones (the berm by default), so the rover's own dump piles don't block
-the next dump slot. The rulebook lets the rover push obstacles aside in the
+the dump spot. The rulebook lets the rover push obstacles aside in the
 construction zone. Those points still clear. Needs ignore_frame (map) -> odom;
 without it nothing is ignored.
 """
@@ -269,6 +269,8 @@ def extend(pts, sensor_pos, length, step, sign):
 
 
 BUMP, CRATER = 1, 2  # kinds of remembered detection
+# Published marks this far inside the self-filter box are dropped (on_depth())
+UNDER_ROVER_INSET_M = 0.2
 
 
 def extensions(pts, rel, sensor_pos, behind, near, step):
@@ -312,14 +314,19 @@ def dilate_cells(xyz, kinds, radii, cell):
     return np.concatenate(out) if out else np.empty((0, 3))
 
 
-def load_zones(names):
-    """(x_min, x_max, y_min, y_max) of each named zone in the selected arena config."""
+def load_arena():
+    """(name, config) of the arena selected in qpl_rover/config/arena/selector.yaml."""
     arena_dir = os.path.join(get_package_share_directory('qpl_rover'), 'config', 'arena')
     with open(os.path.join(arena_dir, 'selector.yaml')) as f:
-        arena = yaml.safe_load(f)['arena']
-    with open(os.path.join(arena_dir, f'{arena}.yaml')) as f:
-        zones = {z['name']: (z['x_min'], z['x_max'], z['y_min'], z['y_max'])
-                 for z in yaml.safe_load(f)['arena']['zones']}
+        name = yaml.safe_load(f)['arena']
+    with open(os.path.join(arena_dir, f'{name}.yaml')) as f:
+        return name, yaml.safe_load(f)['arena']
+
+
+def load_zones(names):
+    """(x_min, x_max, y_min, y_max) of each named zone in the selected arena config."""
+    arena, config = load_arena()
+    zones = {z['name']: (z['x_min'], z['x_max'], z['y_min'], z['y_max']) for z in config['zones']}
     missing = [n for n in names if n not in zones]
     if missing:
         raise ValueError(f'arena {arena} has no zone {missing}; it has {sorted(zones)}')
@@ -328,12 +335,8 @@ def load_zones(names):
 
 def load_arena_size():
     """(width, length) of the selected arena config: map x runs 0..width, y 0..length."""
-    arena_dir = os.path.join(get_package_share_directory('qpl_rover'), 'config', 'arena')
-    with open(os.path.join(arena_dir, 'selector.yaml')) as f:
-        arena = yaml.safe_load(f)['arena']
-    with open(os.path.join(arena_dir, f'{arena}.yaml')) as f:
-        a = yaml.safe_load(f)['arena']
-    return a['width'], a['length']
+    _, config = load_arena()
+    return config['width'], config['length']
 
 
 def long_clusters(xy, max_extent, cell=0.1):
@@ -481,7 +484,6 @@ class ObstacleMemory:
         values = list(self.cells.values())
         return np.array([v[:3] for v in values]), np.array([v[4] for v in values], np.int8)
 
-
     def confirm(self, now, pts):
         # Mask of pts whose confirm square has now been flagged in enough frames
         if self.confirm_frames <= 1 or len(pts) == 0:
@@ -573,9 +575,16 @@ class DepthObstacleFilter(Node):
         # Growth of boulder/crater detections (see extensions() and dilate_cells()).
         self.grow_behind_m = self.declare_parameter('grow_behind_m', 0.30).value
         self.grow_near_m = self.declare_parameter('grow_near_m', 0.0).value
-        self.grow_crater_radius_m = self.declare_parameter('grow_crater_radius_m', 0.05).value
-        self.grow_radius_m = self.declare_parameter('grow_radius_m', 0.05).value
         self.grow_step_m = self.declare_parameter('grow_step_m', 0.05).value
+        # Disc radius round each kind of mark, normally and in tight mode (nav_autonomy, after a
+        # failed leg: smaller discs, so the rover can squeeze through a gap the full clearance closes)
+        self.grow_radii = {
+            False: {BUMP: self.declare_parameter('grow_radius_m', 0.05).value,
+                    CRATER: self.declare_parameter('grow_crater_radius_m', 0.05).value},
+            True: {BUMP: self.declare_parameter('grow_radius_tight_m', 0.05).value,
+                   CRATER: self.declare_parameter('grow_crater_radius_tight_m', 0.08).value},
+        }
+        self.tight = False
 
         # Points inside this base_frame box are the rover itself.
         self.self_filter_x = self.declare_parameter('self_filter_x', 0.65).value
@@ -601,11 +610,6 @@ class DepthObstacleFilter(Node):
             PointCloud2, f'{self.output_namespace}/clearing', qos_profile_sensor_data)
         self.create_subscription(CameraInfo, self.info_topic, self.on_info, qos_profile_sensor_data)
         self.create_subscription(Image, self.depth_topic, self.on_depth, qos_profile_sensor_data)
-        # Tight mode (nav_autonomy, after a failed leg): smaller discs round obstacles, so the
-        # rover can squeeze through a gap the full clearance closes
-        self.grow_radius_tight_m = self.declare_parameter('grow_radius_tight_m', 0.05).value
-        self.grow_crater_radius_tight_m = self.declare_parameter('grow_crater_radius_tight_m', 0.08).value
-        self.tight = False
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                              reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/nav_autonomy/tight', lambda m: setattr(self, 'tight', m.data), latched)
@@ -729,12 +733,9 @@ class DepthObstacleFilter(Node):
             obstacle &= ~dropped
             local &= ~dropped
         remembered, remembered_kinds = self.remember(stamp, points, clearing, obstacle, local, rel, sensor_pos, kinds)
-        if self.tight:
-            radii = {BUMP: self.grow_radius_tight_m, CRATER: self.grow_crater_radius_tight_m}
-        else:
-            radii = {BUMP: self.grow_radius_m, CRATER: self.grow_crater_radius_m}
         grown = dilate_cells(np.concatenate([points[local], remembered]),
-                             np.concatenate([kinds[local], remembered_kinds]), radii, self.grow_step_m)
+                             np.concatenate([kinds[local], remembered_kinds]), self.grow_radii[self.tight],
+                             self.grow_step_m)
         remembered = np.concatenate([remembered, grown])
         if ignore and len(remembered):
             remembered = remembered[~ignore(remembered)]
@@ -746,7 +747,9 @@ class DepthObstacleFilter(Node):
         # from the costmap and DWB drove on into it (sim seed 7). Marks it only overlaps at the
         # edges stay; nav_autonomy's unstick move gets it clear of those.
         in_base = (flat - base_pos) @ base_rot
-        flat = flat[~((np.abs(in_base[:, 0]) < self.self_filter_x - 0.2) & (np.abs(in_base[:, 1]) < self.self_filter_y - 0.2))]
+        deep_under = ((np.abs(in_base[:, 0]) < self.self_filter_x - UNDER_ROVER_INSET_M)
+                      & (np.abs(in_base[:, 1]) < self.self_filter_y - UNDER_ROVER_INSET_M))
+        flat = flat[~deep_under]
         flat[:, 2] = sensor_pos[2]
         clear = points[clearing]
         clear[:, 2] = sensor_pos[2]

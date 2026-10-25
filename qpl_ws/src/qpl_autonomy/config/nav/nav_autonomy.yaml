@@ -66,13 +66,6 @@ nav_autonomy:
     # x 8.0, not the berm's centre line (8.14): turning on the spot the corners sweep 0.82 m, and at
     # 8.14 the rear wheels hit the east wall. The drum is still 0.31 m inside the berm's west edge.
     navigation.deposition_candidates: [8.0, 6.40, 1.5708]
-    # Dumps can go via a point this far short of the dump spot, then straight on. Off: the planner
-    # keeps the whole footprint clear and dumps take any heading, so it isn't needed to arrive
-    # lined up, and with a boulder 1 m south of the point (sim seed 3) its north heading made it
-    # unreachable, as turning there swept the corners into the boulder.
-    navigation.deposition_approach_m: 0.0
-    # Within this of the approach point counts as passed, whatever the heading
-    navigation.approach_radius_m: 0.4
     # Footprint half sizes as in nav_params.yaml, plus clearance for the candidate check
     navigation.footprint_half_length_m: 0.62
     navigation.footprint_half_width_m: 0.53

@@ -44,6 +44,11 @@ def load_lattice_headings(path):
         return [k * pi / 8.0 for k in range(16)]
 
 
+def wrap_angle(angle):
+    # angle in [-pi, pi)
+    return (angle + pi) % (2.0 * pi) - pi
+
+
 def parse_poses(flat):
     # [x, y, yaw, x, y, yaw, ...] -> [(x, y, yaw), ...]
     if not flat or len(flat) % 3:
@@ -64,111 +69,70 @@ class NavAutonomyNode(Node):
     def __init__(self):
         super().__init__("nav_autonomy")
 
-        # Parameters
-        self.declare_parameter("autonomy.update_rate_hz", 5.0)
-        update_rate_hz = self.get_parameter("autonomy.update_rate_hz").value
-
-        self.declare_parameter("excavation.drum_spin_speed", 0.8)
-        self.declare_parameter("excavation.drum_spin_direction", 1.0)
-        self.declare_parameter("excavation.lowered_position_m", 0.032)
-        self.declare_parameter("excavation.dig_duration_s", 30.0)
-        self.declare_parameter("excavation.raised_position_m", 0.218)
-        self.declare_parameter("excavation.position_tolerance_m", 0.005)
-        excavation_config = {
-            "drum_spin_speed": self.get_parameter("excavation.drum_spin_speed").value,
-            "drum_spin_direction": self.get_parameter("excavation.drum_spin_direction").value,
-            "lowered_position_m": self.get_parameter("excavation.lowered_position_m").value,
-            "dig_duration_s": self.get_parameter("excavation.dig_duration_s").value,
-            "raised_position_m": self.get_parameter("excavation.raised_position_m").value,
-            "position_tolerance_m": self.get_parameter("excavation.position_tolerance_m").value,
-        }
-
-        self.declare_parameter("deposition.raised_position_m", 0.218)
-        self.declare_parameter("deposition.dump_duration_s", 30.0)
-        self.declare_parameter("deposition.drum_spin_speed", 0.4)
-        self.declare_parameter("deposition.drum_spin_direction", 1.0)
-        self.declare_parameter("deposition.position_tolerance_m", 0.005)
-        deposition_config = {
-            "raised_position_m": self.get_parameter("deposition.raised_position_m").value,
-            "dump_duration_s": self.get_parameter("deposition.dump_duration_s").value,
-            "drum_spin_speed": self.get_parameter("deposition.drum_spin_speed").value,
-            "drum_spin_direction": self.get_parameter("deposition.drum_spin_direction").value,
-            "position_tolerance_m": self.get_parameter("deposition.position_tolerance_m").value,
-        }
+        # Parameters. Defaults match config/nav/nav_autonomy.yaml, which documents each one.
+        update_rate_hz = self.param("autonomy.update_rate_hz", 5.0)
+        excavation_config = {key: self.param(f"excavation.{key}", default) for key, default in {
+            "drum_spin_speed": 0.8,
+            "drum_spin_direction": 1.0,
+            "lowered_position_m": 0.032,
+            "dig_duration_s": 10.0,
+            "raised_position_m": 0.218,
+            "position_tolerance_m": 0.005,
+        }.items()}
+        deposition_config = {key: self.param(f"deposition.{key}", default) for key, default in {
+            "raised_position_m": 0.218,
+            "dump_duration_s": 15.0,
+            "drum_spin_speed": 0.4,
+            "drum_spin_direction": -1.0,
+            "position_tolerance_m": 0.005,
+        }.items()}
 
         # Candidate poses, map frame, flattened [x, y, yaw, x, y, yaw, ...]. The rover stands still at
         # one to dig or dump. Each leg takes the next candidate whose footprint is clear in the
         # global costmap, so a boulder on a dig spot or an old pit doesn't block the run.
-        self.declare_parameter("navigation.excavation_candidates",
-                               [7.8, 1.5, 1.5708, 6.2, 1.5, 1.5708, 4.6, 1.5, 1.5708, 1.4, 1.5, 1.5708, 3.0, 1.5, 1.5708,
-                                7.8, 2.4, 1.5708, 6.2, 2.4, 1.5708, 4.6, 2.4, 1.5708, 1.4, 2.4, 1.5708, 3.0, 2.4, 1.5708])
-        self.declare_parameter("navigation.deposition_candidates", [8.0, 6.40, 1.5708])
-        # Dumps go through the candidates once, then keep using the last one, so a later approach
-        # never drives over an earlier pile
-        self.declare_parameter("navigation.deposition_repeat_last", True)
-        self.declare_parameter("navigation.deposition_approach_m", 1.5)
-        self.deposition_approach_m = self.get_parameter("navigation.deposition_approach_m").value
-        # The approach point is only somewhere to pass through: any heading, and a looser radius.
-        # Held to the dump spot's yaw tolerance the rover orbited it by the east wall until the
-        # goal timed out.
-        self.declare_parameter("navigation.approach_radius_m", 0.4)
-        self.approach_radius_m = self.get_parameter("navigation.approach_radius_m").value
-        self.deposition_repeat_last = self.get_parameter("navigation.deposition_repeat_last").value
+        self.candidates = {
+            "EXCAVATION": parse_poses(self.param("navigation.excavation_candidates", [
+                6.9, 1.5, 1.5708, 5.5, 1.5, 1.5708, 4.1, 1.5, 1.5708, 1.4, 1.5, 1.5708, 2.7, 1.5, 1.5708,
+                6.9, 2.4, 1.5708, 5.5, 2.4, 1.5708, 4.1, 2.4, 1.5708, 1.4, 2.4, 1.5708, 2.7, 2.4, 1.5708])),
+            "DEPOSITION": parse_poses(self.param("navigation.deposition_candidates", [8.0, 6.40, 1.5708])),
+        }
         # Footprint (half sizes, as nav_params.yaml) plus a margin, checked for lethal cells
-        self.declare_parameter("navigation.footprint_half_length_m", 0.62)
-        self.declare_parameter("navigation.footprint_half_width_m", 0.53)
-        self.declare_parameter("navigation.candidate_clearance_m", 0.05)
+        self.footprint_half_length_m = self.param("navigation.footprint_half_length_m", 0.62)
+        self.footprint_half_width_m = self.param("navigation.footprint_half_width_m", 0.53)
+        self.candidate_clearance_m = self.param("navigation.candidate_clearance_m", 0.05)
         # A candidate is blocked with at least this many lethal cells under it, so isolated
         # specks of sensor noise don't rule out every spot
-        self.declare_parameter("navigation.candidate_min_lethal_cells", 4)
-        self.candidate_min_lethal_cells = self.get_parameter("navigation.candidate_min_lethal_cells").value
-        self.footprint_half_length_m = self.get_parameter("navigation.footprint_half_length_m").value
-        self.footprint_half_width_m = self.get_parameter("navigation.footprint_half_width_m").value
-        self.candidate_clearance_m = self.get_parameter("navigation.candidate_clearance_m").value
-        self.declare_parameter("navigation.goal_timeout_s", 180.0)
-        self.declare_parameter("navigation.max_retries", 2)
-        self.declare_parameter("navigation.travel_lift_position_m", 0.218)
-        self.travel_lift_position_m = self.get_parameter("navigation.travel_lift_position_m").value
-        # Within this distance and heading of a waypoint the sequence starts, even if Nav2 is
-        # still lining up. A small buffer so it doesn't keep shuffling to correct itself.
-        self.declare_parameter("navigation.arrival_radius_m", 0.25)
-        self.arrival_radius_m = self.get_parameter("navigation.arrival_radius_m").value
+        self.candidate_min_lethal_cells = self.param("navigation.candidate_min_lethal_cells", 4)
+        goal_timeout_s = self.param("navigation.goal_timeout_s", 180.0)
+        self.max_nav_retries = self.param("navigation.max_retries", 3)
+        self.travel_lift_position_m = self.param("navigation.travel_lift_position_m", 0.218)
+        # Within this distance of a waypoint the sequence starts, even if Nav2 is still lining
+        # up. A small buffer so it doesn't keep shuffling to correct itself.
+        self.arrival_radius_m = self.param("navigation.arrival_radius_m", 0.25)
         # Within stall_radius_m but no 5 cm closer for stall_time_s: Nav2
         # is shuffling near the goal, so start there instead
-        self.declare_parameter("navigation.stall_radius_m", 0.40)
-        self.declare_parameter("navigation.stall_time_s", 10.0)
-        self.stall_radius_m = self.get_parameter("navigation.stall_radius_m").value
-        self.stall_time_s = self.get_parameter("navigation.stall_time_s").value
+        self.stall_radius_m = self.param("navigation.stall_radius_m", 0.40)
+        self.stall_time_s = self.param("navigation.stall_time_s", 10.0)
         self.best_error = None  # (closest distance this leg, time it was reached)
 
-        self.candidates = {
-            "EXCAVATION": parse_poses(self.get_parameter("navigation.excavation_candidates").value),
-            "DEPOSITION": parse_poses(self.get_parameter("navigation.deposition_candidates").value),
-        }
         # Next candidate to try per zone, the current leg's candidate, and those found blocked on it
         self.next_candidate = {"EXCAVATION": 0, "DEPOSITION": 0}
         self.target_index = None
-        self.approach_stage = False  # driving to the point before the dump spot
         self.blocked_candidates = set()
         self.retargets = 0
         self.last_target_check_s = 0.0
         self.global_costmap = None
-        self.max_nav_retries = self.get_parameter("navigation.max_retries").value
         self.nav_retries = 0
-        self.navigation = Navigation(self, self.get_parameter("navigation.goal_timeout_s").value)
+        self.navigation = Navigation(self, goal_timeout_s)
         # A goal waiting for Nav2 to finish cancelling the previous one (see Navigation.ready)
         self.goal_pending = False
 
         # Localisation check for new commands: a recent AprilTag fix, not much driving since,
         # and the global EKF agreeing with it (it rejects fixes it thinks are outliers)
-        self.declare_parameter("localisation.require_localised", True)
-        self.declare_parameter("localisation.max_fix_age_s", 30.0)
-        self.declare_parameter("localisation.max_drive_since_fix_m", 1.0)
-        self.declare_parameter("localisation.max_fix_disagreement_m", 0.3)
-        self.require_localised = self.get_parameter("localisation.require_localised").value
-        self.max_fix_age_s = self.get_parameter("localisation.max_fix_age_s").value
-        self.max_drive_since_fix_m = self.get_parameter("localisation.max_drive_since_fix_m").value
-        self.max_fix_disagreement_m = self.get_parameter("localisation.max_fix_disagreement_m").value
+        self.require_localised = self.param("localisation.require_localised", True)
+        self.max_fix_age_s = self.param("localisation.max_fix_age_s", 30.0)
+        self.max_drive_since_fix_m = self.param("localisation.max_drive_since_fix_m", 1.0)
+        self.max_fix_disagreement_m = self.param("localisation.max_fix_disagreement_m", 0.3)
         self.tag_fix = None  # (map x, map y, monotonic time)
         # Driving since the last autonomy run that started localised (None: no such run yet).
         # A run's EKF pose is still good for the next command unless the rover was driven by
@@ -177,75 +141,56 @@ class NavAutonomyNode(Node):
         self.drive_since_fix = 0.0
         self.drive_anchor = None  # local-EKF (x, y) the drive distance was last measured from
 
-        # Re-localising in AUTO: after a dig, with no recent tag fix, turn on the spot until a
-        # camera faces the AprilTag and wait for a fix before driving to the berm. Turns on the
-        # spot and digging slip the skid-steer, and the berm is too far from the tag to correct
-        # it there: in the sim the map pose was 0.4-0.6 m out by the berm, enough to hit walls.
-        self.declare_parameter("relocalise.enabled", True)
-        self.declare_parameter("relocalise.tag_xy", [3.32, 0.02])  # qpl_rover/config/arena/<arena>.yaml
-        self.declare_parameter("relocalise.max_fix_age_s", 15.0)  # a fix newer than this is enough
-        self.declare_parameter("relocalise.turn_speed", 0.4)
-        self.declare_parameter("relocalise.heading_tolerance_rad", 0.15)
-        self.declare_parameter("relocalise.timeout_s", 40.0)
-        self.declare_parameter("relocalise.rear_camera_max_range_m", 2.5)
-        self.declare_parameter("relocalise.turn_clearance_m", 1.25)
-        self.relocalise_turn_clearance_m = self.get_parameter("relocalise.turn_clearance_m").value
-        self.declare_parameter("relocalise.max_range_m", 4.0)
-        self.declare_parameter("relocalise.min_angle_from_wall_rad", 0.35)
-        self.relocalise_enabled = self.get_parameter("relocalise.enabled").value
-        self.tag_xy = list(self.get_parameter("relocalise.tag_xy").value)
-        self.relocalise_max_fix_age_s = self.get_parameter("relocalise.max_fix_age_s").value
-        self.relocalise_turn_speed = self.get_parameter("relocalise.turn_speed").value
-        self.relocalise_tolerance = self.get_parameter("relocalise.heading_tolerance_rad").value
-        self.relocalise_timeout_s = self.get_parameter("relocalise.timeout_s").value
-        self.relocalise_rear_range_m = self.get_parameter("relocalise.rear_camera_max_range_m").value
-        self.relocalise_max_range_m = self.get_parameter("relocalise.max_range_m").value
-        self.relocalise_min_angle = self.get_parameter("relocalise.min_angle_from_wall_rad").value
+        # Re-localising in AUTO: after a dig, turn on the spot until a camera faces the AprilTag
+        # and wait for fixes before driving to the berm. Turns on the spot and digging slip the
+        # skid-steer, and the berm is too far from the tag to correct it there: in the sim the
+        # map pose was 0.4-0.6 m out by the berm, enough to hit walls.
+        self.relocalise_enabled = self.param("relocalise.enabled", True)
+        self.tag_xy = list(self.param("relocalise.tag_xy", [3.32, 0.02]))  # qpl_rover/config/arena/<arena>.yaml
+        self.relocalise_max_fix_age_s = self.param("relocalise.max_fix_age_s", 0.0)  # a fix newer than this is enough
+        self.relocalise_min_fixes = self.param("relocalise.min_fixes", 5)
+        self.relocalise_turn_speed = self.param("relocalise.turn_speed", 0.4)
+        self.relocalise_tolerance = self.param("relocalise.heading_tolerance_rad", 0.15)
+        self.relocalise_timeout_s = self.param("relocalise.timeout_s", 25.0)
+        self.relocalise_max_range_m = self.param("relocalise.max_range_m", 4.4)
+        self.relocalise_min_angle = self.param("relocalise.min_angle_from_wall_rad", 0.35)
+        self.relocalise_rear_range_m = self.param("relocalise.rear_camera_max_range_m", 2.5)
+        self.relocalise_turn_clearance_m = self.param("relocalise.turn_clearance_m", 1.25)
         self.relocalise_start = None  # (monotonic start, tag fix time before, EKF x, EKF y)
-        self.declare_parameter("relocalise.min_fixes", 5)
-        self.relocalise_min_fixes = self.get_parameter("relocalise.min_fixes").value
         self.relocalise_fixes = 0  # fixes seen while re-localising
 
-        # Leaving the berm (AUTO): after a dump, reverse back the way the rover drove in (along
-        # the dump spot's heading) before heading for the next dig spot. It faces north by the east wall there, and in
-        # the sim the turn round swept its corners into the wall, so Nav2 couldn't start the leg.
-        self.declare_parameter("deposition.back_out_m", 1.0)
-        self.declare_parameter("deposition.back_out_speed", 0.1)
-        self.back_out_m = self.get_parameter("deposition.back_out_m").value
-        self.back_out_speed = self.get_parameter("deposition.back_out_speed").value
-        self.back_out_start = None  # (monotonic start, EKF x, EKF y, heading to straighten up to)
+        # Leaving the berm (AUTO): after a dump, reverse straight back the way the rover drove in
+        # before heading for the next dig spot. It faces the east wall there, and in the sim the
+        # turn round swept its corners into the wall, so Nav2 couldn't start the leg.
+        self.back_out_m = self.param("deposition.back_out_m", 1.0)
+        self.back_out_speed = self.param("deposition.back_out_speed", 0.1)
+        self.back_out_start = None  # (monotonic start, EKF x, EKF y, heading to hold)
 
         # Before re-sending a failed goal, move a little clear first: with its footprint touching a
         # lethal cell (it grazed something, or the map pose is off by a wall) Nav2's planner finds
         # no first move and its recoveries all report a collision, so a plain retry fails at once.
-        self.declare_parameter("navigation.unstick_m", 0.4)
-        self.declare_parameter("navigation.unstick_speed", 0.08)
-        self.unstick_m = self.get_parameter("navigation.unstick_m").value
-        self.unstick_speed = self.get_parameter("navigation.unstick_speed").value
+        self.unstick_m = self.param("navigation.unstick_m", 0.4)
+        self.unstick_speed = self.param("navigation.unstick_speed", 0.08)
         self.unstick = None  # dict: kind "turn" (to yaw) or "drive" (direction, distance), start pose and time
         # Each leg (and each retry, from where the rover is) goes via waypoints along the widest way
         # round in the global costmap (qpl_autonomy/nav/route.py), not the planner's shortest way
         # that fits, which in a cluster of craters was often a gap the rover then grazed or stuck in
-        self.declare_parameter("navigation.route_min_clearance_m", 0.6)
-        self.declare_parameter("navigation.route_waypoint_spacing_m", 1.5)
-        self.route_min_clearance_m = self.get_parameter("navigation.route_min_clearance_m").value
-        self.route_spacing_m = self.get_parameter("navigation.route_waypoint_spacing_m").value
+        self.route_min_clearance_m = self.param("navigation.route_min_clearance_m", 0.55)
+        self.route_spacing_m = self.param("navigation.route_waypoint_spacing_m", 1.0)
         self.route = []  # map-frame (x, y) waypoints still to pass on this leg
         self.route_path = []  # the route cell by cell, to check it's still clear
         self.route_checked_s = 0.0  # monotonic time the route was last recomputed
         # Tight mode, after a failed leg: the depth filters shrink the margins round obstacles
         # (qpl_rover depth_obstacle_filter.yaml *_tight_m) and Nav2 slows down, so the rover can
         # squeeze through a gap the full clearance closes. Off again at the next leg.
-        self.declare_parameter("navigation.tight_speed_percent", 50.0)
-        self.tight_speed_percent = self.get_parameter("navigation.tight_speed_percent").value
+        self.tight_speed_percent = self.param("navigation.tight_speed_percent", 50.0)
         self.tight = False
         # The planner (Smac lattice) checks the start pose at its nearest primitive heading, so a
         # rover clear at its own heading can still be "in lethal space" for it. Its headings, from
         # the same primitives file as qpl_rover/config/nav_params.yaml.
-        self.declare_parameter(
+        self.lattice_headings = load_lattice_headings(self.param(
             "navigation.lattice_file",
-            "/opt/ros/humble/share/nav2_smac_planner/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json")
-        self.lattice_headings = load_lattice_headings(self.get_parameter("navigation.lattice_file").value)
+            "/opt/ros/humble/share/nav2_smac_planner/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json"))
 
         # Top-level autonomy state
         self.state = "IDLE"
@@ -329,6 +274,15 @@ class NavAutonomyNode(Node):
         self.get_logger().info("Nav autonomy started.")
         self.get_logger().info("State: IDLE")
         self.get_logger().info("Waiting for NAV_EXCAVATE, NAV_DEPOSIT, AUTO, or STOP command.")
+
+    def param(self, name, default):
+        # Declare a parameter and return its value
+        return self.declare_parameter(name, default).value
+
+    def footprint_cells(self, x, y, yaw, margin=0.0):
+        # Lethal cells in the global costmap under the rover's footprint (grown by margin) at a pose
+        return footprint_lethal_cells(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
+                                      self.footprint_half_width_m, margin)
 
     """Feedback callbacks"""
     def joint_state_callback(self, msg):
@@ -471,11 +425,6 @@ class NavAutonomyNode(Node):
         self.blocked_candidates = set()
         self.target_index, _ = self.choose_candidate(target)
         self.best_error = None
-        # Dumps go via a point deposition_approach_m short of the dump spot, on its heading, so the
-        # rover arrives lined up instead of swinging round by the wall (its corners hit the east wall)
-        x, y, _ = self.candidates[target][self.target_index]
-        self.approach_stage = (target == "DEPOSITION" and self.deposition_approach_m > 0 and
-                               (self.map_x is None or hypot(x - self.map_x, y - self.map_y) > self.deposition_approach_m + 0.3))
         self.last_target_check_s = time.monotonic()
         self.plan_route(target)
         # Starting with the footprint on a lethal cell (the map pose moved under a remembered mark
@@ -502,14 +451,13 @@ class NavAutonomyNode(Node):
                         f"{target.lower()} candidate {self.target_index + 1}.")
             self.navigation.navigate_to(x, y, yaw)
             return
-        x, y, yaw = self.target_pose(target)
-        if self.map_x is not None and not (target == "DEPOSITION" and self.approach_stage):
+        x, y, yaw = self.candidates[target][self.target_index]
+        if self.map_x is not None:
             # Heading doesn't matter for digging or dumping (the drum is under the middle): arrive
             # facing the way the rover drives there (or as it is, when already close), so there's no
             # turn on the spot at the goal. It orbited goals it had to turn round at, and by the
             # berm, with the map pose ~0.4 m out that far from the AprilTag, a turn to the dump
             # spot's heading swept into the east wall and stalled until the goal timed out.
-            # Only the berm approach point keeps its heading, so the rover arrives lined up.
             if hypot(x - self.map_x, y - self.map_y) > 0.3:
                 yaw = atan2(y - self.map_y, x - self.map_x)
             elif self.map_yaw is not None:
@@ -520,46 +468,21 @@ class NavAutonomyNode(Node):
         self.navigation.navigate_to(x, y, yaw)
 
     """Candidates"""
-    def target_pose(self, target):
-        x, y, yaw = self.candidates[target][self.target_index]
-        if target == "DEPOSITION" and self.approach_stage:
-            d = self.deposition_approach_m
-            return x - d * cos(yaw), y - d * sin(yaw), yaw
-        return x, y, yaw
-
-    def leg_arrived(self, target):
-        # At the berm approach point: drive straight on to the dump spot. Otherwise start digging/dumping.
-        if target == "DEPOSITION" and self.approach_stage:
-            self.approach_stage = False
-            self.best_error = None
-            self.navigation.cancel()
-            self.report("At the berm approach point. Driving straight on to the dump spot.")
-            self.send_navigation_goal(target)
-            return
-        self.start_sequence(target)
-
     def candidate_order(self, target):
-        # Indexes to try, starting from the next unused one. Dumps stay on the last candidate
-        # once they reach it (deposition_repeat_last); earlier ones are only a fallback.
+        # Indexes to try, starting from the next unused one
         n = len(self.candidates[target])
         start = self.next_candidate[target]
-        if target == "DEPOSITION" and self.deposition_repeat_last:
-            start = min(start, n - 1)
         return [(start + i) % n for i in range(n)]
 
     def candidate_lethal_cells(self, target, index):
         if self.global_costmap is None:
             return 0
         x, y, yaw = self.candidates[target][index]
-        return footprint_lethal_cells(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
-                                      self.footprint_half_width_m, self.candidate_clearance_m)
+        return self.footprint_cells(x, y, yaw, self.candidate_clearance_m)
 
     def candidate_blocked(self, target, index):
-        # Lethal cell under the candidate's footprint (plus clearance) in the global costmap.
-        # Unknown space counts as clear.
-        if self.global_costmap is None:
-            return False
-        x, y, yaw = self.candidates[target][index]
+        # Enough lethal cells under the candidate's footprint (plus clearance) in the global
+        # costmap. Unknown space counts as clear, and so does everything without a costmap yet.
         return self.candidate_lethal_cells(target, index) >= self.candidate_min_lethal_cells
 
     def choose_candidate(self, target):
@@ -713,14 +636,13 @@ class NavAutonomyNode(Node):
 
         # Close enough counts, even if Nav2 is still lining up or has given up on the spot
         error = self.waypoint_error(target)
-        radius = self.approach_radius_m if target == "DEPOSITION" and self.approach_stage else self.arrival_radius_m
-        if error is not None and error <= radius and (
+        if error is not None and error <= self.arrival_radius_m and (
                 not self.navigation.done or not self.navigation.succeeded):
             self.navigation.cancel()
             self.report(
                 f"Within {error:.2f} m of {target.lower()} candidate "
                 f"{self.target_index + 1}. Starting here.")
-            self.leg_arrived(target)
+            self.start_sequence(target)
             return
 
         # Close but no longer getting closer: Nav2 is shuffling near the goal, so start here
@@ -733,7 +655,7 @@ class NavAutonomyNode(Node):
                 self.report(
                     f"No closer than {error:.2f} m to {target.lower()} candidate {self.target_index + 1} "
                     f"for {self.stall_time_s:.0f} s. Starting here.")
-                self.leg_arrived(target)
+                self.start_sequence(target)
                 return
 
         if not self.navigation.done:
@@ -746,7 +668,7 @@ class NavAutonomyNode(Node):
                     f"({error:.2f} m off).")
             else:
                 self.report(f"Reached {target.lower()} candidate {self.target_index + 1}.")
-            self.leg_arrived(target)
+            self.start_sequence(target)
             return
 
         self.nav_retries += 1
@@ -796,23 +718,19 @@ class NavAutonomyNode(Node):
         # in the sim, into a boulder), so this is checked every step, not just at the start.
         if self.global_costmap is None or self.map_x is None or self.map_yaw is None:
             return False
-        def cells(x, y, yaw):
-            return footprint_lethal_cells(self.global_costmap, x, y, yaw, self.footprint_half_length_m,
-                                          self.footprint_half_width_m)
-        now = cells(self.map_x, self.map_y, self.map_yaw)
-        ahead = cells(self.map_x + forward * cos(self.map_yaw), self.map_y + forward * sin(self.map_yaw),
+        now = self.footprint_cells(self.map_x, self.map_y, self.map_yaw)
+        ahead = self.footprint_cells(self.map_x + forward * cos(self.map_yaw), self.map_y + forward * sin(self.map_yaw),
                       self.map_yaw + turn)
         return ahead > now
 
     def planner_heading(self, yaw):
         # The lattice heading the planner would snap yaw to
-        return min(self.lattice_headings, key=lambda h: abs((h - yaw + pi) % (2.0 * pi) - pi))
+        return min(self.lattice_headings, key=lambda h: abs(wrap_angle(h - yaw)))
 
     def footprint_blocked(self, x, y, yaw):
         # Lethal cells under the footprint as the planner checks it: at its nearest primitive
         # heading, with a little margin for the map pose moving
-        return footprint_lethal_cells(self.global_costmap, x, y, self.planner_heading(yaw), self.footprint_half_length_m,
-                                      self.footprint_half_width_m, UNSTICK_MARGIN_M) > 0
+        return self.footprint_cells(x, y, self.planner_heading(yaw), UNSTICK_MARGIN_M) > 0
 
     def plan_route(self, target, quiet=False):
         # The widest way round to the candidate, as waypoints for the rest of this leg
@@ -854,7 +772,7 @@ class NavAutonomyNode(Node):
         if self.map_x is None or self.map_yaw is None or self.global_costmap is None or self.unstick_m <= 0.0:
             return False
         heading = self.planner_heading(self.map_yaw)
-        off_heading = abs((heading - self.map_yaw + pi) % (2.0 * pi) - pi) > 0.05
+        off_heading = abs(wrap_angle(heading - self.map_yaw)) > 0.05
         if off_heading and not self.footprint_blocked(self.map_x, self.map_y, heading):
             self.navigation.cancel()
             self.unstick = {"kind": "turn", "yaw": heading, "start": time.monotonic()}
@@ -878,7 +796,7 @@ class NavAutonomyNode(Node):
         u = self.unstick
         cmd = Twist()
         if u["kind"] == "turn":
-            error = (u["yaw"] - self.map_yaw + pi) % (2.0 * pi) - pi
+            error = wrap_angle(u["yaw"] - self.map_yaw)
             done = (abs(error) < 0.03 or time.monotonic() - u["start"] > 10.0
                     or self.move_blocked(turn=0.1 if error > 0 else -0.1))
             cmd.angular.z = max(-0.3, min(0.3, 2.0 * error))
@@ -898,7 +816,7 @@ class NavAutonomyNode(Node):
         # Distance from the current waypoint, or None without a map pose. Any heading will do.
         if self.map_x is None or self.map_y is None:
             return None
-        x, y, _ = self.target_pose(target)
+        x, y, _ = self.candidates[target][self.target_index]
         return hypot(self.map_x - x, self.map_y - y)
 
     """Backing out of the berm (AUTO, after a dump)"""
@@ -911,9 +829,8 @@ class NavAutonomyNode(Node):
         yaw = self.map_yaw
         bx = self.map_x - self.back_out_m * cos(yaw)
         by = self.map_y - self.back_out_m * sin(yaw)
-        if self.global_costmap is not None and footprint_lethal_cells(
-                self.global_costmap, bx, by, yaw, self.footprint_half_length_m,
-                self.footprint_half_width_m) >= self.candidate_min_lethal_cells:
+        if (self.global_costmap is not None
+                and self.footprint_cells(bx, by, yaw) >= self.candidate_min_lethal_cells):
             self.report("Not backing out of the berm: something is behind the rover.", "warning")
             self.start_navigation("EXCAVATION")
             return
@@ -932,7 +849,7 @@ class NavAutonomyNode(Node):
             return
         cmd = Twist()
         cmd.linear.x = -self.back_out_speed
-        error = (yaw - self.map_yaw + pi) % (2.0 * pi) - pi
+        error = wrap_angle(yaw - self.map_yaw)
         cmd.angular.z = max(-0.3, min(0.3, 1.5 * error))
         self.cmd_vel_pub.publish(cmd)
 
@@ -986,7 +903,7 @@ class NavAutonomyNode(Node):
         # smaller turn and the tag is close enough for it
         bearing = atan2(self.tag_xy[1] - self.map_y, self.tag_xy[0] - self.map_x)
         near = hypot(self.tag_xy[0] - self.map_x, self.tag_xy[1] - self.map_y) <= self.relocalise_rear_range_m
-        errors = [(bearing + offset - self.map_yaw + pi) % (2.0 * pi) - pi for offset in ((0.0, pi) if near else (0.0,))]
+        errors = [wrap_angle(bearing + offset - self.map_yaw) for offset in ((0.0, pi) if near else (0.0,))]
         error = min(errors, key=abs)
         cmd = Twist()
         if abs(error) > self.relocalise_tolerance:

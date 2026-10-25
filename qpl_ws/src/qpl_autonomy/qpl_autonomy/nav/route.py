@@ -56,28 +56,29 @@ def _search(dist, start, goal, floor):
     return None
 
 
+def _connected(clear, a, b):
+    # Whether cells a and b are in one 8-connected region of `clear`
+    if cv2 is not None:
+        _, labels = cv2.connectedComponents(clear.astype(np.uint8), connectivity=8)
+    else:
+        labels, _ = ndimage.label(clear, structure=np.ones((3, 3)))
+    return labels[a] != 0 and labels[a] == labels[b]
+
+
 def _bottleneck(dist, start, goal):
-    # Largest clearance a path from start to goal can keep all the way (maximin)
-    best = np.full(dist.shape, -1.0)
-    best[start] = dist[start]
-    heap = [(-dist[start], start)]
-    rows, cols = dist.shape
-    while heap:
-        b, cell = heapq.heappop(heap)
-        b = -b
-        if cell == goal:
-            return b
-        if b < best[cell]:
-            continue
-        r, c = cell
-        for dr, dc in NEIGHBOURS:
-            n = (r + dr, c + dc)
-            if 0 <= n[0] < rows and 0 <= n[1] < cols:
-                v = min(b, dist[n])
-                if v > best[n]:
-                    best[n] = v
-                    heapq.heappush(heap, (-v, n))
-    return 0.0
+    # Largest clearance a path from start to goal can keep all the way (maximin): the highest
+    # clearance level at which both are still in one connected region of cells at least that clear.
+    # Every cell is in that region at the lowest level, and none past the lower of the two ends.
+    levels = np.unique(dist)
+    levels = levels[levels <= min(dist[start], dist[goal])]
+    lo, hi = 0, len(levels) - 1
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if _connected(dist >= levels[mid], start, goal):
+            lo = mid
+        else:
+            hi = mid - 1
+    return levels[lo]
 
 
 def widest_route(grid, start_xy, goal_xy, min_clearance, spacing=1.5, end_gap=1.0):

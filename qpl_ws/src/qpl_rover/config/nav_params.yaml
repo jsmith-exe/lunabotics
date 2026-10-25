@@ -67,8 +67,8 @@ controller_server:
       # TOLERANCE NOTE: If robot oscillates at the goal, increase these slightly.
       xy_goal_tolerance: 0.20 # Tighten slightly if precision is needed, match with DWB
       # 0.20 (~11 deg) kept the skid-steer shuffling on the goal trying to line up; 0.3
-      # (~17 deg) leaves a small buffer. nav_autonomy ignores heading except at the berm
-      # approach point, and sends dig/dump goals facing the way the rover drives in.
+      # (~17 deg) leaves a small buffer. nav_autonomy ignores heading, and sends dig/dump
+      # goals facing the way the rover drives in.
       yaw_goal_tolerance: 0.3
 
     # RotationShim turns on the spot towards the path (and at the end to the goal heading)
