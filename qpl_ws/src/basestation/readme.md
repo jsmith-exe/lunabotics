@@ -51,8 +51,8 @@ arena map and the rover telemetry. **It only monitors** and never publishes a co
 driving with the controller exactly as before.
 
 ```bash
-qpl_hud         # against the rover (wall time)
-qpl_hud_sim     # against the sim (same, with use_sim_time)
+qpl_hud_rover   # against the rover
+qpl_hud         # against the sim (same, with use_sim_time)
 ```
 Both open http://localhost:8765. Press `H` on the page for the key list. The HUD keys avoid W/A/S/D
 and the arrow keys so they never look like drive keys.

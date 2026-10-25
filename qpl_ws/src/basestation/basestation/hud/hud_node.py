@@ -41,7 +41,6 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy, qos_profile_sensor_data
 from rclpy.serialization import deserialize_message
-from rclpy.clock import Clock, ClockType
 from rclpy.time import Time
 from ament_index_python.packages import get_package_share_directory
 
@@ -344,14 +343,9 @@ class HudNode(Node):
         self.lift_limits = self._load_lift_limits()
         self.config_dirty = True
 
-        # Steady clock: on sim time with no /clock (the rover) ROS-clock timers never fire and
-        # the page would sit on AWAITING TELEMETRY
-        steady = Clock(clock_type=ClockType.STEADY_TIME)
-        self.create_timer(1.0 / TELE_HZ, self.publish_tele, clock=steady)
-        self.create_timer(0.25, self.publish_slow, clock=steady)
-        self.create_timer(1.0, self.resolve_camera_models, clock=steady)
-        if use_sim_time:
-            self.clock_check = self.create_timer(5.0, self.check_sim_clock, clock=steady)
+        self.create_timer(1.0 / TELE_HZ, self.publish_tele)
+        self.create_timer(0.25, self.publish_slow)
+        self.create_timer(1.0, self.resolve_camera_models)
 
         self.server = HudServer(self.host, self.port, web_root, self.hub,
                                 {k: c.feed for k, c in self.cameras.items()},
@@ -536,13 +530,6 @@ class HudNode(Node):
             }
             self.config_dirty = True
             self.get_logger().info(f"{cam.label} camera model resolved from {frame}")
-
-    def check_sim_clock(self):
-        self.destroy_timer(self.clock_check)
-        if self.get_clock().now().nanoseconds == 0:
-            self.get_logger().error(
-                "use_sim_time is on but nothing publishes /clock, so pose ages are wrong. "
-                "Against the rover run qpl_hud; qpl_hud_sim is for the sim.")
 
     # ------------------------------------------------------------- publishers
     def _pose(self, odom):
