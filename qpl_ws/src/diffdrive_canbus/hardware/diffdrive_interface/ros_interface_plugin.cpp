@@ -128,8 +128,28 @@ public:
     next_feedback_read_time_ = std::chrono::steady_clock::now();
     next_command_write_time_ = std::chrono::steady_clock::now();
 
-    read_frames(INITIAL_FEEDBACK_FRAMES);
+    try
+    {
+      if (!can_->is_open())
+      {
+        RCLCPP_INFO(logger_, "Reconnecting to can0");
+        can_->connect("can0");
+      }
+    }
+    catch (const std::exception & e)
+    {
+      RCLCPP_ERROR(logger_, "on_activate failed: %s", e.what());
+      return hardware_interface::CallbackReturn::ERROR;
+    }
 
+    drain_frames();
+
+    return hardware_interface::CallbackReturn::SUCCESS;
+  }
+
+  hardware_interface::CallbackReturn on_cleanup(const rclcpp_lifecycle::State &) override
+  {
+    can_->close();
     return hardware_interface::CallbackReturn::SUCCESS;
   }
 
@@ -141,7 +161,6 @@ public:
     try
     {
       send_stop_for_duration();
-      can_->close();
     }
     catch (const std::exception & e)
     {
@@ -216,28 +235,15 @@ private:
       next_feedback_read_time_ = now + FEEDBACK_READ_PERIOD;
     }
 
-    read_frames(MAX_FEEDBACK_FRAMES_PER_READ);
+    drain_frames();
   }
 
-  void read_frames(int max_frames)
+  // Reads every frame waiting on the socket without blocking, so feedback never falls behind the bus.
+  void drain_frames()
   {
-    int frames_read = 0;
-    int empty_reads = 0;
-
-    while (frames_read < max_frames && empty_reads < FEEDBACK_EMPTY_READ_ATTEMPTS)
+    can_frame frame{};
+    for (int frames_read = 0; frames_read < MAX_FRAMES_PER_DRAIN && can_->read_frame(frame); ++frames_read)
     {
-      can_frame frame{};
-
-      if (!can_->read_frame(frame))
-      {
-        ++empty_reads;
-        std::this_thread::sleep_for(FEEDBACK_EMPTY_READ_DELAY);
-        continue;
-      }
-
-      empty_reads = 0;
-      ++frames_read;
-
       can_system_->update_joint_state(frame);
     }
   }
@@ -262,11 +268,19 @@ private:
     using clock = std::chrono::steady_clock;
 
     const auto start = clock::now();
+    const auto deadline = start + STOP_TIMEOUT;
     auto next_command = start;
 
     bool safely_stopped = false;
     while (!safely_stopped)
     {
+      if (clock::now() >= deadline)
+      {
+        RCLCPP_ERROR(logger_, "Stop timed out after %lld ms; motors may still be moving",
+          static_cast<long long>(std::chrono::duration_cast<std::chrono::milliseconds>(STOP_TIMEOUT).count()));
+        return;
+      }
+
       send_heartbeat_if_due();
       read_frames_if_due();
 

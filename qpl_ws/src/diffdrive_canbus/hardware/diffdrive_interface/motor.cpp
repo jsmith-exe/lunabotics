@@ -30,22 +30,17 @@ namespace diffdrive_canbus {
       &commanded_velocity_);
   }
 
+  void Motor::configure() {
+    CANDevice::configure();
+    // Motors don't read status 3 (analog) or 4 (alternate encoder).
+    set_status_period(3, UNUSED_STATUS_PERIOD_MS);
+    set_status_period(4, UNUSED_STATUS_PERIOD_MS);
+  }
+
   void Motor::write() // Velocity should be interpreted as a proportion of max RPM, -1.0 to 1.0.
   {
+    // Sent every write period, changed or not, so a setpoint lost on the bus is replaced within one period.
     const double velocity_to_write = preprocess_velocity();
-    if (velocity_to_write == 0.0) {
-      const auto now = std::chrono::system_clock::now();
-      const auto time_since_last_write = now - last_write_time_;
-      if (time_since_last_write > std::chrono::milliseconds(200)) {
-        set_velocity(velocity_to_write);
-      }
-    }
-    if (!has_command_significantly_changed(velocity_to_write))
-    {
-      return;
-    }
-
-    prev_commanded_velocity_ = velocity_to_write;
     if (SEND_ZERO_DUTY_FOR_MOTORS && velocity_to_write == 0.0) {
       this->set_duty_cycle(0.0);
     }
@@ -54,8 +49,8 @@ namespace diffdrive_canbus {
     }
   }
 
-  void Motor::set_velocity(double velocity) {
-    set_velocity_rpm(static_cast<float>(velocity * MAX_MOTOR_RPM));
+  bool Motor::set_velocity(double velocity) {
+    return set_velocity_rpm(static_cast<float>(velocity * MAX_MOTOR_RPM));
   }
 
   double Motor::preprocess_velocity() {
@@ -92,13 +87,6 @@ namespace diffdrive_canbus {
         smoothed_velocity_ += max_velocity_change;
       }
     }
-  }
-
-  bool Motor::has_command_significantly_changed(double velocity_to_write)
-  {
-    const bool new_zero_sent = velocity_to_write == 0.0 && prev_commanded_velocity_ != 0.0;
-    const bool significant_change = abs(velocity_to_write - prev_commanded_velocity_) >= min_rate_of_velocity_change_;
-    return new_zero_sent || significant_change;
   }
 
   void Motor::update_joint_state(const can_frame &frame)

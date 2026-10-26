@@ -1,6 +1,8 @@
 #ifndef DIFFDRIVE_CANBUS__CAN_COMMS_HPP_
 #define DIFFDRIVE_CANBUS__CAN_COMMS_HPP_
 
+#include <chrono>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <linux/can.h>
@@ -31,12 +33,17 @@ uint32_t make_frc_extended_can_id(
 
 SparkMaxCanIdFields parse_frc_extended_can_id(uint32_t id);
 
+// Device type 2 (motor controller) and manufacturer 5 (REV) occupy bits 28-16 of the ID.
+constexpr uint32_t REV_MOTOR_CONTROLLER_ID_PREFIX = 0x02050000;
+constexpr uint32_t REV_MOTOR_CONTROLLER_ID_MASK = 0x1FFF0000;
+
 class SocketCanInterface
 {
 public:
   SocketCanInterface() = default;
   void connect(const std::string & interface_name_);
-  void close() const;
+  void close();
+  bool is_open() const { return file_descriptor_ >= 0; }
   ~SocketCanInterface();
 
   // Non-copyable: this object owns a raw file descriptor.
@@ -45,9 +52,14 @@ public:
 
   bool send_frame(uint32_t can_id, const std::vector<uint8_t> & payload, bool is_extended = false);
   bool send_extended_frame(uint32_t can_id, const std::vector<uint8_t> & payload);
-  bool read_frame(can_frame &received_frame, int timeout_ms = 5);
+  bool read_frame(can_frame &received_frame);
+  uint64_t failed_sends() const { return failed_sends_; }
 private:
+  void log_send_failure(int error_number);
+
   int file_descriptor_ = -1;
+  uint64_t failed_sends_ = 0;
+  std::chrono::steady_clock::time_point last_failure_log_time_{};
 };
 }  // namespace diffdrive_canbus
 
