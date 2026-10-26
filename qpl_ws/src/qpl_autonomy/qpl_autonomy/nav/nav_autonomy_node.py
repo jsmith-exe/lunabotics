@@ -75,13 +75,13 @@ class NavAutonomyNode(Node):
             "drum_spin_speed": 0.8,
             "drum_spin_direction": 1.0,
             "lowered_position_m": 0.032,
-            "dig_duration_s": 10.0,
+            "dig_duration_s": 30.0,
             "raised_position_m": 0.218,
             "position_tolerance_m": 0.005,
         }.items()}
         deposition_config = {key: self.param(f"deposition.{key}", default) for key, default in {
             "raised_position_m": 0.218,
-            "dump_duration_s": 15.0,
+            "dump_duration_s": 60.0,
             "drum_spin_speed": 0.4,
             "drum_spin_direction": -1.0,
             "position_tolerance_m": 0.005,
