@@ -19,19 +19,19 @@ constexpr auto CONFIG_FILE_PATH = "qpl_ws/src/diffdrive_canbus/hardware/can_conf
 constexpr double TWO_PI = 2.0 * M_PI;
 
 constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
-constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(100);
-constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
+constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(200);
+constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(100);
 
-constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
+constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(50);
 constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 15;
 constexpr int FEEDBACK_EMPTY_READ_ATTEMPTS = 1;
 constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 constexpr int INITIAL_FEEDBACK_FRAMES = 50;
 
 constexpr uint32_t SPARKMAX_PERIODIC_STATUS_3_BASE_ID = 0x020518C0; // TODO rename to be clearer  (can comms helpers)
-constexpr uint16_t STATUS0_PERIOD_MS = 1000;
-constexpr uint16_t STATUS1_PERIOD_MS = 1000;
-constexpr uint16_t STATUS3_PERIOD_MS = 1000;
+constexpr uint16_t STATUS0_PERIOD_MS = 2000;
+constexpr uint16_t STATUS1_PERIOD_MS = 2000;
+constexpr uint16_t STATUS3_PERIOD_MS = 2000;
 
 constexpr double MIN_VELOCITY_CHANGE = 0.1;
 constexpr double MIN_ACTUATOR_VELOCITY_CHANGE = 0.1;
