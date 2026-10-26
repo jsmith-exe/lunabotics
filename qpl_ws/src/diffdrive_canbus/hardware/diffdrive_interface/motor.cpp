@@ -33,7 +33,15 @@ namespace diffdrive_canbus {
   void Motor::write() // Velocity should be interpreted as a proportion of max RPM, -1.0 to 1.0.
   {
     const double velocity_to_write = preprocess_velocity();
-    if (!has_command_significantly_changed(velocity_to_write))
+    if (velocity_to_write == 0.0) {
+      const auto now = std::chrono::system_clock::now();
+      const auto time_since_last_write = now - last_write_time_;
+      if (time_since_last_write > std::chrono::milliseconds(200)) {
+        this->set_duty_cycle(0.0);
+        std::cout << "Sent 0\n";
+      }
+    }
+    else if (!has_command_significantly_changed(velocity_to_write))
     {
       return;
     }
