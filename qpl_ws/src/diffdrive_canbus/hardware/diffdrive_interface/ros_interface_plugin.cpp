@@ -259,8 +259,8 @@ private:
     rear_right_motor_->write();
     drum_motor_->write();
 
-//     left_actuator_->write();
-//     right_actuator_->write();
+    left_actuator_->write();
+    right_actuator_->write();
   }
 
   void send_stop_for_duration()

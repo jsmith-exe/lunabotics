@@ -85,10 +85,19 @@ bool SocketCanInterface::send_frame(uint32_t can_id, const std::vector<uint8_t> 
   const ssize_t bytes_written = write(file_descriptor_, &frame, sizeof(frame));
   const bool success = bytes_written == sizeof(frame);
 
-  if (!success)
+  if (success)
   {
+    failing_since_.reset();
+  }
+  else
+  {
+    const int error_number = errno;
     ++failed_sends_;
-    log_send_failure(errno);
+    if (!failing_since_)
+    {
+      failing_since_ = std::chrono::steady_clock::now();
+    }
+    log_send_failure(error_number);
   }
 
   return success;
@@ -117,6 +126,16 @@ void SocketCanInterface::log_send_failure(int error_number)
   last_failure_log_time_ = now;
   std::cerr << "CAN send failed: " << std::strerror(error_number)
             << " (" << failed_sends_ << " failed sends so far)\n";
+
+  // Every send failing for over a second means nothing is leaving the Jetson; the driver won't recover by itself.
+  const auto stalled_for = now - *failing_since_;
+  if (error_number == ENOBUFS && stalled_for > std::chrono::seconds(1))
+  {
+    std::cerr << "CAN TRANSMIT STALLED for "
+              << std::chrono::duration_cast<std::chrono::seconds>(stalled_for).count()
+              << " s: no frames are leaving the Jetson and motors are not receiving commands.\n"
+              << "  Recover with: sudo ip link set can0 down && sudo ip link set can0 up\n";
+  }
 }
 
 }

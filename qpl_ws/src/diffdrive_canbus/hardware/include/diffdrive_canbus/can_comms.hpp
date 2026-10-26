@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 #include <linux/can.h>
@@ -60,6 +61,7 @@ private:
   int file_descriptor_ = -1;
   uint64_t failed_sends_ = 0;
   std::chrono::steady_clock::time_point last_failure_log_time_{};
+  std::optional<std::chrono::steady_clock::time_point> failing_since_; // Start of the current run of failed sends.
 };
 }  // namespace diffdrive_canbus
 

@@ -40,7 +40,7 @@ check "state"        "UP"      "$(grep -q 'state UP\|,UP' <<<"$details" && echo 
 check "bitrate"      "1000000" "$(field bitrate)"
 check "sample-point" "0.800"   "$(field sample-point)"
 check "sjw"          "10"      "$(field sjw)"
-check "restart-ms"   "100"     "$(field restart-ms)"
+check "restart-ms"   "1"       "$(field restart-ms)"
 check "qlen"         "100"     "$(field qlen)"
 echo "  info  controller state: $(grep -oE 'state (ERROR-[A-Z]+|BUS-OFF|STOPPED)' <<<"$details" | awk '{print $2}')"
 
