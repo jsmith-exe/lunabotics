@@ -29,9 +29,9 @@ constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
 constexpr int INITIAL_FEEDBACK_FRAMES = 50;
 
 constexpr uint32_t SPARKMAX_PERIODIC_STATUS_3_BASE_ID = 0x020518C0; // TODO rename to be clearer  (can comms helpers)
-constexpr uint16_t STATUS0_PERIOD_MS = 500;
-constexpr uint16_t STATUS1_PERIOD_MS = 500;
-constexpr uint16_t STATUS3_PERIOD_MS = 500;
+constexpr uint16_t STATUS0_PERIOD_MS = 1000;
+constexpr uint16_t STATUS1_PERIOD_MS = 1000;
+constexpr uint16_t STATUS3_PERIOD_MS = 1000;
 
 constexpr double MIN_VELOCITY_CHANGE = 0.1;
 constexpr double MIN_ACTUATOR_VELOCITY_CHANGE = 0.1;
