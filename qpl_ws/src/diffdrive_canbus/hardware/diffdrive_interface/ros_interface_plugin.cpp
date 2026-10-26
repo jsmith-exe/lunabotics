@@ -47,23 +47,23 @@ public:
       rear_right_motor_ = std::make_unique<DiffdriveMotor>("rear_right_wheel_joint", 4, *can_, 100.0, logger_);
       drum_motor_ = std::make_unique<Motor>("drum_spin_joint", 7, *can_, 125.0, logger_);
 
-      if (synchronise_actuators_) {
-        auto left_actuator = std::make_shared<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_, true);
-        auto right_actuator = std::make_shared<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_, false);
-        left_actuator->set_other_actuator(right_actuator); // Left is dominant, so commands both
-        left_actuator_ = left_actuator;
-        right_actuator_ = right_actuator;
-      } else {
-        left_actuator_ = std::make_shared<Actuator>("left_linear_actuator_joint", 5, *can_, logger_);
-        right_actuator_ = std::make_shared<Actuator>("right_linear_actuator_joint", 6, *can_, logger_);
-      }
+//       if (synchronise_actuators_) {
+//         auto left_actuator = std::make_shared<SynchronisedActuator>("left_linear_actuator_joint", 5, *can_, logger_, true);
+//         auto right_actuator = std::make_shared<SynchronisedActuator>("right_linear_actuator_joint", 6, *can_, logger_, false);
+//         left_actuator->set_other_actuator(right_actuator); // Left is dominant, so commands both
+//         left_actuator_ = left_actuator;
+//         right_actuator_ = right_actuator;
+//       } else {
+//         left_actuator_ = std::make_shared<Actuator>("left_linear_actuator_joint", 5, *can_, logger_);
+//         right_actuator_ = std::make_shared<Actuator>("right_linear_actuator_joint", 6, *can_, logger_);
+//       }
 
       can_system_->add_device(front_left_motor_);
       can_system_->add_device(front_right_motor_);
       can_system_->add_device(rear_left_motor_);
       can_system_->add_device(rear_right_motor_);
-      can_system_->add_device(left_actuator_);
-      can_system_->add_device(right_actuator_);
+//       can_system_->add_device(left_actuator_);
+//       can_system_->add_device(right_actuator_);
       can_system_->add_device(drum_motor_);
     }
     catch (const std::exception & e)
@@ -253,8 +253,8 @@ private:
     rear_right_motor_->write();
     drum_motor_->write();
 
-    left_actuator_->write();
-    right_actuator_->write();
+//     left_actuator_->write();
+//     right_actuator_->write();
   }
 
   void send_stop_for_duration()
