@@ -37,7 +37,7 @@ namespace diffdrive_canbus {
       const auto now = std::chrono::system_clock::now();
       const auto time_since_last_write = now - last_write_time_;
       if (time_since_last_write > std::chrono::milliseconds(200)) {
-        this->set_duty_cycle(0.0);
+        set_velocity(velocity_to_write);
       }
     }
     if (!has_command_significantly_changed(velocity_to_write))
