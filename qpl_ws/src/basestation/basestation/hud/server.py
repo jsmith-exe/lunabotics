@@ -5,8 +5,10 @@ Serves three things, so the browser needs nothing but a URL:
   /events      a Server-Sent Events stream of JSON telemetry channels
   /cam/<name>  camera feeds as MJPEG (.mjpg) or the latest still (.jpg)
 
-and takes HUD settings as POST /<setting>?on=0|1 (only "telemetry" so far).
-Settings change what the HUD collects; nothing here ever reaches the rover.
+and takes HUD settings as POST /<setting>?on=0|1. Settings change what the HUD
+collects and never reach the rover. The one exception is POST /breadcrumbs (a
+JSON body), the recorder-mode path edited on the map, which teleop_hud passes
+on to nav_autonomy. It is path data, not a drive command.
 
 Kept to the standard library on purpose: the basestation laptop has no
 rosbridge, aiohttp or websockets installed, and SSE + MJPEG cover a read-only
@@ -84,7 +86,7 @@ MAX_STREAM_FPS = 30.0
 SSE_KEEPALIVE_S = 1.0
 
 
-def make_handler(web_root, hub, cameras, settings, log):
+def make_handler(web_root, hub, cameras, settings, posts, log):
     web_root = os.path.abspath(web_root)
 
     class Handler(BaseHTTPRequestHandler):
@@ -108,8 +110,22 @@ def make_handler(web_root, hub, cameras, settings, log):
 
         def do_POST(self):
             # Drain any body so a kept-alive connection stays in step.
-            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
             path, _, query = self.path.partition("?")
+            handler = posts.get(path.lstrip("/"))
+            if handler is not None:
+                # JSON body; the handler returns an error message or None
+                try:
+                    error = handler(json.loads(body or b"null"))
+                except (ValueError, TypeError) as e:
+                    error = f"bad request: {e}"
+                if error:
+                    reply = error.encode()
+                    self._send_headers(400, "text/plain", len(reply))
+                    self.wfile.write(reply)
+                else:
+                    self._send_headers(204, "text/plain", 0)
+                return
             setter = settings.get(path.lstrip("/"))
             value = dict(p.partition("=")[::2] for p in query.split("&")).get("on")
             if setter is None or value not in ("0", "1"):
@@ -211,9 +227,10 @@ def make_handler(web_root, hub, cameras, settings, log):
 
 
 class HudServer:
-    def __init__(self, host, port, web_root, hub, cameras, settings, log):
-        """settings: name -> callable(bool), called on an HTTP server thread."""
-        handler = make_handler(web_root, hub, cameras, settings, log)
+    def __init__(self, host, port, web_root, hub, cameras, settings, log, posts=None):
+        """settings: name -> callable(bool); posts: name -> callable(parsed JSON) returning an
+        error message or None. Both are called on an HTTP server thread."""
+        handler = make_handler(web_root, hub, cameras, settings, posts or {}, log)
         self.httpd = ThreadingHTTPServer((host, port), handler)
         self.httpd.daemon_threads = True
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
