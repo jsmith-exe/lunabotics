@@ -32,6 +32,9 @@ alias qpl_nav_deposit='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/
 alias qpl_auto='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
 # Full autonomy (high risk): the same, but digs one fixed trench every cycle, reversing along it
 alias qpl_auto_trench='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_TRENCH'\"'\"'}"'
+# The same two avoiding boulders only (driving through craters), for when craters close every way to the berm
+alias qpl_auto_boulders='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_BOULDERS'\"'\"'}"'
+alias qpl_auto_trench_boulders='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_TRENCH_BOULDERS'\"'\"'}"'
 alias qpl_auto_stop='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
 
 # Legacy - to be removed

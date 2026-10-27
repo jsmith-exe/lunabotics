@@ -84,7 +84,9 @@ without it nothing is ignored.
 While nav_autonomy runs AUTO_TRENCH it publishes the trench's corridor on
 /nav_autonomy/trench_corridor, and dips (craters) inside it aren't marked: the
 rover digs the same trench every cycle, and marked as a crater it would block the
-way back to its start. Boulders there are still marked.
+way back to its start. Boulders there are still marked. In the boulders-only modes
+(AUTO_BOULDERS, AUTO_TRENCH_BOULDERS) it sets /nav_autonomy/ignore_craters, and no
+craters are marked anywhere.
 """
 import math
 import os
@@ -602,6 +604,7 @@ class DepthObstacleFilter(Node):
         self.ignore_max_height = self.declare_parameter('ignore_max_height', 0.6).value
         self.ignore_rects = load_zones(self.ignore_zones) if self.ignore_enabled else []
         self.trench_rect = None  # (x_min, x_max, y_min, y_max) in ignore_frame while AUTO_TRENCH runs
+        self.ignore_craters = False  # nav_autonomy's boulders-only modes
 
         self.tf_buffer = tf2_ros.Buffer()
         # No spin_thread: it adds this same node to a second executor, which
@@ -620,6 +623,8 @@ class DepthObstacleFilter(Node):
                              reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/nav_autonomy/tight', lambda m: setattr(self, 'tight', m.data), latched)
         self.create_subscription(Float64MultiArray, '/nav_autonomy/trench_corridor', self.on_trench_corridor, latched)
+        self.create_subscription(Bool, '/nav_autonomy/ignore_craters',
+                                 lambda m: setattr(self, 'ignore_craters', m.data), latched)
 
         self.info = None
         self.last_stamp = None
@@ -754,13 +759,20 @@ class DepthObstacleFilter(Node):
             dropped = ignore(points)
             obstacle &= ~dropped
             local &= ~dropped
-        in_trench = self.zone_test([self.trench_rect] if self.trench_rect else [])
-        if in_trench:
-            local &= ~(in_trench(points) & (kinds == CRATER))
+        # Where craters aren't marked: everywhere in the boulders-only modes, else the trench's corridor
+        if self.ignore_craters:
+            no_craters = lambda pts: np.ones(len(pts), bool)  # noqa: E731
+        else:
+            no_craters = self.zone_test([self.trench_rect] if self.trench_rect else [])
+        if no_craters:
+            # Local detections are in the obstacle cloud too (classify), so drop them from both
+            dropped = local & (kinds == CRATER) & no_craters(points)
+            obstacle &= ~dropped
+            local &= ~dropped
         remembered, remembered_kinds = self.remember(stamp, points, clearing, obstacle, local, rel, sensor_pos, kinds)
-        if in_trench and len(remembered):
-            # Craters remembered from before AUTO_TRENCH started (a 360 over the trench)
-            keep = ~(in_trench(remembered) & (remembered_kinds == CRATER))
+        if no_craters and len(remembered):
+            # Craters remembered from before the mode started (the 360); they're back once it ends
+            keep = ~(no_craters(remembered) & (remembered_kinds == CRATER))
             remembered, remembered_kinds = remembered[keep], remembered_kinds[keep]
         grown = dilate_cells(np.concatenate([points[local], remembered]),
                              np.concatenate([kinds[local], remembered_kinds]), self.grow_radii[self.tight],

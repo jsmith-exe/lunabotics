@@ -138,16 +138,22 @@ class TeleopWindow:
         """ Nav2 autonomy, run by qpl_nav. Separate from the blind autonomy above, which is kept as a backup. """
         self.nav_autonomy_section = CollapsibleSection(self.root, "Nav Autonomy")
 
-        # Nav excavate/deposit on the first row; full autonomy (low and high risk) and Stop on the second
+        # Nav excavate/deposit on the first row; full autonomy (low and high risk) and Stop on the second;
+        # the same two avoiding boulders only on the third
         nav_row = ttk.Frame(self.nav_autonomy_section.content)
         nav_row.pack()
         auto_row = ttk.Frame(self.nav_autonomy_section.content)
         auto_row.pack(pady=(5 * UI_SCALE, 0))
+        boulders_row = ttk.Frame(self.nav_autonomy_section.content)
+        boulders_row.pack(pady=(5 * UI_SCALE, 0))
 
         # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop.
-        # High risk digs one fixed trench every cycle, reversing along it with the bucket down.
+        # High risk digs one fixed trench every cycle, reversing along it with the bucket down. Boulders
+        # only drives through craters, for when craters close every way to the berm.
         for row, text, command in ((nav_row, "Nav Excavate", "NAV_EXCAVATE"), (nav_row, "Nav Deposit", "NAV_DEPOSIT"),
-                                   (auto_row, "Full Autonomy", "AUTO"), (auto_row, "High Risk (Trench)", "AUTO_TRENCH")):
+                                   (auto_row, "Full Autonomy", "AUTO"), (auto_row, "High Risk (Trench)", "AUTO_TRENCH"),
+                                   (boulders_row, "Full Autonomy (Boulders Only)", "AUTO_BOULDERS"),
+                                   (boulders_row, "High Risk (Boulders Only)", "AUTO_TRENCH_BOULDERS")):
             button = ttk.Button(row, text=text,
                                 command=lambda command=command: self.nav_autonomy_command_function(command))
             button.pack(side="left", padx=5 * UI_SCALE)
@@ -288,7 +294,7 @@ def nav_status(state: BaseStationState) -> tuple[str, str]:
         return f"CLOCK ERROR: {a.get('time_message', '')}", DANGER_COLOR
     target = a.get("target")
     spot = f"{'dig spot' if target['kind'] == 'EXCAVATION' else 'berm'} {target['index']}/{target['count']}" if target else ""
-    if target and target["kind"] == "EXCAVATION" and a.get("mode") == "AUTO_TRENCH":
+    if target and target["kind"] == "EXCAVATION" and (a.get("mode") or "").startswith("AUTO_TRENCH"):
         spot = "the trench"
     cycle = f", cycle {a['cycle']}" if a.get("cycle") else ""
     running = f"{a.get('mode') or 'NAV'}{cycle}"

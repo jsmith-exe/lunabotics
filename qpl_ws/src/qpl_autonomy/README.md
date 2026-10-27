@@ -359,6 +359,8 @@ Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
 | `NAV_DEPOSIT`  | Nav Deposit                | `qpl_nav_deposit`  | Drive to the deposition waypoint with Nav2, then deposit            |
 | `AUTO`         | Full Autonomy (Low Risk)   | `qpl_auto`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP` |
 | `AUTO_TRENCH`  | High Risk (Trench)         | `qpl_auto_trench`  | Full autonomy digging one fixed trench every cycle (see below)      |
+| `AUTO_BOULDERS` | Full Autonomy (Boulders Only) | `qpl_auto_boulders` | `AUTO`, avoiding boulders only (see below)                      |
+| `AUTO_TRENCH_BOULDERS` | High Risk (Boulders Only) | `qpl_auto_trench_boulders` | `AUTO_TRENCH`, avoiding boulders only (see below)      |
 | `STOP`         | Stop                       | `qpl_auto_stop`    | Cancel the Nav2 goal or active sequence and return to `IDLE`        |
 
 The buttons are in the basestation's **Nav Autonomy** section. Like the blind autonomy buttons, they only work while teleop is disabled, because teleop has priority over Nav2 in the drive mux. Either Stop button in the basestation stops both autonomy nodes.
@@ -389,6 +391,10 @@ navigate to trench.start_xy -> turn to face away from trench.end_xy (ALIGNING) -
 * It stops the trench early, raises the bucket and carries on to the berm if something is behind it in the costmap, or after twice the time the trench should take.
 * While it runs, the depth filters don't mark craters within 0.8 m of the trench (`/nav_autonomy/trench_corridor`), or last cycle's trench would block the way back to its start. Boulders there are still marked. Rulebook craters in the corridor are not avoided, which is part of the risk.
 * The trench is `trench.start_xy` -> `trench.end_xy` in `config/nav/nav_autonomy.yaml`: (4.4, 1.5) to (6.9, 1.5), along the south row of dig spots, ending nearest the berm.
+
+### Boulders only
+
+`AUTO_BOULDERS` and `AUTO_TRENCH_BOULDERS` are `AUTO` and `AUTO_TRENCH`, but they avoid only boulders and drive through craters. They are for a layout where craters close every way to the berm with no gap wide enough for the rover. While one runs, nav autonomy sets `/nav_autonomy/ignore_craters` and the depth filters stop marking craters anywhere; craters they remembered before (the 360) come back once it ends. The rover can drop a wheel into a crater, so use them only when the normal modes can't get through.
 
 ### Navigation
 

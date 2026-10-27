@@ -70,7 +70,9 @@ class NavAutonomyNode(Node):
     NAV_EXCAVATE / NAV_DEPOSIT drive to a map-frame waypoint with Nav2, then dig or dump
     standing still. AUTO (full autonomy) repeats NAV_EXCAVATE then NAV_DEPOSIT until STOP.
     AUTO_TRENCH (high risk) is AUTO with one fixed trench instead of the dig spots: the rover
-    reverses along it with the bucket down every cycle.
+    reverses along it with the bucket down every cycle. AUTO_BOULDERS and AUTO_TRENCH_BOULDERS are
+    the same but avoid only boulders, driving through craters, for when craters close every way
+    to the berm.
     """
 
     def __init__(self):
@@ -230,6 +232,9 @@ class NavAutonomyNode(Node):
         # mark craters in it, or the trench dug last cycle would block the way back to its start
         self.trench_corridor_pub = self.create_publisher(Float64MultiArray, "/nav_autonomy/trench_corridor", tight_qos)
         self.trench_corridor_pub.publish(Float64MultiArray())
+        # Boulders-only modes: the depth filters stop marking craters while this is true
+        self.ignore_craters_pub = self.create_publisher(Bool, "/nav_autonomy/ignore_craters", tight_qos)
+        self.ignore_craters_pub.publish(Bool(data=False))
         self.drum_lift_pub = self.create_publisher(Float64, "/drum_lift_control/autonomy", 10)
         self.drum_spin_pub = self.create_publisher(Float64, "/drum_spin_control/autonomy", 10)
 
@@ -297,7 +302,8 @@ class NavAutonomyNode(Node):
 
         self.get_logger().info("Nav autonomy started.")
         self.get_logger().info("State: IDLE")
-        self.get_logger().info("Waiting for NAV_EXCAVATE, NAV_DEPOSIT, AUTO, AUTO_TRENCH, or STOP command.")
+        self.get_logger().info("Waiting for NAV_EXCAVATE, NAV_DEPOSIT, AUTO, AUTO_TRENCH, AUTO_BOULDERS, "
+                               "AUTO_TRENCH_BOULDERS, or STOP command.")
 
     def param(self, name, default):
         # Declare a parameter and return its value
@@ -377,6 +383,10 @@ class NavAutonomyNode(Node):
             self.handle_auto()
         elif command == "AUTO_TRENCH":
             self.handle_auto(trench=True)
+        elif command == "AUTO_BOULDERS":
+            self.handle_auto(craters=False)
+        elif command == "AUTO_TRENCH_BOULDERS":
+            self.handle_auto(trench=True, craters=False)
         elif command == "STOP":
             self.handle_stop()
         else:
@@ -428,11 +438,13 @@ class NavAutonomyNode(Node):
         self.mode = command
         self.result = None
         self.set_trench(False)
+        self.set_avoid_craters(True)
         self.start_navigation(target)
 
-    def handle_auto(self, trench=False):
-        # Loop excavation and deposition at their waypoints (or the trench) until STOP
-        mode = "AUTO_TRENCH" if trench else "AUTO"
+    def handle_auto(self, trench=False, craters=True):
+        # Loop excavation and deposition at their waypoints (or the trench) until STOP, avoiding
+        # boulders and craters (or only boulders)
+        mode = ("AUTO_TRENCH" if trench else "AUTO") + ("" if craters else "_BOULDERS")
         if not self.can_start(mode):
             return
 
@@ -441,8 +453,13 @@ class NavAutonomyNode(Node):
         self.mode = mode
         self.result = None
         self.set_trench(trench)
-        self.report(f"{mode} started. Cycle 1.")
+        self.set_avoid_craters(craters)
+        self.report(f"{mode} started{'' if craters else ', avoiding boulders only (driving through craters)'}. "
+                    "Cycle 1.")
         self.start_navigation("EXCAVATION")
+
+    def set_avoid_craters(self, on):
+        self.ignore_craters_pub.publish(Bool(data=not on))
 
     def set_trench(self, on):
         # Dig the trench (AUTO_TRENCH) or at the dig spots, and tell the depth filters where it is
@@ -587,6 +604,7 @@ class NavAutonomyNode(Node):
         elif self.state in ("RELOCALISING", "BACKING_OUT", "ALIGNING"):
             self.cmd_vel_pub.publish(Twist())
         self.set_trench(False)
+        self.set_avoid_craters(True)
 
         self.state = "IDLE"
         self.report(f"Nav autonomy stopped from {stopped_from}. State: IDLE", result="STOPPED")
@@ -739,6 +757,7 @@ class NavAutonomyNode(Node):
             self.cmd_vel_pub.publish(Twist())
             self.set_tight(False)
             self.set_trench(False)
+            self.set_avoid_craters(True)
             self.auto_mode = False
             self.state = "IDLE"
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
@@ -1091,7 +1110,7 @@ class NavAutonomyNode(Node):
         state = {
             "state": self.state,
             "mode": self.mode,
-            "cycle": self.auto_cycle if self.mode in ("AUTO", "AUTO_TRENCH") else None,
+            "cycle": self.auto_cycle if self.mode and self.mode.startswith("AUTO") else None,
             "phase": phase,
             "remaining_s": remaining,
             "trench_left_m": (round(self.trench_left_m(), 1) if phase == "TRENCH" and self.map_x is not None

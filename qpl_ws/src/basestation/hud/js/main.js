@@ -389,7 +389,7 @@ function autoView(a) {
   if (a.age > AUTO_STALE_S) return ["off", "NO UPDATE", `nav autonomy silent for ${Math.round(a.age)} s`];
   if (!a.time_ok) return ["fail", "CLOCK ERROR", a.time_message];
   const cycle = a.cycle ? ` · CYCLE ${a.cycle}` : "";
-  const spot = !a.target ? "" : a.target.kind === "EXCAVATION" && a.mode === "AUTO_TRENCH" ? "TRENCH"
+  const spot = !a.target ? "" : a.target.kind === "EXCAVATION" && a.mode?.startsWith("AUTO_TRENCH") ? "TRENCH"
     : `${a.target.kind === "EXCAVATION" ? "DIG" : "BERM"} ${a.target.index}/${a.target.count}`;
   if (a.state.startsWith("NAVIGATING_TO_")) {
     const retry = a.retries ? ` · RETRY ${a.retries}/${a.max_retries}` : "";
