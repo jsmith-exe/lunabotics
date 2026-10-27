@@ -19,22 +19,21 @@ constexpr auto CONFIG_FILE_PATH = "qpl_ws/src/diffdrive_canbus/hardware/can_conf
 constexpr double TWO_PI = 2.0 * M_PI;
 
 constexpr auto HEARTBEAT_PERIOD = std::chrono::milliseconds(50);
+// Every device's current setpoint is resent each period, so a frame lost on the bus is replaced within one period.
 constexpr auto COMMAND_WRITE_PERIOD = std::chrono::milliseconds(100);
 constexpr auto STOP_COMMAND_PERIOD = std::chrono::milliseconds(20);
+constexpr auto STOP_TIMEOUT = std::chrono::seconds(2);
+constexpr double STOPPED_RPM_THRESHOLD = 5.0;
+constexpr auto ACTUATOR_RESEND_PERIOD = std::chrono::milliseconds(500);
 
 constexpr auto FEEDBACK_READ_PERIOD = std::chrono::milliseconds(20);
-constexpr int MAX_FEEDBACK_FRAMES_PER_READ = 15;
-constexpr int FEEDBACK_EMPTY_READ_ATTEMPTS = 1;
-constexpr auto FEEDBACK_EMPTY_READ_DELAY = std::chrono::milliseconds(1);
-constexpr int INITIAL_FEEDBACK_FRAMES = 50;
+constexpr int MAX_FRAMES_PER_DRAIN = 1000; // Safety cap; a drain normally empties the socket well before this.
 
 constexpr uint32_t SPARKMAX_PERIODIC_STATUS_3_BASE_ID = 0x020518C0; // TODO rename to be clearer  (can comms helpers)
-constexpr uint16_t STATUS0_PERIOD_MS = 500;
-constexpr uint16_t STATUS1_PERIOD_MS = 500;
-constexpr uint16_t STATUS3_PERIOD_MS = 500;
-
-constexpr double MIN_VELOCITY_CHANGE = 0.1;
-constexpr double MIN_ACTUATOR_VELOCITY_CHANGE = 0.1;
+constexpr uint16_t STATUS0_PERIOD_MS = 1000;          // Applied output; not used for control.
+constexpr uint16_t STATUS1_PERIOD_MS = 50;            // Velocity; used for joint state and the stop check.
+constexpr uint16_t UNUSED_STATUS_PERIOD_MS = 1000;    // Status frames nothing reads, slowed to save bandwidth.
+constexpr uint16_t ACTUATOR_STATUS2_PERIOD_MS = 1000; // Actuators read position from status 3, not status 2.
 
 // Motor is capable of going 7500+ when elevated; 5600 is based on the datasheet on https://www.revrobotics.com/rev-21-1650/
 constexpr float MAX_MOTOR_RPM = 5600.0;
@@ -54,7 +53,7 @@ namespace diffdrive_canbus {
     void update_joint_state(const can_frame &frame);
     void send_zero_duty_all();
     void send_heartbeat();
-    bool are_all_motors_stopped();
+    bool are_all_motors_stopped(double threshold_rpm = STOPPED_RPM_THRESHOLD);
 
   private:
     std::map<uint8_t, CANDevice*> devices_;
@@ -69,11 +68,12 @@ namespace diffdrive_canbus {
     void setup_ros_state_interfaces(std::vector<hardware_interface::StateInterface> &state_interfaces) override;
     void setup_ros_command_interfaces(std::vector<hardware_interface::CommandInterface> &command_interfaces) override;
 
+    void configure() override;
+
     void write() override;
     double preprocess_velocity();
-    virtual void set_velocity(double velocity_to_write);
+    virtual bool set_velocity(double velocity_to_write);
     void calculate_smoothed_velocity();
-    bool has_command_significantly_changed(double velocity_to_write);
 
     void update_joint_state(const can_frame &frame) override;
     bool handle_status_frame(const can_frame &frame);
@@ -88,11 +88,9 @@ namespace diffdrive_canbus {
     double velocity_{0.0};
     double commanded_velocity_{0.0};
 
-    double prev_commanded_velocity_{0.0};
     double smoothed_velocity_{0.0};
     std::chrono::system_clock::time_point last_write_time_{std::chrono::system_clock::now()};
     double max_rate_of_velocity_change_{0.4}; // If enabled, smooths change
-    double min_rate_of_velocity_change_{0.1}; // Limits traffic
 
     double position_offset_rad_{0.0};
     bool position_offset_valid_{false};
@@ -103,10 +101,9 @@ namespace diffdrive_canbus {
     DiffdriveMotor(const std::string &name, const uint8_t &can_id, SocketCanInterface &can, float gear_ratio, rclcpp::Logger &logger)
       : Motor(name, can_id, can, gear_ratio, logger) {
         max_rate_of_velocity_change_ = 2.0;
-        min_rate_of_velocity_change_ = 0.2;
       }
 
-    void set_velocity(double velocity) override;
+    bool set_velocity(double velocity) override;
   };
 
   class Actuator : public CANDevice {
@@ -136,6 +133,7 @@ namespace diffdrive_canbus {
     bool stop_sent_{false};
     bool resend_setpoint_{false};
     bool received_position_{false};
+    std::chrono::steady_clock::time_point last_resend_time_{std::chrono::steady_clock::now()};
   };
 
   class SynchronisedActuator : public Actuator {
