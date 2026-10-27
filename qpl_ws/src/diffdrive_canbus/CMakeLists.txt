@@ -32,6 +32,7 @@ add_library(
   hardware/diffdrive_interface/can_device.cpp
   hardware/diffdrive_interface/can_system.cpp
   hardware/diffdrive_interface/actuator.cpp
+  hardware/diffdrive_interface/dig_guard.cpp
   hardware/diffdrive_interface/motor.cpp
   hardware/diffdrive_interface/diffdrive_motor.cpp
 )

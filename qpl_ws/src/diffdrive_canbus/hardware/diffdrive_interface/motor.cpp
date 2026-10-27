@@ -140,6 +140,7 @@ namespace diffdrive_canbus {
 
       if (!std::isfinite(encoder_velocity_rpm)) return false;
       telemetry_.encoder_velocity_rpm = encoder_velocity_rpm;
+      telemetry_.encoder_velocity_time = std::chrono::steady_clock::now();
       telemetry_.motor_rad_per_sec = rpm_to_rad_per_sec(encoder_velocity_rpm);
       telemetry_.wheel_rad_per_sec = telemetry_.motor_rad_per_sec / gear_ratio_;
       telemetry_.has_encoder_velocity = true;
