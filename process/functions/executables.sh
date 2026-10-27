@@ -30,6 +30,8 @@ alias qpl_nav_excavate='ros2 topic pub --once /nav_autonomy/command std_msgs/msg
 alias qpl_nav_deposit='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_DEPOSIT'\"'\"'}"'
 # Full autonomy (low risk): loops nav to excavation zone, dig, nav to berm, dump, until qpl_auto_stop
 alias qpl_auto='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
+# Full autonomy (high risk): the same, but digs one fixed trench every cycle, reversing along it
+alias qpl_auto_trench='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_TRENCH'\"'\"'}"'
 alias qpl_auto_stop='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
 
 # Legacy - to be removed

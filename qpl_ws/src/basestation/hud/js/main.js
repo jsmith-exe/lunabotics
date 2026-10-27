@@ -382,22 +382,24 @@ function renderHeader() {
 // Nav autonomy box: [class, main text, sub line] for a /nav_autonomy/state message.
 const AUTO_PHASES = {
   STOP_WHEELS: "STOPPING", START_SPIN: "SPIN UP", LOWER_BUCKET: "LOWERING", DIG: "DIGGING",
-  RAISE_BUCKET: "RAISING", DUMP_REGOLITH: "DUMPING", STOP_BUCKET: "DRUM STOP",
+  RAISE_BUCKET: "RAISING", DUMP_REGOLITH: "DUMPING", STOP_BUCKET: "DRUM STOP", TRENCH: "TRENCHING",
 };
 function autoView(a) {
   if (!a) return ["off", "—", "no nav autonomy node"];
   if (a.age > AUTO_STALE_S) return ["off", "NO UPDATE", `nav autonomy silent for ${Math.round(a.age)} s`];
   if (!a.time_ok) return ["fail", "CLOCK ERROR", a.time_message];
-  const cycle = a.mode === "AUTO" && a.cycle ? ` · CYCLE ${a.cycle}` : "";
-  const spot = a.target ? `${a.target.kind === "EXCAVATION" ? "DIG" : "BERM"} ${a.target.index}/${a.target.count}` : "";
+  const cycle = a.cycle ? ` · CYCLE ${a.cycle}` : "";
+  const spot = !a.target ? "" : a.target.kind === "EXCAVATION" && a.mode === "AUTO_TRENCH" ? "TRENCH"
+    : `${a.target.kind === "EXCAVATION" ? "DIG" : "BERM"} ${a.target.index}/${a.target.count}`;
   if (a.state.startsWith("NAVIGATING_TO_")) {
     const retry = a.retries ? ` · RETRY ${a.retries}/${a.max_retries}` : "";
     return ["run", `NAV → ${spot}`, `${a.mode ?? ""}${cycle}${retry}`];
   }
   if (a.state === "RELOCALISING") return ["run", "RE-LOCALISING", `${a.mode ?? ""}${cycle} · turning to the AprilTag`];
   if (a.state === "BACKING_OUT") return ["run", "BACKING OUT", `${a.mode ?? ""}${cycle} · leaving the berm`];
+  if (a.state === "ALIGNING") return ["run", "LINING UP", `${a.mode ?? ""}${cycle} · facing along the trench`];
   if (a.state === "EXCAVATING" || a.state === "DEPOSITING") {
-    const left = isNum(a.remaining_s) ? ` ${Math.ceil(a.remaining_s)} S` : "";
+    const left = isNum(a.trench_left_m) ? ` ${a.trench_left_m.toFixed(1)} M` : isNum(a.remaining_s) ? ` ${Math.ceil(a.remaining_s)} S` : "";
     return ["run", `${AUTO_PHASES[a.phase] ?? a.phase ?? a.state}${left}`, `${a.mode ?? ""}${cycle} · ${spot}`];
   }
   const recent = isNum(a.result_age_s) && a.result_age_s < AUTO_RESULT_HOLD_S;

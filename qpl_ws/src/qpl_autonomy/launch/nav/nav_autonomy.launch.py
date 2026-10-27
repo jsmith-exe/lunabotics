@@ -9,7 +9,7 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     # Nav2 based autonomy. Included by qpl_nav (qpl_rover navigation_launch.py); it sits IDLE
-    # until NAV_EXCAVATE, NAV_DEPOSIT or AUTO arrives on /nav_autonomy/command.
+    # until NAV_EXCAVATE, NAV_DEPOSIT, AUTO or AUTO_TRENCH arrives on /nav_autonomy/command.
     use_sim_time = LaunchConfiguration("use_sim_time")
 
     config_file = os.path.join(

@@ -80,6 +80,11 @@ ignore_zones (the berm by default), so the rover's own dump piles don't block
 the dump spot. The rulebook lets the rover push obstacles aside in the
 construction zone. Those points still clear. Needs ignore_frame (map) -> odom;
 without it nothing is ignored.
+
+While nav_autonomy runs AUTO_TRENCH it publishes the trench's corridor on
+/nav_autonomy/trench_corridor, and dips (craters) inside it aren't marked: the
+rover digs the same trench every cycle, and marked as a crater it would block the
+way back to its start. Boulders there are still marked.
 """
 import math
 import os
@@ -98,7 +103,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float64MultiArray
 import tf2_ros
 
 
@@ -596,6 +601,7 @@ class DepthObstacleFilter(Node):
         self.ignore_frame = self.declare_parameter('ignore_frame', 'map').value
         self.ignore_max_height = self.declare_parameter('ignore_max_height', 0.6).value
         self.ignore_rects = load_zones(self.ignore_zones) if self.ignore_enabled else []
+        self.trench_rect = None  # (x_min, x_max, y_min, y_max) in ignore_frame while AUTO_TRENCH runs
 
         self.tf_buffer = tf2_ros.Buffer()
         # No spin_thread: it adds this same node to a second executor, which
@@ -613,6 +619,7 @@ class DepthObstacleFilter(Node):
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                              reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(Bool, '/nav_autonomy/tight', lambda m: setattr(self, 'tight', m.data), latched)
+        self.create_subscription(Float64MultiArray, '/nav_autonomy/trench_corridor', self.on_trench_corridor, latched)
 
         self.info = None
         self.last_stamp = None
@@ -663,10 +670,13 @@ class DepthObstacleFilter(Node):
                                                kinds)
         return ((remembered - pos) @ rot if len(remembered) else remembered), kinds
 
-    def ignore_test(self, base_pos):
-        """A function (N, 3) level-frame points -> mask of those inside an ignore zone and below
-        ignore_max_height, or None when nothing can be ignored (no zones, or no map frame yet)."""
-        if not self.ignore_rects:
+    def on_trench_corridor(self, msg):
+        self.trench_rect = tuple(msg.data) if len(msg.data) == 4 else None
+
+    def zone_test(self, rects):
+        """A function (N, 3) level-frame points -> mask of those inside any of rects (in
+        ignore_frame), or None when there are none or no map frame yet."""
+        if not rects:
             return None
         try:
             tf = self.tf_buffer.lookup_transform(self.ignore_frame, self.level_frame, Time())
@@ -678,9 +688,21 @@ class DepthObstacleFilter(Node):
             xy = (pts @ rot.T + pos)[:, :2]
             inside = np.zeros(len(pts), bool)
             with np.errstate(invalid='ignore'):
-                for x_min, x_max, y_min, y_max in self.ignore_rects:
+                for x_min, x_max, y_min, y_max in rects:
                     inside |= (xy[:, 0] >= x_min) & (xy[:, 0] <= x_max) & (xy[:, 1] >= y_min) & (xy[:, 1] <= y_max)
-                return inside & (pts[:, 2] - base_pos[2] < self.ignore_max_height)
+            return inside
+        return test
+
+    def ignore_test(self, base_pos):
+        """A function (N, 3) level-frame points -> mask of those inside an ignore zone and below
+        ignore_max_height, or None when nothing can be ignored (no zones, or no map frame yet)."""
+        in_zone = self.zone_test(self.ignore_rects)
+        if in_zone is None:
+            return None
+
+        def test(pts):
+            with np.errstate(invalid='ignore'):
+                return in_zone(pts) & (pts[:, 2] - base_pos[2] < self.ignore_max_height)
         return test
 
     def on_depth(self, msg):
@@ -732,7 +754,14 @@ class DepthObstacleFilter(Node):
             dropped = ignore(points)
             obstacle &= ~dropped
             local &= ~dropped
+        in_trench = self.zone_test([self.trench_rect] if self.trench_rect else [])
+        if in_trench:
+            local &= ~(in_trench(points) & (kinds == CRATER))
         remembered, remembered_kinds = self.remember(stamp, points, clearing, obstacle, local, rel, sensor_pos, kinds)
+        if in_trench and len(remembered):
+            # Craters remembered from before AUTO_TRENCH started (a 360 over the trench)
+            keep = ~(in_trench(remembered) & (remembered_kinds == CRATER))
+            remembered, remembered_kinds = remembered[keep], remembered_kinds[keep]
         grown = dilate_cells(np.concatenate([points[local], remembered]),
                              np.concatenate([kinds[local], remembered_kinds]), self.grow_radii[self.tight],
                              self.grow_step_m)

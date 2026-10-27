@@ -66,6 +66,16 @@ nav_autonomy:
     # x 8.0, not the berm's centre line (8.14): turning on the spot the corners sweep 0.82 m, and at
     # 8.14 the rear wheels hit the east wall. The drum is still 0.31 m inside the berm's west edge.
     navigation.deposition_candidates: [8.0, 6.40, 1.5708]
+    # AUTO_TRENCH (high risk): one fixed trench instead of the dig spots, the same every cycle. The
+    # rover drives to start_xy, turns to face away from end_xy, lowers the bucket (spinning, as for
+    # a dig) and reverses to end_xy digging all the way: the drum can't dig driving forwards. Then
+    # it raises the bucket and dumps as in AUTO. Along the south row of dig spots, ending nearest
+    # the berm; the AprilTag is still in range to re-localise from the end. While it runs the depth
+    # filters don't mark craters within 0.8 m of the trench (it would block itself); boulders still count.
+    trench.start_xy: [4.4, 1.5]
+    trench.end_xy: [6.9, 1.5]
+    trench.speed: 0.05 # m/s reversing with the bucket down
+    trench.align_tolerance_rad: 0.1 # heading error allowed before lowering the bucket at the start
     # Footprint half sizes as in nav_params.yaml, plus clearance for the candidate check
     navigation.footprint_half_length_m: 0.62
     navigation.footprint_half_width_m: 0.53

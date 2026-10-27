@@ -14,7 +14,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from nav2_msgs.msg import SpeedLimit
 from nav_msgs.msg import OccupancyGrid, Odometry
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Bool, Float64, String
+from std_msgs.msg import Bool, Float64, Float64MultiArray, String
 
 from qpl_autonomy.nav.costmap_check import footprint_lethal_cells
 from qpl_autonomy.nav.route import path_clearance, widest_route
@@ -33,6 +33,11 @@ TARGET_CHECK_PERIOD_S = 1.0
 ROUTE_REFRESH_S = 3.0
 # Clearance round the footprint (at the planner's heading) for a pose to count as unstuck
 UNSTICK_MARGIN_M = 0.05
+# AUTO_TRENCH: longest turn to line up with the trench, how far along it the rover steers for,
+# and the half width of the corridor the depth filters don't mark craters in
+ALIGN_TIMEOUT_S = 20.0
+TRENCH_LOOKAHEAD_M = 0.5
+TRENCH_CORRIDOR_HALF_WIDTH_M = 0.8
 
 
 def load_lattice_headings(path):
@@ -64,6 +69,8 @@ class NavAutonomyNode(Node):
 
     NAV_EXCAVATE / NAV_DEPOSIT drive to a map-frame waypoint with Nav2, then dig or dump
     standing still. AUTO (full autonomy) repeats NAV_EXCAVATE then NAV_DEPOSIT until STOP.
+    AUTO_TRENCH (high risk) is AUTO with one fixed trench instead of the dig spots: the rover
+    reverses along it with the bucket down every cycle.
     """
 
     def __init__(self):
@@ -96,6 +103,19 @@ class NavAutonomyNode(Node):
                 6.9, 2.4, 1.5708, 5.5, 2.4, 1.5708, 4.1, 2.4, 1.5708, 1.4, 2.4, 1.5708, 2.7, 2.4, 1.5708])),
             "DEPOSITION": parse_poses(self.param("navigation.deposition_candidates", [8.0, 6.40, 1.5708])),
         }
+        self.dig_candidates = self.candidates["EXCAVATION"]
+        # AUTO_TRENCH: every cycle the rover drives to trench.start_xy, turns to face away from
+        # trench.end_xy and reverses there with the bucket down, digging all the way (it can't dig
+        # driving forwards). Its one excavation "candidate" is the start, facing away from the end.
+        start = list(self.param("trench.start_xy", [4.4, 1.5]))
+        end = list(self.param("trench.end_xy", [6.9, 1.5]))
+        self.trench_start = (start[0], start[1], atan2(start[1] - end[1], start[0] - end[0]))
+        self.trench_end = (end[0], end[1])
+        self.trench_speed = self.param("trench.speed", 0.05)
+        self.trench_align_tolerance = self.param("trench.align_tolerance_rad", 0.1)
+        self.trench_mode = False
+        self.align_start_s = None
+        self.trench_drive_start_s = None
         # Footprint (half sizes, as nav_params.yaml) plus a margin, checked for lethal cells
         self.footprint_half_length_m = self.param("navigation.footprint_half_length_m", 0.62)
         self.footprint_half_width_m = self.param("navigation.footprint_half_width_m", 0.53)
@@ -206,6 +226,10 @@ class NavAutonomyNode(Node):
         self.tight_pub = self.create_publisher(Bool, "/nav_autonomy/tight", tight_qos)
         self.speed_limit_pub = self.create_publisher(SpeedLimit, "/speed_limit", 10)
         self.tight_pub.publish(Bool(data=False))
+        # The trench's corridor while AUTO_TRENCH runs (empty otherwise): the depth filters don't
+        # mark craters in it, or the trench dug last cycle would block the way back to its start
+        self.trench_corridor_pub = self.create_publisher(Float64MultiArray, "/nav_autonomy/trench_corridor", tight_qos)
+        self.trench_corridor_pub.publish(Float64MultiArray())
         self.drum_lift_pub = self.create_publisher(Float64, "/drum_lift_control/autonomy", 10)
         self.drum_spin_pub = self.create_publisher(Float64, "/drum_spin_control/autonomy", 10)
 
@@ -273,7 +297,7 @@ class NavAutonomyNode(Node):
 
         self.get_logger().info("Nav autonomy started.")
         self.get_logger().info("State: IDLE")
-        self.get_logger().info("Waiting for NAV_EXCAVATE, NAV_DEPOSIT, AUTO, or STOP command.")
+        self.get_logger().info("Waiting for NAV_EXCAVATE, NAV_DEPOSIT, AUTO, AUTO_TRENCH, or STOP command.")
 
     def param(self, name, default):
         # Declare a parameter and return its value
@@ -351,6 +375,8 @@ class NavAutonomyNode(Node):
             self.handle_navigate("DEPOSITION")
         elif command == "AUTO":
             self.handle_auto()
+        elif command == "AUTO_TRENCH":
+            self.handle_auto(trench=True)
         elif command == "STOP":
             self.handle_stop()
         else:
@@ -401,19 +427,33 @@ class NavAutonomyNode(Node):
 
         self.mode = command
         self.result = None
+        self.set_trench(False)
         self.start_navigation(target)
 
-    def handle_auto(self):
-        # Loop excavation and deposition at their waypoints until STOP
-        if not self.can_start("AUTO"):
+    def handle_auto(self, trench=False):
+        # Loop excavation and deposition at their waypoints (or the trench) until STOP
+        mode = "AUTO_TRENCH" if trench else "AUTO"
+        if not self.can_start(mode):
             return
 
         self.auto_mode = True
         self.auto_cycle = 1
-        self.mode = "AUTO"
+        self.mode = mode
         self.result = None
-        self.report("AUTO started. Cycle 1.")
+        self.set_trench(trench)
+        self.report(f"{mode} started. Cycle 1.")
         self.start_navigation("EXCAVATION")
+
+    def set_trench(self, on):
+        # Dig the trench (AUTO_TRENCH) or at the dig spots, and tell the depth filters where it is
+        self.trench_mode = on
+        self.candidates["EXCAVATION"] = [self.trench_start] if on else self.dig_candidates
+        corridor = Float64MultiArray()
+        if on:
+            (sx, sy, _), (ex, ey) = self.trench_start, self.trench_end
+            m = TRENCH_CORRIDOR_HALF_WIDTH_M
+            corridor.data = [min(sx, ex) - m, max(sx, ex) + m, min(sy, ey) - m, max(sy, ey) + m]
+        self.trench_corridor_pub.publish(corridor)
 
     def start_navigation(self, target):
         self.state = f"NAVIGATING_TO_{target}"
@@ -544,8 +584,9 @@ class NavAutonomyNode(Node):
             # Nav2 keeps driving its goal unless it's cancelled
             self.navigation.cancel()
             self.cmd_vel_pub.publish(Twist())
-        elif self.state in ("RELOCALISING", "BACKING_OUT"):
+        elif self.state in ("RELOCALISING", "BACKING_OUT", "ALIGNING"):
             self.cmd_vel_pub.publish(Twist())
+        self.set_trench(False)
 
         self.state = "IDLE"
         self.report(f"Nav autonomy stopped from {stopped_from}. State: IDLE", result="STOPPED")
@@ -557,8 +598,12 @@ class NavAutonomyNode(Node):
 
         if self.state.startswith("NAVIGATING_TO_"):
             self.update_navigation(self.state.removeprefix("NAVIGATING_TO_"))
+        elif self.state == "ALIGNING":
+            self.update_aligning()
         elif self.state == "EXCAVATING":
             self.excavation.update(actuator_positions=actuator_positions, now_s=now_s)
+            if self.excavation.driven and self.excavation.state.name == "DIG":
+                self.update_trench()
             if self.excavation.is_complete():
                 if self.auto_mode:
                     self.report("Excavation complete.")
@@ -693,6 +738,7 @@ class NavAutonomyNode(Node):
         else:
             self.cmd_vel_pub.publish(Twist())
             self.set_tight(False)
+            self.set_trench(False)
             self.auto_mode = False
             self.state = "IDLE"
             self.report(f"Navigation to the {target.lower()} zone failed after {self.max_nav_retries} retries. "
@@ -915,10 +961,76 @@ class NavAutonomyNode(Node):
             cmd.angular.z = self.relocalise_turn_speed if error > 0 else -self.relocalise_turn_speed
         self.cmd_vel_pub.publish(cmd)
 
+    """Trench (AUTO_TRENCH)"""
+    def start_aligning(self):
+        self.state = "ALIGNING"
+        self.align_start_s = time.monotonic()
+        self.report("At the trench start: turning to face away from its end.")
+
+    def update_aligning(self):
+        # Turn on the spot to the trench heading, then dig. Stops short rather than turn into
+        # something (see move_blocked), and digs from wherever it got to.
+        error = wrap_angle(self.trench_start[2] - self.map_yaw)
+        blocked = self.move_blocked(turn=0.15 if error > 0 else -0.15)
+        if abs(error) <= self.trench_align_tolerance or blocked or time.monotonic() - self.align_start_s > ALIGN_TIMEOUT_S:
+            self.cmd_vel_pub.publish(Twist())
+            if abs(error) > self.trench_align_tolerance:
+                self.report(f"Couldn't line up with the trench ({abs(error) * 180.0 / pi:.0f} deg off"
+                            f"{': an obstacle is in the way' if blocked else ''}). Digging from here.", "warning")
+            self.state = "EXCAVATING"
+            self.trench_drive_start_s = None
+            self.excavation.start(driven=True)
+            self.report("Digging the trench: bucket down, reversing to its end.")
+            return
+        cmd = Twist()
+        cmd.angular.z = max(-self.relocalise_turn_speed, min(self.relocalise_turn_speed, 1.5 * error))
+        if abs(cmd.angular.z) < 0.15:
+            cmd.angular.z = 0.15 if error > 0 else -0.15  # too slow and the skid-steer doesn't turn
+        self.cmd_vel_pub.publish(cmd)
+
+    def update_trench(self):
+        # Reverse along the trench with the bucket down, steering back onto its line, until past
+        # its end, held up, or about to reverse into something
+        (sx, sy, _), (ex, ey) = self.trench_start, self.trench_end
+        length = hypot(ex - sx, ey - sy)
+        ux, uy = (ex - sx) / length, (ey - sy) / length
+        along = (self.map_x - sx) * ux + (self.map_y - sy) * uy
+        if self.trench_drive_start_s is None:
+            self.trench_drive_start_s = time.monotonic()
+        elapsed = time.monotonic() - self.trench_drive_start_s
+        why = None
+        if along >= length:
+            why = f"Reached the end of the trench ({length:.1f} m)."
+        elif elapsed > 2.0 * length / self.trench_speed:
+            why = f"Trench timed out after {elapsed:.0f} s, {max(along, 0.0):.1f} of {length:.1f} m along."
+        elif self.move_blocked(forward=-0.1):
+            why = f"Stopped the trench {max(along, 0.0):.1f} of {length:.1f} m along: something is behind the rover."
+        if why:
+            self.cmd_vel_pub.publish(Twist())
+            self.report(why, "info" if along >= length else "warning")
+            self.excavation.finish_dig()
+            return
+        # Face directly away from a point a little further along the line, so reversing heads for it
+        ahead = min(length, max(along, 0.0) + TRENCH_LOOKAHEAD_M)
+        tx, ty = sx + ahead * ux, sy + ahead * uy
+        error = wrap_angle(atan2(self.map_y - ty, self.map_x - tx) - self.map_yaw)
+        cmd = Twist()
+        cmd.linear.x = -self.trench_speed
+        cmd.angular.z = max(-0.3, min(0.3, 1.5 * error))
+        self.cmd_vel_pub.publish(cmd)
+
+    def trench_left_m(self):
+        (sx, sy, _), (ex, ey) = self.trench_start, self.trench_end
+        length = hypot(ex - sx, ey - sy)
+        along = ((self.map_x - sx) * (ex - sx) + (self.map_y - sy) * (ey - sy)) / length
+        return max(0.0, length - along)
+
     def start_sequence(self, target):
         # Digging or dumping starts here, so the next leg to this zone moves on to another candidate
         self.next_candidate[target] = self.target_index + 1
-        if target == "EXCAVATION":
+        if target == "EXCAVATION" and self.trench_mode:
+            self.start_aligning()
+        elif target == "EXCAVATION":
             self.state = "EXCAVATING"
             self.excavation.start()
             self.report("Starting excavation sequence.")
@@ -960,6 +1072,8 @@ class NavAutonomyNode(Node):
         else:
             sequence, start_s, duration_s = self.deposition, self.deposition.dump_start_s, self.deposition.dump_duration_s
         remaining = None
+        if sequence is self.excavation and sequence.driven:
+            return ("TRENCH" if sequence.state.name == "DIG" else sequence.state.name), None
         if sequence.state.name in ("DIG", "DUMP_REGOLITH") and start_s is not None:
             remaining = round(max(0.0, duration_s - (now_s - start_s)), 1)
         return sequence.state.name, remaining
@@ -970,16 +1084,18 @@ class NavAutonomyNode(Node):
         phase, remaining = self.sequence_phase()
         target = None
         if self.state not in ("IDLE", "RELOCALISING", "BACKING_OUT") and self.target_index is not None:
-            kind = "EXCAVATION" if self.state in ("NAVIGATING_TO_EXCAVATION", "EXCAVATING") else "DEPOSITION"
+            kind = "EXCAVATION" if self.state in ("NAVIGATING_TO_EXCAVATION", "ALIGNING", "EXCAVATING") else "DEPOSITION"
             x, y, yaw = self.candidates[kind][self.target_index]
             target = {"kind": kind, "index": self.target_index + 1, "count": len(self.candidates[kind]),
                       "x": x, "y": y, "yaw": yaw}
         state = {
             "state": self.state,
             "mode": self.mode,
-            "cycle": self.auto_cycle if self.mode == "AUTO" else None,
+            "cycle": self.auto_cycle if self.mode in ("AUTO", "AUTO_TRENCH") else None,
             "phase": phase,
             "remaining_s": remaining,
+            "trench_left_m": (round(self.trench_left_m(), 1) if phase == "TRENCH" and self.map_x is not None
+                              else None),
             "target": target,
             "retries": self.nav_retries,
             "max_retries": self.max_nav_retries,

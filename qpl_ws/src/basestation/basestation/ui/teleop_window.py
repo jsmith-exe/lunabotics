@@ -22,7 +22,7 @@ NAV_STATE_STALE_S = 3.0
 NAV_RESULT_HOLD_S = 15
 NAV_PHASES = {"STOP_WHEELS": "stopping", "START_SPIN": "starting the drum", "LOWER_BUCKET": "lowering the bucket",
               "DIG": "digging", "RAISE_BUCKET": "raising the bucket", "DUMP_REGOLITH": "dumping",
-              "STOP_BUCKET": "stopping the drum"}
+              "STOP_BUCKET": "stopping the drum", "TRENCH": "digging the trench"}
 UI_SCALE = float(environ.get('QPL_TELEOP_WINDOW_SCALE', 1.0))
 WINDOW_WIDTH = 300  # Minimum width; the window widens if expanded sections need more room.
 
@@ -138,15 +138,16 @@ class TeleopWindow:
         """ Nav2 autonomy, run by qpl_nav. Separate from the blind autonomy above, which is kept as a backup. """
         self.nav_autonomy_section = CollapsibleSection(self.root, "Nav Autonomy")
 
-        # Nav excavate/deposit on the first row; full autonomy and Stop on the second
+        # Nav excavate/deposit on the first row; full autonomy (low and high risk) and Stop on the second
         nav_row = ttk.Frame(self.nav_autonomy_section.content)
         nav_row.pack()
         auto_row = ttk.Frame(self.nav_autonomy_section.content)
         auto_row.pack(pady=(5 * UI_SCALE, 0))
 
-        # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop
+        # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop.
+        # High risk digs one fixed trench every cycle, reversing along it with the bucket down.
         for row, text, command in ((nav_row, "Nav Excavate", "NAV_EXCAVATE"), (nav_row, "Nav Deposit", "NAV_DEPOSIT"),
-                                   (auto_row, "Full Autonomy", "AUTO")):
+                                   (auto_row, "Full Autonomy", "AUTO"), (auto_row, "High Risk (Trench)", "AUTO_TRENCH")):
             button = ttk.Button(row, text=text,
                                 command=lambda command=command: self.nav_autonomy_command_function(command))
             button.pack(side="left", padx=5 * UI_SCALE)
@@ -287,6 +288,8 @@ def nav_status(state: BaseStationState) -> tuple[str, str]:
         return f"CLOCK ERROR: {a.get('time_message', '')}", DANGER_COLOR
     target = a.get("target")
     spot = f"{'dig spot' if target['kind'] == 'EXCAVATION' else 'berm'} {target['index']}/{target['count']}" if target else ""
+    if target and target["kind"] == "EXCAVATION" and a.get("mode") == "AUTO_TRENCH":
+        spot = "the trench"
     cycle = f", cycle {a['cycle']}" if a.get("cycle") else ""
     running = f"{a.get('mode') or 'NAV'}{cycle}"
     if a["state"].startswith("NAVIGATING_TO_"):
@@ -295,10 +298,15 @@ def nav_status(state: BaseStationState) -> tuple[str, str]:
         return f"{running}: re-localising, turning a camera to the AprilTag", ""
     if a["state"] == "BACKING_OUT":
         return f"{running}: backing out of the berm", ""
+    if a["state"] == "ALIGNING":
+        return f"{running}: lining up with the trench", ""
     if a["state"] in ("EXCAVATING", "DEPOSITING"):
         left = f" ({a['remaining_s']:.0f} s left)" if a.get("remaining_s") is not None else ""
+        if a.get("trench_left_m") is not None:
+            left = f" ({a['trench_left_m']:.1f} m left)"
         phase = NAV_PHASES.get(a.get("phase"), a["state"].lower())
-        return f"{running}: {phase}{left} at {spot}", ""
+        where = "" if a.get("phase") == "TRENCH" else f" at {spot}"
+        return f"{running}: {phase}{left}{where}", ""
     recent = a.get("result_age_s") is not None and a["result_age_s"] < NAV_RESULT_HOLD_S
     if a.get("result") == "FAILED":
         return f"FAILED: {a.get('message', '')} Announce the failure before taking manual control.", DANGER_COLOR
