@@ -2,6 +2,7 @@
 #   sudo cp ~/lunabotics/on_jetson_boot/can0-watchdog.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now can0-watchdog.service
 # Restarts are logged: journalctl -u can0-watchdog -f
+# Enable/disable and tuning: on_jetson_boot/can_watchdog.conf (applies live, no restart needed)
 [Unit]
 Description=Restart can0 when its transmitter stalls
 After=can0-setup.service
