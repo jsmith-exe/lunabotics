@@ -39,6 +39,11 @@ constexpr uint16_t ACTUATOR_STATUS2_PERIOD_MS = 1000; // Actuators read position
 constexpr float MAX_MOTOR_RPM = 5600.0;
 
 constexpr double ACTUATOR_POSITION_LOW_PASS_ALPHA = 0.1;
+
+// Dig guard: below this set speed the drum counts as not spinning, so the lift will not lower.
+constexpr double DIG_GUARD_MIN_SET_RPM = 50.0;
+// Drum speed older than this is treated as unknown (status 1 arrives every STATUS1_PERIOD_MS).
+constexpr auto DIG_GUARD_FEEDBACK_TIMEOUT = std::chrono::milliseconds(250);
 // ^ Constants
 
 namespace diffdrive_canbus {
@@ -119,6 +124,10 @@ namespace diffdrive_canbus {
     void write() override;
     void go_to_position(double setpoint_m);
     void stop();
+
+    // Set by the dig guard each write; while false the actuator holds instead of moving down.
+    void set_lowering_allowed(bool allowed) { lowering_allowed_ = allowed; }
+    bool lowering_paused() const { return lowering_paused_; }
     double feedback_to_distance(uint16_t raw_voltage_feedback);
     void update_joint_state(const can_frame & frame) override;
 
@@ -133,6 +142,8 @@ namespace diffdrive_canbus {
     bool stop_sent_{false};
     bool resend_setpoint_{false};
     bool received_position_{false};
+    bool lowering_allowed_{true};
+    bool lowering_paused_{false};
     std::chrono::steady_clock::time_point last_resend_time_{std::chrono::steady_clock::now()};
   };
 
@@ -158,6 +169,29 @@ namespace diffdrive_canbus {
     std::vector<double> checkpoints_;
     size_t checkpoint_index_{0};
     double prev_commanded_pos_{0.0};
+  };
+
+  // Lets the drum lift lower only while the drum spins at its set speed. When the drum digs into something
+  // and slows down, lowering pauses until it has dug through and is back up to speed, then carries on to
+  // the commanded position. Applies to every lift command, teleop or autonomy. Raising is never blocked.
+  class DigGuard {
+  public:
+    DigGuard(rclcpp::Logger &logger) : logger_(logger) {}
+
+    // Call once per write cycle with the drum motor; returns whether the lift may lower.
+    bool update(const CANDevice &drum);
+    // Logs when lowering starts or stops being held back, given whether any actuator is paused now.
+    void report(bool lowering_paused);
+
+    static bool enabled;
+    static double pause_below_ratio;  // Pause lowering when the drum falls below this fraction of its set speed
+    static double resume_above_ratio; // Resume once it is back above this fraction
+
+  private:
+    rclcpp::Logger logger_;
+    bool lowering_allowed_{false};
+    bool reported_paused_{false};
+    std::string reason_;
   };
 }
 #endif  // DIFFDRIVE_CANBUS__DIFFDRIVE_CANBUS_SYSTEM_HPP_

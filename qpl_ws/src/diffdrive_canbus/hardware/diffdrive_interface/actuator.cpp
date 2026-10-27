@@ -49,6 +49,8 @@ namespace diffdrive_canbus {
 
   void Actuator::go_to_position(double setpoint_m)
   {
+    lowering_paused_ = false;
+
     // Wait for feedback first. This is to prevent restarted motor controllers from retracting actuators
     if (!received_position_) return;
 
@@ -71,6 +73,14 @@ namespace diffdrive_canbus {
     }
 
     const double target_mm = std::clamp(setpoint_m * 1000.0, min_lift_mm, max_lift_mm);
+
+    // Hold instead of moving down while the dig guard says the drum is not at speed.
+    if (!lowering_allowed_ && target_mm < filtered_position_mm_ - ACTUATOR_STOP_TOLERANCE_MM) {
+      lowering_paused_ = true;
+      stop();
+      resend_setpoint_ = true; // Send the target as soon as lowering is allowed again.
+      return;
+    }
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (resend_setpoint_ || target_mm != prev_target_mm_) {
@@ -151,8 +161,10 @@ namespace diffdrive_canbus {
       checkpoint_index_ = 0;
       prev_commanded_pos_ = commanded_pos_;
     }
-    // Move on to the next checkpoint once both actuators have reached the current one.
-    else if (stop_sent_ && other_actuator_->stop_sent_ && checkpoint_index_ + 1 < checkpoints_.size()) {
+    // Move on to the next checkpoint once both actuators have reached the current one
+    // (a stop sent because the dig guard paused lowering does not count as reaching it).
+    else if (stop_sent_ && other_actuator_->stop_sent_ && !lowering_paused_ && !other_actuator_->lowering_paused_
+             && checkpoint_index_ + 1 < checkpoints_.size()) {
       ++checkpoint_index_;
     }
 

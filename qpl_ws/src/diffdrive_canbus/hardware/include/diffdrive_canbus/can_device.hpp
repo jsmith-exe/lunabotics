@@ -2,6 +2,7 @@
 
 #include "diffdrive_canbus/can_comms.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <hardware_interface/handle.hpp>
 #include <rclcpp/logger.hpp>
@@ -13,6 +14,7 @@ struct SparkMaxTelemetry
 {
   bool has_encoder_velocity = false;
   float encoder_velocity_rpm = 0.0f;
+  std::chrono::steady_clock::time_point encoder_velocity_time{}; // When encoder_velocity_rpm was last received
   float motor_rad_per_sec = 0.0f;
   float wheel_rad_per_sec = 0.0f;
 

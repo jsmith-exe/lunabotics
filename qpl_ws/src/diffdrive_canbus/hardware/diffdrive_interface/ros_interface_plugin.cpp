@@ -40,6 +40,7 @@ public:
 
       can_ = std::make_unique<SocketCanInterface>();
       can_system_ = std::make_unique<CANSystem>(logger_);
+      dig_guard_ = std::make_unique<DigGuard>(logger_);
 
       front_left_motor_ = std::make_unique<DiffdriveMotor>("front_left_wheel_joint", 1, *can_, 100.0, logger_);
       front_right_motor_ = std::make_unique<DiffdriveMotor>("front_right_wheel_joint", 2, *can_, 100.0, logger_);
@@ -200,6 +201,15 @@ private:
     Actuator::max_lift_mm = config["drum"]["max_lift_mm"].as<double>();
     SynchronisedActuator::max_distance_between_points_metres = config["drum"]["max_distance_between_points_metres"].as<double>();
     synchronise_actuators_ = config["drum"]["synchronise_actuators"].as<bool>(true);
+
+    const YAML::Node dig_guard = config["dig_guard"];
+    if (dig_guard) {
+      DigGuard::enabled = dig_guard["enabled"].as<bool>(DigGuard::enabled);
+      DigGuard::pause_below_ratio = dig_guard["pause_below_ratio"].as<double>(DigGuard::pause_below_ratio);
+      DigGuard::resume_above_ratio = dig_guard["resume_above_ratio"].as<double>(DigGuard::resume_above_ratio);
+    }
+    RCLCPP_INFO(logger_, "Dig guard %s (pause below %.0f%%, resume above %.0f%% of drum set speed)",
+      DigGuard::enabled ? "enabled" : "disabled", DigGuard::pause_below_ratio * 100.0, DigGuard::resume_above_ratio * 100.0);
   }
 
   void send_heartbeat_if_due()
@@ -259,8 +269,14 @@ private:
     rear_right_motor_->write();
     drum_motor_->write();
 
+    const bool lowering_allowed = dig_guard_->update(*drum_motor_);
+    left_actuator_->set_lowering_allowed(lowering_allowed);
+    right_actuator_->set_lowering_allowed(lowering_allowed);
+
     left_actuator_->write();
     right_actuator_->write();
+
+    dig_guard_->report(left_actuator_->lowering_paused() || right_actuator_->lowering_paused());
   }
 
   void send_stop_for_duration()
@@ -302,6 +318,7 @@ private:
   rclcpp::Logger logger_{rclcpp::get_logger("DiffDriveCanbusHardware")};
   std::unique_ptr<SocketCanInterface> can_;
   std::unique_ptr<CANSystem> can_system_;
+  std::unique_ptr<DigGuard> dig_guard_;
 
   std::shared_ptr<CANDevice> front_left_motor_;
   std::shared_ptr<CANDevice> front_right_motor_;

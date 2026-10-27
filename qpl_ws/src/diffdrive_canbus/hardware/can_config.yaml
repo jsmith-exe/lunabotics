@@ -3,3 +3,11 @@ drum:
   max_lift_mm: 225
   synchronise_actuators: true
   max_distance_between_points_metres: 0.04
+
+# The drum lift only lowers while the drum spins at its set speed. When digging slows the drum,
+# lowering pauses until it is back up to speed, then carries on. Raising is never blocked.
+# Read when the stack starts. Set enabled: false to lower without spinning the drum (e.g. for maintenance).
+dig_guard:
+  enabled: true
+  pause_below_ratio: 0.8   # pause lowering below 80% of the drum set speed
+  resume_above_ratio: 0.9  # resume once back above 90%

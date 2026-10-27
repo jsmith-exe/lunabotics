@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -30,6 +31,7 @@ constexpr const char * TEST_IFACE = "vcan0";
 constexpr uint32_t VELOCITY_SET_BASE = 0x02050480;  // api class 1, index 2
 constexpr uint32_t DUTY_CYCLE_SET_BASE = 0x02050080; // api class 0, index 2
 constexpr uint32_t STATUS_1_BASE = 0x02051840;       // api class 6, index 1
+constexpr uint32_t POSITION_SET_BASE = 0x02050C80;   // api class 3, index 2
 
 bool vcan_available()
 {
@@ -216,6 +218,175 @@ TEST_F(CanFixesTest, MotorConfigureSetsFastVelocityStatus)
       const uint16_t period = static_cast<uint16_t>(frame.data[0] | (frame.data[1] << 8));
       EXPECT_EQ(period, STATUS1_PERIOD_MS);
       EXPECT_LE(period, 50);
+      found = true;
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+// --- Dig guard: the lift only lowers while the drum is at its set speed ---
+
+namespace
+{
+can_frame drum_status1(float rpm)
+{
+  can_frame frame {};
+  frame.can_id = CAN_EFF_FLAG | (STATUS_1_BASE + 7);
+  frame.can_dlc = 8;
+  std::memcpy(frame.data, &rpm, sizeof(rpm)); // Little-endian float, as the SPARK MAX sends it
+  return frame;
+}
+
+// raw 600 of 7..694 reads as about 194 mm, mid-travel.
+can_frame actuator_status3(uint8_t can_id, uint16_t raw = 600)
+{
+  can_frame frame {};
+  frame.can_id = CAN_EFF_FLAG | (SPARKMAX_PERIODIC_STATUS_3_BASE_ID + can_id);
+  frame.can_dlc = 8;
+  frame.data[0] = static_cast<uint8_t>(raw & 0xFF);
+  frame.data[1] = static_cast<uint8_t>(raw >> 8);
+  return frame;
+}
+
+class DigGuardTest : public CanFixesTest
+{
+protected:
+  void SetUp() override
+  {
+    CanFixesTest::SetUp();
+    if (IsSkipped()) return;
+    DigGuard::enabled = true;
+    DigGuard::pause_below_ratio = 0.8;
+    DigGuard::resume_above_ratio = 0.9;
+    Actuator::min_lift_mm = 25.0;
+    Actuator::max_lift_mm = 225.0;
+    drum_.setup_ros_command_interfaces(drum_commands_);
+    actuator_.setup_ros_command_interfaces(actuator_commands_);
+    actuator_.update_joint_state(actuator_status3(5));
+  }
+
+  void set_drum(double proportion, float measured_rpm)
+  {
+    drum_commands_[0].set_value(proportion);
+    drum_.update_joint_state(drum_status1(measured_rpm));
+  }
+
+  Motor drum_{"drum", 7, can_, 125.0f, logger_};
+  Actuator actuator_{"lift", 5, can_, logger_};
+  DigGuard guard_{logger_};
+  std::vector<hardware_interface::CommandInterface> drum_commands_;
+  std::vector<hardware_interface::CommandInterface> actuator_commands_;
+};
+}  // namespace
+
+TEST_F(DigGuardTest, BlocksLoweringWhenDrumNotSpinning)
+{
+  set_drum(0.0, 0.0f);
+  EXPECT_FALSE(guard_.update(drum_));
+}
+
+TEST_F(DigGuardTest, AllowsLoweringAtSetSpeed)
+{
+  set_drum(0.5, 2800.0f); // 0.5 x 5600 RPM
+  EXPECT_TRUE(guard_.update(drum_));
+}
+
+TEST_F(DigGuardTest, PausesWhenDrumSlowsAndResumesWithHysteresis)
+{
+  set_drum(0.5, 2800.0f);
+  ASSERT_TRUE(guard_.update(drum_));
+
+  set_drum(0.5, 2600.0f); // 93%: still digging freely
+  EXPECT_TRUE(guard_.update(drum_));
+
+  set_drum(0.5, 2000.0f); // 71%: hit something
+  EXPECT_FALSE(guard_.update(drum_));
+
+  set_drum(0.5, 2450.0f); // 88%: recovering, but not past the resume threshold
+  EXPECT_FALSE(guard_.update(drum_));
+
+  set_drum(0.5, 2600.0f); // 93%: dug through
+  EXPECT_TRUE(guard_.update(drum_));
+}
+
+TEST_F(DigGuardTest, DrumSpinningBackwardsDoesNotCount)
+{
+  set_drum(0.5, -2800.0f);
+  EXPECT_FALSE(guard_.update(drum_));
+}
+
+TEST_F(DigGuardTest, StaleDrumFeedbackBlocksLowering)
+{
+  set_drum(0.5, 2800.0f);
+  ASSERT_TRUE(guard_.update(drum_));
+  std::this_thread::sleep_for(DIG_GUARD_FEEDBACK_TIMEOUT + 50ms);
+  EXPECT_FALSE(guard_.update(drum_));
+}
+
+TEST_F(DigGuardTest, DisabledAlwaysAllowsLowering)
+{
+  DigGuard::enabled = false;
+  set_drum(0.0, 0.0f);
+  EXPECT_TRUE(guard_.update(drum_));
+}
+
+TEST_F(DigGuardTest, PausedActuatorHoldsThenLowersWhenAllowed)
+{
+  BusTap tap;
+  actuator_commands_[0].set_value(0.05); // Well below the ~194 mm reading
+
+  actuator_.set_lowering_allowed(false);
+  actuator_.write();
+  auto frames = tap.drain();
+  EXPECT_TRUE(actuator_.lowering_paused());
+  EXPECT_EQ(count_with_id(frames, POSITION_SET_BASE + 5), 0);
+  EXPECT_EQ(count_with_id(frames, DUTY_CYCLE_SET_BASE + 5), 1); // Stop, so it holds where it is
+
+  actuator_.set_lowering_allowed(true);
+  actuator_.write();
+  frames = tap.drain();
+  EXPECT_FALSE(actuator_.lowering_paused());
+  EXPECT_EQ(count_with_id(frames, POSITION_SET_BASE + 5), 1); // Target sent straight away
+}
+
+TEST_F(DigGuardTest, RaisingIsNeverBlocked)
+{
+  BusTap tap;
+  actuator_commands_[0].set_value(0.22); // Above the ~194 mm reading
+  actuator_.set_lowering_allowed(false);
+  actuator_.write();
+  EXPECT_FALSE(actuator_.lowering_paused());
+  EXPECT_EQ(count_with_id(tap.drain(), POSITION_SET_BASE + 5), 1);
+}
+
+TEST_F(DigGuardTest, SynchronisedCheckpointsDoNotAdvanceWhilePaused)
+{
+  SynchronisedActuator::max_distance_between_points_metres = 0.04;
+  auto left = std::make_shared<SynchronisedActuator>("left", 5, can_, logger_, true);
+  auto right = std::make_shared<SynchronisedActuator>("right", 6, can_, logger_, false);
+  left->set_other_actuator(right);
+  std::vector<hardware_interface::CommandInterface> commands;
+  left->setup_ros_command_interfaces(commands);
+  left->update_joint_state(actuator_status3(5));
+  right->update_joint_state(actuator_status3(6));
+
+  BusTap tap;
+  commands[0].set_value(0.05); // About 144 mm down: several 40 mm checkpoints
+  left->set_lowering_allowed(false);
+  right->set_lowering_allowed(false);
+  for (int i = 0; i < 5; ++i) left->write();
+  tap.drain();
+
+  left->set_lowering_allowed(true);
+  right->set_lowering_allowed(true);
+  left->write();
+  bool found = false;
+  for (const auto & frame : tap.drain()) {
+    if ((frame.can_id & CAN_EFF_MASK) == POSITION_SET_BASE + 5) {
+      float setpoint_mm;
+      std::memcpy(&setpoint_mm, frame.data, sizeof(setpoint_mm));
+      // First checkpoint is ~40 mm below the reading, sent with the -27.9 mm controller offset.
+      EXPECT_GT(setpoint_mm, 194.0f - 40.0f - 27.9f - 5.0f);
       found = true;
     }
   }
