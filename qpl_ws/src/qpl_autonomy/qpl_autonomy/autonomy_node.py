@@ -22,6 +22,8 @@ class AutonomyNode(Node):
 
         self.declare_parameter("excavation.drive_speed", 0.2)
         self.declare_parameter("excavation.drive_distance_m", 1.0)
+        self.declare_parameter("excavation.pulse_drive_s", 1.0)
+        self.declare_parameter("excavation.pulse_delay_s", 5.0)
         self.declare_parameter("excavation.drum_spin_speed", 0.8)
         self.declare_parameter("excavation.drum_spin_direction", 1.0)
         self.declare_parameter("excavation.contact_position_m", 0.01)
@@ -31,6 +33,8 @@ class AutonomyNode(Node):
         excavation_config = {
             "drive_speed": self.get_parameter("excavation.drive_speed").value,
             "drive_distance_m": self.get_parameter("excavation.drive_distance_m").value,
+            "pulse_drive_s": self.get_parameter("excavation.pulse_drive_s").value,
+            "pulse_delay_s": self.get_parameter("excavation.pulse_delay_s").value,
             "drum_spin_speed": self.get_parameter("excavation.drum_spin_speed").value,
             "drum_spin_direction": self.get_parameter("excavation.drum_spin_direction").value,
             "contact_position_m": self.get_parameter("excavation.contact_position_m").value,

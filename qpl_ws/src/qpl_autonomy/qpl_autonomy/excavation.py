@@ -1,5 +1,6 @@
 from enum import Enum, auto
 from math import hypot
+from time import monotonic
 
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float64
@@ -34,6 +35,8 @@ class ExcavationSequence:
 
         self.drive_speed = config["drive_speed"]
         self.drive_distance_m = config["drive_distance_m"]
+        self.pulse_drive_s = config["pulse_drive_s"]
+        self.pulse_delay_s = config["pulse_delay_s"]
         self.drum_spin_speed = config["drum_spin_speed"]
         self.drum_spin_direction = config["drum_spin_direction"]
         self.contact_position_m = config["contact_position_m"]
@@ -46,6 +49,7 @@ class ExcavationSequence:
 
         self.start_x = None
         self.start_y = None
+        self.drive_start_s = None
 
     """Sequence lifecycle"""
 
@@ -84,13 +88,17 @@ class ExcavationSequence:
                 if odom_position[0] is not None and odom_position[1] is not None:
                     self.start_x = odom_position[0]
                     self.start_y = odom_position[1]
+                self.drive_start_s = monotonic()
                 self.state = ExcavationState.DRIVE_FORWARD
                 self.logger.info(f"Lowered to max.")
 
-        # 4. Drive forward while drum is spinning
+        # 4. Drive forward in pulses while drum is spinning, pausing so the drum can clear regolith
         elif self.state == ExcavationState.DRIVE_FORWARD:
             self.spin_bucket()
-            self.drive_forward()
+            if self.in_drive_pulse():
+                self.drive_forward()
+            else:
+                self.stop_wheels()
             if self.has_travelled_distance(odom_position, self.drive_distance_m):
                 self.state = ExcavationState.STOP_WHEELS_AFTER_DRIVE
 
@@ -157,6 +165,11 @@ class ExcavationSequence:
             left_error <= self.position_tolerance_m
             and right_error <= self.position_tolerance_m
         )
+
+    def in_drive_pulse(self):
+        # True for the first pulse_drive_s of every pulse_drive_s + pulse_delay_s period
+        elapsed_s = monotonic() - self.drive_start_s
+        return elapsed_s % (self.pulse_drive_s + self.pulse_delay_s) < self.pulse_drive_s
 
     def has_travelled_distance(self, odom_position, target_distance):
         x, y = odom_position

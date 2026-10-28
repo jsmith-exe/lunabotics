@@ -45,3 +45,12 @@ class TimedDepositionSequence(DepositionSequence):
             return False
 
         return now_s - self.start_x >= self.drive_durations_s[self.state]
+
+
+class StationaryExcavationSequence(TimedExcavationSequence):
+    """Timed excavation FSM that digs without moving: the wheels are held still while the
+    drum spins at max depth for drive_duration_s.
+    """
+
+    def drive_forward(self):
+        self.stop_wheels()

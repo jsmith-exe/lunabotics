@@ -9,9 +9,11 @@ autonomy:
 
     # EXCAVATION TUNING
     # wheels
-    excavation.drive_speed: -0.1
-    excavation.drive_distance_m: 1.0
-    excavation.drive_duration_s: 10.0 # timed_autonomy_node only, replaces drive_distance_m
+    excavation.drive_speed: -0.3
+    excavation.drive_distance_m: 0.5
+    excavation.drive_duration_s: 40.0 # timed and stationary nodes only (stationary: how long to dig), replaces drive_distance_m, includes pauses
+    excavation.pulse_drive_s: 0.3 # Drive for this long...
+    excavation.pulse_delay_s: 4.0 # ...then stop for this long so the drum can clear regolith. 0 drives continuously
 
     # actuators
     excavation.contact_position_m: 0.035 # Actuator position where bucket reaches regolith
@@ -20,14 +22,14 @@ autonomy:
     excavation.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
-    excavation.drum_spin_speed: 0.8
+    excavation.drum_spin_speed: 1.0
     excavation.drum_spin_direction: 1.0 # sign will determine what direction the drum spins
 
     # DEPOSITION TUNING
     # wheels
-    deposition.drive_to_zone_speed: -0.2
+    deposition.drive_to_zone_speed: 0.3
     deposition.drive_to_zone_distance_m: 1.0
-    deposition.drive_to_zone_duration_s: 5.0 # timed_autonomy_node only, replaces drive_to_zone_distance_m
+    deposition.drive_to_zone_duration_s: 10.0 # timed_autonomy_node only, replaces drive_to_zone_distance_m
     deposition.deposit_drive_speed: 0.0
     deposition.deposit_drive_distance_m: 1.0
     deposition.deposit_drive_duration_s: 20.0 # timed_autonomy_node only, replaces deposit_drive_distance_m
@@ -38,5 +40,5 @@ autonomy:
     deposition.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
-    deposition.drum_spin_speed: 0.8
+    deposition.drum_spin_speed: 1.0
     deposition.drum_spin_direction: -1.0

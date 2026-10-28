@@ -7,6 +7,8 @@ from qpl_autonomy.timed_sequences import TimedExcavationSequence, TimedDepositio
 EXCAVATION_KEYS = [
     "drive_speed",
     "drive_distance_m",
+    "pulse_drive_s",
+    "pulse_delay_s",
     "drum_spin_speed",
     "drum_spin_direction",
     "contact_position_m",

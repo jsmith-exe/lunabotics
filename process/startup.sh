@@ -11,6 +11,9 @@ startup() {
   source /opt/ros/humble/setup.bash
   source "$QPL_PROJECT/qpl_ws/install/setup.bash" > /dev/null 2>&1 # Hide output
 
+  # Other aliases
+  alias tune_autonomy="nano ~/lunabotics/qpl_ws/src/qpl_autonomy/config/fsm_tuning.yaml"
+
   # Source functions
   source "$QPL_PROJECT/process/functions/build.sh"
   source "$QPL_PROJECT/process/functions/executables.sh"
