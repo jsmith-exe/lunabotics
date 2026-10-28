@@ -1,8 +1,9 @@
 """Teleop HUD: a browser-based, single-window alternative to RViz for driving.
 
-Monitoring only. This node subscribes and never publishes a command, so the
-driving controller (`qpl_teleop`) stays the one and only source of teleop
-commands. It gathers what the operator needs into a handful
+Monitoring only. This node never publishes a drive command, so the driving
+controller (`qpl_teleop`) stays the one and only source of teleop commands. Its
+one publisher is the recorder-mode path edited on the map (points dragged or
+deleted), sent to nav_autonomy on /nav_autonomy/breadcrumb_edit. It gathers what the operator needs into a handful
 of JSON channels and serves them, with the camera feeds, to a local web page:
 
   config    arena, zones, rover footprint, camera intrinsics/extrinsics
@@ -10,6 +11,7 @@ of JSON channels and serves them, with the camera feeds, to a local web page:
             wheel/drum/lift joints, control source, topic health, link usage
   costmap   global costmap as a PNG, at most once a second
   plan      latest Nav2 global plan
+  breadcrumbs  recorder-mode path from nav_autonomy, in order
   log       recent /rosout lines (only while telemetry is on)
 
 Everything here is chosen to keep the rover -> basestation link inside its
@@ -44,7 +46,7 @@ from rclpy.time import Time
 from ament_index_python.packages import get_package_share_directory
 
 import tf2_ros
-from geometry_msgs.msg import Twist, PoseWithCovarianceStamped
+from geometry_msgs.msg import Twist, PoseStamped, PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry, OccupancyGrid, Path
 from sensor_msgs.msg import JointState, CompressedImage, CameraInfo
 from std_msgs.msg import Float64, Float64MultiArray
@@ -315,6 +317,9 @@ class HudNode(Node):
                   lambda m: self._stamp("lift_cmd", list(m.data)), fast, "drum")
         self._sub(PoseWithCovarianceStamped, "/apriltag/pose", self.on_tag, 10, "loc")
         self._sub(Path, "/plan", self.on_plan, 10, "nav")
+        # Latched by nav_autonomy, so the path shows as soon as the HUD starts
+        self._sub(Path, "/nav_autonomy/breadcrumb_path", self.on_breadcrumbs, self.latched, "nav")
+        self.breadcrumb_edit_pub = self.create_publisher(Path, "/nav_autonomy/breadcrumb_edit", 10)
         self.stats["/global_costmap/costmap"] = TopicStats("/global_costmap/costmap", "nav")
         self.stats["/rosout"] = TopicStats("/rosout", "log")
         self._apply_telemetry()
@@ -350,7 +355,8 @@ class HudNode(Node):
                                  "costmap": self.set_costmap,
                                  "front_camera": lambda on: setattr(self.cameras["front"], "on", on),
                                  "rear_camera": lambda on: setattr(self.cameras["rear"], "on", on)},
-                                self.get_logger())
+                                self.get_logger(),
+                                posts={"breadcrumbs": self.edit_breadcrumbs})
         self.server.start()
         shown = "localhost" if self.host in ("0.0.0.0", "127.0.0.1") else self.host
         self.get_logger().info(f"Teleop HUD serving {web_root} on http://{shown}:{self.port}")
@@ -464,6 +470,35 @@ class HudNode(Node):
             pts = [pts[int(i * step)] for i in range(200)] + [pts[-1]]
         self.hub.publish("plan", {"frame": msg.header.frame_id,
                                   "pts": [[num(x, 3), num(y, 3)] for x, y in pts]})
+
+    def on_breadcrumbs(self, msg):
+        self.hub.publish("breadcrumbs", {
+            "frame": msg.header.frame_id,
+            "pts": [[num(ps.pose.position.x, 3), num(ps.pose.position.y, 3), num(yaw_of(ps.pose.orientation))]
+                    for ps in msg.poses],
+        })
+
+    def edit_breadcrumbs(self, body):
+        """POST /breadcrumbs from the map: {"pts": [[x, y, yaw], ...]} in order. Passed on to
+        nav_autonomy, which saves it and republishes the path the map draws from."""
+        pts = body.get("pts") if isinstance(body, dict) else None
+        if not isinstance(pts, list) or len(pts) > 500:
+            return "expected {\"pts\": [[x, y, yaw], ...]}"
+        path = Path()
+        path.header.frame_id = self.map_frame
+        path.header.stamp = self.get_clock().now().to_msg()
+        for p in pts:
+            if (not isinstance(p, list) or len(p) != 3
+                    or not all(isinstance(v, (int, float)) and math.isfinite(v) for v in p)):
+                return "every point must be [x, y, yaw] numbers"
+            ps = PoseStamped()
+            ps.header = path.header
+            ps.pose.position.x, ps.pose.position.y = float(p[0]), float(p[1])
+            ps.pose.orientation.z, ps.pose.orientation.w = math.sin(p[2] / 2.0), math.cos(p[2] / 2.0)
+            path.poses.append(ps)
+        self.breadcrumb_edit_pub.publish(path)
+        self.get_logger().info(f"Sent edited breadcrumb path ({len(path.poses)} points) to nav_autonomy")
+        return None
 
     def on_log(self, msg):
         if msg.name == self.get_name():

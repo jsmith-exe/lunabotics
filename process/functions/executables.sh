@@ -3,7 +3,8 @@
 # Aliases
 alias qpl_kb='ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=cmd_vel_teleop'
 alias qpl_teleop='ros2 run basestation teleop'
-alias qpl_nav='ros2 launch qpl_rover navigation_launch.py'
+alias qpl_nav='ros2 launch qpl_rover navigation_launch.py use_sim_time:=false' # on the rover
+alias qpl_nav_sim='ros2 launch qpl_rover navigation_launch.py use_sim_time:=true' # against the sim
 alias qpl_vslam='ros2 launch qpl_rover vslam_launch.py'
 alias qpl_rover='ros2 launch qpl_rover rover.launch.py'
 alias qpl_components='ros2 launch qpl_rover components.launch.py'
@@ -18,6 +19,7 @@ alias qpl_logs_clear="rm ~/rosout_combined.log"
 
 # Autonomy aliases:
 alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py' # alias for blind autonomy for use in the competition
+alias qpl_autonomy_sim='ros2 launch qpl_autonomy autonomy.launch.py use_sim_time:=true' # blind autonomy against the sim
 alias qpl_excavate='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'EXCAVATE'\"'\"'}"'
 alias qpl_deposit='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'DEPOSIT'\"'\"'}"'
 alias qpl_stop='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
@@ -29,6 +31,13 @@ alias qpl_nav_deposit='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/
 # Full autonomy (low risk): loops nav to excavation zone, dig, nav to berm, dump, until qpl_auto_stop
 alias qpl_full_auto='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
 alias qpl_full_auto_stop='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
+# Recorder mode: record a breadcrumb path while teleoping from the excavation zone to the deposition point
+alias qpl_record_start='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'RECORD_START'\"'\"'}"'
+alias qpl_record_waypoint='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'RECORD_WAYPOINT'\"'\"'}"'
+alias qpl_record_end='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'RECORD_END'\"'\"'}"'
+# Drive the recorded path either way (no obstacle avoidance); stop with qpl_full_auto_stop
+alias qpl_follow_deposit='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'FOLLOW_TO_DEPOSIT'\"'\"'}"'
+alias qpl_follow_excavate='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'FOLLOW_TO_EXCAVATE'\"'\"'}"'
 
 # Legacy - to be removed
 #alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'

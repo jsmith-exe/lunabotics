@@ -38,6 +38,7 @@ qpl_autonomy/
 │   ├── deposition.py
 │   ├── nav/
 │   │   ├── __init__.py
+│   │   ├── breadcrumb_path.py
 │   │   ├── nav_autonomy_node.py
 │   │   ├── nav_excavation.py
 │   │   └── nav_deposition.py
@@ -349,7 +350,7 @@ The repository also provides shell aliases for these commands where configured.
 
 `nav_autonomy_node` uses Nav2 to drive between the excavation zone and the berm. It is a separate node from the blind autonomy above. The blind node, its variants, their sequences and `fsm_tuning.yaml` are not used or changed by it, so blind autonomy remains as a backup.
 
-It is started by `qpl_nav` (`qpl_rover` `navigation_launch.py`, which includes `launch/nav/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
+It is started by `qpl_nav` on the rover or `qpl_nav_sim` against the sim (`qpl_rover` `navigation_launch.py`, which includes `launch/nav/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
 
 Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
 
@@ -384,6 +385,33 @@ Nothing reports when the bucket is full or empty, so the dig and dump are timed 
 * `STOP` and Ctrl-C cancel the active Nav2 goal; otherwise Nav2 would keep driving it.
 
 All nav autonomy tuning is in `config/nav/nav_autonomy.yaml`, under the node name `nav_autonomy`.
+
+### Recorder mode (breadcrumb path)
+
+Teach the rover a route by driving it once, then have it follow that route either way.
+
+| Command              | Basestation button | Alias                 | Function                                                                  |
+| -------------------- | ------------------ | --------------------- | ------------------------------------------------------------------------- |
+| `RECORD_START`       | Record Start       | `qpl_record_start`    | Start a new path at the rover's pose (stand in the excavation zone)       |
+| `RECORD_WAYPOINT`    | Record Waypoint    | `qpl_record_waypoint` | Drop a breadcrumb at the rover's pose                                     |
+| `RECORD_END`         | Record End         | `qpl_record_end`      | Add the end point (the deposition point) and save the path                |
+| `FOLLOW_TO_DEPOSIT`  | Follow → Deposit   | `qpl_follow_deposit`  | Drive the path towards the deposition end, then stop                      |
+| `FOLLOW_TO_EXCAVATE` | Follow → Excavate  | `qpl_follow_excavate` | Drive the path backwards towards the excavation end, then stop            |
+| `STOP`               | Stop               | `qpl_full_auto_stop`  | While recording: discard it and keep the old path. While following: stop |
+
+1. Park in the excavation zone and press **Record Start**.
+2. Teleop to the deposition point, pressing **Record Waypoint** at the corners of the route. Waypoints closer than `breadcrumb.min_spacing_m` to the last one are skipped.
+3. Stop where you want to dump, facing the way you want to finish, and press **Record End**.
+
+The record buttons work while teleop is enabled, and the node publishes nothing while recording. The follow buttons, like the other autonomy buttons, only work with teleop disabled. Following does not dig or dump.
+
+* Needs `qpl_nav` running and the rover localised (`/odometry/global`). Recording and following are refused if the pose is older than `breadcrumb.max_pose_age_s`.
+* The path is saved to `breadcrumb.file` (default `~/.ros/qpl_breadcrumb_path.yaml`) and loaded at startup. A new recording replaces it.
+* It is published on `/nav_autonomy/breadcrumb_path` and shown in the basestation RViz as **Breadcrumb Path**.
+* Following starts at the breadcrumb nearest the rover, joins the crumbs with straight lines, and sends the result straight to Nav2's controller server (`follow_path` action, `FollowBreadcrumbs` controller in `qpl_rover/config/nav_params.yaml`). The planner and BT are not used.
+* Following drives at 0.4 m/s and turns in place at 0.4 rad/s, the same as teleop at Drive Throttle 0.4 / Steer Throttle 0.4 (the throttles are m/s and rad/s). These are `desired_linear_vel` and `rotate_to_heading_angular_vel` in `FollowBreadcrumbs`; it slows down for tight turns and near the end.
+* **Following has no obstacle avoidance.** `FollowBreadcrumbs` is a pure pursuit controller with collision detection off, so it trusts the recorded route to be clear and still works if the depth cameras or obstacle filter don't. Normal navigation keeps using the DWB `FollowPath` controller with obstacle avoidance.
+* It finishes within `arrival_radius_m` / `arrival_yaw_tolerance_rad` of the end, the same as navigating. `FOLLOW_TO_EXCAVATE` finishes facing the heading recorded at `RECORD_START`, so it may turn in place at the end. A failed goal is retried `max_retries` times from wherever the rover stopped.
 
 ---
 

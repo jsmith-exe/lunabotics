@@ -141,6 +141,25 @@ class TeleopWindow:
         ttk.Button(auto_row, text="Stop", width=10,
                    command=self.stop_all_autonomy).pack(side="left", padx=5 * UI_SCALE)
 
+        # Recorder mode: lay a breadcrumb path while driving from the excavation zone to the
+        # deposition point. These work while teleop is enabled, since the operator is driving.
+        record_row = ttk.Frame(self.nav_autonomy_section.content)
+        record_row.pack(pady=(5 * UI_SCALE, 0))
+        for text, command in (("Record Start", "RECORD_START"), ("Record Waypoint", "RECORD_WAYPOINT"),
+                              ("Record End", "RECORD_END")):
+            ttk.Button(record_row, text=text,
+                       command=lambda command=command: self.nav_autonomy_command_function(command)
+                       ).pack(side="left", padx=5 * UI_SCALE)
+
+        # Drive the recorded path either way, no obstacle avoidance; only while teleop is disabled
+        follow_row = ttk.Frame(self.nav_autonomy_section.content)
+        follow_row.pack(pady=(5 * UI_SCALE, 0))
+        for text, command in (("Follow → Deposit", "FOLLOW_TO_DEPOSIT"), ("Follow → Excavate", "FOLLOW_TO_EXCAVATE")):
+            button = ttk.Button(follow_row, text=text,
+                                command=lambda command=command: self.nav_autonomy_command_function(command))
+            button.pack(side="left", padx=5 * UI_SCALE)
+            self.autonomy_start_buttons.append(button)
+
     def stop_all_autonomy(self):
         # Either Stop button stops both autonomy nodes, so the operator can't press the wrong one
         self.autonomy_command_function("STOP")
