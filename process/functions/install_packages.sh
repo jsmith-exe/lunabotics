@@ -7,6 +7,8 @@ qpl_packages() {
     ros-humble-ros2-control \
     ros-humble-ros2-controllers \
     ros-humble-nav2-bringup \
+    ros-humble-nav2-smac-planner \
+    ros-humble-nav2-rotation-shim-controller \
     ros-humble-teleop-twist-keyboard \
     ros-humble-rviz2 \
     ros-humble-slam-toolbox \

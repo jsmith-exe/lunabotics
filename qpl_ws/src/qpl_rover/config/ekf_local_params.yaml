@@ -19,6 +19,9 @@ common:
   odom_frame: odom
   base_link_frame: base_footprint
   world_frame: odom
+  # One update ahead, so a lookup at the current time (Nav2's RotationShim transforms path
+  # poses stamped now) doesn't fail as extrapolation into the future. ekf_global does the same.
+  transform_time_offset: 0.02
 
   print_diagnostics: true
   debug: false

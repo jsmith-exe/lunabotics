@@ -210,9 +210,9 @@ Known limits: obstacles lower than the threshold (about 0.16 m close, 0.30 m at 
 
 ## Autonomous Navigation
 
-Nav2 runs separately from the rover/sim launch: start it with `qpl_nav`, then send goals from RViz (`2D Goal Pose`) or the `navigate_to_pose` action.
+Nav2 runs separately from the rover/sim launch: start it with `qpl_nav` on the rover or `qpl_nav_sim` against the sim, then send goals from RViz (`2D Goal Pose`) or the `navigate_to_pose` action.
 
-`qpl_nav` also starts the Nav2 autonomy node (`qpl_autonomy` `nav_autonomy_node`), which stays idle until the basestation's Nav Autonomy buttons or `qpl_auto` start it. See the `qpl_autonomy` README. `nav_autonomy:=false` leaves it out.
+`qpl_nav` also starts the Nav2 autonomy node (`qpl_autonomy` `nav_autonomy_node`), which stays idle until the basestation's Nav Autonomy buttons or `qpl_full_auto` start it. See the `qpl_autonomy` README. `nav_autonomy:=false` leaves it out.
 
 Velocity commands go through the smoother before the drive mux:
 

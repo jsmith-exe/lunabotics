@@ -18,6 +18,8 @@
   <exec_depend>velocity_controllers</exec_depend>
   <exec_depend>twist_mux</exec_depend>
   <exec_depend>robot_localization</exec_depend>
+  <exec_depend>nav2_smac_planner</exec_depend> <!-- global planner (config/nav_params.yaml) -->
+  <exec_depend>nav2_rotation_shim_controller</exec_depend>
   <!-- rgbd_odometry, launched by vslam_launch.py (on by default, use_vslam:=false to disable) -->
   <exec_depend>rtabmap_odom</exec_depend>
   <exec_depend>rclpy</exec_depend>
@@ -25,6 +27,8 @@
   <exec_depend>geometry_msgs</exec_depend>
   <!-- apriltag_gate reads the navigate_to_pose action status -->
   <exec_depend>action_msgs</exec_depend>
+  <!-- drum_command_interface reads the lift limits from its can_config.yaml -->
+  <exec_depend>diffdrive_canbus</exec_depend>
 
   <!-- Localisation + IMU chain -->
   <exec_depend>tf2_ros</exec_depend>

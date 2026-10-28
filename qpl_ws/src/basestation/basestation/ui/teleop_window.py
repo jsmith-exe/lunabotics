@@ -1,3 +1,4 @@
+import time
 from collections.abc import Callable
 from tkinter import font, ttk, PhotoImage
 from os import environ
@@ -11,6 +12,17 @@ from ..controllers.base_controller import BaseController
 from ..controllers.tkinter_keyboard_controller import TkinterKeyboardController
 
 DANGER_COLOR = "#ff1e39"
+CAUTION_COLOR = "#ffb020"
+READY_COLOR = "#3dd68c"
+# Lift feedback older than this isn't started from when teleop is enabled
+LIFT_FEEDBACK_MAX_AGE_S = 1.0
+# /nav_autonomy/state is republished every second; older than this means the node is gone
+NAV_STATE_STALE_S = 3.0
+# COMPLETE / REFUSED / STOPPED stay on the status line this long; FAILED stays until the next command
+NAV_RESULT_HOLD_S = 15
+NAV_PHASES = {"STOP_WHEELS": "stopping", "START_SPIN": "starting the drum", "LOWER_BUCKET": "lowering the bucket",
+              "DIG": "digging", "RAISE_BUCKET": "raising the bucket", "DUMP_REGOLITH": "dumping",
+              "STOP_BUCKET": "stopping the drum", "TRENCH": "digging the trench"}
 UI_SCALE = float(environ.get('QPL_TELEOP_WINDOW_SCALE', 1.0))
 WINDOW_WIDTH = 300  # Minimum width; the window widens if expanded sections need more room.
 
@@ -56,7 +68,7 @@ class TeleopWindow:
         self.add_nav_autonomy_section()
 
         self.disable()
-        self._sync_drum_lift_slider() # After enable(), which sets the lift target from the slider
+        self._sync_drum_lift_slider() # After disable(), which resets the lift target
 
         # Make sure the initial size fits everything, including the status message set by enable().
         self.root.update_idletasks()
@@ -98,9 +110,10 @@ class TeleopWindow:
 
     def _sync_drum_lift_slider(self):
         """ Buttons can also move the drum lift, so keep the slider showing the current lift target. """
-        # Skipped while disabled, where the target is reset to 0; enable() republishes the slider value.
-        if self.base_station_state.teleop_enabled:
-            lift_mm = round(self.base_station_state.topic_target_states[DRUM_LIFT_TOPIC]['value'] * 1000, 2)
+        # Skipped while disabled, where the target is reset to 0, and while the target is 0 (hold), which has no
+        # height to show; enable() sets the target to the bucket's current height.
+        lift_mm = round(self.base_station_state.topic_target_states[DRUM_LIFT_TOPIC]['value'] * 1000, 2)
+        if self.base_station_state.teleop_enabled and lift_mm != 0:
             if lift_mm != self.drum_lift_slider.value:
                 self.drum_lift_slider.value = lift_mm
                 # The slider's last sent value is now stale; forget it so the next drag isn't filtered out.
@@ -125,21 +138,39 @@ class TeleopWindow:
         """ Nav2 autonomy, run by qpl_nav. Separate from the blind autonomy above, which is kept as a backup. """
         self.nav_autonomy_section = CollapsibleSection(self.root, "Nav Autonomy")
 
-        # Nav excavate/deposit on the first row; full autonomy and Stop on the second
+        # Nav excavate/deposit on the first row; full autonomy (low and high risk) and Stop on the second;
+        # the same two avoiding boulders only on the third
         nav_row = ttk.Frame(self.nav_autonomy_section.content)
         nav_row.pack()
         auto_row = ttk.Frame(self.nav_autonomy_section.content)
         auto_row.pack(pady=(5 * UI_SCALE, 0))
+        boulders_row = ttk.Frame(self.nav_autonomy_section.content)
+        boulders_row.pack(pady=(5 * UI_SCALE, 0))
 
-        # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop
+        # Nav versions drive to the zone's waypoint with Nav2 first; full autonomy loops both until Stop.
+        # High risk digs one fixed trench every cycle, reversing along it with the bucket down. Boulders
+        # only drives through craters, for when craters close every way to the berm.
         for row, text, command in ((nav_row, "Nav Excavate", "NAV_EXCAVATE"), (nav_row, "Nav Deposit", "NAV_DEPOSIT"),
-                                   (auto_row, "Full Autonomy", "AUTO")):
+                                   (auto_row, "Full Autonomy", "AUTO"), (auto_row, "High Risk (Trench)", "AUTO_TRENCH"),
+                                   (boulders_row, "Full Autonomy (Boulders Only)", "AUTO_BOULDERS"),
+                                   (boulders_row, "High Risk (Boulders Only)", "AUTO_TRENCH_BOULDERS")):
             button = ttk.Button(row, text=text,
                                 command=lambda command=command: self.nav_autonomy_command_function(command))
             button.pack(side="left", padx=5 * UI_SCALE)
             self.autonomy_start_buttons.append(button)
         ttk.Button(auto_row, text="Stop", width=10,
                    command=self.stop_all_autonomy).pack(side="left", padx=5 * UI_SCALE)
+
+        # What nav autonomy is doing, so the team can see it finish or fail without touching anything
+        self.nav_status = ttk.Label(self.nav_autonomy_section.content, text="", justify="center",
+                                    wraplength=int(300 * UI_SCALE))
+        self.nav_status.pack(pady=(8 * UI_SCALE, 0))
+        self._refresh_nav_status()
+
+    def _refresh_nav_status(self):
+        text, color = nav_status(self.base_station_state)
+        self.nav_status.config(text=text, foreground=color)
+        self.root.after(250, self._refresh_nav_status)
 
     def stop_all_autonomy(self):
         # Either Stop button stops both autonomy nodes, so the operator can't press the wrong one
@@ -156,7 +187,17 @@ class TeleopWindow:
         for button in self.autonomy_start_buttons:
             button.state(["disabled"])
 
-        self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, self.drum_lift_slider.value / 1000)
+        # Start from the bucket's current height, so enabling doesn't move it. Without recent lift feedback, hold
+        # (0.0) until the slider is moved.
+        self.publish_function(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, self.current_lift_m())
+
+    def current_lift_m(self) -> float:
+        """ The drum lift's position from /joint_states, within the slider's range; 0.0 (hold) if not recent. """
+        state = self.base_station_state
+        if state.lift_position_m is None or time.monotonic() - state.lift_position_time > LIFT_FEEDBACK_MAX_AGE_S:
+            return 0.0
+        drum_config = self.canbus_config['drum']
+        return min(max(state.lift_position_m, drum_config['min_lift_mm'] / 1000), drum_config['max_lift_mm'] / 1000)
 
     def disable(self):
         # Send an explicit wheel stop before going quiet, rather than relying on the rover's command timeout.
@@ -239,6 +280,49 @@ class CollapsibleSection:
         window.update_idletasks()
         height_change = window.winfo_reqheight() - height_before
         window.geometry(f"{fit_window_width(window)}x{window.winfo_height() + height_change}")
+
+
+def nav_status(state: BaseStationState) -> tuple[str, str]:
+    """ (text, colour) for the nav autonomy status line, from the latest /nav_autonomy/state. """
+    a = state.nav_autonomy
+    if a is None:
+        return "Nav autonomy: not running (qpl_nav)", ""
+    age = time.monotonic() - state.nav_autonomy_time
+    if age > NAV_STATE_STALE_S:
+        return f"Nav autonomy: no update for {age:.0f} s", CAUTION_COLOR
+    if not a.get("time_ok", True):
+        return f"CLOCK ERROR: {a.get('time_message', '')}", DANGER_COLOR
+    target = a.get("target")
+    spot = f"{'dig spot' if target['kind'] == 'EXCAVATION' else 'berm'} {target['index']}/{target['count']}" if target else ""
+    if target and target["kind"] == "EXCAVATION" and (a.get("mode") or "").startswith("AUTO_TRENCH"):
+        spot = "the trench"
+    cycle = f", cycle {a['cycle']}" if a.get("cycle") else ""
+    running = f"{a.get('mode') or 'NAV'}{cycle}"
+    if a["state"].startswith("NAVIGATING_TO_"):
+        return f"{running}: driving to {spot}", ""
+    if a["state"] == "RELOCALISING":
+        return f"{running}: re-localising, turning a camera to the AprilTag", ""
+    if a["state"] == "BACKING_OUT":
+        return f"{running}: backing out of the berm", ""
+    if a["state"] == "ALIGNING":
+        return f"{running}: lining up with the trench", ""
+    if a["state"] in ("EXCAVATING", "DEPOSITING"):
+        left = f" ({a['remaining_s']:.0f} s left)" if a.get("remaining_s") is not None else ""
+        if a.get("trench_left_m") is not None:
+            left = f" ({a['trench_left_m']:.1f} m left)"
+        phase = NAV_PHASES.get(a.get("phase"), a["state"].lower())
+        where = "" if a.get("phase") == "TRENCH" else f" at {spot}"
+        return f"{running}: {phase}{left}{where}", ""
+    recent = a.get("result_age_s") is not None and a["result_age_s"] < NAV_RESULT_HOLD_S
+    if a.get("result") == "FAILED":
+        return f"FAILED: {a.get('message', '')} Announce the failure before taking manual control.", DANGER_COLOR
+    if a.get("result") == "COMPLETE" and recent:
+        return f"COMPLETE: {a.get('message', '')}", READY_COLOR
+    if a.get("result") in ("REFUSED", "STOPPED") and recent:
+        return f"{a['result']}: {a.get('message', '')}", CAUTION_COLOR
+    if not a.get("localised"):
+        return f"Not localised: {a.get('loc_reason', '')}", CAUTION_COLOR
+    return "Ready (localised)", READY_COLOR
 
 
 def fit_window_width(window) -> int:

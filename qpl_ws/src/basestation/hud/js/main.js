@@ -20,6 +20,10 @@ const STALL_HOLD_S = 0.8;
 const CMD_HOLD_S = 0.5;
 // Footprint closer than this to the arena wall raises a caution.
 const WALL_CAUTION_M = 0.3;
+// /nav_autonomy/state older than this means the node is gone. It republishes every second.
+const AUTO_STALE_S = 3;
+// COMPLETE / REFUSED / STOPPED stay on the AUTONOMY box this long; FAILED stays until the next command.
+const AUTO_RESULT_HOLD_S = 15;
 
 // ------------------------------------------------------------------- state
 const S = {
@@ -372,6 +376,47 @@ function renderHeader() {
 
   $("zone").textContent = map.zoneName() ?? "—";
   renderLinkBox();
+  renderAuto(t);
+}
+
+// Nav autonomy box: [class, main text, sub line] for a /nav_autonomy/state message.
+const AUTO_PHASES = {
+  STOP_WHEELS: "STOPPING", START_SPIN: "SPIN UP", LOWER_BUCKET: "LOWERING", DIG: "DIGGING",
+  RAISE_BUCKET: "RAISING", DUMP_REGOLITH: "DUMPING", STOP_BUCKET: "DRUM STOP", TRENCH: "TRENCHING",
+};
+function autoView(a) {
+  if (!a) return ["off", "—", "no nav autonomy node"];
+  if (a.age > AUTO_STALE_S) return ["off", "NO UPDATE", `nav autonomy silent for ${Math.round(a.age)} s`];
+  if (!a.time_ok) return ["fail", "CLOCK ERROR", a.time_message];
+  const cycle = a.cycle ? ` · CYCLE ${a.cycle}` : "";
+  const spot = !a.target ? "" : a.target.kind === "EXCAVATION" && a.mode?.startsWith("AUTO_TRENCH") ? "TRENCH"
+    : `${a.target.kind === "EXCAVATION" ? "DIG" : "BERM"} ${a.target.index}/${a.target.count}`;
+  if (a.state.startsWith("NAVIGATING_TO_")) {
+    const retry = a.retries ? ` · RETRY ${a.retries}/${a.max_retries}` : "";
+    return ["run", `NAV → ${spot}`, `${a.mode ?? ""}${cycle}${retry}`];
+  }
+  if (a.state === "RELOCALISING") return ["run", "RE-LOCALISING", `${a.mode ?? ""}${cycle} · turning to the AprilTag`];
+  if (a.state === "BACKING_OUT") return ["run", "BACKING OUT", `${a.mode ?? ""}${cycle} · leaving the berm`];
+  if (a.state === "ALIGNING") return ["run", "LINING UP", `${a.mode ?? ""}${cycle} · facing along the trench`];
+  if (a.state === "EXCAVATING" || a.state === "DEPOSITING") {
+    const left = isNum(a.trench_left_m) ? ` ${a.trench_left_m.toFixed(1)} M` : isNum(a.remaining_s) ? ` ${Math.ceil(a.remaining_s)} S` : "";
+    return ["run", `${AUTO_PHASES[a.phase] ?? a.phase ?? a.state}${left}`, `${a.mode ?? ""}${cycle} · ${spot}`];
+  }
+  const recent = isNum(a.result_age_s) && a.result_age_s < AUTO_RESULT_HOLD_S;
+  if (a.result === "FAILED") return ["fail", "FAILED", a.message];
+  if (a.result === "COMPLETE" && recent) return ["done", "COMPLETE", a.message];
+  if (a.result === "REFUSED" && recent) return ["wait", "REFUSED", a.message];
+  if (a.result === "STOPPED" && recent) return ["off", "STOPPED", a.message];
+  if (!a.localised) return ["wait", "NOT LOCALISED", a.loc_reason];
+  return ["ready", "READY", `localised · tag fix ${a.fix_age_s ?? "—"} s ago`];
+}
+function renderAuto(t) {
+  const [cls, main, sub] = autoView(t?.auto);
+  const el = $("auto");
+  el.className = "auto " + cls;
+  $("auto-v").textContent = main;
+  $("auto-sub").textContent = sub;
+  el.title = t?.auto?.message || "Nav autonomy (/nav_autonomy/state)";
 }
 
 // --------------------------------------------------------------- warnings
@@ -419,6 +464,15 @@ function computeWarnings() {
   else if (u && u.rx > u.rxMax) w.push({ lvl: "caution", ga: "Nasc Lán", txt: "LINK OVER BUDGET", sub: `${u.rx.toFixed(2)} / ${u.rxMax} Mbit/s down · cameras 1/2, costmap K` });
 
   if (d.live && d.frame === "odom") w.push({ lvl: "info", ga: "Gan Suíomh", txt: "NO MAP FIX", sub: "no /odometry/global; map shows odom" });
+
+  // Hands-free rules: the team announces completion or failure without touching anything.
+  const a = t.auto;
+  if (a && a.age <= AUTO_STALE_S && a.state === "IDLE") {
+    if (!a.time_ok) w.push({ lvl: "crit", ga: "Clog Mícheart", txt: "AUTONOMY CLOCK ERROR", sub: a.time_message });
+    else if (a.result === "FAILED") w.push({ lvl: "crit", ga: "Theip ar an Uathrialú", txt: "AUTONOMY FAILED", sub: "announce the failure, then take manual control" });
+    else if (a.result === "COMPLETE" && a.result_age_s < AUTO_RESULT_HOLD_S) w.push({ lvl: "info", ga: "Uathrialú Críochnaithe", txt: "AUTONOMY COMPLETE", sub: "announce completion before taking control" });
+    else if (!a.localised && t.source !== "TELEOP") w.push({ lvl: "caution", ga: "Gan Suíomh", txt: "NOT LOCALISED", sub: `autonomy will refuse: ${a.loc_reason}` });
+  }
   return w;
 }
 

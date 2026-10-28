@@ -349,7 +349,7 @@ The repository also provides shell aliases for these commands where configured.
 
 `nav_autonomy_node` uses Nav2 to drive between the excavation zone and the berm. It is a separate node from the blind autonomy above. The blind node, its variants, their sequences and `fsm_tuning.yaml` are not used or changed by it, so blind autonomy remains as a backup.
 
-It is started by `qpl_nav` (`qpl_rover` `navigation_launch.py`, which includes `launch/nav/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
+It is started by `qpl_nav` on the rover or `qpl_nav_sim` against the sim (`qpl_rover` `navigation_launch.py`, which includes `launch/nav/nav_autonomy.launch.py` and passes on `use_sim_time`). It then sits in `IDLE` until it receives a command, so nothing moves just because `qpl_nav` is running. To launch Nav2 without it, use `qpl_nav nav_autonomy:=false`.
 
 Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
 
@@ -357,8 +357,11 @@ Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
 | -------------- | -------------------------- | ------------------ | ------------------------------------------------------------------- |
 | `NAV_EXCAVATE` | Nav Excavate               | `qpl_nav_excavate` | Drive to the excavation waypoint with Nav2, then excavate           |
 | `NAV_DEPOSIT`  | Nav Deposit                | `qpl_nav_deposit`  | Drive to the deposition waypoint with Nav2, then deposit            |
-| `AUTO`         | Full Autonomy (Low Risk)   | `qpl_auto`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP` |
-| `STOP`         | Stop                       | `qpl_auto_stop`    | Cancel the Nav2 goal or active sequence and return to `IDLE`        |
+| `AUTO`         | Full Autonomy (Low Risk)   | `qpl_full_auto`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP` |
+| `AUTO_TRENCH`  | High Risk (Trench)         | `qpl_full_auto_trench`  | Full autonomy digging one fixed trench every cycle (see below)      |
+| `AUTO_BOULDERS` | Full Autonomy (Boulders Only) | `qpl_full_auto_boulders` | `AUTO`, avoiding boulders only (see below)                      |
+| `AUTO_TRENCH_BOULDERS` | High Risk (Boulders Only) | `qpl_full_auto_trench_boulders` | `AUTO_TRENCH`, avoiding boulders only (see below)      |
+| `STOP`         | Stop                       | `qpl_full_auto_stop`    | Cancel the Nav2 goal or active sequence and return to `IDLE`        |
 
 The buttons are in the basestation's **Nav Autonomy** section. Like the blind autonomy buttons, they only work while teleop is disabled, because teleop has priority over Nav2 in the drive mux. Either Stop button in the basestation stops both autonomy nodes.
 
@@ -373,14 +376,35 @@ The rover stands still while digging and dumping, which is why it is labelled lo
 * **Excavation:** stop -> spin drum forward -> lower bucket -> hold it down for `dig_duration_s` -> raise bucket -> stop spinning.
 * **Deposition:** stop -> bucket raised -> spin drum backwards for `dump_duration_s` -> stop spinning.
 
-Nothing reports when the bucket is full or empty, so the dig and dump are timed (30 s each). The rest moves on actuator feedback.
+Nothing reports when the bucket is full or empty, so the dig and dump are timed (30 s and 60 s). The rest moves on actuator feedback.
+
+### High risk: trench
+
+`AUTO_TRENCH` is the same loop, but instead of standing still at a dig spot the rover digs one fixed trench, the same every cycle:
+
+```text
+navigate to trench.start_xy -> turn to face away from trench.end_xy (ALIGNING) -> spin drum, lower bucket
+-> reverse to trench.end_xy with the bucket down -> raise bucket, stop spinning -> re-localise -> deposit as in AUTO -> repeat
+```
+
+* It only digs reversing: the drum can't dig driving forwards. It reverses at `trench.speed` (0.05 m/s), steering back onto the line between the two points.
+* It stops the trench early, raises the bucket and carries on to the berm if something is behind it in the costmap, or after twice the time the trench should take.
+* While it runs, the depth filters don't mark craters within 0.8 m of the trench (`/nav_autonomy/trench_corridor`), or last cycle's trench would block the way back to its start. Boulders there are still marked. Rulebook craters in the corridor are not avoided, which is part of the risk.
+* The trench is `trench.start_xy` -> `trench.end_xy` in `config/nav/nav_autonomy.yaml`: (4.4, 1.5) to (6.9, 1.5), along the south row of dig spots, ending nearest the berm.
+
+### Boulders only
+
+`AUTO_BOULDERS` and `AUTO_TRENCH_BOULDERS` are `AUTO` and `AUTO_TRENCH`, but they avoid only boulders and drive through craters. They are for a layout where craters close every way to the berm with no gap wide enough for the rover. While one runs, nav autonomy sets `/nav_autonomy/ignore_craters` and the depth filters stop marking craters anywhere; craters they remembered before (the 360) come back once it ends. The rover can drop a wheel into a crater, so use them only when the normal modes can't get through.
 
 ### Navigation
 
-* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, the command is refused.
-* Waypoints are map-frame `[x, y, yaw]` values in `config/nav/nav_autonomy.yaml` (`navigation.*`). The dig or dump starts once the rover is within `arrival_radius_m` (0.25 m) and `arrival_yaw_tolerance_rad` (0.3 rad, ~17°) of the waypoint, or when Nav2 reports the goal reached. That small buffer stops it shuffling to correct itself.
+* It needs Nav2 to be running and the rover to be localised from the AprilTag. If Nav2 is not up, or the rover isn't localised (`localisation.*` in the config: a recent tag fix that the global EKF agrees with, and little driving since), the command is refused.
+* Dig and dump spots are lists of map-frame `[x, y, yaw]` candidates in `config/nav/nav_autonomy.yaml` (`navigation.excavation_candidates`, `navigation.deposition_candidates`). Each leg takes the next candidate whose footprint is clear in the global costmap, and switches if it becomes blocked on the way. Dig spots are used in turn; there is one dump spot, on the berm. Dig and dump spots are approached head-on, in any heading: the drum is under the middle of the rover. The dig or dump starts once the rover is within `arrival_radius_m` (0.25 m) of the candidate, or when Nav2 reports the goal reached. That small buffer stops it shuffling to correct itself.
+* In AUTO, after each dig the rover re-localises (state `RELOCALISING`): it turns on the spot until the front camera (or the rear one, within 2.5 m) faces the tag, and waits for 5 fixes and the global EKF agreeing with them before driving to the berm. It is skipped when the tag is more than 4.4 m away or under 20° off its wall (too far for the cameras in the sim), stops turning if the next step would put the footprint on an obstacle, and gives up after 25 s. Settings: `relocalise.*` in `config/nav/nav_autonomy.yaml`.
+* In AUTO, after each dump the rover backs 1 m straight out of the berm, the way it drove in (state `BACKING_OUT`, `deposition.back_out_m`) before heading for the next dig spot, so it has room to turn away from the east wall. It is skipped if the costmap shows something behind it.
 * While navigating, the bucket is held at `travel_lift_position_m` so it does not plough the regolith.
-* A failed goal is retried `max_retries` times. After that, autonomy (including `AUTO`) returns to `IDLE`.
+* Each leg goes via waypoints about `route_waypoint_spacing_m` apart along the widest way round in the global costmap (`nav/route.py`), recomputed every 3 s, rather than straight to Nav2's shortest path that fits. If no way round keeps `route_min_clearance_m` from obstacles, the goal goes straight to Nav2.
+* A failed goal is retried `max_retries` times. Before each retry the rover turns or drives a short way (`unstick_m`) to a pose with nothing lethal under its footprint, and from the first retry to the end of the leg it is in tight mode: the depth filters shrink the margins round obstacles (`grow_*_tight_m` in `qpl_rover/config/depth_obstacle_filter.yaml`, via `/nav_autonomy/tight`) and Nav2 runs at `tight_speed_percent`. A failed leg to a dig spot moves on to the next clear one. After the last retry, autonomy (including `AUTO`) returns to `IDLE`.
 * `STOP` and Ctrl-C cancel the active Nav2 goal; otherwise Nav2 would keep driving it.
 
 All nav autonomy tuning is in `config/nav/nav_autonomy.yaml`, under the node name `nav_autonomy`.

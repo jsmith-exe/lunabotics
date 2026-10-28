@@ -96,14 +96,17 @@ def opaque_generate_launch_description(context):
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
-    # 3. Gate: limits AprilTag fixes to one per 5 s while a Nav2 goal is active,
+    # 3. Gate: limits AprilTag fixes to one per second while a Nav2 goal is active,
     # so map -> odom doesn't keep jumping under the planner. The EKF reads its output.
+    # Not one per 5 s: fixes now carry a covariance that grows with range, so each moves the
+    # EKF only a little, and with so few of them the map pose drifted 0.3 m between the berm
+    # and the dig spots in the sim.
     apriltag_gate = Node(
         package=package_name,
         executable="apriltag_gate",
         name="apriltag_gate",
         output="screen",
-        parameters=[{"use_sim_time": use_sim_time}],
+        parameters=[{"use_sim_time": use_sim_time, "min_period_active": 1.0}],
     )
 
     # 4. Global EKF: Calculates map -> odom

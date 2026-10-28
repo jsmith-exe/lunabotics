@@ -32,6 +32,7 @@ bt_navigator:
       - nav2_distance_traveled_condition_bt_node
       - nav2_single_trigger_bt_node
       - nav2_is_battery_low_condition_bt_node
+      - nav2_is_path_valid_condition_bt_node
       - nav2_navigate_through_poses_action_bt_node
       - nav2_navigate_to_pose_action_bt_node
       - nav2_remove_passed_goals_action_bt_node
@@ -66,11 +67,33 @@ controller_server:
       # TOLERANCE NOTE: If robot oscillates at the goal, increase these slightly.
       xy_goal_tolerance: 0.20 # Tighten slightly if precision is needed, match with DWB
       # 0.20 (~11 deg) kept the skid-steer shuffling on the goal trying to line up; 0.3
-      # (~17 deg) leaves a small buffer. nav_autonomy's arrival_yaw_tolerance_rad matches it.
+      # (~17 deg) leaves a small buffer. nav_autonomy ignores heading, and sends dig/dump
+      # goals facing the way the rover drives in.
       yaw_goal_tolerance: 0.3
 
+    # RotationShim turns on the spot towards the path (and at the end to the goal heading)
+    # and hands over to DWB once lined up. On its own DWB reversed for metres from an
+    # arbitrary start heading (after a 360 in teleop, or the sim spawn facing the tag), and
+    # crept round big heading changes at a few hundredths of a rad/s that the skid-steer
+    # doesn't turn at. It checks the rotation against the local costmap before turning.
     FollowPath:
-      plugin: "dwb_core::DWBLocalPlanner"
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "dwb_core::DWBLocalPlanner"
+      # Turn on the spot when the path 1.0 m ahead is more than ~29 deg off, so the rover faces
+      # where it's about to drive before driving there. The cameras see only +-0.51 rad: arcing
+      # round a bend at speed, the front corner swept ground they hadn't seen and clipped a
+      # boulder just outside the view (sim seed 11). 0.785 / 0.5 m let it arc into gentle bends.
+      angular_dist_threshold: 0.5
+      angular_disengage_threshold: 0.2  # until within ~11 deg, then DWB
+      forward_sampling_distance: 1.0
+      rotate_to_heading_angular_vel: 0.4  # max_vel_theta
+      max_angular_accel: 0.8              # acc_lim_theta
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: true        # final heading turned on the spot, not shuffled to
+      # Ramp from the last command, not the measured rate: the skid-steer doesn't start turning
+      # at the first small step (0.08 rad/s), so closed loop never got past it and the rover
+      # sat still until a recovery spin.
+      closed_loop: false
       debug_trajectory_details: false
 
       ### VELOCITY LIMITS (Slowing it down) ##
@@ -135,14 +158,17 @@ controller_server:
       # them. Contact is still blocked: a footprint touching a lethal cell is rejected
       # outright whatever the scale. Nav2's default for this critic is 0.02.
       ObstacleFootprint.scale: 0.05
-      # 5.0 -> 2.0: when localisation error puts the path over an obstacle, a strong
-      # PathAlign fights ObstacleFootprint and the rover dithers instead of going round.
-      PathAlign.scale: 2.0
+      # Follow the planner's path closely; the goal critics only pull at the end. Smac's lattice
+      # paths already keep the whole footprint clear, but with path and goal weighted equally
+      # DWB cut the corner round a crater towards the goal and clipped it (sim seed 7). PathAlign
+      # stays the lightest, so a path the map pose has put over an obstacle doesn't fight
+      # ObstacleFootprint.
+      PathAlign.scale: 8.0
       PathAlign.forward_point_distance: 0.10
-      GoalAlign.scale: 5.0
+      GoalAlign.scale: 4.0
       GoalAlign.forward_point_distance: 0.10
-      PathDist.scale: 5.0
-      GoalDist.scale: 5.0
+      PathDist.scale: 24.0
+      GoalDist.scale: 4.0
       RotateToGoal.scale: 20.0
       RotateToGoal.slowing_factor: 5.0
       RotateToGoal.lookahead_time: -1.0
@@ -178,6 +204,11 @@ local_costmap:
       height: 6
       resolution: 0.05
       footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
+      # Wheels are the footprint's edges, and skid-steer slips on tight turns, so DWB gets 4 cm of
+      # margin. Not more: obstacles are already grown by 0.12 m (depth_obstacle_filter.yaml), and
+      # the way to the berm can be a ~1.4 m gap; at 0.10 sim seed 7 couldn't get through it.
+      # Local costmap only.
+      footprint_padding: 0.04
       transform_tolerance: 0.5
       always_send_full_costmap: true
 
@@ -270,7 +301,15 @@ global_costmap:
       width: 10
       height: 9
       resolution: 0.05
-      footprint: "[[0.62, 0.48], [0.613, 0.505], [0.595, 0.523], [0.57, 0.53], [-0.57, 0.53], [-0.595, 0.523], [-0.613, 0.505], [-0.62, 0.48], [-0.62, -0.48], [-0.613, -0.505], [-0.595, -0.523], [-0.57, -0.53], [0.57, -0.53], [0.595, -0.523], [0.613, -0.505], [0.62, -0.48]]"
+      # 4 cm in from the real footprint each side (global costmap only; DWB checks the real one
+      # plus padding in the local costmap). Boulder and crater marks are already grown 0.12-0.20 m,
+      # and with the real footprint Smac refused to plan from wherever a corner just overlapped a
+      # grown mark ("Starting point in lethal space", sim seed 5), so the rover never moved off.
+      footprint: "[[0.58, 0.44], [0.573, 0.465], [0.555, 0.483], [0.53, 0.49], [-0.53, 0.49], [-0.555, 0.483], [-0.573, 0.465], [-0.58, 0.44], [-0.58, -0.44], [-0.573, -0.465], [-0.555, -0.483], [-0.53, -0.49], [0.53, -0.49], [0.555, -0.483], [0.573, -0.465], [0.58, -0.44]]"
+      # No footprint_padding: 0.10 (inscribed 0.63 m) was tried so NavFn would keep room to
+      # turn, but obstacle marks are bigger than the obstacles (grown behind boulders, crater
+      # shadows), so it closed a 1.25 m gap the rover drives through and sent it round into a
+      # tight cluster of craters instead, where it stuck (sim seed 7, 3 runs).
       track_unknown_space: true
       transform_tolerance: 0.5
       always_send_full_costmap: true
@@ -325,8 +364,13 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 8.0 # keep in step with local_costmap
-        inflation_radius: 0.60
+        # Wider and softer than the local costmap. The planner treats the rover as a point
+        # and only keeps its centre outside the inscribed radius, so with 0.60 / 8.0 its
+        # shortest paths ran about 7 cm beside obstacles. Cost out to 1.1 m makes paths take
+        # the middle of a gap when there is room. Narrow gaps are still planned through as
+        # long as the footprint fits.
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.1
 
   global_costmap_client:
     ros__parameters:
@@ -342,11 +386,32 @@ planner_server:
     expected_planner_frequency: 5.0
     planner_plugins: ["GridBased"]
 
+    # Smac lattice, not NavFn: NavFn plans the rover's centre point against the inscribed radius,
+    # so it sent it into gaps the 1.06 m-wide footprint couldn't pass or turn in, and it wedged
+    # there between craters and boulders in the sim. The lattice planner checks the whole
+    # footprint at every pose, with diff-drive motion primitives (arcs, straights and turns on the
+    # spot) at the costmap's 5 cm resolution. Needs the global inflation radius (1.1 m) to be past
+    # the footprint's circumscribed radius (0.82 m).
     GridBased:
-      plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.5
-      use_astar: true # Speeds up global path calculations dramatically.
-      allow_unknown: true # Allows planner to route through unmapped/unknown space
+      plugin: "nav2_smac_planner/SmacPlannerLattice"
+      lattice_filepath: "/opt/ros/humble/share/nav2_smac_planner/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json"
+      allow_unknown: true            # the cameras haven't seen everything
+      tolerance: 0.25                # m; if the goal itself is blocked, plan to within this of it
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 2.0         # s; replanned every second by the behaviour tree
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 3.0
+      reverse_penalty: 2.0           # reversing allowed but discouraged
+      change_penalty: 0.05
+      non_straight_penalty: 1.05
+      cost_penalty: 2.0              # stay in the middle of gaps (10 failed to plan often and was no better)
+      rotation_penalty: 5.0          # turns on the spot slip the skid-steer; use them when needed
+      retrospective_penalty: 0.015
+      lookup_table_size: 20.0
+      cache_obstacle_heuristic: false
+      allow_reverse_expansion: true
+      smooth_path: true
 
 planner_server_rclcpp_node:
   ros__parameters:

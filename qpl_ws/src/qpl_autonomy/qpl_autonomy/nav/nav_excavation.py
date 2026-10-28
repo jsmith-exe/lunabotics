@@ -19,6 +19,9 @@ class NavExcavationSequence:
 
     Stands still: spins the drum forward, lowers the bucket into the regolith, holds it there
     for dig_duration_s, raises it again, then stops the drum.
+
+    Started with driven=True (AUTO_TRENCH), the dig step leaves the wheels to the caller, which
+    drives the rover with the bucket down and calls finish_dig() at the end of the trench.
     """
 
     def __init__(
@@ -42,14 +45,21 @@ class NavExcavationSequence:
         self.state = NavExcavationState.COMPLETE
         self.complete = False
         self.dig_start_s = None
+        self.driven = False
 
     """Sequence lifecycle"""
 
-    def start(self):
+    def start(self, driven=False):
         # Start a new excavation sequence
         self.complete = False
         self.state = NavExcavationState.STOP_WHEELS
         self.dig_start_s = None
+        self.driven = driven
+
+    def finish_dig(self):
+        # End a driven dig step: raise the bucket next
+        if self.state == NavExcavationState.DIG:
+            self.state = NavExcavationState.RAISE_BUCKET
 
     def update(self, actuator_positions, now_s):
         # Run one non-blocking update of the FSM
@@ -77,12 +87,13 @@ class NavExcavationSequence:
                 self.state = NavExcavationState.DIG
 
         # 4. Hold the bucket down and keep spinning. Nothing reports when the bucket is full,
-        # so this step is timed.
+        # so this step is timed (or, driven, ended by the caller).
         elif self.state == NavExcavationState.DIG:
-            self.stop_wheels()
+            if not self.driven:
+                self.stop_wheels()
             self.spin_bucket()
             self.command_lift(self.lowered_position_m)
-            if now_s - self.dig_start_s >= self.dig_duration_s:
+            if not self.driven and now_s - self.dig_start_s >= self.dig_duration_s:
                 self.state = NavExcavationState.RAISE_BUCKET
 
         # 5. Raise bucket while still spinning, so it keeps what it collected

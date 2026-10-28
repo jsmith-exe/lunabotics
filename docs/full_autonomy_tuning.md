@@ -12,7 +12,7 @@ Almost every number in the current config was tuned in Gazebo. **Regolith hasn't
 - **Change one thing at a time, and record it** (see [section 15](#15-tuning-log)). Most of these parameters interact.
 - **Record a bag for every test** so results can be re-checked and EKF changes replayed offline (see [section 3](#3-tools-and-ground-truth)).
 - **Ground truth comes from a tape measure, not the rover.** Mark start and end points on the floor. The AprilTag can't be used as ground truth while you're tuning the AprilTag.
-- **Safety:** keep teleop open while testing autonomy. Teleop beats Nav2 in `drive_mux` (priority 100 vs 50), and `qpl_auto_stop` cancels the Nav2 goal. Keep the e-stop in reach.
+- **Safety:** keep teleop open while testing autonomy. Teleop beats Nav2 in `drive_mux` (priority 100 vs 50), and `qpl_full_auto_stop` cancels the Nav2 goal. Keep the e-stop in reach.
 - **Shared values:** `wheel_separation` (and other shared values) are hardcoded in several places on purpose. When you change one, grep for the old value and update every copy: `my_controllers.yaml`, basestation `constants.py` (`TANK_WHEEL_SEPARATION`), and the HUD (`hud_node.py`, `demo.py`, `main.js`).
 
 ---
@@ -302,7 +302,7 @@ Run short goals (2–3 m) in open space, then near walls, then through a gap.
   - Note the comments disagree with the values: the README says 30 s, the yaml has 10 s and 15 s. Check what you're actually running.
 - **Bucket positions:** `travel_lift_position_m` (0.22) has to keep the bucket out of the regolith on uneven ground. `excavation.lowered_position_m` (0.03) sets the dig depth. Both must stay in the actuator range (25–225 mm, `can_config.yaml`), or the sequence waits forever.
 - **Retries:** `goal_timeout_s` (180) and `max_retries` (2). Size the timeout from the measured time for the longest leg plus a margin.
-- **Full-cycle test:** run `qpl_auto` for several cycles. Record the time per cycle, the parking error at each waypoint, the regolith moved, and every recovery and retry.
+- **Full-cycle test:** run `qpl_full_auto` for several cycles. Record the time per cycle, the parking error at each waypoint, the regolith moved, and every recovery and retry.
 
 ---
 

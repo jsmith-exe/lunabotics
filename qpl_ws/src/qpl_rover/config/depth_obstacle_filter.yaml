@@ -17,80 +17,102 @@
 # behind its near rim is marked as well (crater_shadows() in the node).
 # Boulder/crater marks are remembered until seen again as plain floor (at most
 # memory_duration s) so Nav2's raytracing doesn't wipe them once they're too
-# close for the camera to see.
+# close for the camera to see, or out of sight. They are kept in the map frame,
+# so what a 360 in teleop maps before AUTO stays where it is for the whole run.
+#
+# The cameras see only the near face of a boulder, so detections are grown before
+# they are remembered: bumps away from the camera by up to grow_behind_m (rulebook
+# boulders are at most 0.40 m across), and every detection by a grow_radius_m disc.
+#
+# Inside the arena zones in ignore_zones (from qpl_rover/config/arena/<arena>.yaml)
+# nothing lower than ignore_max_height above the floor is marked, so the rover's
+# own dump piles don't block the dump spot (qpl_autonomy nav_autonomy.yaml).
+# The rulebook lets the rover push obstacles aside in the construction zone.
+
+# Shared by both cameras (the launch file passes this file to the two filter nodes only).
+/**:
+  ros__parameters:
+    level_frame: odom
+    base_frame: base_footprint
+    target_width: 160   # pixels across after decimation
+    max_rate: 10.0
+    min_range: 0.30
+    obstacle_max_range: 4.0
+    clearing_max_range: 5.0
+    min_obstacle_height: 0.16
+    height_slope_per_m: 0.035
+    max_obstacle_height: 1.0
+    # local test: boulders and craters
+    local_enabled: true
+    local_max_range: 3.5
+    local_cell: 0.15          # floor estimate grid (m)
+    local_window: 0.6         # floor = median of cells within this (m)
+    local_min_cells: 6        # cells needed for a floor estimate
+    min_bump_height: 0.07
+    min_dip_depth: 0.06
+    local_slope_per_m: 0.01
+    min_cell_points: 2        # flagged points needed in a cell, so lone noisy returns don't mark
+    # 2.0 / 4.0 found no crater past 2.0 m: there a flat floor's rows are already ~0.15 m apart,
+    # so a crater's 0.4 m gap was under 4x. 2.5 / 2.5 marks them out to ~2.4 m (replayed sim
+    # frames: rear camera at 2.0-2.5 m 0/20 -> 12/20, front unchanged). Further out, or a lower
+    # ratio, starts marking the downslopes behind terrain crests near the walls.
+    shadow_max_range: 2.5
+    shadow_min_gap: 0.15
+    shadow_gap_ratio: 2.5     # x the row-to-row range step a flat floor would give
+    shadow_max_gap: 0.7
+    shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
+    shadow_fill_step: 0.05
+    # The foot of a wall reads as a strip of bumps. Boulder/crater detections in clusters longer
+    # than this (rulebook boulders are at most 0.4 m across, craters 0.5 m) are dropped: grown,
+    # remembered and smeared by pose drift, they built a metre-wide strip down the walls.
+    max_detection_extent_m: 0.8
+    memory_cell: 0.05
+    memory_frame: map         # odom drifts; map is corrected by the AprilTag
+    memory_wall_margin_m: 0.25 # wall feet read as bumps; not remembered this close to the walls
+    memory_max_range_m: 3.0   # far detections (the least reliable, and never seen as floor again)
+                              # aren't remembered; a far phantom blocked the dump spot in the sim
+    memory_duration: 600.0    # cap; marks are dropped sooner once seen as plain floor. Long enough
+                              # for a 360 in teleop to still count at the end of a run
+    memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
+    memory_floor_points: 3
+    # Remembered only once flagged in this many frames within memory_confirm_s (per 0.15 m
+    # square): a moment of tilt driving over the terrain makes floor read as a bump in one frame,
+    # and remembered for 10 min those phantoms blocked the open way to the berm in the sim
+    memory_confirm_frames: 3
+    memory_confirm_s: 3.0
+    grow_behind_m: 0.30
+    # Dips (craters) extended towards the camera: the near rim reads as the start of the dip and
+    # was only partly flagged, so with the rover's position spot on its footprint still went
+    # 4 cm over a crater's edge squeezing past it (sim seed 7)
+    grow_near_m: 0.10
+    # Clearance round boulders and craters only (walls aren't grown). Not more: in rulebook
+    # layouts the only way to the berm can be a gap of ~1.4 m, ~0.16 m each side of the rover,
+    # and at 0.20 (with DWB's 0.04) sim seed 7 had no route to the berm at all. The cost
+    # round obstacles keeps the rover in the middle of wider gaps.
+    grow_radius_m: 0.12
+    # Craters get more: their far side is hidden, and in the sim the marks covered only 80-95%
+    # of a crater, so the rover grazed the rest. Boulders' far side is covered by grow_behind_m.
+    grow_crater_radius_m: 0.20
+    # While nav_autonomy is in tight mode (/nav_autonomy/tight, after a failed leg): small discs,
+    # so a gap the full clearance closes (sim seed 7's 1.4 m between a crater and a boulder) opens
+    grow_radius_tight_m: 0.05
+    grow_crater_radius_tight_m: 0.08
+    grow_step_m: 0.05
+    self_filter_x: 0.65
+    self_filter_y: 0.56
+    ignore_enabled: true
+    ignore_zones: ["BERM"]
+    ignore_frame: map
+    ignore_max_height: 0.6
 
 /depth_obstacle_filter_front:
   ros__parameters:
     depth_topic: /depth_camera_front/depth/image_rect_raw   # RealSense; sim relays to the same name
     info_topic: /depth_camera_front/depth/camera_info
     output_namespace: /depth_camera_front
-    level_frame: odom
-    base_frame: base_footprint
-    target_width: 160   # pixels across after decimation
-    max_rate: 10.0
-    min_range: 0.30
-    obstacle_max_range: 4.0
-    clearing_max_range: 5.0
-    min_obstacle_height: 0.16
-    height_slope_per_m: 0.035
-    max_obstacle_height: 1.0
-    # local test: boulders and craters
-    local_enabled: true
-    local_max_range: 3.5
-    local_cell: 0.15          # floor estimate grid (m)
-    local_window: 0.6         # floor = median of cells within this (m)
-    local_min_cells: 6        # cells needed for a floor estimate
-    min_bump_height: 0.07
-    min_dip_depth: 0.06
-    local_slope_per_m: 0.01
-    min_cell_points: 2        # flagged points needed in a cell, so lone noisy returns don't mark
-    shadow_max_range: 2.0     # past this a 6 deg downslope can hide floor too
-    shadow_min_gap: 0.15
-    shadow_gap_ratio: 4.0     # x the row-to-row range step a flat floor would give
-    shadow_max_gap: 0.7
-    shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
-    shadow_fill_step: 0.05
-    memory_cell: 0.05
-    memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
-    memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
-    memory_floor_points: 3
-    self_filter_x: 0.65
-    self_filter_y: 0.56
 
 /depth_obstacle_filter_rear:
   ros__parameters:
     depth_topic: /depth_camera_rear/depth/image_raw         # Orbbec; sim relays to the same name
     info_topic: /depth_camera_rear/depth/camera_info
     output_namespace: /depth_camera_rear
-    level_frame: odom
-    base_frame: base_footprint
-    target_width: 160   # pixels across after decimation
-    max_rate: 10.0
-    min_range: 0.30
-    obstacle_max_range: 4.0
-    clearing_max_range: 5.0
-    min_obstacle_height: 0.16
-    height_slope_per_m: 0.035
-    max_obstacle_height: 1.0
-    # local test: boulders and craters
-    local_enabled: true
-    local_max_range: 3.5
-    local_cell: 0.15          # floor estimate grid (m)
-    local_window: 0.6         # floor = median of cells within this (m)
-    local_min_cells: 6        # cells needed for a floor estimate
-    min_bump_height: 0.07
-    min_dip_depth: 0.06
-    local_slope_per_m: 0.01
-    min_cell_points: 2        # flagged points needed in a cell, so lone noisy returns don't mark
-    shadow_max_range: 2.0     # past this a 6 deg downslope can hide floor too
-    shadow_min_gap: 0.15
-    shadow_gap_ratio: 4.0     # x the row-to-row range step a flat floor would give
-    shadow_max_gap: 0.7
-    shadow_min_depth: 0.02    # far side of the gap must be this far below the local floor
-    shadow_fill_step: 0.05
-    memory_cell: 0.05
-    memory_duration: 60.0     # cap; marks are dropped sooner once seen as plain floor
-    memory_floor_band: 0.03   # a remembered cell seen within this of the floor is forgotten
-    memory_floor_points: 3
-    self_filter_x: 0.65
-    self_filter_y: 0.56
