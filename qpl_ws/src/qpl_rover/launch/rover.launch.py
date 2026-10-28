@@ -93,7 +93,7 @@ def generate_launch_description():
         rsp,
         OpaqueFunction(function=setup_components),
         realsense_launch,
-        # delayed_orbbec_launch,
+        delayed_orbbec_launch,
         front_camera_tf_transform,
         # Child frame is camera_name + base_frame_id from
         # rover_cameras/launch/camera_realsense.launch.py; must change with it or VO/IMU go silent.
