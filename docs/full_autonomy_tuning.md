@@ -234,7 +234,7 @@ The defaults were sized for the sim terrain world (±7 cm hills, ~2° IMU tilt e
 | Marks never clear | `memory_duration`, `memory_floor_band` |
 | Marks drift, or walls appear doubled | Localisation, not this node: `map → odom` jumping, or VO/odom drift |
 
-Keep the front and rear blocks the same unless the two cameras actually behave differently (they're different models: Orbbec at the front, RealSense at the rear).
+Keep the front and rear blocks the same unless the two cameras actually behave differently (they're different models: RealSense at the front, Orbbec at the rear).
 
 ---
 

@@ -30,13 +30,13 @@ Con = ControllerInputs
 GUI = GUIInputs
 
 default_control_map = {
-    Con.DPAD_UP: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
-    Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, 1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
-    Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, 1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
-    Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
-    # Tank drive via joysticksq
-    Con.LEFT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TANK_LEFT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
-    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    Con.DPAD_UP: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    Con.DPAD_DOWN: Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    Con.DPAD_RIGHT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
+    Con.DPAD_LEFT: Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
+    # Tank drive via joysticks
+    Con.LEFT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TANK_LEFT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    Con.RIGHT_JOYSTICK_Y: Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
 
     Con.CIRCLE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
     Con.SQUARE: Command(DRUM_ROTATION_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
@@ -45,19 +45,19 @@ default_control_map = {
     Con.TRIANGLE: Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, DRUM_LIFT_SPEED, metadata=DRUM_LIFT_METADATA),
     Con.CROSS: Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, -DRUM_LIFT_SPEED, metadata=DRUM_LIFT_METADATA),
 
-    's': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'w': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
     'a': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
-    'w': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    's': Command(NAV_TOPIC, MessageOptions.TWIST_LINEAR_X, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
     'd': Command(NAV_TOPIC, MessageOptions.TWIST_ANGULAR_Z, -1, metadata={CmdMeta.IS_STEER_MOTOR_COMMAND: True}),
     'right': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
     'left': Command(DRUM_ROTATION_TOPIC, MessageOptions.FLOAT, -1, metadata={CmdMeta.IS_DRUM_MOTOR_COMMAND: True}),
     'up': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, DRUM_LIFT_SPEED, metadata=DRUM_LIFT_METADATA),
     'down': Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT, -DRUM_LIFT_SPEED, metadata=DRUM_LIFT_METADATA),
     # Tank drive
-    'v': Command(NAV_TOPIC, MessageOptions.TANK_LEFT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
-    'f': Command(NAV_TOPIC, MessageOptions.TANK_LEFT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
-    'n': Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
-    'j': Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'f': Command(NAV_TOPIC, MessageOptions.TANK_LEFT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'v': Command(NAV_TOPIC, MessageOptions.TANK_LEFT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'j': Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
+    'n': Command(NAV_TOPIC, MessageOptions.TANK_RIGHT, -1, metadata={CmdMeta.IS_DRIVE_MOTOR_COMMAND: True}),
 
 
     GUI.DRUM_HEIGHT_SLIDER: Command(DRUM_LIFT_TOPIC, MessageOptions.FLOAT)
