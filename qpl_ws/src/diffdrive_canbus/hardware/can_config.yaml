@@ -2,4 +2,4 @@ drum:
   min_lift_mm: 25
   max_lift_mm: 225
   synchronise_actuators: true
-  max_distance_between_points_metres: 0.04
+  max_distance_between_points_metres: 0.01
