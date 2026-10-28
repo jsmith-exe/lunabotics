@@ -1,4 +1,4 @@
-"""Rear camera (Intel RealSense): driver, teleop stream encoder and IMU relay in one container."""
+"""Front camera (Intel RealSense): driver, teleop stream encoder and IMU relay in one container."""
 import os
 import sys
 from typing import Any, Dict, List, Tuple
@@ -12,7 +12,7 @@ from launch_ros.descriptions import ComposableNode
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # launch_utils.py sits beside this file
 from launch_utils import INTRA_PROCESS, respawning_container, stream_encoder  # noqa: E402
 
-direction = 'rear'  # front or rear
+direction = 'front'  # front or rear
 camera_name = f'depth_camera_{direction}'
 
 
@@ -54,17 +54,17 @@ def generate_launch_description() -> LaunchDescription:
         ]
     )
 
-    rear_camera_tf_transform = Node(
+    front_camera_tf_transform = Node(
         package='tf2_ros', executable='static_transform_publisher',
         arguments=['0','0','0','0','0','0',
-                   'camera_link_rear', 'camera_camera_link_rear'],
+                   'camera_link_front', 'camera_camera_link_front'],
     )
 
     return LaunchDescription([
         use_low_quality_parameter,
         OpaqueFunction(function=get_camera_launch),
         imu_filter,
-        rear_camera_tf_transform,
+        front_camera_tf_transform,
     ])
 
 
@@ -94,7 +94,7 @@ def get_camera_launch(context: LaunchContext) -> List[Action]:
     )
 
     summary = LogInfo(msg=(
-        f'Rear RealSense ({"low" if use_low_quality else "high"} quality): colour '
+        f'Front RealSense ({"low" if use_low_quality else "high"} quality): colour '
         f'{params["rgb_camera.color_profile"]}, depth {params["depth_module.depth_profile"]}, '
         f'topics under /{camera_name}; teleop stream on /{camera_name}/color/teleop_stream/ffmpeg'))
     return [summary, *respawning_container('camera_container', camera_name,
@@ -246,7 +246,7 @@ def get_camera_params(use_low_quality: bool) -> Dict[str, Any]:
         'linear_accel_cov': 0.01,
 
         'initial_reset': True,
-        'base_frame_id': 'camera_link_rear',
+        'base_frame_id': 'camera_link_front',
         
         '.camera.color.image_raw.format': 'jpeg',
         '.camera.color.image_raw.jpeg_quality': 10,
