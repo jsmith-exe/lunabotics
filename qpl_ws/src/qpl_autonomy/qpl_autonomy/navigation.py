@@ -1,23 +1,33 @@
+import time
 from math import cos, sin
 
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
-from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action import FollowPath, NavigateToPose
+from nav_msgs.msg import Path
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 
+# How long to wait for a cancelled goal to report back before sending the next goal anyway
+CANCEL_SETTLE_S = 3.0
+
 
 class Navigation:
-    """Sends Nav2 navigate_to_pose goals without blocking the autonomy node.
+    """Sends Nav2 navigate_to_pose or follow_path goals without blocking the autonomy node.
+
+    Only one goal is active at a time, whichever action it was sent on.
 
     Never waits for Nav2 at startup, so the blind sequences work without it running.
-    Poll `done` / `succeeded` from the node's timer after calling navigate_to().
+    Poll `done` / `succeeded` from the node's timer after calling navigate_to() or
+    follow_path(), and only call them when ready() is true.
     """
 
     def __init__(self, node, goal_timeout_s):
         self.node = node
         self.goal_timeout = Duration(seconds=goal_timeout_s)
         self.client = ActionClient(node, NavigateToPose, "navigate_to_pose")
+        # Controller server directly: follows a given path, no planner or BT
+        self.follow_path_client = ActionClient(node, FollowPath, "follow_path")
 
         self.done = False
         self.succeeded = False
@@ -29,10 +39,57 @@ class Navigation:
         # a cancelled goal's late CANCELED result can't be taken as the new goal's.
         self._generation = 0
 
+        # Generations of cancelled goals that haven't reported a result yet -> give-up time.
+        # A goal sent while Nav2 is still cancelling the last one gets aborted, which used to
+        # count as a second failure.
+        self._unsettled = {}
+
     def is_available(self):
         return self.client.server_is_ready()
 
+    def follow_path_available(self):
+        return self.follow_path_client.server_is_ready()
+
+    def ready(self):
+        """True once every cancelled goal has finished, so a new goal won't race the cancel."""
+        now = time.monotonic()
+        for generation, give_up in list(self._unsettled.items()):
+            if now >= give_up:
+                self.node.get_logger().warning("A cancelled navigation goal never reported back. Carrying on.")
+                del self._unsettled[generation]
+        return not self._unsettled
+
     def navigate_to(self, x, y, yaw):
+        goal = NavigateToPose.Goal()
+        goal.pose = self._map_pose(x, y, yaw, self.node.get_clock().now().to_msg())
+        self._send(self.client, goal)
+
+    def follow_path(self, poses, controller_id, goal_checker_id):
+        # poses: map-frame (x, y, yaw) list, dense enough for the controller to track
+        stamp = self.node.get_clock().now().to_msg()
+        path = Path()
+        path.header.frame_id = "map"
+        path.header.stamp = stamp
+        path.poses = [self._map_pose(x, y, yaw, stamp) for x, y, yaw in poses]
+
+        goal = FollowPath.Goal()
+        goal.path = path
+        goal.controller_id = controller_id
+        goal.goal_checker_id = goal_checker_id
+        self._send(self.follow_path_client, goal)
+
+    @staticmethod
+    def _map_pose(x, y, yaw, stamp):
+        pose = PoseStamped()
+        pose.header.frame_id = "map"
+        pose.header.stamp = stamp
+        pose.pose.position.x = float(x)
+        pose.pose.position.y = float(y)
+        pose.pose.orientation.z = sin(yaw / 2.0)
+        pose.pose.orientation.w = cos(yaw / 2.0)
+        return pose
+
+    def _send(self, client, goal):
         self._generation += 1
         generation = self._generation
         self.done = False
@@ -41,17 +98,7 @@ class Navigation:
         self._goal_handle = None
         self._deadline = self.node.get_clock().now() + self.goal_timeout
 
-        pose = PoseStamped()
-        pose.header.frame_id = "map"
-        pose.header.stamp = self.node.get_clock().now().to_msg()
-        pose.pose.position.x = float(x)
-        pose.pose.position.y = float(y)
-        pose.pose.orientation.z = sin(yaw / 2.0)
-        pose.pose.orientation.w = cos(yaw / 2.0)
-
-        goal = NavigateToPose.Goal()
-        goal.pose = pose
-        future = self.client.send_goal_async(goal)
+        future = client.send_goal_async(goal)
         future.add_done_callback(lambda f: self._goal_response(f, generation))
 
     def update(self):
@@ -59,22 +106,26 @@ class Navigation:
         if self._active and self.node.get_clock().now() >= self._deadline:
             self.node.get_logger().warning("Navigation goal timed out. Cancelling.")
             self._finish(False)
-            self._cancel()
+            self._cancel(self._generation)
 
     def cancel(self):
         # Cancel any active goal; safe to call when nothing is running
         was_active = self._active
+        generation = self._generation
         self._generation += 1
         self._active = False
         if was_active:
-            self._cancel()
+            self._cancel(generation)
 
     def _goal_response(self, future, generation):
         handle = future.result()
-        if generation != self._generation:
-            # Goal was cancelled before Nav2 accepted it
+        if generation != self._generation or not self._active:
+            # Cancelled or timed out before Nav2 answered: stop it, and stay not-ready until it has
             if handle.accepted:
                 handle.cancel_goal_async()
+                handle.get_result_async().add_done_callback(lambda f: self._result(f, generation))
+            else:
+                self._unsettled.pop(generation, None)
             return
 
         if not handle.accepted:
@@ -86,6 +137,7 @@ class Navigation:
         handle.get_result_async().add_done_callback(lambda f: self._result(f, generation))
 
     def _result(self, future, generation):
+        self._unsettled.pop(generation, None)
         if generation != self._generation or not self._active:
             return
         status = future.result().status
@@ -98,6 +150,9 @@ class Navigation:
         self.succeeded = succeeded
         self.done = True
 
-    def _cancel(self):
+    def _cancel(self, generation):
+        # Not ready() until this goal reports back. With no handle yet, _goal_response
+        # cancels it when Nav2 answers.
+        self._unsettled[generation] = time.monotonic() + CANCEL_SETTLE_S
         if self._goal_handle is not None:
             self._goal_handle.cancel_goal_async()

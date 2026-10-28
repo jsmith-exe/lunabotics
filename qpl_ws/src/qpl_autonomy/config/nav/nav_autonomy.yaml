@@ -42,3 +42,14 @@ nav_autonomy:
     # yaw_goal_tolerance in qpl_rover/config/nav_params.yaml.
     navigation.arrival_radius_m: 0.25
     navigation.arrival_yaw_tolerance_rad: 0.3 # ~17 deg
+
+    # BREADCRUMB / RECORDER MODE (RECORD_START / RECORD_WAYPOINT / RECORD_END, FOLLOW_TO_*)
+    # Following uses Nav2's FollowBreadcrumbs controller (qpl_rover/config/nav_params.yaml),
+    # which has NO obstacle avoidance: the recorded route is trusted as clear. It reuses
+    # goal_timeout_s, max_retries, travel_lift_position_m and the arrival tolerances above.
+    breadcrumb.file: "~/.ros/qpl_breadcrumb_path.yaml" # Saved on RECORD_END, loaded at startup
+    breadcrumb.min_spacing_m: 0.3 # Waypoints closer than this to the previous one are skipped
+    breadcrumb.path_spacing_m: 0.05 # Spacing of the dense path sent to the controller
+    breadcrumb.max_pose_age_s: 0.5 # Refuse to record/follow if /odometry/global is older than this
+    breadcrumb.controller_id: "FollowBreadcrumbs"
+    breadcrumb.goal_checker_id: "goal_checker"

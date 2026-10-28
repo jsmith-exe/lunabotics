@@ -1,6 +1,11 @@
 // Tactical map: top-down arena with zones, global costmap, Nav2 plan, rover
-// footprint, trail and the berm bearing. World units are metres in the map
-// frame (x right, y up before rotation).
+// footprint, trail, the berm bearing and the recorder-mode breadcrumb path.
+// World units are metres in the map frame (x right, y up before rotation).
+//
+// Breadcrumbs can be edited here: drag one to move it, right-click to delete
+// it. The whole ordered list goes to nav_autonomy (POST /breadcrumbs), and the
+// map always redraws from the path nav_autonomy publishes back, so an edit it
+// refuses (e.g. while following) snaps back.
 
 import { C, FONT_LABEL, FONT_MONO, Surface, clamp, deg, isNum, glow, noGlow, label, boxLabel, cross, prefs } from "./util.js";
 
@@ -14,6 +19,8 @@ const DRAW_ORDER = ["EXCAVATION", "START", "CONSTRUCTION", "BERM"];
 const TRAIL_MAX = 1500;
 const TRAIL_STEP = 0.03; // m between stored trail points
 const FOOT_H = 30;       // px reserved for the readout bar
+const CRUMB_R = 8;       // px breadcrumb marker radius
+const CRUMB_HIT = 12;    // px pick radius for dragging / deleting
 
 export class TacticalMap {
   /** costmap: ServerToggle for the costmap layer (off drops the subscription). */
@@ -30,6 +37,8 @@ export class TacticalMap {
     this.costImg = null;
     this.cost = null;
     this.hatch = {};
+    this.crumbs = null;     // {frame, pts: [[x, y, yaw], ...]} as nav_autonomy last published it
+    this.crumbDrag = null;  // {i, pts, moved} while a breadcrumb is being dragged
     this.surface = new Surface(canvas, (ctx, w, h) => this.draw(ctx, w, h));
     this.bindInput();
     this.syncButtons();
@@ -48,6 +57,39 @@ export class TacticalMap {
       this.cost = c;
     };
     img.src = "data:image/png;base64," + c.png;
+  }
+
+  onBreadcrumbs(b) {
+    this.crumbs = b;
+  }
+
+  /** Ordered list to edit: the one being dragged, else the published one. */
+  crumbPts() {
+    return this.crumbDrag?.pts ?? this.crumbs?.pts ?? [];
+  }
+
+  /** Index of the breadcrumb under a screen point, or -1. Topmost (last drawn) wins. */
+  hitCrumb(px, py) {
+    if (!this.T || !this.crumbs || this.crumbs.frame !== this.S.derived.frame) return -1;
+    const pts = this.crumbPts();
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const [sx, sy] = this.toScreen(pts[i][0], pts[i][1]);
+      if (Math.hypot(sx - px, sy - py) <= CRUMB_HIT) return i;
+    }
+    return -1;
+  }
+
+  async sendCrumbs(pts) {
+    try {
+      const r = await fetch("/breadcrumbs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pts }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+    } catch (e) {
+      console.error("breadcrumb edit failed", e);
+    }
   }
 
   onTele() {
@@ -161,13 +203,41 @@ export class TacticalMap {
       }
     }, { passive: false });
     let drag = null;
+    cv.addEventListener("contextmenu", (e) => {
+      // Right-click a breadcrumb: delete it, keeping the others in order
+      const i = this.hitCrumb(e.offsetX, e.offsetY);
+      if (i < 0) return;
+      e.preventDefault();
+      const pts = this.crumbPts().filter((_, j) => j !== i);
+      this.crumbs = { ...this.crumbs, pts }; // show it now; nav_autonomy's republish confirms it
+      this.sendCrumbs(pts);
+    });
     cv.addEventListener("pointerdown", (e) => {
+      const i = this.hitCrumb(e.offsetX, e.offsetY);
+      if (i >= 0) {
+        if (e.button !== 0) return; // right button: contextmenu deletes
+        this.crumbDrag = { i, pts: this.crumbPts().map((p) => [...p]), moved: false };
+        cv.setPointerCapture(e.pointerId);
+        cv.classList.add("drag");
+        return;
+      }
       drag = { x: e.offsetX, y: e.offsetY, c: this.viewCenter() };
       cv.setPointerCapture(e.pointerId);
       cv.classList.add("drag");
     });
     cv.addEventListener("pointermove", (e) => {
-      if (!drag) return;
+      if (this.crumbDrag) {
+        const [x, y] = this.toWorld(e.offsetX, e.offsetY);
+        const p = this.crumbDrag.pts[this.crumbDrag.i];
+        p[0] = x;
+        p[1] = y;
+        this.crumbDrag.moved = true;
+        return;
+      }
+      if (!drag) {
+        cv.classList.toggle("over-crumb", this.hitCrumb(e.offsetX, e.offsetY) >= 0);
+        return;
+      }
       const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y;
       if (Math.hypot(dx, dy) < 3) return;
       if (this.follow) {
@@ -181,6 +251,14 @@ export class TacticalMap {
       this.center = [drag.c[0] - (d * dx - c * dy) / det, drag.c[1] - (-b * dx + a * dy) / det];
     });
     const end = () => {
+      if (this.crumbDrag) {
+        const { pts, moved } = this.crumbDrag;
+        this.crumbDrag = null;
+        if (moved) {
+          this.crumbs = { ...this.crumbs, pts }; // show it now; nav_autonomy's republish confirms it
+          this.sendCrumbs(pts);
+        }
+      }
       drag = null;
       cv.classList.remove("drag");
     };
@@ -268,6 +346,8 @@ export class TacticalMap {
     if (inMap && d.pose) this.drawBermBearing(ctx, d.pose);
     if (S.tele?.tag && S.tele.tag.age < 4 && inMap) this.drawTagFix(ctx, S.tele.tag);
     if (d.pose && isNum(d.pose.yaw)) this.drawRover(ctx, d.pose);
+    // On top of the rover so a breadcrumb under it can still be grabbed
+    if (this.crumbs && this.crumbs.frame === d.frame) this.drawCrumbs(ctx, this.crumbPts());
     this.drawScale(ctx, w, h);
 
     if (!d.pose) {
@@ -417,6 +497,37 @@ export class TacticalMap {
     cross(ctx, ex, ey, 11);
     ctx.stroke();
     label(ctx, "GOAL", ex + 10, ey - 8, { size: 10, color: C.cyan });
+  }
+
+  drawCrumbs(ctx, pts) {
+    if (!pts.length) return;
+    // Path in order, start (excavation end) to finish (deposition end)
+    ctx.strokeStyle = C.green;
+    ctx.lineWidth = 2.5;
+    glow(ctx, C.green, 8);
+    ctx.beginPath();
+    pts.forEach((p, i) => (i ? ctx.lineTo(...this.toScreen(p[0], p[1])) : ctx.moveTo(...this.toScreen(p[0], p[1]))));
+    ctx.stroke();
+    noGlow(ctx);
+    const dragged = this.crumbDrag?.i;
+    pts.forEach((p, i) => {
+      const [sx, sy] = this.toScreen(p[0], p[1]);
+      const end = i === 0 || i === pts.length - 1;
+      ctx.beginPath();
+      ctx.arc(sx, sy, end ? CRUMB_R + 2 : CRUMB_R, 0, Math.PI * 2);
+      ctx.fillStyle = i === dragged ? "rgba(61,255,122,0.55)" : "rgba(0,0,0,0.85)";
+      ctx.fill();
+      ctx.strokeStyle = C.green;
+      ctx.lineWidth = end ? 2.5 : 1.8;
+      ctx.stroke();
+      label(ctx, String(i + 1), sx, sy + 3.5, { size: 10, color: C.green, align: "center", font: FONT_MONO });
+    });
+    const [fx, fy] = this.toScreen(pts[0][0], pts[0][1]);
+    label(ctx, "PATH START", fx + 14, fy - 10, { size: 9, color: C.green });
+    if (pts.length > 1) {
+      const [lx, ly] = this.toScreen(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+      label(ctx, "PATH END", lx + 14, ly - 10, { size: 9, color: C.green });
+    }
   }
 
   drawTrail(ctx) {

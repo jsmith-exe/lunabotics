@@ -50,7 +50,9 @@ controller_server:
     failure_tolerance: 0.3 # Default is 0.5. Lower means faster recovery trigger.
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["goal_checker"]
-    controller_plugins: ["FollowPath"]
+    # FollowBreadcrumbs is only used by nav_autonomy's recorder mode (FOLLOW_TO_*). The BT asks
+    # for controller_id="FollowPath" explicitly, so normal navigation never uses it.
+    controller_plugins: ["FollowPath", "FollowBreadcrumbs"]
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
@@ -152,6 +154,48 @@ controller_server:
       Oscillation.oscillation_reset_dist: 0.05
       Oscillation.oscillation_reset_angle: 0.2
       Oscillation.oscillation_reset_time: 3.0
+
+    # Recorder mode: tracks a breadcrumb path the operator drove, sent straight to the
+    # controller server by nav_autonomy (no planner, no BT). NO OBSTACLE AVOIDANCE on purpose:
+    # the recorded route is trusted as clear, so this works even when the depth cameras or
+    # obstacle filter aren't.
+    # Speeds match the basestation teleop throttle (Drive 0.4, Steer 0.4), which publishes
+    # throttle x 1 straight to /cmd_vel_teleop, so the throttle values are m/s and rad/s.
+    FollowBreadcrumbs:
+      plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      desired_linear_vel: 0.4 # Teleop Drive Throttle 0.4
+      # Short, so it stays on the line the operator drove. With no obstacle avoidance any
+      # corner cutting is unchecked: at 0.6 m it cut a corner breadcrumb next to the wall
+      # and drove the nose into the wall.
+      lookahead_dist: 0.3
+      min_lookahead_dist: 0.25
+      max_lookahead_dist: 0.45
+      lookahead_time: 1.5
+      use_velocity_scaled_lookahead_dist: false
+      transform_tolerance: 0.5
+      # 0.05 stalled the skid-steer short of the goal; it needs ~0.1 m/s to keep moving
+      min_approach_linear_velocity: 0.10
+      approach_velocity_scaling_dist: 0.4
+      use_collision_detection: false # Never stop for obstacles
+      use_regulated_linear_velocity_scaling: true # Slow down on tight turns
+      use_cost_regulated_linear_velocity_scaling: false # Ignore costmap cost
+      regulated_linear_scaling_min_radius: 0.9
+      regulated_linear_scaling_min_speed: 0.12
+      # Turn in place toward the path and the final heading, like the skid-steer prefers
+      use_rotate_to_heading: true
+      # Teleop Steer Throttle 0.4. Only caps turning in place; while driving, RPP turns at
+      # speed x path curvature, which regulated scaling limits to about
+      # desired_linear_vel / regulated_linear_scaling_min_radius (~0.44 rad/s) on tight curves.
+      rotate_to_heading_angular_vel: 0.4
+      rotate_to_heading_min_angle: 0.6
+      # High on purpose. RPP ramps from the *measured* turn rate, so at 0.8 it asked for only
+      # 0.08 rad/s from standstill, too little for the skid-steer to break traction; odom stayed
+      # at 0 and it never ramped up. The velocity_smoother (open loop, 2.0 rad/s^2) still
+      # limits the real acceleration.
+      max_angular_accel: 4.0
+      allow_reversing: false # Must be false with use_rotate_to_heading
+      max_robot_pose_search_dist: 3.0
+      use_interpolation: true
 
 # OBSTACLE NOTE (both costmaps):
 # The depth clouds go through depth_obstacle_filter first (config/depth_obstacle_filter.yaml),

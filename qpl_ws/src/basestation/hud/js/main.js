@@ -88,6 +88,7 @@ function connect() {
   });
   on("costmap", (c) => map.onCostmap(c));
   on("plan", (p) => (S.plan = p));
+  on("breadcrumbs", (b) => map.onBreadcrumbs(b));
   on("log", onLog);
 }
 

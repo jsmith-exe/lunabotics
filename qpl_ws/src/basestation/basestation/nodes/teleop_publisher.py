@@ -66,7 +66,8 @@ class TeleopPublisher(Node):
 
     def publish_nav_autonomy_command(self, command: str) -> None:
         """
-        Sends a command (NAV_EXCAVATE, NAV_DEPOSIT, AUTO, STOP) to the Nav2 autonomy node, which qpl_nav starts.
+        Sends a command (NAV_EXCAVATE, NAV_DEPOSIT, AUTO, RECORD_START, RECORD_WAYPOINT, RECORD_END,
+        FOLLOW_TO_DEPOSIT, FOLLOW_TO_EXCAVATE, STOP) to the Nav2 autonomy node, which qpl_nav starts.
         Not gated on teleop being enabled, for the same reason as publish_autonomy_command.
         """
         self.nav_autonomy_command_publisher.publish(String(data=command))
