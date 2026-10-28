@@ -10,6 +10,7 @@ MODE_EXECUTABLES = {
     "odom": "autonomy_node",
     "localised": "localised_autonomy_node",
     "timed": "timed_autonomy_node",
+    "stationary": "stationary_autonomy_node",
 }
 
 def generate_launch_description():
@@ -32,7 +33,7 @@ def generate_launch_description():
             "mode",
             default_value="odom",
             choices=list(MODE_EXECUTABLES),
-            description="How drive stages are measured: odom (drivetrain odometry), localised (map -> base_footprint) or timed",
+            description="How drive stages are measured: odom (drivetrain odometry), localised (map -> base_footprint), timed, or stationary (timed, without moving while excavating)",
         ),
 
         Node(

@@ -11,7 +11,7 @@ autonomy:
     # wheels
     excavation.drive_speed: -0.1
     excavation.drive_distance_m: 0.5
-    excavation.drive_duration_s: 20.0 # timed_autonomy_node only, replaces drive_distance_m, includes pauses
+    excavation.drive_duration_s: 20.0 # timed and stationary nodes only (stationary: how long to dig), replaces drive_distance_m, includes pauses
     excavation.pulse_drive_s: 0.3 # Drive for this long...
     excavation.pulse_delay_s: 4.0 # ...then stop for this long so the drum can clear regolith. 0 drives continuously
 
