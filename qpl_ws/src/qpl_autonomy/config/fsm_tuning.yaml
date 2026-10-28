@@ -29,7 +29,7 @@ autonomy:
     # wheels
     deposition.drive_to_zone_speed: 0.2
     deposition.drive_to_zone_distance_m: 1.0
-    deposition.drive_to_zone_duration_s: 5.0 # timed_autonomy_node only, replaces drive_to_zone_distance_m
+    deposition.drive_to_zone_duration_s: 10.0 # timed_autonomy_node only, replaces drive_to_zone_distance_m
     deposition.deposit_drive_speed: 0.0
     deposition.deposit_drive_distance_m: 1.0
     deposition.deposit_drive_duration_s: 20.0 # timed_autonomy_node only, replaces deposit_drive_distance_m
