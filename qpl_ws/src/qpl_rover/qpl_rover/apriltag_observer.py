@@ -53,7 +53,6 @@ class AprilTagObserver(Node):
         self.arena_width = arena_config['width']
         self.arena_length = arena_config['length']
         self.buffer = arena_config['buffer']
-        self.z_limit = arena_config['z_limit']
 
         self.x_min = -self.buffer
         self.x_max = self.arena_width + self.buffer
@@ -279,10 +278,9 @@ class AprilTagObserver(Node):
             # Boundary Check
             in_x = self.x_min <= pos[0] <= self.x_max
             in_y = self.y_min <= pos[1] <= self.y_max
-            in_z = abs(pos[2]) <= self.z_limit
 
-            if not (in_x and in_y and in_z):
-                self.get_logger().warn(f"Ghost Rejected at X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}; in_x={in_x}, in_y={in_y}, in_z={in_z}")
+            if not (in_x and in_y):
+                self.get_logger().warn(f"Ghost Rejected at X:{pos[0]:.2f} Y:{pos[1]:.2f} Z:{pos[2]:.2f}; in_x={in_x}, in_y={in_y}")
                 continue
 
             # If we passed the fence, publish to EKF
