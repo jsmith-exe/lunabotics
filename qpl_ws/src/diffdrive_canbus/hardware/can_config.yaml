@@ -2,4 +2,6 @@ drum:
   min_lift_mm: 25
   max_lift_mm: 225
   synchronise_actuators: true
-  max_distance_between_points_metres: 0.005
+  # Checkpoint spacing for synchronised actuators; smaller is slower.
+  max_distance_between_points_down_metres: 0.005
+  max_distance_between_points_up_metres: 0.04

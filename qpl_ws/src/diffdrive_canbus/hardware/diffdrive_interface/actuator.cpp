@@ -134,7 +134,8 @@ namespace diffdrive_canbus {
 
 
 
-  double SynchronisedActuator::max_distance_between_points_metres;
+  double SynchronisedActuator::max_distance_between_points_down_metres;
+  double SynchronisedActuator::max_distance_between_points_up_metres;
 
   void SynchronisedActuator::write()
   {
@@ -147,7 +148,11 @@ namespace diffdrive_canbus {
     }
 
     if (prev_commanded_pos_ != commanded_pos_) {
-      checkpoints_ = generate_resync_points(position_, commanded_pos_, max_distance_between_points_metres);
+      // Lower slowly with closely spaced checkpoints, raise quickly with widely spaced ones.
+      const double max_distance = (commanded_pos_ > position_)
+        ? max_distance_between_points_up_metres
+        : max_distance_between_points_down_metres;
+      checkpoints_ = generate_resync_points(position_, commanded_pos_, max_distance);
       checkpoint_index_ = 0;
       prev_commanded_pos_ = commanded_pos_;
     }

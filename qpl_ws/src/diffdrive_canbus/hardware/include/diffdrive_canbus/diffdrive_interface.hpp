@@ -150,7 +150,8 @@ namespace diffdrive_canbus {
 
     void write() override;
 
-    static double max_distance_between_points_metres;
+    static double max_distance_between_points_down_metres;
+    static double max_distance_between_points_up_metres;
 
   protected:
     bool is_dominant_actuator{false};

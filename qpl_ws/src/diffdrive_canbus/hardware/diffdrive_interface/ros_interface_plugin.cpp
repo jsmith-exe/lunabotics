@@ -198,7 +198,8 @@ private:
     YAML::Node config = YAML::LoadFile(CONFIG_FILE_PATH);
     Actuator::min_lift_mm = config["drum"]["min_lift_mm"].as<double>();
     Actuator::max_lift_mm = config["drum"]["max_lift_mm"].as<double>();
-    SynchronisedActuator::max_distance_between_points_metres = config["drum"]["max_distance_between_points_metres"].as<double>();
+    SynchronisedActuator::max_distance_between_points_down_metres = config["drum"]["max_distance_between_points_down_metres"].as<double>();
+    SynchronisedActuator::max_distance_between_points_up_metres = config["drum"]["max_distance_between_points_up_metres"].as<double>();
     synchronise_actuators_ = config["drum"]["synchronise_actuators"].as<bool>(true);
   }
 
