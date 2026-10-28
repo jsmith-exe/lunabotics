@@ -185,8 +185,8 @@ The arena selected in `config/arena/selector.yaml` is used by the localisation s
 Obstacles and walls come only from the two depth cameras. `launch/components/navigation_launch.py` starts one `depth_obstacle_filter` per camera alongside Nav2:
 
 ```text
-/depth_camera_front/depth/image_raw + camera_info       (Orbbec)
-/depth_camera_rear/depth/image_rect_raw + camera_info   (RealSense)
+/depth_camera_front/depth/image_rect_raw + camera_info  (RealSense)
+/depth_camera_rear/depth/image_raw + camera_info        (Orbbec)
   -> depth_obstacle_filter_<front|rear>
   -> /depth_camera_<front|rear>/obstacles   (Nav2 marking)
      /depth_camera_<front|rear>/clearing    (Nav2 clearing, includes floor hits)

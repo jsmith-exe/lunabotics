@@ -31,16 +31,16 @@ CAMERAS: Dict[str, Dict[str, Any]] = {
     'front': {
         'camera_name': 'depth_camera_front',
         'frame_id': 'camera_link_front',
-        'high': (1280, 720, 30.0),
-        'low': (640, 480, 30.0),
-        'camera_info_url': f'file://{CALIBRATION_FOLDER}/front_calib_1280_cam_info.yaml',
+        'high': (1280, 800, 30.0),   # RealSense colour tops out here
+        'low': (424, 240, 15.0),
+        'camera_info_url': '',       # no front calibration on disk; node synthesises one
     },
     'rear': {
         'camera_name': 'depth_camera_rear',
         'frame_id': 'camera_link_rear',
-        'high': (1280, 800, 30.0),   # RealSense colour tops out here
-        'low': (424, 240, 15.0),
-        'camera_info_url': '',       # no rear calibration on disk; node synthesises one
+        'high': (1280, 720, 30.0),
+        'low': (640, 480, 30.0),
+        'camera_info_url': f'file://{CALIBRATION_FOLDER}/rear_calib_1280_cam_info.yaml',
     },
 }
 
