@@ -109,6 +109,11 @@ ament_export_dependencies(
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+
+  # Runs on vcan0 only; never touches can0. See test/run_can_tests.sh.
+  ament_add_gtest(test_can_fixes test/test_can_fixes.cpp)
+  target_link_libraries(test_can_fixes diffdrive_canbus)
+  ament_target_dependencies(test_can_fixes ${THIS_PACKAGE_INCLUDE_DEPENDS})
 endif()
 
 ament_package()

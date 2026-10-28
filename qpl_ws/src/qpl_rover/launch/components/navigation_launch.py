@@ -85,7 +85,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'nav_autonomy',
             default_value='true',
-            description='Also start the Nav2 autonomy node (idle until a basestation button or qpl_auto)'
+            description='Also start the Nav2 autonomy node (idle until a basestation button or qpl_full_auto)'
         ),
 
         Node(

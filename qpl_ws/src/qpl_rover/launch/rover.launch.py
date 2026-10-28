@@ -59,7 +59,7 @@ def generate_launch_description():
     use_low_quality_parameter = DeclareLaunchArgument(
         'use_low_quality',
         default_value='false',
-        description='Run the cameras at low resolution (front 640x480, rear 424x240x15) if the Jetson can\'t keep up.'
+        description='Run the cameras at low resolution (front 424x240x15, rear 640x480) if the Jetson can\'t keep up.'
     )
 
     # Cameras
@@ -70,20 +70,20 @@ def generate_launch_description():
     orbbec_launch = IncludeLaunchDescription(orbbec_launch_path_source, launch_arguments={"use_low_quality": use_low_quality}.items())
     delayed_orbbec_launch = TimerAction(period=20.0, actions=[orbbec_launch])
 
-    front_camera_tf_transform = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        arguments=['0','0','0', '0','0','0',
-                'camera_link_front',
-                'depth_camera_front_link'],
-    )
-
     rear_camera_tf_transform = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         arguments=['0','0','0', '0','0','0',
                 'camera_link_rear',
-                'camera_camera_link_rear'],
+                'depth_camera_rear_link'],
+    )
+
+    front_camera_tf_transform = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0','0','0', '0','0','0',
+                'camera_link_front',
+                'camera_camera_link_front'],
     )
 
     return LaunchDescription([
@@ -94,8 +94,8 @@ def generate_launch_description():
         OpaqueFunction(function=setup_components),
         realsense_launch,
         delayed_orbbec_launch,
-        front_camera_tf_transform,
+        rear_camera_tf_transform,
         # Child frame is camera_name + base_frame_id from
         # rover_cameras/launch/camera_realsense.launch.py; must change with it or VO/IMU go silent.
-        rear_camera_tf_transform,
+        front_camera_tf_transform,
     ])

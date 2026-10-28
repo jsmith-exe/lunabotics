@@ -357,11 +357,11 @@ Commands are `std_msgs/msg/String` on `/nav_autonomy/command`:
 | -------------- | -------------------------- | ------------------ | ------------------------------------------------------------------- |
 | `NAV_EXCAVATE` | Nav Excavate               | `qpl_nav_excavate` | Drive to the excavation waypoint with Nav2, then excavate           |
 | `NAV_DEPOSIT`  | Nav Deposit                | `qpl_nav_deposit`  | Drive to the deposition waypoint with Nav2, then deposit            |
-| `AUTO`         | Full Autonomy (Low Risk)   | `qpl_auto`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP` |
-| `AUTO_TRENCH`  | High Risk (Trench)         | `qpl_auto_trench`  | Full autonomy digging one fixed trench every cycle (see below)      |
-| `AUTO_BOULDERS` | Full Autonomy (Boulders Only) | `qpl_auto_boulders` | `AUTO`, avoiding boulders only (see below)                      |
-| `AUTO_TRENCH_BOULDERS` | High Risk (Boulders Only) | `qpl_auto_trench_boulders` | `AUTO_TRENCH`, avoiding boulders only (see below)      |
-| `STOP`         | Stop                       | `qpl_auto_stop`    | Cancel the Nav2 goal or active sequence and return to `IDLE`        |
+| `AUTO`         | Full Autonomy (Low Risk)   | `qpl_full_auto`         | Full autonomy: repeat `NAV_EXCAVATE` then `NAV_DEPOSIT` until `STOP` |
+| `AUTO_TRENCH`  | High Risk (Trench)         | `qpl_full_auto_trench`  | Full autonomy digging one fixed trench every cycle (see below)      |
+| `AUTO_BOULDERS` | Full Autonomy (Boulders Only) | `qpl_full_auto_boulders` | `AUTO`, avoiding boulders only (see below)                      |
+| `AUTO_TRENCH_BOULDERS` | High Risk (Boulders Only) | `qpl_full_auto_trench_boulders` | `AUTO_TRENCH`, avoiding boulders only (see below)      |
+| `STOP`         | Stop                       | `qpl_full_auto_stop`    | Cancel the Nav2 goal or active sequence and return to `IDLE`        |
 
 The buttons are in the basestation's **Nav Autonomy** section. Like the blind autonomy buttons, they only work while teleop is disabled, because teleop has priority over Nav2 in the drive mux. Either Stop button in the basestation stops both autonomy nodes.
 

@@ -522,7 +522,7 @@ class DepthObstacleFilter(Node):
     def __init__(self):
         super().__init__('depth_obstacle_filter')
 
-        self.depth_topic = self.declare_parameter('depth_topic', '/depth_camera_front/depth/image_raw').value
+        self.depth_topic = self.declare_parameter('depth_topic', '/depth_camera_front/depth/image_rect_raw').value
         self.info_topic = self.declare_parameter('info_topic', '/depth_camera_front/depth/camera_info').value
         self.output_namespace = self.declare_parameter('output_namespace', '/depth_camera_front').value
         self.level_frame = self.declare_parameter('level_frame', 'odom').value

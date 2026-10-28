@@ -2,7 +2,6 @@ arena:
   width: 4.4
   length: 7.9
   buffer: 0.20
-  z_limit: 0.50
 
   apriltag: # map -> tag_0 transform used by localisation
     position: [ 0.02, 0.25, 0.25 ]

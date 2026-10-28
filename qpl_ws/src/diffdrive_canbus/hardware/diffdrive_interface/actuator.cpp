@@ -39,7 +39,8 @@ namespace diffdrive_canbus {
 
   void Actuator::configure() {
     CANDevice::configure();
-    set_status_period(2, STATUS3_PERIOD_MS);
+    set_status_period(2, ACTUATOR_STATUS2_PERIOD_MS);
+    set_status_period(4, UNUSED_STATUS_PERIOD_MS);
   }
 
   void Actuator::write() {
@@ -50,6 +51,17 @@ namespace diffdrive_canbus {
   {
     // Wait for feedback first. This is to prevent restarted motor controllers from retracting actuators
     if (!received_position_) return;
+
+    // Periodically resend whichever command is current, in case the last one was lost on the bus.
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_resend_time_ >= ACTUATOR_RESEND_PERIOD) {
+      last_resend_time_ = now;
+      if (stop_sent_) {
+        stop_sent_ = false;
+      } else {
+        resend_setpoint_ = true;
+      }
+    }
 
     // Stop moving if 0 sent
     if (setpoint_m == 0.0) {
@@ -62,10 +74,12 @@ namespace diffdrive_canbus {
 
     // Only send position command if new position sent, to reduce bandwidth use.
     if (resend_setpoint_ || target_mm != prev_target_mm_) {
-      set_position(static_cast<float>(target_mm + ACTUATOR_SETPOINT_OFFSET_MM));
-      stop_sent_ = false;
-      resend_setpoint_ = false;
-      prev_target_mm_ = target_mm;
+      // On failure the flags stay set, so the setpoint is retried next write.
+      if (set_position(static_cast<float>(target_mm + ACTUATOR_SETPOINT_OFFSET_MM))) {
+        stop_sent_ = false;
+        resend_setpoint_ = false;
+        prev_target_mm_ = target_mm;
+      }
     }
     // If the actuator has reached the commanded position, send a stop command to hold it in place.
     else if (std::abs(target_mm - filtered_position_mm_) < ACTUATOR_STOP_TOLERANCE_MM) {
@@ -76,8 +90,7 @@ namespace diffdrive_canbus {
   void Actuator::stop()
   {
     if (stop_sent_) return;
-    set_duty_cycle(0.0);
-    stop_sent_ = true;
+    stop_sent_ = set_duty_cycle(0.0); // Retried next write if the send failed.
   }
 
   double Actuator::feedback_to_distance(uint16_t raw_voltage_feedback)

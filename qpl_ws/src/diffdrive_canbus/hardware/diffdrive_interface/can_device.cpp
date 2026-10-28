@@ -127,18 +127,6 @@ bool CANDevice::send_setpoint(
   uint8_t pid_slot)
 {
   const uint32_t id = make_sparkmax_id(api_class, api_index, can_id_);
-
-  std::cout << "DEBUG TX SETPOINT:"
-            << " api_class=" << static_cast<int>(api_class)
-            << " api_index=" << static_cast<int>(api_index)
-            << " device_id_=" << static_cast<int>(can_id_)
-            << " can_id=0x"
-            << std::hex << std::uppercase << id
-            << std::dec
-            << " setpoint=" << setpoint
-            << " pid_slot=" << static_cast<int>(pid_slot)
-            << "\n";
-
   std::vector<uint8_t> data(8, 0x00);
 
   uint8_t target[4];

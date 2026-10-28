@@ -196,7 +196,7 @@ def generate_launch_description():
         OpaqueFunction(function=setup_gazebo),
         spawn_entity,
         OpaqueFunction(function=setup_components),
-        *make_camera_relays("depth_camera_front", "image_raw"),        # Orbbec
-        *make_camera_relays("depth_camera_rear", "image_rect_raw"),    # RealSense
+        *make_camera_relays("depth_camera_front", "image_rect_raw"),   # RealSense
+        *make_camera_relays("depth_camera_rear", "image_raw"),         # Orbbec
         *gazebo_stream_encoders(),
     ])

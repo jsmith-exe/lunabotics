@@ -28,14 +28,14 @@ alias qpl_stop='ros2 topic pub --once /autonomy/command std_msgs/msg/String "{da
 # Drive to the zone's waypoint with Nav2 first, then excavate/deposit standing still
 alias qpl_nav_excavate='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_EXCAVATE'\"'\"'}"'
 alias qpl_nav_deposit='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'NAV_DEPOSIT'\"'\"'}"'
-# Full autonomy (low risk): loops nav to excavation zone, dig, nav to berm, dump, until qpl_auto_stop
-alias qpl_auto='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
+# Full autonomy (low risk): loops nav to excavation zone, dig, nav to berm, dump, until qpl_full_auto_stop
+alias qpl_full_auto='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO'\"'\"'}"'
 # Full autonomy (high risk): the same, but digs one fixed trench every cycle, reversing along it
-alias qpl_auto_trench='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_TRENCH'\"'\"'}"'
+alias qpl_full_auto_trench='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_TRENCH'\"'\"'}"'
 # The same two avoiding boulders only (driving through craters), for when craters close every way to the berm
-alias qpl_auto_boulders='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_BOULDERS'\"'\"'}"'
-alias qpl_auto_trench_boulders='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_TRENCH_BOULDERS'\"'\"'}"'
-alias qpl_auto_stop='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
+alias qpl_full_auto_boulders='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_BOULDERS'\"'\"'}"'
+alias qpl_full_auto_trench_boulders='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'AUTO_TRENCH_BOULDERS'\"'\"'}"'
+alias qpl_full_auto_stop='ros2 topic pub --once /nav_autonomy/command std_msgs/msg/String "{data: '\"'\"'STOP'\"'\"'}"'
 
 # Legacy - to be removed
 #alias qpl_autonomy='ros2 launch qpl_autonomy autonomy.launch.py'

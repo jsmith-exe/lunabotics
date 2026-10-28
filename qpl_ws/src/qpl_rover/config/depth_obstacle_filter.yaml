@@ -107,12 +107,12 @@
 
 /depth_obstacle_filter_front:
   ros__parameters:
-    depth_topic: /depth_camera_front/depth/image_raw        # Orbbec; sim relays to the same name
+    depth_topic: /depth_camera_front/depth/image_rect_raw   # RealSense; sim relays to the same name
     info_topic: /depth_camera_front/depth/camera_info
     output_namespace: /depth_camera_front
 
 /depth_obstacle_filter_rear:
   ros__parameters:
-    depth_topic: /depth_camera_rear/depth/image_rect_raw    # RealSense; sim relays to the same name
+    depth_topic: /depth_camera_rear/depth/image_raw         # Orbbec; sim relays to the same name
     info_topic: /depth_camera_rear/depth/camera_info
     output_namespace: /depth_camera_rear
