@@ -28,8 +28,8 @@ autonomy:
     deposition.drive_to_zone_speed: -0.3
     deposition.drive_to_zone_distance_m: 1.5
     deposition.drive_to_zone_duration_s: 15.0 # timed_autonomy_node only, replaces drive_to_zone_distance_m
-    deposition.deposit_drive_speed: -0.1
-    deposition.deposit_drive_distance_m: 0.5
+    deposition.deposit_drive_speed: -0.05
+    deposition.deposit_drive_distance_m: 1.0
     deposition.deposit_drive_duration_s: 15.0 # timed_autonomy_node only, replaces deposit_drive_distance_m
 
     # actuators
@@ -38,5 +38,5 @@ autonomy:
     deposition.position_tolerance_m: 0.005 # Allowed actuator position error before continuing
 
     # drum bucket
-    deposition.drum_spin_speed: 0.4
+    deposition.drum_spin_speed: 0.8
     deposition.drum_spin_direction: -1.0
