@@ -12,7 +12,8 @@ startup() {
   source "$QPL_PROJECT/qpl_ws/install/setup.bash" > /dev/null 2>&1 # Hide output
 
   # Other aliases
-  alias tune_autonomy="nano ~/lunabotics/qpl_ws/src/qpl_autonomy/config/fsm_tuning.yaml"
+  alias qpl_tune_autonomy="nano ~/lunabotics/qpl_ws/src/qpl_autonomy/config/fsm_tuning.yaml"
+  alias qpl_clear_breadcrumb="rm ~/.ros/qpl_breadcrumb_path.yaml"
 
   # Source functions
   source "$QPL_PROJECT/process/functions/build.sh"

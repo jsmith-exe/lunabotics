@@ -32,6 +32,7 @@ def generate_launch_description():
     params_file = LaunchConfiguration('params_file')
     default_bt_xml_filename = LaunchConfiguration('default_bt_xml_filename')
     nav_autonomy = LaunchConfiguration('nav_autonomy')
+    obstacle_detection = LaunchConfiguration('obstacle_detection')
 
     lifecycle_nodes = [
         'controller_server',
@@ -86,6 +87,14 @@ def generate_launch_description():
             'nav_autonomy',
             default_value='true',
             description='Also start the Nav2 autonomy node (idle until a basestation button or qpl_auto)'
+        ),
+
+        DeclareLaunchArgument(
+            'obstacle_detection',
+            default_value='true',
+            # The costmaps then stay empty: walls included, so NAV_* goals can plan into them.
+            # Breadcrumb following never uses obstacles, so it is unaffected.
+            description='Run the depth obstacle filters. false saves CPU but Nav2 sees no obstacles or walls'
         ),
 
         Node(
@@ -179,6 +188,7 @@ def generate_launch_description():
                     {'use_sim_time': use_sim_time},
                 ],
                 remappings=common_remappings,
+                condition=IfCondition(obstacle_detection),
             )
             for direction in ('front', 'rear')
         ],
