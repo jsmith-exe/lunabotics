@@ -59,11 +59,14 @@
       <always_on>true</always_on>
       <visualize>true</visualize>
       <update_rate>10</update_rate>
+      <!-- camera_info goes to the sibling .../camera_info topic -->
+      <topic>depth_camera_front/image_raw</topic>
+      <gz_frame_id>camera_link_optical_front</gz_frame_id>
 
       <camera>
         <horizontal_fov>1.51844</horizontal_fov>
         <image>
-          <format>B8G8R8</format>
+          <format>R8G8B8</format>
           <width>1280</width>
           <height>720</height>
         </image>
@@ -72,24 +75,25 @@
           <far>8.0</far>
         </clip>
       </camera>
-
-      <plugin name="camera_front_color_controller" filename="libgazebo_ros_camera.so">
-        <frame_name>camera_link_optical_front</frame_name>
-        <camera_name>depth_camera_front</camera_name>
-      </plugin>
     </sensor>
 
     <!-- Depth camera: 480p point cloud for the Nav2 voxel layer (mirrors the front
          RealSense depth at 848x480). -->
-    <sensor name="depth_camera_front" type="depth">
+    <!-- rgbd_camera, not depth_camera: Harmonic's depth_camera only outputs depth, and the
+         visual odometry needs a colour image registered with it (same resolution,
+         intrinsics and frame), which gazebo_ros's depth camera used to publish. -->
+    <sensor name="depth_camera_front" type="rgbd_camera">
       <always_on>true</always_on>
       <visualize>true</visualize>
       <update_rate>10</update_rate>
+      <!-- publishes depth_camera_front_depth/image (colour), /depth_image, /camera_info, /points -->
+      <topic>depth_camera_front_depth</topic>
+      <gz_frame_id>camera_link_optical_front</gz_frame_id>
 
       <camera>
         <horizontal_fov>1.51844</horizontal_fov>
         <image>
-          <format>B8G8R8</format>
+          <format>R8G8B8</format>
           <width>848</width>
           <height>480</height>
         </image>
@@ -98,11 +102,6 @@
           <far>8.0</far>
         </clip>
       </camera>
-
-      <plugin name="depth_camera_front_controller" filename="libgazebo_ros_camera.so">
-        <frame_name>camera_link_optical_front</frame_name>
-        <camera_name>depth_camera_front_depth</camera_name>
-      </plugin>
     </sensor>
   </gazebo>
 

@@ -2,6 +2,7 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from os import path, environ
+import re
 import sys
 
 from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction, DeclareLaunchArgument, OpaqueFunction
@@ -19,12 +20,11 @@ sys.path.append(path.join(rover_pkg, "worlds"))
 import arena_obstacles  # noqa: E402
 
 OBSTACLE_WORLD = "us_arena_terrain.world"  # the only world arena_obstacles knows how to fill
-gazebo_directory: str = get_package_share_directory("gazebo_ros")
+ros_gz_sim_directory: str = get_package_share_directory("ros_gz_sim")
 
 def setup_gazebo(context):
     """ Separate function to evaluate headless option. """
     headless = LaunchConfiguration('headless').perform(context)
-    mode = "gzserver" if headless == "true" else "gazebo"
     world = LaunchConfiguration('world').perform(context)
     world_path = path.join(rover_pkg, "worlds", world)
     if world == OBSTACLE_WORLD and LaunchConfiguration('obstacles').perform(context) == "true":
@@ -32,17 +32,34 @@ def setup_gazebo(context):
         world_path, seed = arena_obstacles.build_world(seed)
         print(f"[sim] random craters/boulders, seed {seed} (obstacle_seed:={seed} repeats this layout), "
               f"layout in {path.join(path.dirname(world_path), 'obstacles.yaml')}")
-    gazebo_params_file = path.join(rover_pkg, "config", "gazebo_params.yaml")
+    # -r starts unpaused; -s is the server only, rendering the cameras off-screen
+    verbosity = LaunchConfiguration('gz_verbosity').perform(context)
+    gz_args = f"-r -v {verbosity} " + ("-s --headless-rendering " if headless == "true" else "") + world_path
 
     gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(path.join(gazebo_directory, "launch", f"{mode}.launch.py")),
+        PythonLaunchDescriptionSource(path.join(ros_gz_sim_directory, "launch", "gz_sim.launch.py")),
         launch_arguments={
-            "world": world_path,
-            "extra_gazebo_args": f"--ros-args --params-file {gazebo_params_file}"
+            "gz_args": gz_args,
+            "on_exit_shutdown": "true",
         }.items()
     )
 
-    return [gazebo]
+    # Gazebo's root /clock didn't publish when tested (headless server), so bridge this
+    # world's own clock instead. Without it every use_sim_time node (EKF, Nav2, ...) sits
+    # at time zero.
+    with open(world_path) as fh:
+        world_name = re.search(r'<world\s+name\s*=\s*"([^"]+)"', fh.read()).group(1)
+    world_clock = f"/world/{world_name}/clock"
+    clock_bridge = Node(
+        package="ros_gz_bridge",
+        executable="parameter_bridge",
+        name="gz_clock_bridge",
+        arguments=[f"{world_clock}@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
+        remappings=[(world_clock, "/clock")],
+        output="screen",
+    )
+
+    return [gazebo, clock_bridge]
 
 def setup_components(context):
     """ Separate function to evaluate whether to components. """
@@ -100,13 +117,36 @@ def make_camera_relays(camera_name, depth_image_name):
             f"/{camera_name}_depth/camera_info",  # same intrinsics as the depth image
             f"/{camera_name}/depth/camera_info"
         ),
-        # 10-13 MB a frame and nothing on the rover side needs it, so only relayed
-        # while something (e.g. RViz) subscribes.
-        make_relay(
-            f"relay_{camera_name}_depth_points",
-            f"/{camera_name}_depth/points",
-            f"/{camera_name}/depth/points",
-            lazy=True,
+        # No depth point cloud: Gazebo Harmonic publishes it in the camera body frame
+        # (x forward) but stamps it with the optical frame, and nothing on the rover
+        # side reads it. depth_obstacle_filter works from the depth image.
+    ]
+
+def make_gz_bridges():
+    """Gazebo Harmonic -> ROS topics, named as gazebo_ros used to publish them."""
+    return [
+        Node(
+            package="ros_gz_bridge",
+            executable="parameter_bridge",
+            name="gz_bridge",
+            parameters=[{
+                "config_file": path.join(rover_pkg, "config", "gz_bridge.yaml"),
+                "use_sim_time": True,
+            }],
+            output="screen",
+        ),
+        # image_transport, so <camera>/image_raw/compressed exists like it did with gazebo_ros
+        Node(
+            package="ros_gz_image",
+            executable="image_bridge",
+            name="gz_image_bridge",
+            arguments=["depth_camera_front/image_raw", "depth_camera_rear/image_raw"],
+            remappings=[
+                ("depth_camera_front/image_raw", "/depth_camera_front/image_raw"),
+                ("depth_camera_rear/image_raw", "/depth_camera_rear/image_raw"),
+            ],
+            parameters=[{"use_sim_time": True}],
+            output="screen",
         ),
     ]
 
@@ -126,7 +166,8 @@ def generate_launch_description():
     world_parameter = DeclareLaunchArgument(
         'world',
         default_value='us_arena_terrain.world',
-        description='World file in qpl_rover/worlds. us_arena.world is the old flat floor.'
+        description='World file in qpl_rover/worlds. Only us_arena_terrain.world is set up for '
+                    'Gazebo Harmonic and the sand plugin; the other worlds are the old Gazebo Classic ones.'
     )
 
     obstacles_parameter = DeclareLaunchArgument(
@@ -142,20 +183,26 @@ def generate_launch_description():
         description='Seed for the obstacle layout; -1 picks a new one each launch (it is printed).'
     )
 
+    gz_verbosity_parameter = DeclareLaunchArgument(
+        'gz_verbosity',
+        default_value='2',
+        description='Gazebo log level, 0-4. 3 also shows plugin info, e.g. the terramechanics plugin loading.'
+    )
+
     use_vslam_parameter = DeclareLaunchArgument(
         'use_vslam',
         default_value='true',
         description='Run RGB-D visual odometry and fuse it into the local EKF as odom1. Set false to disable.'
     )
 
-    # tell gazebo where to find the apriltag model so the texture loads on any machine
+    # tell gazebo where to find the apriltag and terrain models so they load on any machine
     models_path = path.join(rover_pkg, "worlds")
     # and where to find the URDF's package://qpl_rover/... meshes, which Gazebo looks up as
     # model://qpl_rover/... (the wheel mesh)
     packages_path = path.dirname(rover_pkg)
     gazebo_model_path = SetEnvironmentVariable(
-        'GAZEBO_MODEL_PATH',
-        models_path + ':' + packages_path + ':' + environ.get('GAZEBO_MODEL_PATH', '')
+        'GZ_SIM_RESOURCE_PATH',
+        models_path + ':' + packages_path + ':' + environ.get('GZ_SIM_RESOURCE_PATH', '')
     )
 
     rsp = IncludeLaunchDescription(
@@ -170,11 +217,11 @@ def generate_launch_description():
         period=5.0,
         actions=[
             Node(
-                package="gazebo_ros",
-                executable="spawn_entity.py",
+                package="ros_gz_sim",
+                executable="create",
                 arguments=[
                     "-topic", "robot_description",
-                    "-entity", "rover",
+                    "-name", "rover",
                     "-x", "3.45", # set to 0 (default) if not using april_arena.world
                     "-y", "1.13", # set to 0 (default) if not using april_arena.world
                     "-z", "0.35"], # drop in from above so it never spawns inside the terrain
@@ -185,6 +232,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         headless_parameter,
+        gz_verbosity_parameter,
         run_components_parameter,
         use_vslam_parameter,
         world_parameter,
@@ -197,5 +245,6 @@ def generate_launch_description():
         OpaqueFunction(function=setup_components),
         *make_camera_relays("depth_camera_front", "image_rect_raw"),   # RealSense
         *make_camera_relays("depth_camera_rear", "image_raw"),         # Orbbec
+        *make_gz_bridges(),
         *gazebo_stream_encoders(),
     ])

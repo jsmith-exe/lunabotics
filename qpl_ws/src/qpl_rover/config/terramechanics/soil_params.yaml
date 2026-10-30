@@ -1,0 +1,80 @@
+# Soil parameters for terramechanics
+# Sources: Pavlov (2024), Ding et al. (2015), Zhou et al. (2023)
+
+Soil_Direct_90_sand:  # from Pavlov (2024)
+  k: 8000e3
+  k_c: 0.0
+  k_phi: 0.0
+  c: 1.0e3
+  phi: 29.0          # degrees
+  K: 0.021
+  rho: 13.03e3
+  n: 0.0             # set by tuned params
+  n0: 1.46
+  n1: 0.01
+  n2: 0.55
+
+Clay:  # from Ding et al. (2015)
+  k: 0.0             # computed from k_c, k_phi
+  k_c: 13.19e3
+  k_phi: 692.15e3
+  c: 4.14e3
+  phi: 13.0
+  K: 6.0e-3
+  rho: 0.0
+  n: 0.5
+  n0: NaN
+  n1: NaN
+  n2: NaN
+
+Dry_sand:  # from Ding et al. (2015)
+  k: 0.0
+  k_c: 0.99e3
+  k_phi: 1528.43e3
+  c: 1.04e3
+  phi: 28.0
+  K: 10.0e-3
+  rho: 0.0
+  n: 1.10
+  n0: NaN
+  n1: NaN
+  n2: NaN
+
+Lunar_soil:  # from Ding et al. (2015)
+  k: 0.0
+  k_c: 1.4e3
+  k_phi: 820.0e3
+  c: 0.17e3
+  phi: 35.0
+  K: 18.0e-3
+  rho: 0.0
+  n: 1.0
+  n0: NaN
+  n1: NaN
+  n2: NaN
+
+HIT-LSS1:  # from Ding et al. (2015)
+  k: 0.0
+  k_c: 15.6e3
+  k_phi: 2407.4e3
+  c: 0.25e3
+  phi: 31.9
+  K: 10.0e-3
+  rho: 0.0
+  n: 1.10
+  n0: NaN
+  n1: NaN
+  n2: NaN
+
+Sand_marsSim:  # from Zhou et al. (2023) - DEFAULT
+  k: 0.0
+  k_c: 13.6e3
+  k_phi: 2259.1e3
+  c: 0.4623e3
+  phi: 35.0
+  K: 0.015
+  rho: 0.0
+  n: 0.0
+  n0: 0.92
+  n1: 0.5
+  n2: 0.5

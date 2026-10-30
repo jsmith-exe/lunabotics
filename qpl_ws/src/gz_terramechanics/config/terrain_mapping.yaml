@@ -1,0 +1,13 @@
+default_soil: Sand_marsSim
+
+terrain_mapping:
+  - pattern: "terrain_blue"
+    soil: "Soil_Direct_90_sand"
+  - pattern: "terrain_red"
+    soil: "Sand_marsSim"
+  - pattern: "terrain_green"
+    soil: "Clay"
+  - pattern: "terrain_yellow"
+    soil: "Dry_sand"
+  - pattern: "terrain_base"
+    soil: "Clay"
