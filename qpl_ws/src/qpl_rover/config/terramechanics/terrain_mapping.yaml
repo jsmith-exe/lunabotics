@@ -1,0 +1,7 @@
+# Which soil each terrain model is made of. pattern is the terrain model's name in the
+# world; wheel contact with anything else (boulders, walls) keeps Gazebo's own friction.
+default_soil: Lunar_soil
+
+terrain_mapping:
+  - pattern: "arena_terrain"
+    soil: "Lunar_soil"

@@ -29,6 +29,7 @@ setup(
     (os.path.join('share', package_name, 'behavior_trees'), glob('behavior_trees/*.xml')),
     (os.path.join('share', package_name, 'config', 'arena'), glob('config/arena/*.*')),
     (os.path.join('share', package_name, 'config', 'localisation'), glob('config/localisation/*.*')),
+    (os.path.join('share', package_name, 'config', 'terramechanics'), glob('config/terramechanics/*.*')),
     (os.path.join("share", package_name, "rviz"), glob("rviz/*")), 
     ],
     install_requires=['setuptools'],

@@ -1,0 +1,22 @@
+# Wheel Geometric Parameters
+type: "grousers"  # Options: smooth, grousers, etc.
+r: 0.085         # Hub radius [m]
+h_g: 0.01        # Grouser/Lug height [m]
+b: 0.09          # Wheel width [m]
+mu: 0.3          # Grouser area ratio [0.0 to 1.0]
+
+# Wheel link names (must match your URDF/SDF model)
+# Order: back-right, front-right, back-left, front-left
+wheel_links:
+  - "Archimede_br_wheel_link"
+  - "Archimede_fr_wheel_link"
+  - "Archimede_bl_wheel_link"
+  - "Archimede_fl_wheel_link"
+
+# Drive joint names (must match your URDF/SDF model)
+# Order: back-right, front-right, back-left, front-left
+drive_joints:
+  - "Archimede_br_drive_joint"
+  - "Archimede_fr_drive_joint"
+  - "Archimede_bl_drive_joint"
+  - "Archimede_fl_drive_joint"

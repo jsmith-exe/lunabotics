@@ -1,13 +1,35 @@
 <?xml version="1.0"?>
-<sdf version="1.6">
+<sdf version="1.9">
   <world name="lunabotics_us_arena_terrain">
 
-    <!-- PHYSICS -->
-    <physics type="ode">
-      <gravity>0 0 -9.81</gravity>
+    <!-- PHYSICS (Gazebo Harmonic). 1 ms steps: the terramechanics plugin updates the
+         wheel-soil forces every step and needs fresh contact data to stay stable. -->
+    <gravity>0 0 -9.81</gravity>
+    <physics name="1ms" type="dart">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
     </physics>
 
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <!-- wheel contact sensors, read by the terramechanics plugin -->
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+
+    <scene>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>false</shadows>
+    </scene>
+
     <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
       <pose>0 0 10 0 0 0</pose>
       <!-- lower sun than us_arena.world so the undulations shade visibly -->
       <direction>-0.6 0.3 -0.6</direction>
@@ -19,6 +41,8 @@
          Flat (z = 0) along the walls, in the starting zone and in the
          construction zone; gentle hills (max 6 deg) everywhere else.
          The mesh is in arena coordinates, so it goes in at the origin.
+         The sand itself is the terramechanics plugin on the rover
+         (config/terramechanics): it matches this model by name, arena_terrain.
          sim.launch.py normally swaps this include for a freshly generated
          floor with random craters, plus random boulders (arena_obstacles.py);
          launch with obstacles:=false to get this plain floor. -->
@@ -129,12 +153,19 @@
         </collision>
         <visual name="visual">
           <geometry><box><size>0.01 0.4 0.4</size></box></geometry>
+          <!-- Harmonic (ogre2) can't read OGRE material scripts, so the tag bitmap
+               goes in as a PBR albedo map -->
           <material>
-            <script>
-              <uri>model://apriltag_model/materials/scripts/apriltag.material</uri>
-              <uri>model://apriltag_model/materials/textures/</uri>
-              <name>AprilTag/tag0</name>
-            </script>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>model://apriltag_model/materials/textures/tag36_11_00000.png</albedo_map>
+                <metalness>0.0</metalness>
+                <roughness>1.0</roughness>
+              </metal>
+            </pbr>
           </material>
         </visual>
       </link>

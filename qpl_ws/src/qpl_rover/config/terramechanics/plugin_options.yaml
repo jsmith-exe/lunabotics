@@ -1,0 +1,8 @@
+options:
+  use_compact_model: false
+  passive_plugin: false          # true: only publish forces, leave Gazebo's friction in charge
+  bulldozing_resistance: "neglect"
+  debug: false
+  publish_results: true          # /terra/<wheel>/forces and /state on Gazebo transport
+  publish_intermediate_values: true
+  rim_pts: 100

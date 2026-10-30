@@ -484,6 +484,8 @@
       <material>Gazebo/Red</material>
     </gazebo>
 
+    <!-- Friction against anything that isn't sand (boulders, walls). On the sand the
+         terramechanics plugin zeroes it and applies its own traction instead. -->
     <gazebo reference="${name}">
       <fdir1>1 0 0</fdir1>
       <mu1>1.4</mu1>
@@ -491,6 +493,31 @@
       <slip1>0.0</slip1>
       <slip2>0.0</slip2>
     </gazebo>
+
+    <!-- The terramechanics plugin reads each wheel's load from this sensor. The URDF to
+         SDF conversion names a link's collisions <link>_collision, <link>_collision_1, ...;
+         sim_mode has the centre cylinder plus 10 tyre edge slices. -->
+    <xacro:if value="$(arg sim_mode)">
+      <gazebo reference="${name}">
+        <sensor name="${name}_contact" type="contact">
+          <always_on>true</always_on>
+          <update_rate>1000</update_rate>
+          <contact>
+            <collision>${name}_collision</collision>
+            <collision>${name}_collision_1</collision>
+            <collision>${name}_collision_2</collision>
+            <collision>${name}_collision_3</collision>
+            <collision>${name}_collision_4</collision>
+            <collision>${name}_collision_5</collision>
+            <collision>${name}_collision_6</collision>
+            <collision>${name}_collision_7</collision>
+            <collision>${name}_collision_8</collision>
+            <collision>${name}_collision_9</collision>
+            <collision>${name}_collision_10</collision>
+          </contact>
+        </sensor>
+      </gazebo>
+    </xacro:if>
   </xacro:macro>
 
   <!-- ========================================================= -->
@@ -576,15 +603,24 @@
   <xacro:wheel_mount name="rear_right_wheel"
       xyz="${-top_long_len / 2 - bar_t / 2} ${-wheel_support_len / 2} ${-lower_support_len - bar_t}"/>
 
-  <!-- The sand joints aren't ros2_control joints, so publish their state for TF. -->
+  <!-- The sand joints aren't ros2_control joints, so publish their state for TF
+       (sim.launch.py bridges sand_joint_states onto /joint_states). -->
   <xacro:if value="$(arg sim_mode)">
     <gazebo>
-      <plugin name="sand_joint_states" filename="libgazebo_ros_joint_state_publisher.so">
-        <update_rate>50</update_rate>
+      <plugin name="gz::sim::systems::JointStatePublisher" filename="gz-sim-joint-state-publisher-system">
+        <topic>sand_joint_states</topic>
         <joint_name>front_left_wheel_sand_joint</joint_name>
         <joint_name>front_right_wheel_sand_joint</joint_name>
         <joint_name>rear_left_wheel_sand_joint</joint_name>
         <joint_name>rear_right_wheel_sand_joint</joint_name>
+      </plugin>
+    </gazebo>
+
+    <!-- Wheel-soil forces (sinkage, slip-dependent traction, lateral shear) from Bekker-Wong
+         terramechanics. Wheel geometry and the soil are in config/terramechanics. -->
+    <gazebo>
+      <plugin name="gz_terramechanics::TerramechanicsSystem" filename="TerramechanicsSystem">
+        <config_path>$(find qpl_rover)/config/terramechanics</config_path>
       </plugin>
     </gazebo>
   </xacro:if>

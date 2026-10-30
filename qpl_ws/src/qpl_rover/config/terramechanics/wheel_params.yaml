@@ -1,0 +1,22 @@
+# Wheel geometry for the gz_terramechanics sand plugin (sim only).
+# Keep r and b in step with wheel_r / wheel_w in description/rover_core.xacro.
+type: "smooth"   # our wheels have no grousers
+r: 0.15          # wheel radius [m]
+h_g: 0.0         # grouser height [m]
+b: 0.15          # wheel width [m]
+mu: 0.0          # grouser area ratio, unused for smooth wheels
+
+# Order: back-right, front-right, back-left, front-left
+wheel_links:
+  - "rear_right_wheel"
+  - "front_right_wheel"
+  - "rear_left_wheel"
+  - "front_left_wheel"
+drive_joints:
+  - "rear_right_wheel_joint"
+  - "front_right_wheel_joint"
+  - "rear_left_wheel_joint"
+  - "front_left_wheel_joint"
+
+# All four drive axes are +y (axis 0 1 0), so positive spin is forward on both sides.
+reversed_axis: [false, false, false, false]

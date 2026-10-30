@@ -2,7 +2,8 @@
 
 startup() {
   # Environment vars and helpful stuff
-  export GAZEBO_MODEL_PATH=$QPL_PROJECT/qpl_ws/src/qpl_rover/worlds:$GAZEBO_MODEL_PATH
+  # Gazebo Harmonic: gz_ros2_control builds against it only when this is set
+  export GZ_VERSION=harmonic
   alias reload='source "$QPL_PROJECT/process/startup.sh"'
   alias rover='ros2 launch qpl_rover'
   alias basestation='ros2 launch basestation'

@@ -1,0 +1,8 @@
+options:
+  use_compact_model: false
+  passive_plugin: false
+  bulldozing_resistance: "neglect"    
+  debug: false
+  publish_results: true
+  publish_intermediate_values: false
+  rim_pts: 100

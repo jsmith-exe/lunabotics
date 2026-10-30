@@ -97,3 +97,5 @@ apriltags/
 Log/
 *:Zone.Identifier
 bags/*
+# Source dependencies from qpl_ws/sim.repos
+qpl_ws/src/external/

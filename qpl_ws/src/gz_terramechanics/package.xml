@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>gz_terramechanics</name>
+  <version>1.0.0</version>
+  <description>Terramechanics plugin for Gazebo</description>
+  <author email="simone.cottiga@phd.units.it">Simone Cottiga</author>
+  <author email="khalid.bourr@gmail.com">Khalid BOURR</author>
+  <maintainer email="simone.cottiga@phd.units.it">Simone Cottiga</maintainer>
+  <maintainer email="khalid.bourr@gmail.com">Khalid BOURR</maintainer>
+  <!-- upstream package.xml said Apache-2.0, but the repo's LICENSE file is GPL-3.0 -->
+  <license>GPL-3.0-only</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>gz-sim8</depend>
+  <depend>gz-plugin2</depend>
+  <depend>yaml-cpp</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

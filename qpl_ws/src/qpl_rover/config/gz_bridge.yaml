@@ -1,0 +1,76 @@
+# ros_gz_bridge topics for sim.launch.py (Gazebo Harmonic -> ROS 2).
+# ROS names match what gazebo_ros used to publish under Gazebo Classic, so the relays in
+# sim.launch.py, the stream encoders and everything in components.launch.py are unchanged.
+# The colour images go through ros_gz_image instead (image_transport, so /compressed too).
+
+# /clock is bridged in sim.launch.py, from the world's own clock topic.
+
+- ros_topic_name: "/imu/data"
+  gz_topic_name: "imu/data"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# Sand spring joints (not ros2_control joints), for robot_state_publisher's TF
+- ros_topic_name: "/joint_states"
+  gz_topic_name: "sand_joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+# Colour camera intrinsics
+- ros_topic_name: "/depth_camera_front/camera_info"
+  gz_topic_name: "depth_camera_front/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/depth_camera_rear/camera_info"
+  gz_topic_name: "depth_camera_rear/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# RGB-D sensors: colour registered to the depth (visual odometry uses the pair), the
+# depth image (32FC1, metres) and their shared intrinsics
+- ros_topic_name: "/depth_camera_front_depth/image_raw"
+  gz_topic_name: "depth_camera_front_depth/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/depth_camera_front_depth/depth/image_raw"
+  gz_topic_name: "depth_camera_front_depth/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/depth_camera_front_depth/camera_info"
+  gz_topic_name: "depth_camera_front_depth/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/depth_camera_rear_depth/image_raw"
+  gz_topic_name: "depth_camera_rear_depth/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/depth_camera_rear_depth/depth/image_raw"
+  gz_topic_name: "depth_camera_rear_depth/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/depth_camera_rear_depth/camera_info"
+  gz_topic_name: "depth_camera_rear_depth/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# The terramechanics plugin's per-wheel output (/terra/<wheel>/forces and /state) is
+# gz.msgs.Float_V, which this ros_gz_bridge can't convert, so it stays on Gazebo transport:
+#   gz topic -e -t /terra/front_left_wheel/state
+# forces: Fx Fy Fz Mx My Mz in the contact frame, then the same six in the world frame.
+# state:  omega [rad/s], v_x, v_y [m/s], slip ratio, slip angle [deg], load [N], sinkage [m]

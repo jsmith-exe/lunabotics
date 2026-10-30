@@ -1,0 +1,8 @@
+# Source dependencies for the Gazebo Harmonic sim, cloned by qpl_gazebo_packages:
+#   vcs import qpl_ws/src/external < qpl_ws/sim.repos
+# gz_ros2_control's humble branch builds against Harmonic when GZ_VERSION=harmonic.
+repositories:
+  gz_ros2_control:
+    type: git
+    url: https://github.com/ros-controls/gz_ros2_control.git
+    version: 392112557b08830b9c7f9bf65ab2a8325c7a85f0

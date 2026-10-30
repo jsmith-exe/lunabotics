@@ -61,9 +61,19 @@ qpl_packages() {
     ttkbootstrap
 }
 
+# Gazebo Harmonic, from the OSRF repo. Replaces Gazebo Classic (its gz command clashes
+# with Harmonic's, so apt removes gazebo and the gazebo_ros packages).
+# gz_ros2_control has no Humble+Harmonic binary; it is built from source into
+# qpl_ws/src/external (see qpl_ws/sim.repos) and needs GZ_VERSION=harmonic, which
+# startup.sh exports.
 qpl_gazebo_packages() {
+  sudo curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
+    -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+    | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
   sudo apt update
-  sudo apt -y install gazebo \
-    ros-humble-gazebo-ros2-control \
-    ros-humble-gazebo-ros-pkgs
+  sudo apt -y install gz-harmonic \
+    ros-humble-ros-gzharmonic \
+    python3-vcstool
+  vcs import --skip-existing "$QPL_PROJECT/qpl_ws/src/external" < "$QPL_PROJECT/qpl_ws/sim.repos"
 }
